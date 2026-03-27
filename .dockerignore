@@ -1,0 +1,16 @@
+# Build artifacts
+dist/
+node_modules/
+
+# Dev tooling
+.git/
+.github/
+
+# Local config
+.env
+.env.*
+*.local
+
+# Editor / OS
+.DS_Store
+*.sw[op]
