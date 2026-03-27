@@ -244,7 +244,7 @@ export default function FlowchartViewer({
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white shrink-0">
         <div className="text-sm text-gray-500">
-          {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} &middot;{' '}
+          {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
           {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
         </div>
         <button

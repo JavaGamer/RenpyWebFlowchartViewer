@@ -110,7 +110,7 @@ export default function App() {
           <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex items-center gap-3 text-sm text-violet-700">
             <span>
               Parsed <strong>{fileCount}</strong> .rpy file
-              {fileCount !== 1 ? 's' : ''} &rarr;{' '}
+              {fileCount !== 1 ? 's' : ''} →{' '}
               <strong>{flowNodes.length}</strong> nodes,{' '}
               <strong>{flowEdges.length}</strong> edges
             </span>
@@ -142,7 +142,7 @@ export default function App() {
                 <>
                   <Loader2 size={40} className="text-violet-500 animate-spin" />
                   <p className="text-gray-600 font-medium">
-                    Parsing {fileCount} .rpy file{fileCount !== 1 ? 's' : ''}&#8230;
+                    Parsing {fileCount} .rpy file{fileCount !== 1 ? 's' : ''}…
                   </p>
                 </>
               ) : (
@@ -150,14 +150,14 @@ export default function App() {
                   <Upload size={40} className="text-violet-400" />
                   <div className="text-center">
                     <p className="text-base font-semibold text-gray-700">
-                      Drop your Ren&#x2019;Py project folder here
+                      Drop your Ren'Py project folder here
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
                       or click to browse and select the folder
                     </p>
                   </div>
                   <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-                    All processing is local &#8212; your files never leave your device
+                    All processing is local — your files never leave your device
                   </span>
                 </>
               )}
@@ -189,7 +189,7 @@ export default function App() {
                 <AlertCircle size={18} className="shrink-0 mt-0.5" />
                 <p className="text-sm">
                   No labels or menus were found. Make sure the folder contains
-                  valid Ren&#x2019;Py <code className="text-xs bg-amber-100 px-1 rounded">.rpy</code> scripts.
+                  valid Ren'Py <code className="text-xs bg-amber-100 px-1 rounded">.rpy</code> scripts.
                 </p>
               </div>
             )}

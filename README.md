@@ -1,73 +1,58 @@
-# React + TypeScript + Vite
+# Ren'Py Web Flowchart Viewer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A client-side web application that parses Ren'Py script files (`.rpy`) and generates an interactive flowchart of the game's major structural events.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
+- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, and counts dialogue lines per block.
+- **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
+- **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
+- **Export to PNG** — capture the current chart as a high-resolution image with one click.
 
-## React Compiler
+## Usage
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Open the app in your browser (see [Running Locally](#running-locally) below).
+2. Click the upload zone or drag a folder onto it.
+3. Select the folder that contains your Ren'Py `.rpy` scripts (e.g. the `game/` directory of a project).
+4. The flowchart is generated automatically.
+5. Use the **Export PNG** button to save the chart as an image.
 
-## Expanding the ESLint configuration
+## Running Locally
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then open <http://localhost:5173> in your browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Building for Production
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build        # outputs to dist/
+npm run preview      # serve the built app locally
 ```
+
+## Docker
+
+A multi-stage Dockerfile is provided that builds the app with Node.js and serves it with Nginx:
+
+```bash
+docker build -t renpy-flowchart-viewer .
+docker run -p 8080:80 renpy-flowchart-viewer
+```
+
+Then open <http://localhost:8080>.
+
+## Technology Stack
+
+| Concern | Library |
+|---|---|
+| Framework | React 19 + Vite 8 (TypeScript) |
+| Styling | Tailwind CSS 4 |
+| Parser | @renpy/ast (official Ren'Py VSCode extension tokenizer) |
+| Graph UI | @xyflow/react (React Flow) |
+| Layout | @dagrejs/dagre |
+| Export | html-to-image |
+| Deployment | Docker (Node 24 build → nginx:1.27 runtime) |
