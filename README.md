@@ -34,6 +34,13 @@ npm run build        # outputs to dist/
 npm run preview      # serve the built app locally
 ```
 
+## Testing
+
+```bash
+npm run test          # run parser unit tests
+npm run test:coverage # run tests with coverage report
+```
+
 ## Docker
 
 A multi-stage Dockerfile is provided that builds the app with Node.js and serves it with Nginx:
