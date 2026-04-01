@@ -1,0 +1,166 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linear graph 1`] = `
+"{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "labelNode",
+      "label": "start",
+      "nodeType": "LABEL",
+      "dialogueCount": 1,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 20
+      }
+    },
+    {
+      "id": "second",
+      "type": "labelNode",
+      "label": "second",
+      "nodeType": "LABEL",
+      "dialogueCount": 1,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 190
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "seq_start__second",
+      "source": "start",
+      "target": "second",
+      "label": "next"
+    }
+  ]
+}"
+`;
+
+exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branching menu graph 1`] = `
+"{
+  "nodes": [
+    {
+      "id": "choice",
+      "type": "labelNode",
+      "label": "choice",
+      "nodeType": "LABEL",
+      "dialogueCount": 0,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 20
+      }
+    },
+    {
+      "id": "menu_1",
+      "type": "menuNode",
+      "label": "menu_1",
+      "nodeType": "MENU",
+      "dialogueCount": 0,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 190
+      }
+    },
+    {
+      "id": "end_a",
+      "type": "labelNode",
+      "label": "end_a",
+      "nodeType": "LABEL",
+      "dialogueCount": 1,
+      "hidden": false,
+      "position": {
+        "x": 93,
+        "y": 350
+      }
+    },
+    {
+      "id": "end_b",
+      "type": "labelNode",
+      "label": "end_b",
+      "nodeType": "LABEL",
+      "dialogueCount": 1,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 520
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "seq_choice__menu_1",
+      "source": "choice",
+      "target": "menu_1",
+      "label": ""
+    },
+    {
+      "id": "jump_menu_1__end_a_Option A",
+      "source": "menu_1",
+      "target": "end_a",
+      "label": "Option A"
+    },
+    {
+      "id": "jump_menu_1__end_b_Option B",
+      "source": "menu_1",
+      "target": "end_b",
+      "label": "Option B"
+    },
+    {
+      "id": "seq_end_a__end_b",
+      "source": "end_a",
+      "target": "end_b",
+      "label": "next"
+    }
+  ]
+}"
+`;
+
+exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic jumps fixture graph 1`] = `
+"{
+  "nodes": [
+    {
+      "id": "loop_a",
+      "type": "labelNode",
+      "label": "loop_a",
+      "nodeType": "LABEL",
+      "dialogueCount": 0,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 20
+      }
+    },
+    {
+      "id": "loop_b",
+      "type": "labelNode",
+      "label": "loop_b",
+      "nodeType": "LABEL",
+      "dialogueCount": 0,
+      "hidden": false,
+      "position": {
+        "x": 20,
+        "y": 190
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "jump_loop_a__loop_b_",
+      "source": "loop_a",
+      "target": "loop_b",
+      "label": ""
+    },
+    {
+      "id": "jump_loop_b__loop_a_",
+      "source": "loop_b",
+      "target": "loop_a",
+      "label": ""
+    }
+  ]
+}"
+`;
