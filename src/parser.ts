@@ -32,6 +32,11 @@ const KW_LABEL = 8;
 const KW_JUMP = 63;
 const KW_CALL = 64;
 const KW_RETURN = 62;
+// @renpy/ast uses one token type for all three conditional keywords.
+const KW_IF_ELIF_ELSE = 6109; // if / elif / else
+const COND_IF = 'if';
+const COND_ELIF = 'elif';
+const COND_ELSE = 'else';
 // Note: @renpy/ast tokenizes the `menu` keyword as type 81 (KeywordTokenType.Def)
 // rather than type 9 (KeywordTokenType.Menu) — this is a quirk of the tokenizer.
 const KW_RENPY_MENU = 81;
@@ -53,6 +58,8 @@ const META_CALL_STATEMENT = 6043;
 const META_SAY_NARRATOR = 6067; // "text" (no character)
 const META_SAY_CHARACTER = 6068; // char "text"
 const META_SAY_STATEMENT = 6065; // generic say
+const TT_INDENT = 4007;
+const TT_NEWLINE = 4008;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +69,27 @@ function hasMeta(metas: Iterable<number>, value: number): boolean {
     if (m === value) return true;
   }
   return false;
+}
+
+/** Count how often `value` appears in `metas`. */
+function countMeta(metas: Iterable<number>, value: number): number {
+  let count = 0;
+  for (const m of metas) {
+    if (m === value) count += 1;
+  }
+  return count;
+}
+
+function parentMenuStackLength(menuDepth: number): number {
+  return Math.max(0, menuDepth - 1);
+}
+
+/** Get menu stack entry by 1-indexed Ren'Py menu depth. */
+function menuAtDepth(
+  menuStack: { id: string; optionText: string | null }[],
+  depth: number,
+): { id: string; optionText: string | null } | null {
+  return depth > 0 ? (menuStack[depth - 1] ?? null) : null;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -112,9 +140,8 @@ export async function parseRenpyFiles(
 
     // ── Per-file state ────────────────────────────────────────────────────────
     let currentLabelId: string | null = null;
-    let currentMenuId: string | null = null;
-    /** Last seen menu-option string (used to label the outgoing edge). */
-    let currentOptionText: string | null = null;
+    const menuStack: { id: string; optionText: string | null }[] = [];
+    const conditionalIndentStack: number[] = [];
     /** Whether the current label already has an explicit control-flow exit. */
     let labelHasExplicitExit = false;
 
@@ -122,18 +149,37 @@ export async function parseRenpyFiles(
     let waitForLabelName = false;
     let waitForJumpTarget = false;
     let waitForCallTarget = false;
-    let waitForMenuName = false;
+    let waitForMenuNameForId: string | null = null;
 
     for (const tok of flat) {
       const type = tok.type as number;
       const metas = tok.metaTokens as Iterable<number>;
       const val = (): string => tok.getValue(document);
+      const tokenText = val();
+
+      // This runs for each non-whitespace token because scope ends are inferred
+      // from indentation changes between statements.
+      if (type !== TT_INDENT && type !== TT_NEWLINE) {
+        const indent = tok.startPos.character;
+        while (
+          conditionalIndentStack.length > 0 &&
+          indent <= conditionalIndentStack[conditionalIndentStack.length - 1]
+        ) {
+          conditionalIndentStack.pop();
+        }
+        if (
+          type === KW_IF_ELIF_ELSE &&
+          (tokenText === COND_IF || tokenText === COND_ELIF || tokenText === COND_ELSE)
+        ) {
+          conditionalIndentStack.push(indent);
+        }
+      }
 
       // ── Label keyword → start a new label block ───────────────────────────
       if (type === KW_LABEL && hasMeta(metas, META_LABEL_STATEMENT)) {
         // Before starting a new label, check if the previous one falls through
         // (no explicit jump/call/return) directly into this new label.
-        if (currentLabelId && !labelHasExplicitExit && currentMenuId === null) {
+        if (currentLabelId && !labelHasExplicitExit && menuStack.length === 0) {
           // Will be wired once we know the new label name — store for later.
           // We handle this at the FunctionName step below.
           waitForLabelName = true;
@@ -141,11 +187,11 @@ export async function parseRenpyFiles(
           waitForLabelName = true;
         }
         // Reset per-label state
-        currentMenuId = null;
-        currentOptionText = null;
+        menuStack.length = 0;
+        conditionalIndentStack.length = 0;
         waitForJumpTarget = false;
         waitForCallTarget = false;
-        waitForMenuName = false;
+        waitForMenuNameForId = null;
         continue;
       }
 
@@ -160,8 +206,8 @@ export async function parseRenpyFiles(
         if (
           currentLabelId !== null &&
           !labelHasExplicitExit &&
-          currentMenuId === null
-        ) {
+            menuStack.length === 0
+          ) {
           addEdge({
             id: `seq_${currentLabelId}__${newLabelId}`,
             source: currentLabelId,
@@ -189,47 +235,50 @@ export async function parseRenpyFiles(
       // @renpy/ast tokenizes `menu` as KW_RENPY_MENU (81) with META_MENU_STATEMENT.
       if (
         type === KW_RENPY_MENU &&
-        hasMeta(metas, META_MENU_STATEMENT) &&
-        !hasMeta(metas, META_MENU_BLOCK)
+        hasMeta(metas, META_MENU_STATEMENT)
       ) {
-        if (currentMenuId === null) {
-          menuCounter += 1;
-          currentMenuId = `menu_${menuCounter}`;
-          waitForMenuName = true;
-          addNode({
-            id: currentMenuId,
-            type: 'MENU',
-            label: `menu_${menuCounter}`,
-            dialogueCount: 0,
-            chapter,
-            parentLabelId: currentLabelId,
-          });
-          // Sequence edge: label → its menu
+        const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+        // The menu keyword itself contributes one META_MENU_STATEMENT entry.
+        while (menuStack.length > parentMenuStackLength(menuDepth)) menuStack.pop();
+
+        menuCounter += 1;
+        const newMenuId = `menu_${menuCounter}`;
+        waitForMenuNameForId = newMenuId;
+        addNode({
+          id: newMenuId,
+          type: 'MENU',
+          label: newMenuId,
+          dialogueCount: 0,
+          chapter,
+          parentLabelId: currentLabelId,
+        });
+        const parentMenu = menuStack[menuStack.length - 1];
+        const source = parentMenu ? parentMenu.id : currentLabelId;
+        if (source) {
           addEdge({
-            id: `seq_${currentLabelId}__${currentMenuId}`,
-            source: currentLabelId,
-            target: currentMenuId,
-            label: undefined,
+            id: `seq_${source}__${newMenuId}_${parentMenu?.optionText ?? ''}`,
+            source,
+            target: newMenuId,
+            label: parentMenu?.optionText ?? undefined,
           });
-          // The label's execution falls into the menu — suppress label→label sequence.
-          labelHasExplicitExit = true;
         }
+        menuStack.push({ id: newMenuId, optionText: null });
+        // The label's execution falls into the menu — suppress label→label sequence.
+        labelHasExplicitExit = true;
         continue;
       }
 
       // ── FunctionName inside MenuStatement (not MenuBlock) → optional menu label
       if (
         type === ET_FUNCTION_NAME &&
-        waitForMenuName &&
+        waitForMenuNameForId !== null &&
         hasMeta(metas, META_MENU_STATEMENT) &&
         !hasMeta(metas, META_MENU_BLOCK)
       ) {
         const menuLabel = val();
-        if (currentMenuId) {
-          const existing = nodeMap.get(currentMenuId);
-          if (existing) existing.label = menuLabel;
-        }
-        waitForMenuName = false;
+        const existing = nodeMap.get(waitForMenuNameForId);
+        if (existing) existing.label = menuLabel;
+        waitForMenuNameForId = null;
         continue;
       }
 
@@ -239,7 +288,9 @@ export async function parseRenpyFiles(
         hasMeta(metas, META_MENU_OPTION) &&
         hasMeta(metas, META_MENU_BLOCK)
       ) {
-        currentOptionText = val();
+        const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+        const menu = menuAtDepth(menuStack, menuDepth);
+        if (menu) menu.optionText = val();
         continue;
       }
 
@@ -257,16 +308,19 @@ export async function parseRenpyFiles(
       ) {
         const target = val();
         const isInOption = hasMeta(metas, META_MENU_OPTION_BLOCK);
-        const source = isInOption && currentMenuId ? currentMenuId : currentLabelId;
+        const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+        const menu = menuAtDepth(menuStack, menuDepth);
+        const source = isInOption && menu ? menu.id : currentLabelId;
+        const optionText = menu?.optionText ?? null;
         if (source) {
           addEdge({
-            id: `jump_${source}__${target}_${currentOptionText ?? ''}`,
+            id: `jump_${source}__${target}_${optionText ?? ''}`,
             source,
             target,
-            label: isInOption ? (currentOptionText ?? undefined) : undefined,
+            label: isInOption ? (optionText ?? undefined) : undefined,
           });
         }
-        if (!isInOption) labelHasExplicitExit = true;
+        if (!isInOption && conditionalIndentStack.length === 0) labelHasExplicitExit = true;
         waitForJumpTarget = false;
         continue;
       }
@@ -285,14 +339,17 @@ export async function parseRenpyFiles(
       ) {
         const target = val();
         const isInOption = hasMeta(metas, META_MENU_OPTION_BLOCK);
-        const source = isInOption && currentMenuId ? currentMenuId : currentLabelId;
+        const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+        const menu = menuAtDepth(menuStack, menuDepth);
+        const source = isInOption && menu ? menu.id : currentLabelId;
+        const optionText = menu?.optionText ?? null;
         if (source) {
           addEdge({
-            id: `call_${source}__${target}_${currentOptionText ?? ''}`,
+            id: `call_${source}__${target}_${optionText ?? ''}`,
             source,
             target,
             label: isInOption
-              ? (currentOptionText ? `call: ${currentOptionText}` : 'call')
+              ? (optionText ? `call: ${optionText}` : 'call')
               : 'call',
           });
         }
@@ -317,9 +374,11 @@ export async function parseRenpyFiles(
 
         if (isSay && !isMenuOption) {
           // Attribute the line to the innermost block
+          const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+          const menu = menuAtDepth(menuStack, menuDepth);
           const ownerId =
-            hasMeta(metas, META_MENU_OPTION_BLOCK) && currentMenuId
-              ? currentMenuId
+            hasMeta(metas, META_MENU_OPTION_BLOCK) && menu
+              ? menu.id
               : currentLabelId;
           if (ownerId) {
             const ownerNode = nodeMap.get(ownerId);
