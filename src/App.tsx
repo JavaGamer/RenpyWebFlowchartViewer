@@ -14,13 +14,23 @@ import { parseRenpyFiles } from './parser';
 import FlowchartViewer from './FlowchartViewer';
 import type { FlowNode, FlowEdge } from './types';
 
+// ─── Error types ─────────────────────────────────────────────────────────────
+
+/** Thrown when the FileReader API cannot load a file from disk. */
+class FileReadError extends Error {
+  constructor(filename: string) {
+    super(`Could not read "${filename}". The file may be inaccessible or corrupted.`);
+    this.name = 'FileReadError';
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.onerror = () => reject(new FileReadError(file.name));
     reader.readAsText(file);
   });
 }
@@ -53,22 +63,37 @@ export default function App() {
     setFileCount(rpyFiles.length);
     setErrorMsg('');
 
+    // ── Phase 1: Read files from disk ──────────────────────────────────────
+    let inputs: Array<{ name: string; content: string }>;
     try {
-      const inputs = await Promise.all(
+      inputs = await Promise.all(
         rpyFiles.map(async (f) => ({
           name: f.name,
           content: await readFileAsText(f),
         })),
       );
+    } catch (err: unknown) {
+      if (err instanceof FileReadError) {
+        setErrorMsg(err.message);
+      } else {
+        const detail = err instanceof Error ? err.message : String(err);
+        setErrorMsg(`An unexpected error occurred while reading files: ${detail}`);
+      }
+      setStatus('error');
+      return;
+    }
 
+    // ── Phase 2: Parse the Ren'Py scripts ─────────────────────────────────
+    try {
       const { nodes, edges } = await parseRenpyFiles(inputs);
-
       setFlowNodes(nodes);
       setFlowEdges(edges);
       setStatus('done');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setErrorMsg(msg);
+      const detail = err instanceof Error ? err.message : String(err);
+      setErrorMsg(
+        `Failed to parse Ren'Py scripts: ${detail}. Ensure your .rpy files contain valid Ren'Py syntax.`,
+      );
       setStatus('error');
     }
   }, []);

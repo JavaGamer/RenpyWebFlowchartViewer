@@ -14,6 +14,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 import App from '../src/App';
+import * as parser from '../src/parser';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,59 @@ describe('App – upload → parse → render integration', () => {
     await waitFor(() => {
       expect(
         view.getByText(/Drop your Ren'Py project folder here/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('shows a file-read error message when FileReader fails', async () => {
+    const user = userEvent.setup();
+
+    // Replace the global FileReader with one that always fires onerror.
+    const OriginalFileReader = globalThis.FileReader;
+    class FailingFileReader {
+      onload: unknown = null;
+      onerror: ((e: ProgressEvent) => void) | null = null;
+      result: null = null;
+      readAsText() {
+        Promise.resolve().then(() => this.onerror?.(new ProgressEvent('error')));
+      }
+    }
+    vi.stubGlobal('FileReader', FailingFileReader);
+
+    try {
+      const { container } = render(<App />);
+      const view = within(container);
+
+      const input = container.querySelector('#folder-input') as HTMLInputElement;
+      await user.upload(input, makeRpyFile('broken.rpy', 'label start:'));
+
+      await waitFor(() => {
+        expect(view.getByText(/Could not read "broken\.rpy"/i)).toBeInTheDocument();
+      });
+    } finally {
+      vi.stubGlobal('FileReader', OriginalFileReader);
+    }
+  });
+
+  it('shows an actionable parse error message when the parser throws', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(parser, 'parseRenpyFiles').mockRejectedValueOnce(
+      new Error('Unexpected token at line 3'),
+    );
+
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('start.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(
+        view.getByText(/Failed to parse Ren'Py scripts.*Unexpected token at line 3/is),
+      ).toBeInTheDocument();
+      expect(
+        view.getByText(/Ensure your \.rpy files contain valid Ren'Py syntax/i),
       ).toBeInTheDocument();
     });
   });
