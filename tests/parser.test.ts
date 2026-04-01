@@ -496,6 +496,14 @@ describe('parseRenpyFiles', () => {
 
     const menuNodes = result.nodes.filter((n) => n.type === 'MENU');
     expect(menuNodes).toHaveLength(2);
+    expect(menuNodes.map((n) => n.id)).toEqual(['menu_1', 'menu_2']);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'menu_1' }),
+        expect.objectContaining({ source: 'menu_1', target: 'menu_2', label: 'Ask about quest' }),
+      ]),
+    );
 
     const acceptedEdge = result.edges.find((e) => e.target === 'accepted' && e.label === 'Accept quest');
     const declinedViaNested = result.edges.find((e) => e.target === 'declined' && e.label === 'Decline quest');

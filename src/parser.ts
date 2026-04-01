@@ -32,6 +32,7 @@ const KW_LABEL = 8;
 const KW_JUMP = 63;
 const KW_CALL = 64;
 const KW_RETURN = 62;
+// @renpy/ast uses one token type for all three conditional keywords.
 const KW_IF_ELIF_ELSE = 6109; // if / elif / else
 const COND_IF = 'if';
 const COND_ELIF = 'elif';
@@ -79,6 +80,11 @@ function countMeta(metas: Iterable<number>, value: number): number {
   return count;
 }
 
+function parentMenuStackLength(menuDepth: number): number {
+  return Math.max(0, menuDepth - 1);
+}
+
+/** Get menu stack entry by 1-indexed Ren'Py menu depth. */
 function menuAtDepth(
   menuStack: { id: string; optionText: string | null }[],
   depth: number,
@@ -233,8 +239,7 @@ export async function parseRenpyFiles(
       ) {
         const menuDepth = countMeta(metas, META_MENU_STATEMENT);
         // The menu keyword itself contributes one META_MENU_STATEMENT entry.
-        // So for a menu at depth N, its parent stack depth is N - 1.
-        while (menuStack.length > Math.max(0, menuDepth - 1)) menuStack.pop();
+        while (menuStack.length > parentMenuStackLength(menuDepth)) menuStack.pop();
 
         menuCounter += 1;
         const newMenuId = `menu_${menuCounter}`;
