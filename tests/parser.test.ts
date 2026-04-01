@@ -297,6 +297,31 @@ describe('parseRenpyFiles', () => {
     expect(southEdge?.label).toBe('Go south');
   });
 
+  it('keeps nested menu jumps attached to the nested menu node and option text', async () => {
+    const script = [
+      'label start:',
+      '    menu:',
+      '        "Outer":',
+      '            menu:',
+      '                "Inner":',
+      '                    jump inner_dest',
+      '',
+      'label inner_dest:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'nested_menu_source.rpy', content: script }]);
+
+    const menuNodes = result.nodes.filter((n) => n.type === 'MENU');
+    expect(menuNodes).toHaveLength(2);
+
+    const innerJump = result.edges.find((e) => e.target === 'inner_dest' && e.id.startsWith('jump_'));
+    expect(innerJump).toBeDefined();
+    expect(innerJump?.label).toBe('Inner');
+    expect(menuNodes.some((n) => n.id === innerJump?.source)).toBe(true);
+  });
+
   // ── Call parsing ─────────────────────────────────────────────────────────────
 
   it('parses a call statement and creates a directed call edge labeled "call"', async () => {
@@ -341,6 +366,31 @@ describe('parseRenpyFiles', () => {
       (e) => e.source === 'caller' && e.target === 'after_caller' && e.label === 'next',
     );
     expect(fallthroughEdge).toBeDefined();
+  });
+
+  it('does not suppress fallthrough when jump is inside a conditional branch', async () => {
+    const script = [
+      'label start:',
+      '    if flag:',
+      '        jump branch_a',
+      '    "continue"',
+      '',
+      'label next_label:',
+      '    "after conditional"',
+      '',
+      'label branch_a:',
+      '    "branch"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional_jump.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'branch_a' }),
+        expect.objectContaining({ source: 'start', target: 'next_label', label: 'next' }),
+      ]),
+    );
   });
 
   it('creates a call edge labeled with the option text when call is inside a menu option', async () => {
@@ -445,7 +495,7 @@ describe('parseRenpyFiles', () => {
     ]);
 
     const menuNodes = result.nodes.filter((n) => n.type === 'MENU');
-    expect(menuNodes).toHaveLength(1);
+    expect(menuNodes).toHaveLength(2);
 
     const acceptedEdge = result.edges.find((e) => e.target === 'accepted' && e.label === 'Accept quest');
     const declinedViaNested = result.edges.find((e) => e.target === 'declined' && e.label === 'Decline quest');
@@ -508,6 +558,29 @@ describe('parseRenpyFiles', () => {
           expect.objectContaining({ source: 'start', target: 'fallback' }),
         ]),
       }),
+    );
+  });
+
+  it('resolves jumps to labels that are defined in a different file', async () => {
+    const result = await parseRenpyFiles([
+      {
+        name: 'part-a.rpy',
+        content: ['label intro:', '    jump ending', ''].join('\n'),
+      },
+      {
+        name: 'part-b.rpy',
+        content: ['label ending:', '    "done"', ''].join('\n'),
+      },
+    ]);
+
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'intro', type: 'LABEL' }),
+        expect.objectContaining({ id: 'ending', type: 'LABEL' }),
+      ]),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'intro', target: 'ending' }),
     );
   });
 });
