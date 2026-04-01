@@ -282,6 +282,38 @@ describe('App – upload → parse → render integration', () => {
     });
   });
 
+  it('shows a non-Error file read failure using fallback stringification', async () => {
+    const user = userEvent.setup();
+
+    const OriginalFileReader = globalThis.FileReader;
+    class UnknownFailureFileReader {
+      onload: unknown = null;
+      onerror: ((e: ProgressEvent) => void) | null = null;
+      result: null = null;
+      readAsText() {
+        Promise.resolve().then(() => this.onerror?.(new ProgressEvent('error')));
+      }
+    }
+    vi.stubGlobal('FileReader', UnknownFailureFileReader);
+    vi.spyOn(Error, Symbol.hasInstance).mockReturnValue(false);
+
+    try {
+      const { container } = render(<App />);
+      const view = within(container);
+      const input = container.querySelector('#folder-input') as HTMLInputElement;
+      await user.upload(input, makeRpyFile('broken.rpy', 'label start:'));
+
+      await waitFor(() => {
+        expect(
+          view.getByText(/An unexpected error occurred while reading files:/i),
+        ).toBeInTheDocument();
+      });
+    } finally {
+      vi.restoreAllMocks();
+      vi.stubGlobal('FileReader', OriginalFileReader);
+    }
+  });
+
   it('revokes the object URL after each PNG export to prevent memory leaks', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
@@ -422,5 +454,126 @@ describe('App – upload → parse → render integration', () => {
     expect(themeSelect).toHaveValue('highContrast');
     await user.selectOptions(themeSelect, 'colorblind');
     expect(themeSelect).toHaveValue('colorblind');
+  });
+
+  it('supports drag-and-drop upload and handles dragover default prevention', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const dropZone = container.querySelector('label[for="folder-input"]') as HTMLLabelElement;
+    const dragOverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+    dropZone.dispatchEvent(dragOverEvent);
+    expect(dragOverEvent.defaultPrevented).toBe(true);
+
+    const file = makeRpyFile('drop.rpy', SAMPLE_RPY);
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: { files: [file] },
+      configurable: true,
+    });
+    dropZone.dispatchEvent(dropEvent);
+    expect(dropEvent.defaultPrevented).toBe(true);
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
+    await user.click(exportBtn);
+  });
+
+  it('supports minimum dialogue filter, layout switching, zoom controls, and collapse by label', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const scriptWithMenu = [
+      'label start:',
+      '    menu:',
+      '        "Go":',
+      '            jump end',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+    await user.upload(input, makeRpyFile('chapter2.rpy', scriptWithMenu));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const minDialogueInput = view.getByRole('spinbutton', { name: /Minimum dialogue lines/i });
+    await user.clear(minDialogueInput);
+    await user.type(minDialogueInput, '2');
+    await waitFor(() => {
+      expect(view.getByTestId('rf-node-count')).toHaveTextContent('0');
+    });
+
+    await user.clear(minDialogueInput);
+    await user.type(minDialogueInput, '1');
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeGreaterThan(0);
+    });
+
+    const layoutSelect = view.getByRole('combobox', { name: /Auto layout direction/i });
+    await user.selectOptions(layoutSelect, 'LR');
+    expect(layoutSelect).toHaveValue('LR');
+
+    const relayoutBtn = view.getByRole('button', { name: /Re-run auto layout/i });
+    await user.click(relayoutBtn);
+
+    const zoomBtn = view.getByRole('button', { name: /Zoom to 100 percent/i });
+    await user.click(zoomBtn);
+
+    await user.clear(minDialogueInput);
+    await user.type(minDialogueInput, '0');
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeGreaterThanOrEqual(2);
+    });
+
+    const beforeCollapse = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+    const collapseLabel = view.getByRole('button', { name: /Collapse label start/i });
+    await user.click(collapseLabel);
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeLessThan(beforeCollapse);
+    });
+  });
+
+  it('handles PNG and SVG export failures without crashing', async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.mocked(toBlob).mockRejectedValueOnce(new Error('png export failed'));
+    vi.mocked(toSvg).mockRejectedValueOnce(new Error('svg export failed'));
+
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('export-fail.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
+    });
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith('Export failed:', expect.anything());
+    });
+
+    await act(async () => {
+      await user.click(view.getByRole('button', { name: /Export flowchart as SVG/i }));
+    });
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith('SVG export failed:', expect.anything());
+    });
   });
 });
