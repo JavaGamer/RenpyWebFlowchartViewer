@@ -16,6 +16,8 @@ import type { FlowNode, FlowEdge } from './types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const MAX_RPY_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MiB
+
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -45,6 +47,14 @@ export default function App() {
 
     if (rpyFiles.length === 0) {
       setErrorMsg('No .rpy files found in the selected directory.');
+      setStatus('error');
+      return;
+    }
+    const oversizedFile = rpyFiles.find((file) => file.size > MAX_RPY_FILE_SIZE_BYTES);
+    if (oversizedFile) {
+      setErrorMsg(
+        `“${oversizedFile.name}” is too large to import. Please upload .rpy files smaller than 2 MB.`,
+      );
       setStatus('error');
       return;
     }

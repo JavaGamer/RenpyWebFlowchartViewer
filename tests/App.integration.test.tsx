@@ -156,6 +156,22 @@ describe('App – upload → parse → render integration', () => {
     });
   });
 
+  it('rejects oversized .rpy files with a clear message', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const oversizedScript = 'a'.repeat(2 * 1024 * 1024 + 1);
+    await user.upload(input, makeRpyFile('huge.rpy', oversizedScript));
+
+    await waitFor(() => {
+      expect(view.getByText(/huge\.rpy/i)).toBeInTheDocument();
+      expect(view.getByText(/too large to import/i)).toBeInTheDocument();
+      expect(view.getByText(/smaller than 2 MB/i)).toBeInTheDocument();
+    });
+  });
+
   it('shows an empty-graph warning when the .rpy file has no labels or menus', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
