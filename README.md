@@ -41,6 +41,20 @@ npm run test          # run parser unit tests
 npm run test:coverage # run tests with coverage report
 ```
 
+## Troubleshooting
+
+- **`npm install` or `npm ci` shows `@renpy/ast` engine warnings**  
+  The package currently declares `node: ^23`. The project still works in current local/CI setups, but matching the CI runtime (Node 20+) is recommended for consistency.
+
+- **Upload appears to do nothing**  
+  The parser only processes files with a `.rpy` extension. Ensure your selected folder contains Ren'Py script files named with `.rpy`.
+
+- **Flowchart is empty after upload**  
+  This can happen when scripts contain no parsable `label` or `menu` structures (for example, comment-only files). Try with a script that includes at least one `label`.
+
+- **Tests behave inconsistently while iterating locally**  
+  `@renpy/ast` uses module-level tokenizer state. Run tests in a clean process (`npm run test`) after changes instead of reusing stale watch state.
+
 ## Docker
 
 A multi-stage Dockerfile is provided that builds the app with Node.js and serves it with Nginx:
@@ -51,6 +65,10 @@ docker run -p 8080:80 renpy-flowchart-viewer
 ```
 
 Then open <http://localhost:8080>.
+
+## Contributing
+
+Please read the contributor guide before opening a pull request: [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Technology Stack
 
