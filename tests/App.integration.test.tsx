@@ -13,7 +13,7 @@ import { render, waitFor, cleanup, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
-import { toBlob } from 'html-to-image';
+import { toBlob, toSvg } from 'html-to-image';
 import App from '../src/App';
 import * as parser from '../src/parser';
 
@@ -75,6 +75,7 @@ vi.mock('@xyflow/react', () => {
 // html-to-image requires canvas; return a stub Blob.
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn().mockResolvedValue(new Blob(['stub'], { type: 'image/png' })),
+  toSvg: vi.fn().mockResolvedValue('data:image/svg+xml;base64,c3R1Yg=='),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -316,6 +317,45 @@ describe('App – upload → parse → render integration', () => {
       });
       expect(revokeObjectURL).toHaveBeenCalledTimes(2);
       expect(toBlob).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.stubGlobal('URL', originalURL);
+    }
+  });
+
+  it('exports SVG and JSON formats successfully', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('start.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const originalURL = globalThis.URL;
+    const createObjectURL = vi.fn().mockReturnValue('blob:json');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      createObjectURL,
+      revokeObjectURL,
+    });
+
+    try {
+      const exportSvgBtn = view.getByRole('button', { name: /Export flowchart as SVG/i });
+      await act(async () => {
+        await user.click(exportSvgBtn);
+      });
+      expect(toSvg).toHaveBeenCalledTimes(1);
+      expect(createObjectURL).toHaveBeenCalledTimes(0);
+
+      const exportJsonBtn = view.getByRole('button', { name: /Export graph as JSON/i });
+      await act(async () => {
+        await user.click(exportJsonBtn);
+      });
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:json');
     } finally {
       vi.stubGlobal('URL', originalURL);
     }
