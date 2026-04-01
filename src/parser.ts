@@ -11,8 +11,19 @@
  *   - dialogue line counts (SayStatement / NarratorSayStatement)
  */
 
-import { parse as renpyParse } from '@renpy/ast';
+import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { FlowNode, FlowEdge } from './types';
+
+// Monotonically increasing version counter so that each call to renpyParse
+// produces a document with a unique (uri, version) pair, preventing
+// @renpy/ast's static TokenCache from returning stale tokens across calls.
+let _docVersion = 0;
+
+async function renpyParse(content: string) {
+  const document = TextDocument.create('file://my.rpy', 'rpy', ++_docVersion, content);
+  return { document, nodes: await Tokenizer.tokenizeDocument(document) };
+}
 
 // ─── Token-type numeric constants (from @renpy/ast enums) ────────────────────
 
