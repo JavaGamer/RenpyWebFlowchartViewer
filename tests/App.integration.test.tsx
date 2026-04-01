@@ -168,7 +168,7 @@ describe('App – upload → parse → render integration', () => {
     await waitFor(() => {
       expect(view.getByText(/huge\.rpy/i)).toBeInTheDocument();
       expect(view.getByText(/too large to import/i)).toBeInTheDocument();
-      expect(view.getByText(/smaller than 2 MB/i)).toBeInTheDocument();
+      expect(view.getByText(/smaller than 2 MiB \(about 2 MB\)/i)).toBeInTheDocument();
     });
   });
 

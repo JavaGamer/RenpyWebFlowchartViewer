@@ -16,7 +16,7 @@ import type { FlowNode, FlowEdge } from './types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MAX_RPY_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MiB
+const MAX_RPY_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MiB (~2 MB)
 
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,7 +53,7 @@ export default function App() {
     const oversizedFile = rpyFiles.find((file) => file.size > MAX_RPY_FILE_SIZE_BYTES);
     if (oversizedFile) {
       setErrorMsg(
-        `“${oversizedFile.name}” is too large to import. Please upload .rpy files smaller than 2 MB.`,
+        `“${oversizedFile.name}” is too large to import. Please upload .rpy files smaller than 2 MiB (about 2 MB).`,
       );
       setStatus('error');
       return;
