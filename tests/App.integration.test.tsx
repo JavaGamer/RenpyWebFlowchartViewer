@@ -236,8 +236,6 @@ describe('App – upload → parse → render integration', () => {
       new Error('Unexpected token at line 3'),
     );
 
-  it('revokes the object URL after each PNG export to prevent memory leaks', async () => {
-    const user = userEvent.setup();
     const { container } = render(<App />);
     const view = within(container);
 
@@ -252,30 +250,46 @@ describe('App – upload → parse → render integration', () => {
         view.getByText(/Ensure your \.rpy files contain valid Ren'Py syntax/i),
       ).toBeInTheDocument();
     });
+  });
+
+  it('revokes the object URL after each PNG export to prevent memory leaks', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('start.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
+    const originalURL = globalThis.URL;
     const revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn().mockReturnValue('blob:stub'),
       revokeObjectURL,
     });
 
-    const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
+    try {
+      const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
 
-    // First export
-    await act(async () => {
-      await user.click(exportBtn);
-    });
-    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
+      // First export
+      await act(async () => {
+        await user.click(exportBtn);
+      });
+      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
 
-    // Second export -- revokeObjectURL must be called again, not accumulated
-    await act(async () => {
-      await user.click(exportBtn);
-    });
-    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
-    expect(toBlob).toHaveBeenCalledTimes(2);
+      // Second export -- revokeObjectURL must be called again, not accumulated
+      await act(async () => {
+        await user.click(exportBtn);
+      });
+      expect(revokeObjectURL).toHaveBeenCalledTimes(2);
+      expect(toBlob).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.stubGlobal('URL', originalURL);
+    }
   });
 
   it('file upload input has an accessible label', () => {
