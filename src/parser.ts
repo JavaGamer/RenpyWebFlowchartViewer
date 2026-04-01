@@ -85,11 +85,14 @@ export async function parseRenpyFiles(
   // Track IDs we've already added so multiple files don't duplicate nodes.
   const nodeIds = new Set<string>();
   const edgeIds = new Set<string>();
+  // Map for O(1) node lookup by id (mirrors the nodes array).
+  const nodeMap = new Map<string, FlowNode>();
 
   const addNode = (node: FlowNode) => {
     if (!nodeIds.has(node.id)) {
       nodeIds.add(node.id);
       nodes.push(node);
+      nodeMap.set(node.id, node);
     }
   };
 
@@ -219,7 +222,7 @@ export async function parseRenpyFiles(
       ) {
         const menuLabel = val();
         if (currentMenuId) {
-          const existing = nodes.find((n) => n.id === currentMenuId);
+          const existing = nodeMap.get(currentMenuId);
           if (existing) existing.label = menuLabel;
         }
         waitForMenuName = false;
@@ -315,7 +318,7 @@ export async function parseRenpyFiles(
               ? currentMenuId
               : currentLabelId;
           if (ownerId) {
-            const ownerNode = nodes.find((n) => n.id === ownerId);
+            const ownerNode = nodeMap.get(ownerId);
             if (ownerNode) ownerNode.dialogueCount += 1;
           }
         }
