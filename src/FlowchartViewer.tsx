@@ -5,7 +5,7 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -19,14 +19,17 @@ import {
   type Edge,
   type NodeProps,
   type EdgeProps,
+  type ReactFlowInstance,
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
+  useNodesState,
+  useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
 import { toBlob } from 'html-to-image';
-import { Download } from 'lucide-react';
+import { Download, Search, ZoomIn, LayoutGrid, Palette } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -34,6 +37,7 @@ import type { FlowNode, FlowEdge } from './types';
 const NODE_WIDTH = 220;
 const NODE_HEIGHT_LABEL = 90;
 const NODE_HEIGHT_MENU = 80;
+const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25] as const;
 
 // ─── Custom node data types ───────────────────────────────────────────────────
 
@@ -41,25 +45,112 @@ interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
   nodeType: 'LABEL' | 'MENU';
+  chapter?: string;
+  parentLabelId?: string;
+  theme: 'violet' | 'highContrast' | 'colorblind';
 }
 
 type LabelNodeType = Node<NodeData, 'labelNode'>;
 type MenuNodeType = Node<NodeData, 'menuNode'>;
+type CanvasNode = LabelNodeType | MenuNodeType;
 
 // ─── Custom node components ───────────────────────────────────────────────────
 
+interface ThemeColors {
+  pageBg: string;
+  panelBg: string;
+  text: string;
+  subtleText: string;
+  labelBorder: string;
+  labelBg: string;
+  labelTitle: string;
+  labelText: string;
+  menuBorder: string;
+  menuBg: string;
+  menuTitle: string;
+  menuText: string;
+  edge: string;
+  grid: string;
+  minimapLabel: string;
+  minimapMenu: string;
+}
+
+const THEMES: Record<'violet' | 'highContrast' | 'colorblind', ThemeColors> = {
+  violet: {
+    pageBg: '#f9fafb',
+    panelBg: '#ffffff',
+    text: '#111827',
+    subtleText: '#4b5563',
+    labelBorder: '#7c3aed',
+    labelBg: '#f5f3ff',
+    labelTitle: '#8b5cf6',
+    labelText: '#4c1d95',
+    menuBorder: '#d97706',
+    menuBg: '#fffbeb',
+    menuTitle: '#f59e0b',
+    menuText: '#78350f',
+    edge: '#4b5563',
+    grid: '#d1d5db',
+    minimapLabel: '#8b5cf6',
+    minimapMenu: '#f59e0b',
+  },
+  highContrast: {
+    pageBg: '#ffffff',
+    panelBg: '#ffffff',
+    text: '#000000',
+    subtleText: '#111111',
+    labelBorder: '#000000',
+    labelBg: '#ffffff',
+    labelTitle: '#111111',
+    labelText: '#000000',
+    menuBorder: '#000000',
+    menuBg: '#f3f4f6',
+    menuTitle: '#111111',
+    menuText: '#000000',
+    edge: '#000000',
+    grid: '#9ca3af',
+    minimapLabel: '#000000',
+    minimapMenu: '#4b5563',
+  },
+  colorblind: {
+    pageBg: '#f8fafc',
+    panelBg: '#ffffff',
+    text: '#0f172a',
+    subtleText: '#334155',
+    labelBorder: '#0072b2',
+    labelBg: '#e0f2fe',
+    labelTitle: '#0369a1',
+    labelText: '#0c4a6e',
+    menuBorder: '#e69f00',
+    menuBg: '#fff7cc',
+    menuTitle: '#a16207',
+    menuText: '#713f12',
+    edge: '#334155',
+    grid: '#cbd5e1',
+    minimapLabel: '#0072b2',
+    minimapMenu: '#e69f00',
+  },
+};
+
 function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
+  const theme = THEMES[(data.theme as keyof typeof THEMES) || 'violet'];
   return (
-    <div className="px-4 py-3 rounded-xl border-2 border-violet-500 bg-violet-50 shadow-md w-[220px]">
+    <div
+      className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
+      style={{ borderColor: theme.labelBorder, backgroundColor: theme.labelBg }}
+    >
       <Handle type="target" position={Position.Top} />
-      <div className="text-xs font-semibold text-violet-400 uppercase tracking-widest mb-1">
+      <div
+        className="text-xs font-semibold uppercase tracking-widest mb-1"
+        style={{ color: theme.labelTitle }}
+      >
         Label
       </div>
-      <div className="font-mono font-bold text-violet-900 truncate text-sm">
+      <div className="font-mono font-bold truncate text-sm" style={{ color: theme.labelText }}>
         {data.label}
       </div>
       {data.dialogueCount > 0 && (
-        <div className="mt-1 text-xs text-violet-600">
+        <div className="mt-1 text-xs" style={{ color: theme.labelTitle }}>
           {data.dialogueCount} dialogue line{data.dialogueCount !== 1 ? 's' : ''}
         </div>
       )}
@@ -69,13 +160,20 @@ function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
 }
 
 function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
+  const theme = THEMES[(data.theme as keyof typeof THEMES) || 'violet'];
   return (
-    <div className="px-4 py-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-md w-[220px]">
+    <div
+      className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
+      style={{ borderColor: theme.menuBorder, backgroundColor: theme.menuBg }}
+    >
       <Handle type="target" position={Position.Top} />
-      <div className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-1">
+      <div
+        className="text-xs font-semibold uppercase tracking-widest mb-1"
+        style={{ color: theme.menuTitle }}
+      >
         Menu
       </div>
-      <div className="font-mono font-bold text-amber-900 truncate text-sm">
+      <div className="font-mono font-bold truncate text-sm" style={{ color: theme.menuText }}>
         {data.label}
       </div>
       <Handle type="source" position={Position.Bottom} />
@@ -95,6 +193,7 @@ interface EdgeData extends Record<string, unknown> {
 }
 
 type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
+type CanvasEdge = LabeledEdgeType;
 
 // ─── Custom edge component ────────────────────────────────────────────────────
 
@@ -149,10 +248,19 @@ const edgeTypes: EdgeTypes = {
 function applyDagreLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
-): { nodes: Node[]; edges: Edge[] } {
+  direction: 'TB' | 'LR',
+): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 50, marginx: 20, marginy: 20 });
+  g.setGraph({
+    rankdir: direction,
+    // LR layouts place many wide label cards in neighboring columns; extra rank
+    // spacing helps reduce crowding and edge-label overlap.
+    ranksep: direction === 'TB' ? 80 : 110,
+    nodesep: 50,
+    marginx: 20,
+    marginy: 20,
+  });
 
   rawNodes.forEach((n) => {
     g.setNode(n.id, {
@@ -169,7 +277,7 @@ function applyDagreLayout(
 
   dagre.layout(g);
 
-  const nodes: Node[] = rawNodes.map((n) => {
+  const nodes: CanvasNode[] = rawNodes.map((n) => {
     const pos = g.node(n.id);
     const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
     return {
@@ -179,15 +287,19 @@ function applyDagreLayout(
         x: pos ? pos.x - NODE_WIDTH / 2 : 0,
         y: pos ? pos.y - h / 2 : 0,
       },
-      data: {
-        label: n.label,
-        dialogueCount: n.dialogueCount,
-        nodeType: n.type,
-      },
-    };
-  });
+        data: {
+          label: n.label,
+          dialogueCount: n.dialogueCount,
+          nodeType: n.type,
+          chapter: n.chapter,
+          parentLabelId: n.parentLabelId,
+          theme: 'violet',
+        },
+        draggable: true,
+      };
+    });
 
-  const edges: Edge[] = rawEdges
+  const edges: CanvasEdge[] = rawEdges
     .filter((e) => g.hasNode(e.source) && g.hasNode(e.target))
     .map((e) => ({
       id: e.id,
@@ -214,16 +326,100 @@ export default function FlowchartViewer({
   flowEdges,
 }: FlowchartViewerProps) {
   const flowRef = useRef<HTMLDivElement>(null);
+  const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
+  const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
+  const [search, setSearch] = useState('');
+  const [minDialogue, setMinDialogue] = useState(0);
+  const [theme, setTheme] = useState<'violet' | 'highContrast' | 'colorblind'>('violet');
+  const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
+  const [collapsedParentLabels, setCollapsedParentLabels] = useState<Record<string, boolean>>({});
 
-  const { nodes, edges } = useMemo(
-    () => applyDagreLayout(flowNodes, flowEdges),
-    [flowNodes, flowEdges],
+  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
+    () => applyDagreLayout(flowNodes, flowEdges, layoutDirection),
+    [flowNodes, flowEdges, layoutDirection],
+  );
+  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
+
+  const chapters = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          flowNodes
+            .map((n) => n.chapter)
+            .filter((chapter): chapter is string => Boolean(chapter)),
+        ),
+      ).sort(),
+    [flowNodes],
+  );
+
+  const labels = useMemo(
+    () => flowNodes.filter((n) => n.type === 'LABEL').map((n) => n.id).sort(),
+    [flowNodes],
+  );
+
+  const relayout = useCallback(() => {
+    const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection);
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    requestAnimationFrame(() => {
+      flowInstanceRef.current?.fitView({ padding: 0.2 });
+    });
+  }, [flowEdges, flowNodes, layoutDirection, setEdges, setNodes]);
+
+  useEffect(() => {
+    setNodes(layoutNodes);
+    setEdges(layoutEdges);
+  }, [layoutNodes, layoutEdges, setEdges, setNodes]);
+
+  const collapsedLabelChildren = useMemo(
+    () =>
+      new Set(
+        flowNodes
+          .filter(
+            (n) => n.type === 'MENU' && n.parentLabelId && collapsedParentLabels[n.parentLabelId],
+          )
+          .map((n) => n.id),
+      ),
+    [collapsedParentLabels, flowNodes],
+  );
+
+  const visibleNodes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return nodes.map((n) => {
+      const nodeData = n.data as NodeData;
+      const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
+      const labelCollapsed = collapsedLabelChildren.has(n.id);
+      const matchesSearch =
+        query.length === 0 ||
+        nodeData.label.toLowerCase().includes(query) ||
+        String(nodeData.dialogueCount).includes(query);
+      const matchesDialogue = nodeData.dialogueCount >= minDialogue;
+      return {
+        ...n,
+        data: { ...nodeData, theme },
+        hidden: Boolean(chapterCollapsed || labelCollapsed || !matchesSearch || !matchesDialogue),
+      };
+    });
+  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes, search, theme]);
+
+  const visibleNodeIds = useMemo(
+    () => new Set(visibleNodes.filter((n) => !n.hidden).map((n) => n.id)),
+    [visibleNodes],
+  );
+
+  const visibleEdges = useMemo(
+    () =>
+      edges
+        .map((e) => ({ ...e, style: { ...(e.style || {}), stroke: THEMES[theme].edge, strokeWidth: 1.5 } }))
+        .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)),
+    [edges, theme, visibleNodeIds],
   );
 
   const onExport = useCallback(() => {
     if (!flowRef.current) return;
     toBlob(flowRef.current, {
-      backgroundColor: '#f9fafb',
+      backgroundColor: THEMES[theme].pageBg,
       pixelRatio: 2,
       width: flowRef.current.offsetWidth,
       height: flowRef.current.offsetHeight,
@@ -240,44 +436,157 @@ export default function FlowchartViewer({
       .catch((err: unknown) => {
         console.error('Export failed:', err);
       });
-  }, []);
+  }, [theme]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white shrink-0">
-        <div className="text-sm text-gray-500">
-          {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
-          {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white shrink-0 gap-4">
+        <div className="text-sm" style={{ color: THEMES[theme].subtleText }}>
+          {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
+          {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
         </div>
-        <button
-          onClick={onExport}
-          aria-label="Export flowchart as PNG"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
-        >
-          <Download size={14} aria-hidden="true" />
-          Export PNG
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="relative flex items-center">
+            <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search labels or dialogue count"
+              aria-label="Search labels or dialogue count"
+              className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-60"
+            />
+          </label>
+          <label className="text-xs flex items-center gap-1">
+            Min dialogue
+            <input
+              type="number"
+              min={0}
+              value={minDialogue}
+              onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
+              aria-label="Minimum dialogue lines"
+              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm"
+            />
+          </label>
+          <label className="text-xs flex items-center gap-1">
+            <LayoutGrid size={14} aria-hidden="true" />
+            Layout
+            <select
+              value={layoutDirection}
+              onChange={(e) => setLayoutDirection(e.target.value as 'TB' | 'LR')}
+              aria-label="Auto layout direction"
+              className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="TB">Top to bottom</option>
+              <option value="LR">Left to right</option>
+            </select>
+          </label>
+          <button
+            onClick={relayout}
+            className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+            aria-label="Re-run auto layout"
+          >
+            Auto-layout
+          </button>
+          <label className="text-xs flex items-center gap-1">
+            <Palette size={14} aria-hidden="true" />
+            Theme
+            <select
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as 'violet' | 'highContrast' | 'colorblind')}
+              aria-label="Color theme"
+              className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="violet">Default</option>
+              <option value="highContrast">High contrast</option>
+              <option value="colorblind">Colorblind-safe</option>
+            </select>
+          </label>
+          {ZOOM_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              onClick={() => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+              aria-label={`Zoom to ${Math.round(preset * 100)} percent`}
+            >
+              <ZoomIn size={12} className="inline mr-1" aria-hidden="true" />
+              {Math.round(preset * 100)}%
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onExport}
+            aria-label="Export flowchart as PNG"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
+          >
+            <Download size={14} aria-hidden="true" />
+            Export PNG
+          </button>
+        </div>
+      </div>
+
+      <div className="shrink-0 border-b border-gray-200 px-4 py-2 bg-white flex flex-wrap gap-4 text-xs">
+        {chapters.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Chapter subgraphs:</span>
+            {chapters.map((chapter) => (
+              <button
+                key={chapter}
+                onClick={() =>
+                  setCollapsedChapters((prev) => ({ ...prev, [chapter]: !prev[chapter] }))
+                }
+                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
+                aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
+              >
+                {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
+              </button>
+            ))}
+          </div>
+        )}
+        {labels.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Label subgraphs:</span>
+            {labels.map((label) => (
+              <button
+                key={label}
+                onClick={() =>
+                  setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
+                }
+                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
+                aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
+              >
+                {collapsedParentLabels[label] ? '▸' : '▾'} {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Flow canvas */}
-      <div ref={flowRef} className="flex-1 bg-gray-50">
+      <div ref={flowRef} className="flex-1" style={{ backgroundColor: THEMES[theme].pageBg }}>
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
+          nodes={visibleNodes}
+          edges={visibleEdges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onInit={(instance) => {
+            flowInstanceRef.current = instance as ReactFlowInstance<CanvasNode, CanvasEdge>;
+          }}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.1}
-          maxZoom={2}
+          maxZoom={2.5}
+          nodesDraggable
           proOptions={{ hideAttribution: false }}
         >
-          <Background color="#e5e7eb" gap={20} />
+          <Background color={THEMES[theme].grid} gap={20} />
           <Controls />
           <MiniMap
             nodeColor={(n) =>
-              n.type === 'labelNode' ? '#ddd6fe' : '#fde68a'
+              n.type === 'labelNode' ? THEMES[theme].minimapLabel : THEMES[theme].minimapMenu
             }
           />
         </ReactFlow>

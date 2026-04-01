@@ -7,6 +7,9 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, and counts dialogue lines per block.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
+- **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and collapse graph sections by chapter or parent label.
+- **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
+- **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
 - **Export to PNG** — capture the current chart as a high-resolution image with one click.
 
