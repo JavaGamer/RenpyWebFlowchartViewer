@@ -252,9 +252,10 @@ export default function FlowchartViewer({
         </div>
         <button
           onClick={onExport}
+          aria-label="Export flowchart as PNG"
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
         >
-          <Download size={14} />
+          <Download size={14} aria-hidden="true" />
           Export PNG
         </button>
       </div>
