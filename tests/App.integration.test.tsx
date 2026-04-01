@@ -195,4 +195,18 @@ describe('App – upload → parse → render integration', () => {
       ).toBeInTheDocument();
     });
   });
+
+  it('file upload input has an accessible label', () => {
+    const { container } = render(<App />);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input).toHaveAttribute('aria-label', 'Select Ren\'Py project folder');
+  });
+
+  it('drop zone has an accessible label', () => {
+    const { container } = render(<App />);
+    const label = container.querySelector('label[for="folder-input"]') as HTMLLabelElement;
+    expect(label).not.toBeNull();
+    expect(label).toHaveAttribute('aria-label', 'Upload Ren\'Py project folder');
+  });
 });
