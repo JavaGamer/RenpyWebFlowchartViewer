@@ -25,7 +25,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
-import { toPng } from 'html-to-image';
+import { toBlob } from 'html-to-image';
 import { Download } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './types';
 
@@ -222,17 +222,20 @@ export default function FlowchartViewer({
 
   const onExport = useCallback(() => {
     if (!flowRef.current) return;
-    toPng(flowRef.current, {
+    toBlob(flowRef.current, {
       backgroundColor: '#f9fafb',
       pixelRatio: 2,
       width: flowRef.current.offsetWidth,
       height: flowRef.current.offsetHeight,
     })
-      .then((dataUrl) => {
+      .then((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.download = 'renpy-flowchart.png';
-        a.href = dataUrl;
+        a.href = url;
         a.click();
+        URL.revokeObjectURL(url);
       })
       .catch((err: unknown) => {
         console.error('Export failed:', err);
@@ -249,9 +252,10 @@ export default function FlowchartViewer({
         </div>
         <button
           onClick={onExport}
+          aria-label="Export flowchart as PNG"
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
         >
-          <Download size={14} />
+          <Download size={14} aria-hidden="true" />
           Export PNG
         </button>
       </div>

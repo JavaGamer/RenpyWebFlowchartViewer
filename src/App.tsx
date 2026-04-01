@@ -159,20 +159,21 @@ export default function App() {
             {/* Drop zone */}
             <label
               htmlFor="folder-input"
+              aria-label="Upload Ren'Py project folder"
               onDrop={onDrop}
               onDragOver={onDragOver}
               className="flex flex-col items-center justify-center gap-4 w-full h-64 rounded-2xl border-2 border-dashed border-violet-300 bg-white hover:bg-violet-50 hover:border-violet-400 transition-colors cursor-pointer"
             >
               {status === 'loading' ? (
                 <>
-                  <Loader2 size={40} className="text-violet-500 animate-spin" />
+                  <Loader2 size={40} className="text-violet-500 animate-spin" aria-hidden="true" />
                   <p className="text-gray-600 font-medium">
                     Parsing {fileCount} .rpy file{fileCount !== 1 ? 's' : ''}…
                   </p>
                 </>
               ) : (
                 <>
-                  <Upload size={40} className="text-violet-400" />
+                  <Upload size={40} className="text-violet-400" aria-hidden="true" />
                   <div className="text-center">
                     <p className="text-base font-semibold text-gray-700">
                       Drop your Ren'Py project folder here
@@ -192,6 +193,7 @@ export default function App() {
             <input
               id="folder-input"
               type="file"
+              aria-label="Select Ren'Py project folder"
               className="hidden"
               // @ts-expect-error — non-standard but widely supported attributes
               webkitdirectory=""
@@ -203,7 +205,7 @@ export default function App() {
             {/* Error message */}
             {status === 'error' && (
               <div className="mt-4 flex items-start gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
                 <p className="text-sm">{errorMsg}</p>
               </div>
             )}
@@ -211,7 +213,7 @@ export default function App() {
             {/* Empty result warning */}
             {status === 'done' && flowNodes.length === 0 && (
               <div className="mt-4 flex items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
                 <p className="text-sm">
                   No labels or menus were found. Make sure the folder contains
                   valid Ren'Py <code className="text-xs bg-amber-100 px-1 rounded">.rpy</code> scripts.
