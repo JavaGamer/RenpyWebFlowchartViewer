@@ -28,7 +28,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
-import { toBlob } from 'html-to-image';
+import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './types';
 
@@ -438,6 +438,35 @@ export default function FlowchartViewer({
       });
   }, [theme]);
 
+  const onExportSvg = useCallback(() => {
+    if (!flowRef.current) return;
+    toSvg(flowRef.current, {
+      backgroundColor: THEMES[theme].pageBg,
+      width: flowRef.current.offsetWidth,
+      height: flowRef.current.offsetHeight,
+    })
+      .then((svgDataUrl) => {
+        const a = document.createElement('a');
+        a.download = 'renpy-flowchart.svg';
+        a.href = svgDataUrl;
+        a.click();
+      })
+      .catch((err: unknown) => {
+        console.error('SVG export failed:', err);
+      });
+  }, [theme]);
+
+  const onExportJson = useCallback(() => {
+    const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
+    const blob = new Blob([graphJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = 'renpy-flowchart.json';
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [flowEdges, flowNodes]);
+
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
@@ -522,6 +551,22 @@ export default function FlowchartViewer({
           >
             <Download size={14} aria-hidden="true" />
             Export PNG
+          </button>
+          <button
+            onClick={onExportSvg}
+            aria-label="Export flowchart as SVG"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-300 bg-white hover:bg-violet-50 rounded-lg transition-colors"
+          >
+            <Download size={14} aria-hidden="true" />
+            Export SVG
+          </button>
+          <button
+            onClick={onExportJson}
+            aria-label="Export graph as JSON"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            <Download size={14} aria-hidden="true" />
+            Export JSON
           </button>
         </div>
       </div>

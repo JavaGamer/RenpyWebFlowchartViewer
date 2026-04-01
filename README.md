@@ -11,7 +11,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
-- **Export to PNG** — capture the current chart as a high-resolution image with one click.
+- **Export options** — export the current chart as PNG or SVG, and optionally download the raw graph as JSON.
 
 ## Usage
 
@@ -19,7 +19,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 2. Click the upload zone or drag a folder onto it.
 3. Select the folder that contains your Ren'Py `.rpy` scripts (e.g. the `game/` directory of a project).
 4. The flowchart is generated automatically.
-5. Use the **Export PNG** button to save the chart as an image.
+5. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
 
 ## Running Locally
 
