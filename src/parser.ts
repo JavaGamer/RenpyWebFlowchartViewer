@@ -32,7 +32,10 @@ const KW_LABEL = 8;
 const KW_JUMP = 63;
 const KW_CALL = 64;
 const KW_RETURN = 62;
-const KW_CONDITIONAL = 6109; // if / elif / else
+const KW_IF_ELIF_ELSE = 6109; // if / elif / else
+const COND_IF = 'if';
+const COND_ELIF = 'elif';
+const COND_ELSE = 'else';
 // Note: @renpy/ast tokenizes the `menu` keyword as type 81 (KeywordTokenType.Def)
 // rather than type 9 (KeywordTokenType.Menu) — this is a quirk of the tokenizer.
 const KW_RENPY_MENU = 81;
@@ -74,6 +77,13 @@ function countMeta(metas: Iterable<number>, value: number): number {
     if (m === value) count += 1;
   }
   return count;
+}
+
+function menuAtDepth(
+  menuStack: { id: string; optionText: string | null }[],
+  depth: number,
+): { id: string; optionText: string | null } | null {
+  return depth > 0 ? (menuStack[depth - 1] ?? null) : null;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -141,6 +151,8 @@ export async function parseRenpyFiles(
       const val = (): string => tok.getValue(document);
       const tokenText = val();
 
+      // This runs for each non-whitespace token because scope ends are inferred
+      // from indentation changes between statements.
       if (type !== TT_INDENT && type !== TT_NEWLINE) {
         const indent = tok.startPos.character;
         while (
@@ -150,8 +162,8 @@ export async function parseRenpyFiles(
           conditionalIndentStack.pop();
         }
         if (
-          type === KW_CONDITIONAL &&
-          (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else')
+          type === KW_IF_ELIF_ELSE &&
+          (tokenText === COND_IF || tokenText === COND_ELIF || tokenText === COND_ELSE)
         ) {
           conditionalIndentStack.push(indent);
         }
@@ -220,6 +232,8 @@ export async function parseRenpyFiles(
         hasMeta(metas, META_MENU_STATEMENT)
       ) {
         const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+        // The menu keyword itself contributes one META_MENU_STATEMENT entry.
+        // So for a menu at depth N, its parent stack depth is N - 1.
         while (menuStack.length > Math.max(0, menuDepth - 1)) menuStack.pop();
 
         menuCounter += 1;
@@ -270,7 +284,7 @@ export async function parseRenpyFiles(
         hasMeta(metas, META_MENU_BLOCK)
       ) {
         const menuDepth = countMeta(metas, META_MENU_STATEMENT);
-        const menu = menuStack[menuDepth - 1];
+        const menu = menuAtDepth(menuStack, menuDepth);
         if (menu) menu.optionText = val();
         continue;
       }
@@ -290,7 +304,7 @@ export async function parseRenpyFiles(
         const target = val();
         const isInOption = hasMeta(metas, META_MENU_OPTION_BLOCK);
         const menuDepth = countMeta(metas, META_MENU_STATEMENT);
-        const menu = menuStack[menuDepth - 1];
+        const menu = menuAtDepth(menuStack, menuDepth);
         const source = isInOption && menu ? menu.id : currentLabelId;
         const optionText = menu?.optionText ?? null;
         if (source) {
@@ -321,7 +335,7 @@ export async function parseRenpyFiles(
         const target = val();
         const isInOption = hasMeta(metas, META_MENU_OPTION_BLOCK);
         const menuDepth = countMeta(metas, META_MENU_STATEMENT);
-        const menu = menuStack[menuDepth - 1];
+        const menu = menuAtDepth(menuStack, menuDepth);
         const source = isInOption && menu ? menu.id : currentLabelId;
         const optionText = menu?.optionText ?? null;
         if (source) {
@@ -355,10 +369,11 @@ export async function parseRenpyFiles(
 
         if (isSay && !isMenuOption) {
           // Attribute the line to the innermost block
+          const menuDepth = countMeta(metas, META_MENU_STATEMENT);
+          const menu = menuAtDepth(menuStack, menuDepth);
           const ownerId =
-            hasMeta(metas, META_MENU_OPTION_BLOCK) &&
-            menuStack[countMeta(metas, META_MENU_STATEMENT) - 1]
-              ? menuStack[countMeta(metas, META_MENU_STATEMENT) - 1].id
+            hasMeta(metas, META_MENU_OPTION_BLOCK) && menu
+              ? menu.id
               : currentLabelId;
           if (ownerId) {
             const ownerNode = nodeMap.get(ownerId);
