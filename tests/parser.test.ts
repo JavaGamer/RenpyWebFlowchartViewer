@@ -485,8 +485,8 @@ describe('parseRenpyFiles', () => {
 
     const result = await parseRenpyFiles([{ name: 'roles.rpy', content: script }]);
     const byId = new Map(result.nodes.map((n) => [n.id, n]));
-    expect(byId.get('main')?.role).toBe('detour');
-    expect(byId.get('detour_scene')?.role).toBe('utility');
+    expect(byId.get('main')?.role).toBe('story');
+    expect(byId.get('detour_scene')?.role).toBe('detour');
     expect(byId.get('helper_only')?.role).toBe('state_toggle');
     const menuNode = result.nodes.find((n) => n.type === 'MENU');
     expect(menuNode?.role).toBe('menu');

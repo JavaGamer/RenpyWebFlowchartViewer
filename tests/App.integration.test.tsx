@@ -356,9 +356,56 @@ describe('App – upload → parse → render integration', () => {
       });
       expect(createObjectURL).toHaveBeenCalledTimes(1);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:json');
+      const jsonBlob = createObjectURL.mock.calls[0]?.[0];
+      expect(jsonBlob).toBeInstanceOf(Blob);
+      const exportedJson = JSON.parse(await (jsonBlob as Blob).text()) as {
+        nodes: Array<{ role?: string }>;
+        edges: Array<{ kind?: string }>;
+      };
+      expect(exportedJson.nodes.some((n) => typeof n.role === 'string')).toBe(true);
+      expect(exportedJson.edges.some((e) => typeof e.kind === 'string')).toBe(true);
     } finally {
       vi.stubGlobal('URL', originalURL);
     }
+  });
+
+  it('shows call-return edges only when the show call returns toggle is enabled', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const scriptWithCallReturn = [
+      'label main:',
+      '    call helper',
+      '',
+      'label helper:',
+      '    "in helper"',
+      '    return',
+      '',
+    ].join('\n');
+    await user.upload(input, makeRpyFile('calls.rpy', scriptWithCallReturn));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const edgeCountWithoutReturns = parseInt(
+      view.getByTestId('rf-edge-count').textContent ?? '0',
+      10,
+    );
+    expect(edgeCountWithoutReturns).toBe(2);
+
+    const toggle = view.getByRole('checkbox', { name: /Show call returns/i });
+    await user.click(toggle);
+
+    await waitFor(() => {
+      const edgeCountWithReturns = parseInt(
+        view.getByTestId('rf-edge-count').textContent ?? '0',
+        10,
+      );
+      expect(edgeCountWithReturns).toBe(3);
+    });
   });
 
   it('file upload input has an accessible label', () => {

@@ -132,8 +132,7 @@ export async function parseRenpyFiles(
   const outgoingByLabel = new Map<string, Set<'sequence' | 'jump' | 'call'>>();
   const hasReturnInLabel = new Set<string>();
   const calledLabels = new Set<string>();
-  const hasTopLevelMenuInLabel = new Set<string>();
-  const hasCallFromMenuOption = new Set<string>();
+  const calledFromMenuOptionTargets = new Set<string>();
   const pendingCallReturns: Array<{ callerLabelId: string; callTargetId: string }> = [];
 
   const addIncoming = (labelId: string, kind: 'sequence' | 'jump' | 'call') => {
@@ -283,7 +282,6 @@ export async function parseRenpyFiles(
         });
         const parentMenu = menuStack[menuStack.length - 1];
         const source = parentMenu ? parentMenu.id : currentLabelId;
-        if (!parentMenu && currentLabelId) hasTopLevelMenuInLabel.add(currentLabelId);
         if (source) {
           addEdge({
             id: edgeIdWithOption(`seq_${source}__${newMenuId}`, parentMenu?.optionText),
@@ -396,7 +394,7 @@ export async function parseRenpyFiles(
           addIncoming(target, 'call');
           pendingCallReturns.push({ callerLabelId: currentLabelId, callTargetId: target });
         }
-        if (isInOption && currentLabelId) hasCallFromMenuOption.add(currentLabelId);
+        if (isInOption) calledFromMenuOptionTargets.add(target);
         // `call` returns, so don't mark labelHasExplicitExit
         waitForCallTarget = false;
         continue;
@@ -453,16 +451,19 @@ export async function parseRenpyFiles(
     const outgoing = outgoingByLabel.get(node.id) ?? new Set<'sequence' | 'jump' | 'call'>();
     const hasReturn = hasReturnInLabel.has(node.id);
     const isCalled = calledLabels.has(node.id);
-    const hasTopLevelMenu = hasTopLevelMenuInLabel.has(node.id);
-    const calledFromMenuOption = hasCallFromMenuOption.has(node.id);
+    const isCalledFromMenuOption = calledFromMenuOptionTargets.has(node.id);
     const hasStoryTraffic = incoming.has('sequence') || outgoing.has('sequence') || incoming.has('jump') || outgoing.has('jump');
 
+    // Strict roles:
+    // - state_toggle: isolated label with return (not called, no story traffic)
+    // - utility: called helper that returns, without story traffic
+    // - detour: called from a menu option and returns
     if (hasReturn && !hasStoryTraffic && !isCalled) {
       node.role = 'state_toggle';
+    } else if (isCalledFromMenuOption && hasReturn) {
+      node.role = 'detour';
     } else if (isCalled && hasReturn && !hasStoryTraffic) {
       node.role = 'utility';
-    } else if (hasTopLevelMenu && calledFromMenuOption) {
-      node.role = 'detour';
     } else {
       node.role = 'story';
     }
