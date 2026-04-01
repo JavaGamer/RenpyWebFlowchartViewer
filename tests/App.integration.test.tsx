@@ -9,10 +9,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, cleanup, within } from '@testing-library/react';
+import { render, waitFor, cleanup, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
+import { toBlob } from 'html-to-image';
 import App from '../src/App';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -57,9 +58,9 @@ vi.mock('@xyflow/react', () => {
   };
 });
 
-// html-to-image requires canvas; return a stub data URL.
+// html-to-image requires canvas; return a stub Blob.
 vi.mock('html-to-image', () => ({
-  toPng: vi.fn().mockResolvedValue('data:image/png;base64,stub'),
+  toBlob: vi.fn().mockResolvedValue(new Blob(['stub'], { type: 'image/png' })),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ describe('App – upload → parse → render integration', () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it('happy path: uploading a .rpy file shows parsed stats and the flowchart', async () => {
@@ -194,5 +196,40 @@ describe('App – upload → parse → render integration', () => {
         view.getByText(/Drop your Ren'Py project folder here/i),
       ).toBeInTheDocument();
     });
+  });
+
+  it('revokes the object URL after each PNG export to prevent memory leaks', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('start.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn().mockReturnValue('blob:stub'),
+      revokeObjectURL,
+    });
+
+    const exportBtn = view.getByRole('button', { name: /Export PNG/i });
+
+    // First export
+    await act(async () => {
+      await user.click(exportBtn);
+    });
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
+
+    // Second export -- revokeObjectURL must be called again, not accumulated
+    await act(async () => {
+      await user.click(exportBtn);
+    });
+    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
+    expect(toBlob).toHaveBeenCalledTimes(2);
   });
 });
