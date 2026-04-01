@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseRenpyFiles } from '../src/parser';
+
+function loadFixture(name: string): string {
+  const fixturesDir = resolve(import.meta.dirname, 'fixtures');
+  return readFileSync(resolve(fixturesDir, name), 'utf8');
+}
 
 describe('parseRenpyFiles', () => {
   it('returns an empty graph when no files are provided', async () => {
@@ -428,5 +435,79 @@ describe('parseRenpyFiles', () => {
       (e) => e.source === 'first' && e.target === 'second' && e.label === 'next',
     );
     expect(fallthroughEdge).toBeUndefined();
+  });
+
+  // ── Fixture-based regression cases ───────────────────────────────────────────
+
+  it('fixture: nested menus preserve menu-option jump edges, including nested options', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'nested-menus.rpy', content: loadFixture('nested-menus.rpy') },
+    ]);
+
+    const menuNodes = result.nodes.filter((n) => n.type === 'MENU');
+    expect(menuNodes).toHaveLength(1);
+
+    const acceptedEdge = result.edges.find((e) => e.target === 'accepted' && e.label === 'Accept quest');
+    const declinedViaNested = result.edges.find((e) => e.target === 'declined' && e.label === 'Decline quest');
+    const declinedDirect = result.edges.find((e) => e.target === 'declined' && e.label === 'Leave');
+
+    expect(acceptedEdge).toBeDefined();
+    expect(declinedViaNested).toBeDefined();
+    expect(declinedDirect).toBeDefined();
+  });
+
+  it('fixture: unreachable labels are still emitted as nodes and keep normal sequence/jump behavior', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'unreachable-labels.rpy', content: loadFixture('unreachable-labels.rpy') },
+    ]);
+
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'start', type: 'LABEL' }),
+        expect.objectContaining({ id: 'hidden_branch', type: 'LABEL' }),
+        expect.objectContaining({ id: 'finish', type: 'LABEL' }),
+      ]),
+    );
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'finish' }),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'hidden_branch', target: 'finish', label: 'next' }),
+    );
+  });
+
+  it('fixture: cyclic jumps are represented as explicit jump edges in both directions', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'cyclic-jumps.rpy', content: loadFixture('cyclic-jumps.rpy') },
+    ]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'loop_a', target: 'loop_b' }),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'loop_b', target: 'loop_a' }),
+    );
+  });
+
+  it('fixture: malformed script recovery preserves parsable labels and does not throw', async () => {
+    await expect(
+      parseRenpyFiles([
+        {
+          name: 'malformed-script-recovery.rpy',
+          content: loadFixture('malformed-script-recovery.rpy'),
+        },
+      ]),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        nodes: expect.arrayContaining([
+          expect.objectContaining({ id: 'start', type: 'LABEL' }),
+          expect.objectContaining({ id: 'fallback', type: 'LABEL' }),
+        ]),
+        edges: expect.arrayContaining([
+          expect.objectContaining({ source: 'start', target: 'fallback' }),
+        ]),
+      }),
+    );
   });
 });
