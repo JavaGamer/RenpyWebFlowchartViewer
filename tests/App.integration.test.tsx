@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, cleanup, within, act } from '@testing-library/react';
+import { render, waitFor, cleanup, within, act, fireEvent, createEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
@@ -286,16 +286,12 @@ describe('App – upload → parse → render integration', () => {
     const user = userEvent.setup();
 
     const OriginalFileReader = globalThis.FileReader;
-    class UnknownFailureFileReader {
-      onload: unknown = null;
-      onerror: ((e: ProgressEvent) => void) | null = null;
-      result: null = null;
+    class ThrowingFileReader {
       readAsText() {
-        Promise.resolve().then(() => this.onerror?.(new ProgressEvent('error')));
+        throw { toString: () => 'non-error read failure' };
       }
     }
-    vi.stubGlobal('FileReader', UnknownFailureFileReader);
-    vi.spyOn(Error, Symbol.hasInstance).mockReturnValue(false);
+    vi.stubGlobal('FileReader', ThrowingFileReader);
 
     try {
       const { container } = render(<App />);
@@ -307,9 +303,9 @@ describe('App – upload → parse → render integration', () => {
         expect(
           view.getByText(/An unexpected error occurred while reading files:/i),
         ).toBeInTheDocument();
+        expect(view.getByText(/non-error read failure/i)).toBeInTheDocument();
       });
     } finally {
-      vi.restoreAllMocks();
       vi.stubGlobal('FileReader', OriginalFileReader);
     }
   });
@@ -462,17 +458,13 @@ describe('App – upload → parse → render integration', () => {
     const view = within(container);
 
     const dropZone = container.querySelector('label[for="folder-input"]') as HTMLLabelElement;
-    const dragOverEvent = new Event('dragover', { bubbles: true, cancelable: true });
-    dropZone.dispatchEvent(dragOverEvent);
+    const dragOverEvent = createEvent.dragOver(dropZone);
+    fireEvent(dropZone, dragOverEvent);
     expect(dragOverEvent.defaultPrevented).toBe(true);
 
     const file = makeRpyFile('drop.rpy', SAMPLE_RPY);
-    const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(dropEvent, 'dataTransfer', {
-      value: { files: [file] },
-      configurable: true,
-    });
-    dropZone.dispatchEvent(dropEvent);
+    const dropEvent = createEvent.drop(dropZone, { dataTransfer: { files: [file] } });
+    fireEvent(dropZone, dropEvent);
     expect(dropEvent.defaultPrevented).toBe(true);
 
     await waitFor(() => {
