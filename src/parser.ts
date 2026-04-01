@@ -127,6 +127,26 @@ export async function parseRenpyFiles(
   };
 
   let menuCounter = 0;
+  const allLabelIds = new Set<string>();
+  const incomingByLabel = new Map<string, Set<'sequence' | 'jump' | 'call'>>();
+  const outgoingByLabel = new Map<string, Set<'sequence' | 'jump' | 'call'>>();
+  const hasReturnInLabel = new Set<string>();
+  const calledLabels = new Set<string>();
+  const hasTopLevelMenuInLabel = new Set<string>();
+  const hasCallFromMenuOption = new Set<string>();
+  const pendingCallReturns: Array<{ callerLabelId: string; callTargetId: string }> = [];
+
+  const addIncoming = (labelId: string, kind: 'sequence' | 'jump' | 'call') => {
+    const existing = incomingByLabel.get(labelId) ?? new Set<'sequence' | 'jump' | 'call'>();
+    existing.add(kind);
+    incomingByLabel.set(labelId, existing);
+  };
+
+  const addOutgoing = (labelId: string, kind: 'sequence' | 'jump' | 'call') => {
+    const existing = outgoingByLabel.get(labelId) ?? new Set<'sequence' | 'jump' | 'call'>();
+    existing.add(kind);
+    outgoingByLabel.set(labelId, existing);
+  };
 
   for (const file of files) {
     const chapter = file.name.replace(/\.rpy$/i, '');
@@ -217,10 +237,14 @@ export async function parseRenpyFiles(
             id: `seq_${currentLabelId}__${newLabelId}`,
             source: currentLabelId,
             target: newLabelId,
+            kind: 'sequence',
             label: 'next',
           });
+          addOutgoing(currentLabelId, 'sequence');
+          addIncoming(newLabelId, 'sequence');
         }
         currentLabelId = newLabelId;
+        allLabelIds.add(newLabelId);
         labelHasExplicitExit = false;
         waitForLabelName = false;
         addNode({
@@ -259,11 +283,13 @@ export async function parseRenpyFiles(
         });
         const parentMenu = menuStack[menuStack.length - 1];
         const source = parentMenu ? parentMenu.id : currentLabelId;
+        if (!parentMenu && currentLabelId) hasTopLevelMenuInLabel.add(currentLabelId);
         if (source) {
           addEdge({
             id: edgeIdWithOption(`seq_${source}__${newMenuId}`, parentMenu?.optionText),
             source,
             target: newMenuId,
+            kind: 'sequence',
             label: parentMenu?.optionText ?? undefined,
           });
         }
@@ -322,8 +348,13 @@ export async function parseRenpyFiles(
             id: `jump_${source}__${target}_${optionText ?? ''}`,
             source,
             target,
+            kind: 'jump',
             label: isInOption ? (optionText ?? undefined) : undefined,
           });
+        }
+        if (!isInOption && currentLabelId) {
+          addOutgoing(currentLabelId, 'jump');
+          addIncoming(target, 'jump');
         }
         if (!isInOption && conditionalIndentStack.length === 0) labelHasExplicitExit = true;
         waitForJumpTarget = false;
@@ -353,11 +384,19 @@ export async function parseRenpyFiles(
             id: `call_${source}__${target}_${optionText ?? ''}`,
             source,
             target,
+            kind: 'call',
             label: isInOption
               ? (optionText ? `call: ${optionText}` : 'call')
               : 'call',
           });
         }
+        calledLabels.add(target);
+        if (!isInOption && currentLabelId) {
+          addOutgoing(currentLabelId, 'call');
+          addIncoming(target, 'call');
+          pendingCallReturns.push({ callerLabelId: currentLabelId, callTargetId: target });
+        }
+        if (isInOption && currentLabelId) hasCallFromMenuOption.add(currentLabelId);
         // `call` returns, so don't mark labelHasExplicitExit
         waitForCallTarget = false;
         continue;
@@ -366,6 +405,7 @@ export async function parseRenpyFiles(
       // ── Return keyword → label exits explicitly ───────────────────────────
       if (type === KW_RETURN && !hasMeta(META_MENU_OPTION_BLOCK)) {
         labelHasExplicitExit = true;
+        hasReturnInLabel.add(currentLabelId);
         continue;
       }
 
@@ -391,6 +431,40 @@ export async function parseRenpyFiles(
           }
         }
       }
+    }
+  }
+
+  for (const { callerLabelId, callTargetId } of pendingCallReturns) {
+    addEdge({
+      id: `ret_${callTargetId}__${callerLabelId}`,
+      source: callTargetId,
+      target: callerLabelId,
+      kind: 'call_return',
+      label: 'return',
+    });
+  }
+
+  for (const node of nodes) {
+    if (node.type === 'MENU') {
+      node.role = 'menu';
+      continue;
+    }
+    const incoming = incomingByLabel.get(node.id) ?? new Set<'sequence' | 'jump' | 'call'>();
+    const outgoing = outgoingByLabel.get(node.id) ?? new Set<'sequence' | 'jump' | 'call'>();
+    const hasReturn = hasReturnInLabel.has(node.id);
+    const isCalled = calledLabels.has(node.id);
+    const hasTopLevelMenu = hasTopLevelMenuInLabel.has(node.id);
+    const calledFromMenuOption = hasCallFromMenuOption.has(node.id);
+    const hasStoryTraffic = incoming.has('sequence') || outgoing.has('sequence') || incoming.has('jump') || outgoing.has('jump');
+
+    if (hasReturn && !hasStoryTraffic && !isCalled) {
+      node.role = 'state_toggle';
+    } else if (isCalled && hasReturn && !hasStoryTraffic) {
+      node.role = 'utility';
+    } else if (hasTopLevelMenu && calledFromMenuOption) {
+      node.role = 'detour';
+    } else {
+      node.role = 'story';
     }
   }
 
