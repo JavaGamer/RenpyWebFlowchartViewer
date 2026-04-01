@@ -322,6 +322,25 @@ describe('parseRenpyFiles', () => {
     expect(menuNodes.some((n) => n.id === innerJump?.source)).toBe(true);
   });
 
+  it('uses stable edge IDs when a menu option text is not yet available', async () => {
+    const script = [
+      'label choice:',
+      '    menu:',
+      '        "Option A":',
+      '            jump end_a',
+      '',
+      'label end_a:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'unnamed_menu_edge_id.rpy', content: script }]);
+
+    const seqEdge = result.edges.find((e) => e.source === 'choice' && e.target.startsWith('menu_'));
+    expect(seqEdge).toBeDefined();
+    expect(seqEdge?.id).toBe(`seq_choice__${seqEdge?.target}`);
+  });
+
   // ── Call parsing ─────────────────────────────────────────────────────────────
 
   it('parses a call statement and creates a directed call edge labeled "call"', async () => {
