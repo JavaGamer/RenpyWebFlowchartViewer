@@ -24,13 +24,16 @@ vi.mock('@xyflow/react', () => {
   const ReactFlow = ({
     nodes,
     edges,
+    children,
   }: {
-    nodes: unknown[];
+    nodes: Array<{ hidden?: boolean }>;
     edges: unknown[];
+    children?: React.ReactNode;
   }) => (
     <div data-testid="react-flow">
-      <span data-testid="rf-node-count">{nodes.length}</span>
+      <span data-testid="rf-node-count">{nodes.filter((n) => !n.hidden).length}</span>
       <span data-testid="rf-edge-count">{edges.length}</span>
+      {children}
     </div>
   );
   const Background = () => null;
@@ -44,6 +47,14 @@ vi.mock('@xyflow/react', () => {
   const getBezierPath = () => ['M 0 0', 0, 0] as [string, number, number];
   const Position = { Top: 'top', Bottom: 'bottom', Left: 'left', Right: 'right' };
   const MarkerType = { ArrowClosed: 'arrowclosed' };
+  const useNodesState = (initial: unknown[]) => {
+    const [nodes, setNodes] = React.useState(initial);
+    return [nodes, setNodes, vi.fn()] as const;
+  };
+  const useEdgesState = (initial: unknown[]) => {
+    const [edges, setEdges] = React.useState(initial);
+    return [edges, setEdges, vi.fn()] as const;
+  };
 
   return {
     ReactFlow,
@@ -56,6 +67,8 @@ vi.mock('@xyflow/react', () => {
     getBezierPath,
     Position,
     MarkerType,
+    useNodesState,
+    useEdgesState,
   };
 });
 
@@ -320,5 +333,54 @@ describe('App – upload → parse → render integration', () => {
     const label = container.querySelector('label[for="folder-input"]') as HTMLLabelElement;
     expect(label).not.toBeNull();
     expect(label).toHaveAttribute('aria-label', 'Upload Ren\'Py project folder');
+  });
+
+  it('filters visible nodes via search and supports chapter collapse controls', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('chapter1.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+    const searchInput = view.getByRole('textbox', { name: /Search labels or dialogue count/i });
+    await user.type(searchInput, 'second');
+
+    await waitFor(() => {
+      const filteredCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(filteredCount).toBeLessThan(initialCount);
+    });
+
+    await user.clear(searchInput);
+    const chapterToggle = view.getByRole('button', { name: /Collapse chapter chapter1/i });
+    await user.click(chapterToggle);
+
+    await waitFor(() => {
+      expect(view.getByTestId('rf-node-count')).toHaveTextContent('0');
+    });
+  });
+
+  it('supports selecting high-contrast and colorblind-safe themes', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('theme.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const themeSelect = view.getByRole('combobox', { name: /Color theme/i });
+    await user.selectOptions(themeSelect, 'highContrast');
+    expect(themeSelect).toHaveValue('highContrast');
+    await user.selectOptions(themeSelect, 'colorblind');
+    expect(themeSelect).toHaveValue('colorblind');
   });
 });

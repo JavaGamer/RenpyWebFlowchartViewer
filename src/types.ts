@@ -7,6 +7,10 @@ export interface FlowNode {
   label: string;
   /** Number of dialogue lines inside this block. */
   dialogueCount: number;
+  /** Source chapter inferred from the .rpy filename. */
+  chapter?: string;
+  /** Parent label id for MENU nodes. */
+  parentLabelId?: string;
 }
 
 /** A directed edge in the flowchart graph. */

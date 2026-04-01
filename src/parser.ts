@@ -106,6 +106,7 @@ export async function parseRenpyFiles(
   let menuCounter = 0;
 
   for (const file of files) {
+    const chapter = file.name.replace(/\.rpy$/i, '');
     const { document, nodes: tokenTree } = await renpyParse(file.content);
     const flat = tokenTree.flatten();
 
@@ -176,6 +177,7 @@ export async function parseRenpyFiles(
           type: 'LABEL',
           label: currentLabelId,
           dialogueCount: 0,
+          chapter,
         });
         continue;
       }
@@ -199,6 +201,8 @@ export async function parseRenpyFiles(
             type: 'MENU',
             label: `menu_${menuCounter}`,
             dialogueCount: 0,
+            chapter,
+            parentLabelId: currentLabelId,
           });
           // Sequence edge: label → its menu
           addEdge({
