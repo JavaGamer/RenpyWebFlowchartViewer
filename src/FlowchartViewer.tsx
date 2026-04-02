@@ -403,29 +403,6 @@ export default function FlowchartViewer({
     globalThis.localStorage?.setItem('rfv.edge.call_return', String(visibleEdgeKinds.call_return));
   }, [visibleEdgeKinds]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
-        event.preventDefault();
-        onExport();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
-        event.preventDefault();
-        flowInstanceRef.current?.fitView({ padding: 0.2 });
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onExport]);
-
   const collapsedLabelChildren = useMemo(
     () =>
       new Set(
@@ -537,6 +514,29 @@ export default function FlowchartViewer({
     a.click();
     URL.revokeObjectURL(url);
   }, [flowEdges, flowNodes]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        onExport();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
+        event.preventDefault();
+        flowInstanceRef.current?.fitView({ padding: 0.2 });
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onExport]);
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>

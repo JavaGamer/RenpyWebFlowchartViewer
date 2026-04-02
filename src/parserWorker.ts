@@ -38,7 +38,7 @@ interface ErrorMessage {
 type WorkerResponse = ProgressMessage | ResultMessage | ErrorMessage;
 
 let activeRequestId: number | null = null;
-let cancelledRequests = new Set<number>();
+const cancelledRequests = new Set<number>();
 
 function postMessageSafe(message: WorkerResponse) {
   self.postMessage(message);
