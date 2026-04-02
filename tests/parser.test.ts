@@ -46,6 +46,7 @@ describe('parseRenpyFiles', () => {
       id: 'seq_start__second',
       source: 'start',
       target: 'second',
+      kind: 'sequence',
       label: 'next',
     });
   });
@@ -363,6 +364,7 @@ describe('parseRenpyFiles', () => {
     expect(callEdge).toBeDefined();
     expect(callEdge?.id).toMatch(/^call_/);
     expect(callEdge?.label).toBe('call');
+    expect(callEdge?.kind).toBe('call');
   });
 
   it('call does not prevent a fallthrough sequence edge to the next label', async () => {
@@ -430,6 +432,64 @@ describe('parseRenpyFiles', () => {
     const callEdge = result.edges.find((e) => e.target === 'alice_scene');
     expect(callEdge).toBeDefined();
     expect(callEdge?.label).toBe('call: Talk to Alice');
+  });
+
+  it('adds synthetic call-return edges from called label back to caller label', async () => {
+    const script = [
+      'label main:',
+      '    call helper',
+      '',
+      'label helper:',
+      '    "in helper"',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'call_return.rpy', content: script }]);
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'main',
+          target: 'helper',
+          kind: 'call',
+        }),
+        expect.objectContaining({
+          source: 'helper',
+          target: 'main',
+          kind: 'call_return',
+          label: 'return',
+        }),
+      ]),
+    );
+  });
+
+  it('classifies label roles using strict rules and keeps role metadata on nodes', async () => {
+    const script = [
+      'label main:',
+      '    menu:',
+      '        "Talk":',
+      '            call detour_scene',
+      '',
+      'label detour_scene:',
+      '    "detour"',
+      '    return',
+      '',
+      'label helper_only:',
+      '    "utility"',
+      '    return',
+      '',
+      'label state_toggle:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'roles.rpy', content: script }]);
+    const byId = new Map(result.nodes.map((n) => [n.id, n]));
+    expect(byId.get('main')?.role).toBe('story');
+    expect(byId.get('detour_scene')?.role).toBe('detour');
+    expect(byId.get('helper_only')?.role).toBe('state_toggle');
+    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    expect(menuNode?.role).toBe('menu');
   });
 
   // ── Dialogue extraction ───────────────────────────────────────────────────────

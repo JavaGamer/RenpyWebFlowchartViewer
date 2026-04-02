@@ -190,6 +190,7 @@ const nodeTypes: NodeTypes = {
 
 interface EdgeData extends Record<string, unknown> {
   label: string;
+  kind?: 'sequence' | 'jump' | 'call' | 'call_return';
 }
 
 type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
@@ -306,7 +307,7 @@ function applyDagreLayout(
       source: e.source,
       target: e.target,
       type: 'labeled',
-      data: { label: e.label ?? '' },
+      data: { label: e.label ?? '', kind: e.kind },
       markerEnd: { type: 'arrowclosed' as const },
       style: { stroke: '#6b7280', strokeWidth: 1.5 },
     }));
@@ -333,6 +334,7 @@ export default function FlowchartViewer({
   const [theme, setTheme] = useState<'violet' | 'highContrast' | 'colorblind'>('violet');
   const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
   const [collapsedParentLabels, setCollapsedParentLabels] = useState<Record<string, boolean>>({});
+  const [showCallReturns, setShowCallReturns] = useState(false);
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
     () => applyDagreLayout(flowNodes, flowEdges, layoutDirection),
@@ -412,8 +414,9 @@ export default function FlowchartViewer({
     () =>
       edges
         .map((e) => ({ ...e, style: { ...(e.style || {}), stroke: THEMES[theme].edge, strokeWidth: 1.5 } }))
+        .filter((e) => showCallReturns || (e.data as EdgeData | undefined)?.kind !== 'call_return')
         .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)),
-    [edges, theme, visibleNodeIds],
+    [edges, showCallReturns, theme, visibleNodeIds],
   );
 
   const onExport = useCallback(() => {
@@ -496,6 +499,15 @@ export default function FlowchartViewer({
               aria-label="Minimum dialogue lines"
               className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm"
             />
+          </label>
+          <label className="text-xs flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={showCallReturns}
+              onChange={(e) => setShowCallReturns(e.target.checked)}
+              aria-label="Show call returns"
+            />
+            Show call returns
           </label>
           <label className="text-xs flex items-center gap-1">
             <LayoutGrid size={14} aria-hidden="true" />
