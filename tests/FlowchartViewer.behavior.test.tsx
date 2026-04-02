@@ -189,12 +189,12 @@ describe('FlowchartViewer behavior coverage', () => {
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
 
     await user.click(screen.getByRole('button', { name: /Zoom to 100 percent/i }));
-    const mocked = ReactFlowLib as unknown as { __test: { flowApi: { zoomTo: ReturnType<typeof vi.fn>; fitView: ReturnType<typeof vi.fn> } } };
-    expect(mocked.__test.flowApi.zoomTo).toHaveBeenCalledWith(1, { duration: 250 });
+    const reactFlowTestUtils = ReactFlowLib as unknown as { __test: { flowApi: { zoomTo: ReturnType<typeof vi.fn>; fitView: ReturnType<typeof vi.fn> } } };
+    expect(reactFlowTestUtils.__test.flowApi.zoomTo).toHaveBeenCalledWith(1, { duration: 250 });
 
     await user.click(screen.getByRole('button', { name: /Re-run auto layout/i }));
     await waitFor(() => {
-      expect(mocked.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
+      expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
       expect(rafSpy).toHaveBeenCalled();
     });
   });
