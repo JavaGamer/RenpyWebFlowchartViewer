@@ -414,6 +414,33 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('does not suppress fallthrough when menu is inside a conditional branch', async () => {
+    const script = [
+      'label start:',
+      '    if flag:',
+      '        menu:',
+      '            "Go to branch":',
+      '                jump branch_a',
+      '    "continue"',
+      '',
+      'label next_label:',
+      '    "after conditional"',
+      '',
+      'label branch_a:',
+      '    "branch"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional_menu.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'menu_1', target: 'branch_a', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'next_label', label: 'next' }),
+      ]),
+    );
+  });
+
   it('creates a call edge labeled with the option text when call is inside a menu option', async () => {
     const script = [
       'label hub:',

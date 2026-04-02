@@ -292,8 +292,9 @@ export async function parseRenpyFiles(
           });
         }
         menuStack.push({ id: newMenuId, optionText: null });
-        // The label's execution falls into the menu — suppress label→label sequence.
-        labelHasExplicitExit = true;
+        // The label's execution falls into the menu only when the menu statement is
+        // at top level in the label (outside conditionals).
+        if (conditionalIndentStack.length === 0) labelHasExplicitExit = true;
         continue;
       }
 
