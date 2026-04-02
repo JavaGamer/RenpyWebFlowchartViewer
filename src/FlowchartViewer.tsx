@@ -317,6 +317,14 @@ function applyDagreLayout(
   return { nodes, edges };
 }
 
+function getNodeCenter(node: CanvasNode): { x: number; y: number } {
+  const nodeHeight = node.type === 'labelNode' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
+  return {
+    x: node.position.x + NODE_WIDTH / 2,
+    y: node.position.y + nodeHeight / 2,
+  };
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
@@ -498,7 +506,8 @@ export default function FlowchartViewer({
     if (!focusNodeId || !flowInstanceRef.current) return;
     const target = visibleNodes.find((n) => n.id === focusNodeId && !n.hidden);
     if (!target) return;
-    flowInstanceRef.current.setCenter(target.position.x + NODE_WIDTH / 2, target.position.y + NODE_HEIGHT_LABEL / 2, {
+    const center = getNodeCenter(target);
+    flowInstanceRef.current.setCenter(center.x, center.y, {
       zoom: 1.1,
       duration: 250,
     });

@@ -115,9 +115,16 @@ function buildTokenMap(): ParserTokenMap {
     charNewline: assertEnumEntry('CharacterTokenType', 'NewLine', CharacterTokenType.NewLine),
   };
 
-  if (map.kwMenuObserved !== map.kwLabel + 73) {
+  // Runtime guard for the known tokenizer quirk:
+  // in current @renpy/ast builds, `menu` statement tokens are surfaced as `Def`.
+  if (map.kwMenuObserved === KeywordTokenType.Menu) {
     throw new Error(
-      '[parser] Unexpected @renpy/ast menu tokenization behavior; expected menu keyword quirk to map to KeywordTokenType.Def.',
+      '[parser] Unexpected @renpy/ast menu tokenization behavior; `menu` no longer maps to KeywordTokenType.Def.',
+    );
+  }
+  if (KeywordTokenType[map.kwMenuObserved] !== 'Def') {
+    throw new Error(
+      '[parser] Unsupported @renpy/ast tokenizer shape: expected observed menu keyword token to resolve to Def.',
     );
   }
 
