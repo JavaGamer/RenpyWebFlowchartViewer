@@ -29,7 +29,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
 import { toBlob, toSvg } from 'html-to-image';
-import { Download, Search, ZoomIn, LayoutGrid, Palette } from 'lucide-react';
+import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -193,6 +193,8 @@ interface EdgeData extends Record<string, unknown> {
   kind?: 'sequence' | 'jump' | 'call' | 'call_return';
 }
 
+type EdgeKindFilter = 'sequence' | 'jump' | 'call' | 'call_return';
+
 type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
 type CanvasEdge = LabeledEdgeType;
 
@@ -315,6 +317,14 @@ function applyDagreLayout(
   return { nodes, edges };
 }
 
+function getNodeCenter(node: CanvasNode): { x: number; y: number } {
+  const nodeHeight = node.type === 'labelNode' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
+  return {
+    x: node.position.x + NODE_WIDTH / 2,
+    y: node.position.y + nodeHeight / 2,
+  };
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
@@ -331,10 +341,22 @@ export default function FlowchartViewer({
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
   const [search, setSearch] = useState('');
   const [minDialogue, setMinDialogue] = useState(0);
-  const [theme, setTheme] = useState<'violet' | 'highContrast' | 'colorblind'>('violet');
+  const [theme, setTheme] = useState<'violet' | 'highContrast' | 'colorblind'>(() => {
+    const raw = globalThis.localStorage?.getItem('rfv.theme');
+    if (raw === 'violet' || raw === 'highContrast' || raw === 'colorblind') return raw;
+    return 'violet';
+  });
   const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
   const [collapsedParentLabels, setCollapsedParentLabels] = useState<Record<string, boolean>>({});
-  const [showCallReturns, setShowCallReturns] = useState(false);
+  const [showCallReturns, setShowCallReturns] = useState(() => globalThis.localStorage?.getItem('rfv.showCallReturns') === 'true');
+  const [visibleEdgeKinds, setVisibleEdgeKinds] = useState<Record<EdgeKindFilter, boolean>>(() => ({
+    sequence: globalThis.localStorage?.getItem('rfv.edge.sequence') !== 'false',
+    jump: globalThis.localStorage?.getItem('rfv.edge.jump') !== 'false',
+    call: globalThis.localStorage?.getItem('rfv.edge.call') !== 'false',
+    call_return: globalThis.localStorage?.getItem('rfv.edge.call_return') !== 'false',
+  }));
+  const [focusNodeId, setFocusNodeId] = useState<string>('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
     () => applyDagreLayout(flowNodes, flowEdges, layoutDirection),
@@ -373,6 +395,21 @@ export default function FlowchartViewer({
     setNodes(layoutNodes);
     setEdges(layoutEdges);
   }, [layoutNodes, layoutEdges, setEdges, setNodes]);
+
+  useEffect(() => {
+    globalThis.localStorage?.setItem('rfv.theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    globalThis.localStorage?.setItem('rfv.showCallReturns', String(showCallReturns));
+  }, [showCallReturns]);
+
+  useEffect(() => {
+    globalThis.localStorage?.setItem('rfv.edge.sequence', String(visibleEdgeKinds.sequence));
+    globalThis.localStorage?.setItem('rfv.edge.jump', String(visibleEdgeKinds.jump));
+    globalThis.localStorage?.setItem('rfv.edge.call', String(visibleEdgeKinds.call));
+    globalThis.localStorage?.setItem('rfv.edge.call_return', String(visibleEdgeKinds.call_return));
+  }, [visibleEdgeKinds]);
 
   const collapsedLabelChildren = useMemo(
     () =>
@@ -414,9 +451,14 @@ export default function FlowchartViewer({
     () =>
       edges
         .map((e) => ({ ...e, style: { ...(e.style || {}), stroke: THEMES[theme].edge, strokeWidth: 1.5 } }))
-        .filter((e) => showCallReturns || (e.data as EdgeData | undefined)?.kind !== 'call_return')
+        .filter((e) => {
+          const kind = ((e.data as EdgeData | undefined)?.kind ?? 'sequence') as EdgeKindFilter;
+          if (!visibleEdgeKinds[kind]) return false;
+          if (!showCallReturns && kind === 'call_return') return false;
+          return true;
+        })
         .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)),
-    [edges, showCallReturns, theme, visibleNodeIds],
+    [edges, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
 
   const onExport = useCallback(() => {
@@ -459,6 +501,18 @@ export default function FlowchartViewer({
       });
   }, [theme]);
 
+
+  const onFocusSelectedNode = useCallback(() => {
+    if (!focusNodeId || !flowInstanceRef.current) return;
+    const target = visibleNodes.find((n) => n.id === focusNodeId && !n.hidden);
+    if (!target) return;
+    const center = getNodeCenter(target);
+    flowInstanceRef.current.setCenter(center.x, center.y, {
+      zoom: 1.1,
+      duration: 250,
+    });
+  }, [focusNodeId, visibleNodes]);
+
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
     const blob = new Blob([graphJson], { type: 'application/json' });
@@ -469,6 +523,29 @@ export default function FlowchartViewer({
     a.click();
     URL.revokeObjectURL(url);
   }, [flowEdges, flowNodes]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        onExport();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
+        event.preventDefault();
+        flowInstanceRef.current?.fitView({ padding: 0.2 });
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onExport]);
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
@@ -482,6 +559,7 @@ export default function FlowchartViewer({
           <label className="relative flex items-center">
             <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
             <input
+              ref={searchInputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search labels or dialogue count"
@@ -543,6 +621,49 @@ export default function FlowchartViewer({
               <option value="colorblind">Colorblind-safe</option>
             </select>
           </label>
+
+          <label className="text-xs flex items-center gap-1">
+            Focus label
+            <select
+              value={focusNodeId}
+              onChange={(e) => setFocusNodeId(e.target.value)}
+              aria-label="Focus label"
+              className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">Select label</option>
+              {labels.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={onFocusSelectedNode}
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+              aria-label="Center selected label"
+            >
+              <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
+              Center
+            </button>
+          </label>
+          <div className="flex items-center gap-1 text-xs">
+            <span>Edges</span>
+            {(['sequence', 'jump', 'call', 'call_return'] as const).map((kind) => (
+              <label key={kind} className="inline-flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={visibleEdgeKinds[kind]}
+                  onChange={(e) =>
+                    setVisibleEdgeKinds((prev) => ({ ...prev, [kind]: e.target.checked }))
+                  }
+                  aria-label={`Show ${kind.replace('_', ' ')} edges`}
+                />
+                {kind.replace('_', ' ')}
+              </label>
+            ))}
+          </div>
+
           {ZOOM_PRESETS.map((preset) => (
             <button
               key={preset}

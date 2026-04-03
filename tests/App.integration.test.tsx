@@ -16,6 +16,7 @@ import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 import { toBlob, toSvg } from 'html-to-image';
 import App from '../src/App';
 import * as parser from '../src/parser';
+import * as parserWorker from '../src/parseInWorker';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,10 @@ vi.mock('@xyflow/react', () => {
 });
 
 // html-to-image requires canvas; return a stub Blob.
+vi.mock('../src/parseInWorker', () => ({
+  parseRenpyFilesInWorker: vi.fn(async ({ files }: { files: Array<{ name: string; content: string }> }) => parser.parseRenpyFiles(files)),
+}));
+
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn().mockResolvedValue(new Blob(['stub'], { type: 'image/png' })),
   toSvg: vi.fn().mockResolvedValue('data:image/svg+xml;base64,c3R1Yg=='),
@@ -262,7 +267,7 @@ describe('App – upload → parse → render integration', () => {
   it('shows an actionable parse error message when the parser throws', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(parser, 'parseRenpyFiles').mockRejectedValueOnce(
+    vi.spyOn(parserWorker, 'parseRenpyFilesInWorker').mockRejectedValueOnce(
       new Error('Unexpected token at line 3'),
     );
 
@@ -497,6 +502,106 @@ describe('App – upload → parse → render integration', () => {
     expect(themeSelect).toHaveValue('highContrast');
     await user.selectOptions(themeSelect, 'colorblind');
     expect(themeSelect).toHaveValue('colorblind');
+  });
+
+
+
+  it('shows and applies edge-type visibility filters', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const script = [
+      'label start:',
+      '    call helper',
+      '    jump end',
+      '',
+      'label helper:',
+      '    "in helper"',
+      '    return',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    await user.upload(input, makeRpyFile('filters.rpy', script));
+    await waitFor(() => expect(view.getByTestId('react-flow')).toBeInTheDocument());
+
+    const before = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
+    expect(before).toBeGreaterThanOrEqual(3);
+
+    await user.click(view.getByRole('checkbox', { name: /Show jump edges/i }));
+
+    await waitFor(() => {
+      const after = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
+      expect(after).toBeLessThan(before);
+    });
+  });
+
+  it('shows upload limits feedback for excessive file count and total size', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+
+    const manyFiles = Array.from({ length: 301 }, (_, i) =>
+      makeRpyFile(`f${i}.rpy`, 'label a:\n    "x"\n'),
+    );
+    await user.upload(input, manyFiles);
+    await waitFor(() => {
+      expect(view.getByText(/Too many \.rpy files selected/i)).toBeInTheDocument();
+    });
+
+    const twelveMiB = 'a'.repeat(12 * 1024 * 1024);
+    await user.upload(input, [
+      makeRpyFile('a.rpy', twelveMiB),
+      makeRpyFile('b.rpy', twelveMiB),
+      makeRpyFile('c.rpy', twelveMiB),
+    ]);
+
+    await waitFor(() => {
+      expect(view.getByText(/exceeds the 25 MiB import limit/i)).toBeInTheDocument();
+    });
+  });
+
+  it('exposes parser progress updates and supports cancel parsing action', async () => {
+    const user = userEvent.setup();
+    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker').mockImplementationOnce(
+      async ({ onProgress, signal }) => {
+        onProgress?.({ doneFiles: 1, totalFiles: 2, currentFile: 'one.rpy' });
+        await new Promise((_, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Parsing cancelled', 'AbortError')),
+            { once: true },
+          );
+        });
+      },
+    );
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+
+    const uploadPromise = user.upload(input, [
+      makeRpyFile('one.rpy', 'label one:\n    "x"\n'),
+      makeRpyFile('two.rpy', 'label two:\n    "y"\n'),
+    ]);
+
+    await waitFor(() => {
+      expect(view.getByText(/Parsing 1 \/ 2/i)).toBeInTheDocument();
+      expect(view.getByText(/Current: one\.rpy/i)).toBeInTheDocument();
+    });
+
+    await user.click(view.getByRole('button', { name: /Cancel parsing/i }));
+    await uploadPromise;
+
+    await waitFor(() => {
+      expect(view.getByText(/Parsing was cancelled/i)).toBeInTheDocument();
+    });
+    expect(parseSpy).toHaveBeenCalledTimes(1);
   });
 
   it('supports drag-and-drop upload and handles dragover default prevention', async () => {

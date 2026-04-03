@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import FlowchartViewer from '../src/FlowchartViewer';
@@ -9,7 +9,7 @@ import type { FlowNode, FlowEdge } from '../src/types';
 import * as ReactFlowLib from '@xyflow/react';
 
 vi.mock('@xyflow/react', () => {
-  const flowApi = { zoomTo: vi.fn(), fitView: vi.fn() };
+  const flowApi = { zoomTo: vi.fn(), fitView: vi.fn(), setCenter: vi.fn() };
 
   const ReactFlow = ({
     nodes,
@@ -175,6 +175,39 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByTestId('edge-label')).toHaveTextContent('pick');
     expect(vi.mocked(ReactFlowLib.getBezierPath)).toHaveBeenCalled();
     expect(screen.getByTestId('mini-map-colors')).toHaveTextContent('#8b5cf6,#f59e0b');
+  });
+
+
+
+  it('supports focus label center action, edge-type toggles, and keyboard shortcuts', async () => {
+    const user = userEvent.setup();
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    const edgeToggle = screen.getByRole('checkbox', { name: /Show sequence edges/i });
+    expect(edgeToggle).toBeChecked();
+    await user.click(edgeToggle);
+    expect(edgeToggle).not.toBeChecked();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Focus label/i }), 'start');
+    await user.click(screen.getByRole('button', { name: /Center selected label/i }));
+
+    const reactFlowTestUtils = ReactFlowLib as unknown as {
+      __test: {
+        flowApi: {
+          zoomTo: ReturnType<typeof vi.fn>;
+          fitView: ReturnType<typeof vi.fn>;
+          setCenter: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+
+    expect(reactFlowTestUtils.__test.flowApi.setCenter).toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
+    expect(screen.getByRole('textbox', { name: /Search labels or dialogue count/i })).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: 'l', ctrlKey: true });
+    expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
   });
 
   it('uses onInit instance for zoom and relayout controls', async () => {

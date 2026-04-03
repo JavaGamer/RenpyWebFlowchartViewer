@@ -44,6 +44,8 @@ npm run test          # run parser unit tests
 npm run test:coverage # run tests with coverage report
 ```
 
+Coverage thresholds are enforced for parser-critical files in CI.
+
 ## Troubleshooting
 
 - **`npm install` or `npm ci` shows `@renpy/ast` engine warnings**  
@@ -58,6 +60,9 @@ npm run test:coverage # run tests with coverage report
 - **Tests behave inconsistently while iterating locally**  
   `@renpy/ast` uses module-level tokenizer state. Run tests in a clean process (`npm run test`) after changes instead of reusing stale watch state.
 
+- **Large uploads feel slow or heavy**  
+  Parsing runs in a Web Worker with progress updates and cancel support. If you hit upload limits (file count or total size), split uploads into smaller batches.
+
 ## Docker
 
 A multi-stage Dockerfile is provided that builds the app with Node.js and serves it with Nginx:
@@ -68,6 +73,28 @@ docker run -p 8080:80 renpy-flowchart-viewer
 ```
 
 Then open <http://localhost:8080>.
+
+
+
+## Parser Architecture and Conventions
+
+- The parser is split into focused phases:
+  - token scanning per file
+  - graph assembly (nodes/edges + dedupe)
+  - strict role classification
+- Token and meta IDs come from `@renpy/ast` enums via `src/parserTokens.ts` with runtime validation guards, instead of hardcoded numeric literals.
+- Current tokenizer quirk: Ren'Py `menu` may be observed as `KeywordTokenType.Def`; this is guarded and validated at startup.
+
+### Duplicate labels across files
+
+- Label node IDs are deduplicated by label name.
+- The first-seen node metadata is retained (`chapter`, initial label metadata), while dialogue counts and edges from subsequent files continue to aggregate into the same logical node.
+
+### Unresolved jump/call targets
+
+- Jump/call edges are emitted even when a target label is not defined in the uploaded set.
+- The viewer filters out edges whose source/target nodes are missing from the final node set.
+- This preserves parser fidelity while keeping rendering stable.
 
 ## Contributing
 

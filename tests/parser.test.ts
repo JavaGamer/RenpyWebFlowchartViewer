@@ -675,6 +675,77 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+
+
+  it('handles complex conditional nested menu and mixed call/jump flow', async () => {
+    const script = [
+      'label start:',
+      '    if seen_intro:',
+      '        menu:',
+      '            "Ask mentor":',
+      '                call mentor_scene',
+      '            "Skip":',
+      '                jump end',
+      '    "continue"',
+      '',
+      'label mentor_scene:',
+      '    "mentor line"',
+      '    return',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'complex.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'call', target: 'mentor_scene' }),
+        expect.objectContaining({ kind: 'jump', target: 'end' }),
+        expect.objectContaining({ source: 'start', target: 'mentor_scene', kind: 'sequence', label: 'next' }),
+      ]),
+    );
+  });
+
+  it('classifies helper labels as utility when called directly and returning', async () => {
+    const script = [
+      'label start:',
+      '    call helper',
+      '    jump end',
+      '',
+      'label helper:',
+      '    "assist"',
+      '    return',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'utility-role.rpy', content: script }]);
+    const helper = result.nodes.find((n) => n.id === 'helper');
+    expect(helper?.role).toBe('utility');
+  });
+
+  it('keeps first node metadata for duplicate labels while aggregating dialogue', async () => {
+    const result = await parseRenpyFiles([
+      {
+        name: 'chapter_one.rpy',
+        content: ['label same:', '    "one"', ''].join('\n'),
+      },
+      {
+        name: 'chapter_two.rpy',
+        content: ['label same:', '    "two"', ''].join('\n'),
+      },
+    ]);
+
+    const same = result.nodes.find((n) => n.id === 'same');
+    expect(same).toBeDefined();
+    expect(same?.chapter).toBe('chapter_one');
+    expect(same?.dialogueCount).toBe(2);
+  });
+
   it('resolves jumps to labels that are defined in a different file', async () => {
     const result = await parseRenpyFiles([
       {
