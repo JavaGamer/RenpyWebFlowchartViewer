@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import {
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+} from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +15,50 @@ import { applyDagreLayout, buildVisibleNodes, buildVisibleEdges } from '../src/f
 const thisDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(thisDir, '..');
 const perfDataDir = path.join(repoRoot, 'perf-data');
+const generatedDataDir = path.join(perfDataDir, 'generated');
 const outPath = path.join(perfDataDir, 'baseline-results.json');
+
+function generateDataset(targetDir: string, files: number, labelsPerFile: number, menusEvery: number) {
+  mkdirSync(targetDir, { recursive: true });
+  for (let fileIndex = 0; fileIndex < files; fileIndex += 1) {
+    const lines: string[] = [];
+    const defaultLoopTarget = 'f0_label_0';
+    for (let labelIndex = 0; labelIndex < labelsPerFile; labelIndex += 1) {
+      const label = `f${fileIndex}_label_${labelIndex}`;
+      const nextInFile = `f${fileIndex}_label_${labelIndex + 1}`;
+      const hasNextInFile = labelIndex + 1 < labelsPerFile;
+      const next = hasNextInFile ? nextInFile : defaultLoopTarget;
+      lines.push(`label ${label}:`);
+      lines.push(`    "line ${labelIndex} a"`);
+      lines.push(`    "line ${labelIndex} b"`);
+      if (menusEvery > 0 && labelIndex % menusEvery === 0) {
+        lines.push('    menu:');
+        lines.push('        "Go next":');
+        lines.push(`            jump ${next}`);
+        lines.push('        "Call util":');
+        lines.push(`            call ${label}_util`);
+      } else {
+        lines.push(`    jump ${next}`);
+      }
+      lines.push('');
+      lines.push(`label ${label}_util:`);
+      lines.push('    "utility"');
+      lines.push('    return');
+      lines.push('');
+    }
+    const fileName = `chapter_${String(fileIndex).padStart(3, '0')}.rpy`;
+    writeFileSync(path.join(targetDir, fileName), lines.join('\n'), 'utf8');
+  }
+}
+
+function ensureBenchmarkDatasets() {
+  const marker = path.join(generatedDataDir, '.generated');
+  if (existsSync(marker)) return;
+  generateDataset(path.join(generatedDataDir, 'small'), 4, 12, 4);
+  generateDataset(path.join(generatedDataDir, 'medium'), 18, 20, 3);
+  generateDataset(path.join(generatedDataDir, 'large'), 60, 30, 2);
+  writeFileSync(marker, 'generated', 'utf8');
+}
 
 function memorySnapshot() {
   const m = process.memoryUsage();
@@ -21,7 +70,7 @@ function memorySnapshot() {
 }
 
 function readDataset(datasetName: string) {
-  const dir = path.join(perfDataDir, datasetName);
+  const dir = path.join(generatedDataDir, datasetName);
   const files = readdirSync(dir).filter((name) => name.endsWith('.rpy')).sort();
   const started = performance.now();
   const entries = files.map((name) => ({
@@ -36,6 +85,7 @@ describe('performance baseline benchmarks', () => {
   it(
     'captures baseline timings for small/medium/large datasets',
     async () => {
+      ensureBenchmarkDatasets();
       const datasets = ['small', 'medium', 'large'];
       const results: Array<Record<string, unknown>> = [];
 
@@ -112,7 +162,7 @@ describe('performance baseline benchmarks', () => {
       mkdirSync(perfDataDir, { recursive: true });
       writeFileSync(
         outPath,
-        JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2),
+        JSON.stringify({ results }, null, 2),
         'utf8',
       );
 

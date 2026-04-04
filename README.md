@@ -50,9 +50,10 @@ Coverage thresholds are enforced for parser-critical files in CI.
 ## Performance Benchmarking
 
 - Benchmark datasets are stored in:
-  - `/home/runner/work/RenpyWebFlowchartViewer/RenpyWebFlowchartViewer/perf-data/small`
-  - `/home/runner/work/RenpyWebFlowchartViewer/RenpyWebFlowchartViewer/perf-data/medium`
-  - `/home/runner/work/RenpyWebFlowchartViewer/RenpyWebFlowchartViewer/perf-data/large`
+  - `perf-data/generated/small`
+  - `perf-data/generated/medium`
+  - `perf-data/generated/large`
+  - generated automatically by the benchmark test
 - Run `npm run bench:perf` to measure:
   - file-read timing
   - parser total timing and per-file average
@@ -61,7 +62,7 @@ Coverage thresholds are enforced for parser-critical files in CI.
   - export payload estimate timing
   - memory snapshots before/after each dataset run
 - Results are written to:
-  - `/home/runner/work/RenpyWebFlowchartViewer/RenpyWebFlowchartViewer/perf-data/baseline-results.json`
+  - `perf-data/baseline-results.json`
 - For in-browser phase timing logs, enable debug perf logging:
   - `localStorage.setItem('rfv.debugPerf', 'true')`
   - or set `globalThis.__RFV_DEBUG_PERF__ = true` in dev tools
