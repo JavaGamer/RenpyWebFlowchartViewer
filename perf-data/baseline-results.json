@@ -1,0 +1,74 @@
+{
+  "generatedAt": "2026-04-04T23:41:51.043Z",
+  "results": [
+    {
+      "dataset": "small",
+      "files": 4,
+      "nodes": 108,
+      "edges": 72,
+      "readMs": 0.16,
+      "parseMs": 57.75,
+      "parsePerFileAvgMs": 14.37,
+      "layoutMs": 50.19,
+      "renderTransformMs": 0.36,
+      "exportEstimateMs": 0.2,
+      "exportPayloadBytesEstimate": 39306,
+      "memoryBefore": {
+        "rssMB": 80.7,
+        "heapUsedMB": 16.32,
+        "heapTotalMB": 31.59
+      },
+      "memoryAfter": {
+        "rssMB": 102.38,
+        "heapUsedMB": 23.19,
+        "heapTotalMB": 53.09
+      }
+    },
+    {
+      "dataset": "medium",
+      "files": 18,
+      "nodes": 846,
+      "edges": 612,
+      "readMs": 0.24,
+      "parseMs": 148.5,
+      "parsePerFileAvgMs": 8.23,
+      "layoutMs": 262.68,
+      "renderTransformMs": 0.53,
+      "exportEstimateMs": 1.68,
+      "exportPayloadBytesEstimate": 322885,
+      "memoryBefore": {
+        "rssMB": 102.38,
+        "heapUsedMB": 23.2,
+        "heapTotalMB": 53.09
+      },
+      "memoryAfter": {
+        "rssMB": 175.04,
+        "heapUsedMB": 53.49,
+        "heapTotalMB": 113.15
+      }
+    },
+    {
+      "dataset": "large",
+      "files": 60,
+      "nodes": 4500,
+      "edges": 3600,
+      "readMs": 0.85,
+      "parseMs": 750.46,
+      "parsePerFileAvgMs": 12.47,
+      "layoutMs": 1655.22,
+      "renderTransformMs": 2.04,
+      "exportEstimateMs": 8.23,
+      "exportPayloadBytesEstimate": 1821500,
+      "memoryBefore": {
+        "rssMB": 175.04,
+        "heapUsedMB": 53.49,
+        "heapTotalMB": 113.15
+      },
+      "memoryAfter": {
+        "rssMB": 356.18,
+        "heapUsedMB": 188.97,
+        "heapTotalMB": 286.75
+      }
+    }
+  ]
+}

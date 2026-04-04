@@ -45,6 +45,9 @@ import { createPerfTracker } from './perf';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25] as const;
+const LARGE_GRAPH_NODE_THRESHOLD = 180;
+const LARGE_GRAPH_EDGE_THRESHOLD = 320;
+const LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD = 900;
 
 // ─── Custom node components ───────────────────────────────────────────────────
 
@@ -241,7 +244,7 @@ export default function FlowchartViewer({
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [minDialogue, setMinDialogue] = useState(0);
   const [theme, setTheme] = useState<'violet' | 'highContrast' | 'colorblind'>(() => {
     const raw = globalThis.localStorage?.getItem('rfv.theme');
@@ -261,10 +264,19 @@ export default function FlowchartViewer({
   const [largeGraphModeOverride, setLargeGraphModeOverride] = useState<boolean | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoLargeGraphMode = useMemo(
-    () => flowNodes.length > 150 || flowEdges.length > 250,
+    () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
     [flowEdges.length, flowNodes.length],
   );
   const largeGraphMode = largeGraphModeOverride ?? autoLargeGraphMode;
+  const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 120);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput]);
+  const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
     perf.mark('layout');
@@ -341,13 +353,13 @@ export default function FlowchartViewer({
     () =>
       buildVisibleNodes({
         nodes,
-        search,
+        search: effectiveSearch,
         minDialogue,
         collapsedChapters,
         collapsedLabelChildren,
         theme,
       }),
-    [collapsedChapters, collapsedLabelChildren, minDialogue, nodes, search, theme],
+    [collapsedChapters, collapsedLabelChildren, effectiveSearch, minDialogue, nodes, theme],
   );
 
   const visibleNodeIds = useMemo(
@@ -368,14 +380,23 @@ export default function FlowchartViewer({
     [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
 
+  const isLargeExportTarget = useMemo(
+    () =>
+      visibleNodeIds.size + visibleEdges.length >= LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
+    [visibleEdges.length, visibleNodeIds.size],
+  );
+
   const onExport = useCallback(() => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
+    const width = flowRef.current.offsetWidth;
+    const height = flowRef.current.offsetHeight;
+    const pixelRatio = isLargeExportTarget ? 1 : 2;
     toBlob(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
-      pixelRatio: 2,
-      width: flowRef.current.offsetWidth,
-      height: flowRef.current.offsetHeight,
+      pixelRatio,
+      width,
+      height,
     })
       .then((blob) => {
         if (!blob) return;
@@ -393,15 +414,17 @@ export default function FlowchartViewer({
       .catch((err: unknown) => {
         console.error('Export failed:', err);
       });
-  }, [perf, theme, visibleEdges.length, visibleNodeIds.size]);
+  }, [isLargeExportTarget, perf, theme, visibleEdges.length, visibleNodeIds.size]);
 
   const onExportSvg = useCallback(() => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
+    const width = flowRef.current.offsetWidth;
+    const height = flowRef.current.offsetHeight;
     toSvg(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
-      width: flowRef.current.offsetWidth,
-      height: flowRef.current.offsetHeight,
+      width,
+      height,
     })
       .then((svgDataUrl) => {
         const a = document.createElement('a');
@@ -489,8 +512,8 @@ export default function FlowchartViewer({
             <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
             <input
               ref={searchInputRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search labels or dialogue count"
               aria-label="Search labels or dialogue count"
               className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-60"
@@ -615,6 +638,11 @@ export default function FlowchartViewer({
           ))}
         </div>
         <div className="flex items-center gap-2">
+          {isLargeExportTarget && (
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Large graph export: PNG quality reduced for responsiveness
+            </span>
+          )}
           <button
             onClick={onExport}
             aria-label="Export flowchart as PNG"

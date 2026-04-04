@@ -141,24 +141,19 @@ export function buildVisibleEdges(params: {
 }): CanvasEdge[] {
   const { edges, showCallReturns, visibleEdgeKinds, visibleNodeIds, edgeColor, largeGraphMode } =
     params;
-  return edges
-    .map((e) => {
-      const kind = ((e.data as EdgeData | undefined)?.kind ?? 'sequence') as EdgeKindFilter;
-      const edgeLabel =
-        largeGraphMode && kind === 'sequence'
-          ? ''
-          : ((e.data as EdgeData | undefined)?.label ?? '');
-      return {
-        ...e,
-        data: { ...(e.data as EdgeData), label: edgeLabel, kind },
-        style: { ...(e.style || {}), stroke: edgeColor, strokeWidth: 1.5 },
-      };
-    })
-    .filter((e) => {
-      const kind = ((e.data as EdgeData | undefined)?.kind ?? 'sequence') as EdgeKindFilter;
-      if (!visibleEdgeKinds[kind]) return false;
-      if (!showCallReturns && kind === 'call_return') return false;
-      return true;
-    })
-    .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
+  const visible: CanvasEdge[] = [];
+  for (const edge of edges) {
+    const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
+    const kind = (edgeData.kind ?? 'sequence') as EdgeKindFilter;
+    if (!visibleEdgeKinds[kind]) continue;
+    if (!showCallReturns && kind === 'call_return') continue;
+    if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
+    const edgeLabel = largeGraphMode && kind === 'sequence' ? '' : (edgeData.label ?? '');
+    visible.push({
+      ...edge,
+      data: { ...edgeData, label: edgeLabel, kind },
+      style: { ...(edge.style || {}), stroke: edgeColor, strokeWidth: 1.5 },
+    });
+  }
+  return visible;
 }

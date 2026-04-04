@@ -244,13 +244,9 @@ function maybeUpdateConditionalState(
     scanState.conditionalIndentStack.pop();
   }
 
-  if (
-    type === PARSER_TOKENS.kwConditional &&
-    (() => {
-      const tokenText = getTokenText();
-      return tokenText === 'if' || tokenText === 'elif' || tokenText === 'else';
-    })()
-  ) {
+  if (type !== PARSER_TOKENS.kwConditional) return;
+  const tokenText = getTokenText();
+  if (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else') {
     scanState.conditionalIndentStack.push(indent);
   }
 }
