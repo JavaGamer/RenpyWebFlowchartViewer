@@ -108,10 +108,13 @@ export default function App() {
   const perf = useMemo(() => createPerfTracker('app'), []);
   const [state, dispatch] = useReducer(appReducer, initialState);
   const parseAbortControllerRef = useRef<AbortController | null>(null);
+  const activeRunIdRef = useRef(0);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const runId = ++activeRunIdRef.current;
+    const isActiveRun = () => activeRunIdRef.current === runId;
 
     const rpyFiles: File[] = [];
     for (const file of files) {
@@ -149,7 +152,8 @@ export default function App() {
     }
 
     parseAbortControllerRef.current?.abort();
-    parseAbortControllerRef.current = new AbortController();
+    const controller = new AbortController();
+    parseAbortControllerRef.current = controller;
 
     dispatch({ type: 'START_READING', fileCount: rpyFiles.length });
 
@@ -164,6 +168,7 @@ export default function App() {
         })),
       );
     } catch (err: unknown) {
+      if (!isActiveRun()) return;
       if (err instanceof FileReadError) {
         dispatch({ type: 'FAIL', message: err.message });
       } else {
@@ -173,6 +178,7 @@ export default function App() {
       return;
     }
     perf.measure('read', 'read_files_ms', { files: rpyFiles.length });
+    if (!isActiveRun()) return;
 
     // ── Phase 2: Parse the Ren'Py scripts ─────────────────────────────────
     dispatch({ type: 'START_PARSING' });
@@ -180,12 +186,17 @@ export default function App() {
     try {
       const { nodes, edges } = await parseRenpyFilesInWorker({
         files: inputs,
-        signal: parseAbortControllerRef.current.signal,
-        onProgress: (progress) => dispatch({ type: 'PROGRESS', progress }),
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (!isActiveRun()) return;
+          dispatch({ type: 'PROGRESS', progress });
+        },
       });
+      if (!isActiveRun()) return;
       perf.measure('parse', 'parse_ms', { files: rpyFiles.length, nodes: nodes.length, edges: edges.length });
       dispatch({ type: 'PARSE_SUCCESS', nodes, edges });
     } catch (err: unknown) {
+      if (!isActiveRun()) return;
       if (err instanceof DOMException && err.name === 'AbortError') {
         dispatch({ type: 'FAIL', message: 'Parsing was cancelled.' });
       } else {

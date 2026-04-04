@@ -627,6 +627,40 @@ describe('App – upload → parse → render integration', () => {
     await user.click(exportBtn);
   });
 
+  it('ignores stale cancellation/error from a superseded parse run', async () => {
+    const user = userEvent.setup();
+    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
+    parseSpy.mockImplementationOnce(
+      ({ signal }) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Parsing cancelled', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
+    parseSpy.mockResolvedValueOnce({
+      nodes: [{ id: 'new', type: 'LABEL', label: 'new', dialogueCount: 1 }],
+      edges: [],
+    });
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+
+    await user.upload(input, makeRpyFile('slow.rpy', 'label slow:\n    "x"\n'));
+    await user.upload(input, makeRpyFile('new.rpy', 'label new:\n    "y"\n'));
+
+    await waitFor(() => {
+      expect(view.getByText(/Parsed/i)).toBeInTheDocument();
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    expect(view.queryByText(/Parsing was cancelled/i)).not.toBeInTheDocument();
+    expect(parseSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('supports minimum dialogue filter, layout switching, zoom controls, and collapse by label', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
