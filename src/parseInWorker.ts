@@ -92,6 +92,7 @@ export function parseRenpyFilesInWorker({
     const onAbort = () => {
       settle(() => {
         worker.removeEventListener('message', onMessage);
+        signal?.removeEventListener('abort', onAbort);
         worker.postMessage({ type: 'cancel', requestId });
         reject(new DOMException('Parsing cancelled', 'AbortError'));
       });
@@ -99,6 +100,6 @@ export function parseRenpyFilesInWorker({
 
     worker.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, { once: true });
-    worker.postMessage({ type: 'parse', requestId, files });
+    worker.postMessage({ type: 'parse', requestId, files, wantsProgress: Boolean(onProgress) });
   });
 }

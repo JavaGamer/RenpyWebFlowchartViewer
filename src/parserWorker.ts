@@ -5,6 +5,7 @@ interface ParseRequest {
   type: 'parse';
   requestId: number;
   files: Array<{ name: string; content: string }>;
+  wantsProgress?: boolean;
 }
 
 interface CancelRequest {
@@ -60,6 +61,10 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const { requestId, files } = message;
   activeRequestId = requestId;
   const startedAt = performance.now();
+  const wantsProgress = message.wantsProgress !== false;
+  const progressThrottleMs = files.length > 40 ? 30 : 0;
+  let lastProgressAt = 0;
+  let pendingProgress: ProgressMessage | null = null;
 
   try {
     const result = await parseRenpyFiles(files, {
@@ -67,16 +72,29 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         if (cancelledRequests.has(requestId)) {
           throw new Error('Parsing cancelled');
         }
-        postMessageSafe({
+        if (!wantsProgress) return;
+        const now = performance.now();
+        const nextProgress: ProgressMessage = {
           type: 'progress',
           requestId,
           doneFiles,
           totalFiles,
           currentFile,
           elapsedMs: performance.now() - startedAt,
-        });
+        };
+        pendingProgress = nextProgress;
+        if (progressThrottleMs <= 0 || now - lastProgressAt >= progressThrottleMs || doneFiles === totalFiles) {
+          postMessageSafe(nextProgress);
+          lastProgressAt = now;
+          pendingProgress = null;
+        }
       },
     });
+
+    if (wantsProgress && pendingProgress) {
+      postMessageSafe(pendingProgress);
+      pendingProgress = null;
+    }
 
     if (!cancelledRequests.has(requestId)) {
       postMessageSafe({

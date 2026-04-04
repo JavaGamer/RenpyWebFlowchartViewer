@@ -39,6 +39,8 @@ describe('parseRenpyFilesInWorker', () => {
 
     const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
     const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
+    expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
+    expect((postedMessages[1] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
 
     emitWorkerMessage({ type: 'result', requestId: secondRequestId, nodes: [{ id: 'b' }], edges: [] });
     emitWorkerMessage({ type: 'result', requestId: firstRequestId, nodes: [{ id: 'a' }], edges: [] });
@@ -68,7 +70,9 @@ describe('parseRenpyFilesInWorker', () => {
     const promise = parseRenpyFilesInWorker({
       files: [{ name: 'a.rpy', content: 'label a:' }],
       signal: controller.signal,
+      onProgress: () => {},
     });
+    expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(true);
     controller.abort();
 
     const cancelMessage = postedMessages.find(
