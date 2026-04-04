@@ -26,12 +26,18 @@ export function createPerfTracker(scope: string) {
       const start = marks.get(name);
       if (start === undefined) return null;
       const ms = performance.now() - start;
-      console.debug(`[perf:${scope}]`, { metric, ms, ...(detail ?? {}) } as PerfEvent);
+      console.debug(
+        `[perf:${scope}]`,
+        detail === undefined ? { metric, ms } : { metric, ms, detail }
+      );
       return ms;
     },
     log(metric: string, ms: number, detail?: Record<string, unknown>) {
       if (!enabled) return;
-      console.debug(`[perf:${scope}]`, { metric, ms, ...(detail ?? {}) } as PerfEvent);
+      console.debug(
+        `[perf:${scope}]`,
+        detail === undefined ? { metric, ms } : { metric, ms, detail }
+      );
     },
   };
 }
