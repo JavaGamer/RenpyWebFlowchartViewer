@@ -42,9 +42,40 @@ npm run preview      # serve the built app locally
 ```bash
 npm run test          # run parser unit tests
 npm run test:coverage # run tests with coverage report
+npm run bench:perf    # run perf baseline benchmark and write perf-data/baseline-results.json
 ```
 
 Coverage thresholds are enforced for parser-critical files in CI.
+
+## Performance Benchmarking
+
+- Benchmark datasets are stored in:
+  - `perf-data/generated/small`
+  - `perf-data/generated/medium`
+  - `perf-data/generated/large`
+  - generated automatically by the benchmark test
+- Run `npm run bench:perf` to measure:
+  - file-read timing
+  - parser total timing and per-file average
+  - layout timing
+  - render transform timing
+  - export payload estimate timing
+  - memory snapshots before/after each dataset run
+- Results are written to:
+  - `perf-data/baseline-results.json`
+- For in-browser phase timing logs, enable debug perf logging:
+  - `localStorage.setItem('rfv.debugPerf', 'true')`
+  - or set `globalThis.__RFV_DEBUG_PERF__ = true` in dev tools
+
+### Baseline / Before-After Table
+
+After running `npm run bench:perf`, summarize key metrics from `perf-data/baseline-results.json`:
+
+| Dataset | Read (ms) | Parse total (ms) | Parse/file avg (ms) | Layout (ms) | Render transform (ms) | Export estimate (ms) | Nodes | Edges | Memory after (heap MB) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| small | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill_ | _fill_ | _fill_ |
+| medium | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill_ | _fill_ | _fill_ |
+| large | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill_ | _fill_ | _fill_ |
 
 ## Troubleshooting
 

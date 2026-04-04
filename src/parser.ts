@@ -97,6 +97,91 @@ function parentMenuStackLength(menuDepth: number): number {
   return Math.max(0, menuDepth - 1);
 }
 
+interface TokenMetaFlags {
+  menuDepth: number;
+  hasLabelStatement: boolean;
+  hasMenuStatement: boolean;
+  hasMenuBlock: boolean;
+  hasMenuOption: boolean;
+  hasMenuOptionBlock: boolean;
+  hasJumpStatement: boolean;
+  hasCallStatement: boolean;
+  hasSayNarrator: boolean;
+  hasSayCharacter: boolean;
+  hasSayStatement: boolean;
+}
+
+function analyzeTokenMeta(metas: Iterable<number>): TokenMetaFlags {
+  let menuDepth = 0;
+  let hasLabelStatement = false;
+  let hasMenuStatement = false;
+  let hasMenuBlock = false;
+  let hasMenuOption = false;
+  let hasMenuOptionBlock = false;
+  let hasJumpStatement = false;
+  let hasCallStatement = false;
+  let hasSayNarrator = false;
+  let hasSayCharacter = false;
+  let hasSayStatement = false;
+
+  for (const m of metas) {
+    if (m === PARSER_TOKENS.metaMenuStatement) {
+      menuDepth += 1;
+      hasMenuStatement = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaLabelStatement) {
+      hasLabelStatement = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaMenuBlock) {
+      hasMenuBlock = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaMenuOption) {
+      hasMenuOption = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaMenuOptionBlock) {
+      hasMenuOptionBlock = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaJumpStatement) {
+      hasJumpStatement = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaCallStatement) {
+      hasCallStatement = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaSayNarrator) {
+      hasSayNarrator = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaSayCharacter) {
+      hasSayCharacter = true;
+      continue;
+    }
+    if (m === PARSER_TOKENS.metaSayStatement) {
+      hasSayStatement = true;
+    }
+  }
+
+  return {
+    menuDepth,
+    hasLabelStatement,
+    hasMenuStatement,
+    hasMenuBlock,
+    hasMenuOption,
+    hasMenuOptionBlock,
+    hasJumpStatement,
+    hasCallStatement,
+    hasSayNarrator,
+    hasSayCharacter,
+    hasSayStatement,
+  };
+}
+
 function edgeIdWithOption(base: string, optionText: string | null | undefined): string {
   return optionText ? `${base}_${optionText}` : base;
 }
@@ -111,16 +196,6 @@ function menuAtDepth(
 async function renpyParse(content: string) {
   const document = TextDocument.create('file://my.rpy', 'rpy', ++_docVersion, content);
   return { document, nodes: await Tokenizer.tokenizeDocument(document) };
-}
-
-function getMetaCountMap(metas: Iterable<number>): Map<number, number> {
-  const counts = new Map<number, number>();
-  for (const m of metas) counts.set(m, (counts.get(m) ?? 0) + 1);
-  return counts;
-}
-
-function getMenuDepth(metaCounts: Map<number, number>): number {
-  return metaCounts.get(PARSER_TOKENS.metaMenuStatement) ?? 0;
 }
 
 function addNode(state: ParseGraphState, node: FlowNode) {
@@ -155,7 +230,7 @@ function addOutgoing(state: ParseGraphState, labelId: string, kind: EdgeKind) {
 function maybeUpdateConditionalState(
   scanState: ParseScanState,
   type: number,
-  tokenText: string,
+  getTokenText: () => string,
   indent: number,
 ) {
   if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) {
@@ -169,10 +244,9 @@ function maybeUpdateConditionalState(
     scanState.conditionalIndentStack.pop();
   }
 
-  if (
-    type === PARSER_TOKENS.kwConditional &&
-    (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else')
-  ) {
+  if (type !== PARSER_TOKENS.kwConditional) return;
+  const tokenText = getTokenText();
+  if (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else') {
     scanState.conditionalIndentStack.push(indent);
   }
 }
@@ -225,19 +299,17 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
 
   for (const tok of flat) {
     const type = tok.type as number;
-    const metas = tok.metaTokens as Iterable<number>;
-    const metaCounts = getMetaCountMap(metas);
-    const hasMeta = (value: number): boolean => metaCounts.has(value);
+    const meta = analyzeTokenMeta(tok.metaTokens as Iterable<number>);
     let tokenText: string | undefined;
     const val = (): string => {
       if (tokenText === undefined) tokenText = tok.getValue(document);
       return tokenText;
     };
-    const menuDepth = getMenuDepth(metaCounts);
+    const menuDepth = meta.menuDepth;
 
-    maybeUpdateConditionalState(scanState, type, val(), tok.startPos.character);
+    maybeUpdateConditionalState(scanState, type, val, tok.startPos.character);
 
-    if (type === PARSER_TOKENS.kwLabel && hasMeta(PARSER_TOKENS.metaLabelStatement)) {
+    if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
       scanState.waitForLabelName = true;
       scanState.menuStack.length = 0;
       scanState.conditionalIndentStack.length = 0;
@@ -250,7 +322,7 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     if (
       type === PARSER_TOKENS.entityFunctionName &&
       scanState.waitForLabelName &&
-      hasMeta(PARSER_TOKENS.metaLabelStatement)
+      meta.hasLabelStatement
     ) {
       const newLabelId = val();
       if (
@@ -286,7 +358,7 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
 
     if (scanState.currentLabelId === null) continue;
 
-    if (type === PARSER_TOKENS.kwMenuObserved && hasMeta(PARSER_TOKENS.metaMenuStatement)) {
+    if (type === PARSER_TOKENS.kwMenuObserved && meta.hasMenuStatement) {
       while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
         scanState.menuStack.pop();
       }
@@ -330,8 +402,8 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     if (
       type === PARSER_TOKENS.entityFunctionName &&
       scanState.waitForMenuNameForId !== null &&
-      hasMeta(PARSER_TOKENS.metaMenuStatement) &&
-      !hasMeta(PARSER_TOKENS.metaMenuBlock)
+      meta.hasMenuStatement &&
+      !meta.hasMenuBlock
     ) {
       const menuLabel = val();
       const existing = state.nodeMap.get(scanState.waitForMenuNameForId);
@@ -342,15 +414,15 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
 
     if (
       type === PARSER_TOKENS.literalString &&
-      hasMeta(PARSER_TOKENS.metaMenuOption) &&
-      hasMeta(PARSER_TOKENS.metaMenuBlock)
+      meta.hasMenuOption &&
+      meta.hasMenuBlock
     ) {
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       if (menu) menu.optionText = val();
       continue;
     }
 
-    if (type === PARSER_TOKENS.kwJump && hasMeta(PARSER_TOKENS.metaJumpStatement)) {
+    if (type === PARSER_TOKENS.kwJump && meta.hasJumpStatement) {
       scanState.waitForJumpTarget = true;
       continue;
     }
@@ -358,10 +430,10 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     if (
       type === PARSER_TOKENS.entityFunctionName &&
       scanState.waitForJumpTarget &&
-      hasMeta(PARSER_TOKENS.metaJumpStatement)
+      meta.hasJumpStatement
     ) {
       const target = val();
-      const isInOption = hasMeta(PARSER_TOKENS.metaMenuOptionBlock);
+      const isInOption = meta.hasMenuOptionBlock;
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       const source = isInOption && menu ? menu.id : scanState.currentLabelId;
       const optionText = menu?.optionText ?? null;
@@ -385,7 +457,7 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
       continue;
     }
 
-    if (type === PARSER_TOKENS.kwCall && hasMeta(PARSER_TOKENS.metaCallStatement)) {
+    if (type === PARSER_TOKENS.kwCall && meta.hasCallStatement) {
       scanState.waitForCallTarget = true;
       continue;
     }
@@ -393,10 +465,10 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     if (
       type === PARSER_TOKENS.entityFunctionName &&
       scanState.waitForCallTarget &&
-      hasMeta(PARSER_TOKENS.metaCallStatement)
+      meta.hasCallStatement
     ) {
       const target = val();
-      const isInOption = hasMeta(PARSER_TOKENS.metaMenuOptionBlock);
+      const isInOption = meta.hasMenuOptionBlock;
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       const source = isInOption && menu ? menu.id : scanState.currentLabelId;
       const optionText = menu?.optionText ?? null;
@@ -425,7 +497,7 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
       continue;
     }
 
-    if (type === PARSER_TOKENS.kwReturn && !hasMeta(PARSER_TOKENS.metaMenuOptionBlock)) {
+    if (type === PARSER_TOKENS.kwReturn && !meta.hasMenuOptionBlock) {
       scanState.labelHasExplicitExit = true;
       state.hasReturnInLabel.add(scanState.currentLabelId);
       continue;
@@ -433,15 +505,15 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
 
     if (type === PARSER_TOKENS.literalString) {
       const isSay =
-        hasMeta(PARSER_TOKENS.metaSayNarrator) ||
-        hasMeta(PARSER_TOKENS.metaSayCharacter) ||
-        hasMeta(PARSER_TOKENS.metaSayStatement);
-      const isMenuOption = hasMeta(PARSER_TOKENS.metaMenuOption);
+        meta.hasSayNarrator ||
+        meta.hasSayCharacter ||
+        meta.hasSayStatement;
+      const isMenuOption = meta.hasMenuOption;
 
       if (isSay && !isMenuOption) {
         const menu = menuAtDepth(scanState.menuStack, menuDepth);
         const ownerId =
-          hasMeta(PARSER_TOKENS.metaMenuOptionBlock) && menu
+          meta.hasMenuOptionBlock && menu
             ? menu.id
             : scanState.currentLabelId;
 

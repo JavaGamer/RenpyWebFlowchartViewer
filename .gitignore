@@ -11,3 +11,7 @@ coverage/
 # Editor / OS
 .DS_Store
 *.sw[op]
+
+# Generated benchmark artifacts
+perf-data/generated/
+perf-data/baseline-results.json
