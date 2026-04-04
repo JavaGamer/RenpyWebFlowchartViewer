@@ -228,12 +228,12 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     const metas = tok.metaTokens as Iterable<number>;
     const metaCounts = getMetaCountMap(metas);
     const hasMeta = (value: number): boolean => metaCounts.has(value);
-      let tokenText: string | undefined;
-      const val = (): string => {
-        if (tokenText === undefined) tokenText = tok.getValue(document);
-        return tokenText;
-      };
-      const menuDepth = getMenuDepth(metaCounts);
+    let tokenText: string | undefined;
+    const val = (): string => {
+      if (tokenText === undefined) tokenText = tok.getValue(document);
+      return tokenText;
+    };
+    const menuDepth = getMenuDepth(metaCounts);
 
     maybeUpdateConditionalState(scanState, type, val(), tok.startPos.character);
 
