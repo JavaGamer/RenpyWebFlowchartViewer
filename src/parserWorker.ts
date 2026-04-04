@@ -20,6 +20,7 @@ interface ProgressMessage {
   doneFiles: number;
   totalFiles: number;
   currentFile: string;
+  elapsedMs?: number;
 }
 
 interface ResultMessage {
@@ -27,12 +28,14 @@ interface ResultMessage {
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];
+  elapsedMs?: number;
 }
 
 interface ErrorMessage {
   type: 'error';
   requestId: number;
   message: string;
+  elapsedMs?: number;
 }
 
 type WorkerResponse = ProgressMessage | ResultMessage | ErrorMessage;
@@ -56,6 +59,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
 
   const { requestId, files } = message;
   activeRequestId = requestId;
+  const startedAt = performance.now();
 
   try {
     const result = await parseRenpyFiles(files, {
@@ -69,6 +73,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
           doneFiles,
           totalFiles,
           currentFile,
+          elapsedMs: performance.now() - startedAt,
         });
       },
     });
@@ -79,12 +84,18 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         requestId,
         nodes: result.nodes,
         edges: result.edges,
+        elapsedMs: performance.now() - startedAt,
       });
     }
   } catch (error: unknown) {
     if (!cancelledRequests.has(requestId)) {
       const messageText = error instanceof Error ? error.message : String(error);
-      postMessageSafe({ type: 'error', requestId, message: messageText });
+      postMessageSafe({
+        type: 'error',
+        requestId,
+        message: messageText,
+        elapsedMs: performance.now() - startedAt,
+      });
     }
   } finally {
     if (activeRequestId === requestId) {

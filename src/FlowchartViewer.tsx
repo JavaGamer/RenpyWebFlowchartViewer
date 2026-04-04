@@ -35,8 +35,6 @@ import {
   type MenuNodeType,
   type LabeledEdgeType,
   type EdgeKindFilter,
-  type NodeData,
-  type EdgeData,
   applyDagreLayout,
   buildVisibleEdges,
   buildVisibleNodes,
@@ -260,8 +258,13 @@ export default function FlowchartViewer({
     call_return: globalThis.localStorage?.getItem('rfv.edge.call_return') !== 'false',
   }));
   const [focusNodeId, setFocusNodeId] = useState<string>('');
-  const [largeGraphMode, setLargeGraphMode] = useState(false);
+  const [largeGraphModeOverride, setLargeGraphModeOverride] = useState<boolean | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const autoLargeGraphMode = useMemo(
+    () => flowNodes.length > 150 || flowEdges.length > 250,
+    [flowEdges.length, flowNodes.length],
+  );
+  const largeGraphMode = largeGraphModeOverride ?? autoLargeGraphMode;
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
     perf.mark('layout');
@@ -306,10 +309,6 @@ export default function FlowchartViewer({
     setNodes(layoutNodes);
     setEdges(layoutEdges);
   }, [layoutNodes, layoutEdges, setEdges, setNodes]);
-
-  useEffect(() => {
-    setLargeGraphMode(flowNodes.length > 150 || flowEdges.length > 250);
-  }, [flowEdges.length, flowNodes.length]);
 
   useEffect(() => {
     globalThis.localStorage?.setItem('rfv.theme', theme);
@@ -521,7 +520,7 @@ export default function FlowchartViewer({
             <input
               type="checkbox"
               checked={largeGraphMode}
-              onChange={(e) => setLargeGraphMode(e.target.checked)}
+              onChange={(e) => setLargeGraphModeOverride(e.target.checked)}
               aria-label="Enable large graph mode"
             />
             Large graph mode

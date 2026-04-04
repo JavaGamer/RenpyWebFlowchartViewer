@@ -8,6 +8,7 @@ import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { FlowNode, FlowEdge } from './types';
 import { PARSER_TOKENS } from './parserTokens';
+import { createPerfTracker } from './perf';
 
 let _docVersion = 0;
 
@@ -118,6 +119,10 @@ function getMetaCountMap(metas: Iterable<number>): Map<number, number> {
   return counts;
 }
 
+function getMenuDepth(metaCounts: Map<number, number>): number {
+  return metaCounts.get(PARSER_TOKENS.metaMenuStatement) ?? 0;
+}
+
 function addNode(state: ParseGraphState, node: FlowNode) {
   if (!state.nodeIds.has(node.id)) {
     state.nodeIds.add(node.id);
@@ -223,12 +228,12 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     const metas = tok.metaTokens as Iterable<number>;
     const metaCounts = getMetaCountMap(metas);
     const hasMeta = (value: number): boolean => metaCounts.has(value);
-    const countMeta = (value: number): number => metaCounts.get(value) ?? 0;
-    let tokenText: string | undefined;
-    const val = (): string => {
-      if (tokenText === undefined) tokenText = tok.getValue(document);
-      return tokenText;
-    };
+      let tokenText: string | undefined;
+      const val = (): string => {
+        if (tokenText === undefined) tokenText = tok.getValue(document);
+        return tokenText;
+      };
+      const menuDepth = getMenuDepth(metaCounts);
 
     maybeUpdateConditionalState(scanState, type, val(), tok.startPos.character);
 
@@ -282,7 +287,6 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     if (scanState.currentLabelId === null) continue;
 
     if (type === PARSER_TOKENS.kwMenuObserved && hasMeta(PARSER_TOKENS.metaMenuStatement)) {
-      const menuDepth = countMeta(PARSER_TOKENS.metaMenuStatement);
       while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
         scanState.menuStack.pop();
       }
@@ -341,7 +345,6 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
       hasMeta(PARSER_TOKENS.metaMenuOption) &&
       hasMeta(PARSER_TOKENS.metaMenuBlock)
     ) {
-      const menuDepth = countMeta(PARSER_TOKENS.metaMenuStatement);
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       if (menu) menu.optionText = val();
       continue;
@@ -359,7 +362,6 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     ) {
       const target = val();
       const isInOption = hasMeta(PARSER_TOKENS.metaMenuOptionBlock);
-      const menuDepth = countMeta(PARSER_TOKENS.metaMenuStatement);
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       const source = isInOption && menu ? menu.id : scanState.currentLabelId;
       const optionText = menu?.optionText ?? null;
@@ -395,7 +397,6 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
     ) {
       const target = val();
       const isInOption = hasMeta(PARSER_TOKENS.metaMenuOptionBlock);
-      const menuDepth = countMeta(PARSER_TOKENS.metaMenuStatement);
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       const source = isInOption && menu ? menu.id : scanState.currentLabelId;
       const optionText = menu?.optionText ?? null;
@@ -438,7 +439,6 @@ async function parseOneFile(state: ParseGraphState, file: { name: string; conten
       const isMenuOption = hasMeta(PARSER_TOKENS.metaMenuOption);
 
       if (isSay && !isMenuOption) {
-        const menuDepth = countMeta(PARSER_TOKENS.metaMenuStatement);
         const menu = menuAtDepth(scanState.menuStack, menuDepth);
         const ownerId =
           hasMeta(PARSER_TOKENS.metaMenuOptionBlock) && menu
@@ -458,11 +458,15 @@ export async function parseRenpyFiles(
   files: { name: string; content: string }[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
+  const perf = createPerfTracker('parser');
+  perf.mark('total');
   const state = createGraphState();
 
   for (let idx = 0; idx < files.length; idx += 1) {
     const file = files[idx];
+    perf.mark(`file:${idx}`);
     await parseOneFile(state, file);
+    perf.measure(`file:${idx}`, 'parse_file_ms', { file: file.name });
     options.onProgress?.({
       doneFiles: idx + 1,
       totalFiles: files.length,
@@ -470,6 +474,13 @@ export async function parseRenpyFiles(
     });
   }
 
+  perf.mark('finalize');
   finalizeRoles(state);
+  perf.measure('finalize', 'finalize_roles_ms', { nodes: state.nodes.length });
+  perf.measure('total', 'parse_total_ms', {
+    files: files.length,
+    nodes: state.nodes.length,
+    edges: state.edges.length,
+  });
   return { nodes: state.nodes, edges: state.edges };
 }
