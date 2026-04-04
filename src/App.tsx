@@ -8,11 +8,12 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
 import { parseRenpyFilesInWorker } from './parseInWorker';
 import FlowchartViewer from './FlowchartViewer';
 import type { FlowNode, FlowEdge } from './types';
+import { createPerfTracker } from './perf';
 
 // ─── Error types ─────────────────────────────────────────────────────────────
 
@@ -42,21 +43,78 @@ function readFileAsText(file: File): Promise<string> {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [flowNodes, setFlowNodes] = useState<FlowNode[]>([]);
-  const [flowEdges, setFlowEdges] = useState<FlowEdge[]>([]);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [fileCount, setFileCount] = useState(0);
-  const [parseProgress, setParseProgress] = useState<{
+  type AppPhase = 'idle' | 'reading' | 'parsing' | 'done' | 'error';
+  type ParseProgress = {
     doneFiles: number;
     totalFiles: number;
     currentFile: string;
-  } | null>(null);
+  };
+  interface AppState {
+    phase: AppPhase;
+    flowNodes: FlowNode[];
+    flowEdges: FlowEdge[];
+    errorMsg: string;
+    fileCount: number;
+    parseProgress: ParseProgress | null;
+  }
+  type Action =
+    | { type: 'RESET' }
+    | { type: 'START_READING'; fileCount: number }
+    | { type: 'START_PARSING' }
+    | { type: 'PROGRESS'; progress: ParseProgress }
+    | { type: 'PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[] }
+    | { type: 'FAIL'; message: string };
+
+  const initialState: AppState = {
+    phase: 'idle',
+    flowNodes: [],
+    flowEdges: [],
+    errorMsg: '',
+    fileCount: 0,
+    parseProgress: null,
+  };
+
+  function appReducer(state: AppState, action: Action): AppState {
+    switch (action.type) {
+      case 'RESET':
+        return initialState;
+      case 'START_READING':
+        return {
+          ...state,
+          phase: 'reading',
+          fileCount: action.fileCount,
+          errorMsg: '',
+          parseProgress: { doneFiles: 0, totalFiles: action.fileCount, currentFile: '' },
+        };
+      case 'START_PARSING':
+        return { ...state, phase: 'parsing' };
+      case 'PROGRESS':
+        return { ...state, parseProgress: action.progress };
+      case 'PARSE_SUCCESS':
+        return {
+          ...state,
+          phase: 'done',
+          flowNodes: action.nodes,
+          flowEdges: action.edges,
+          parseProgress: null,
+        };
+      case 'FAIL':
+        return { ...state, phase: 'error', errorMsg: action.message, parseProgress: null };
+      default:
+        return state;
+    }
+  }
+
+  const perf = useMemo(() => createPerfTracker('app'), []);
+  const [state, dispatch] = useReducer(appReducer, initialState);
   const parseAbortControllerRef = useRef<AbortController | null>(null);
+  const activeRunIdRef = useRef(0);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const runId = ++activeRunIdRef.current;
+    const isActiveRun = () => activeRunIdRef.current === runId;
 
     const rpyFiles: File[] = [];
     for (const file of files) {
@@ -64,45 +122,43 @@ export default function App() {
     }
 
     if (rpyFiles.length === 0) {
-      setErrorMsg('No .rpy files found in the selected directory.');
-      setStatus('error');
+      dispatch({ type: 'FAIL', message: 'No .rpy files found in the selected directory.' });
       return;
     }
     if (rpyFiles.length > MAX_RPY_FILE_COUNT) {
-      setErrorMsg(
-        `Too many .rpy files selected (${rpyFiles.length}). Please select ${MAX_RPY_FILE_COUNT} files or fewer.`,
-      );
-      setStatus('error');
+      dispatch({
+        type: 'FAIL',
+        message: `Too many .rpy files selected (${rpyFiles.length}). Please select ${MAX_RPY_FILE_COUNT} files or fewer.`,
+      });
       return;
     }
     const totalRpySize = rpyFiles.reduce((sum, file) => sum + file.size, 0);
     if (totalRpySize > MAX_TOTAL_RPY_SIZE_BYTES) {
       const mib = (totalRpySize / (1024 * 1024)).toFixed(1);
-      setErrorMsg(
-        `Selected .rpy files total ${mib} MiB, which exceeds the 25 MiB import limit. Please split the upload into smaller batches.`,
-      );
-      setStatus('error');
+      dispatch({
+        type: 'FAIL',
+        message: `Selected .rpy files total ${mib} MiB, which exceeds the 25 MiB import limit. Please split the upload into smaller batches.`,
+      });
       return;
     }
 
     const oversizedFile = rpyFiles.find((file) => file.size > MAX_RPY_FILE_SIZE_BYTES);
     if (oversizedFile) {
-      setErrorMsg(
-        `“${oversizedFile.name}” is too large to import. Please upload .rpy files smaller than 2 MiB (about 2 MB).`,
-      );
-      setStatus('error');
+      dispatch({
+        type: 'FAIL',
+        message: `“${oversizedFile.name}” is too large to import. Please upload .rpy files smaller than 2 MiB (about 2 MB).`,
+      });
       return;
     }
 
     parseAbortControllerRef.current?.abort();
-    parseAbortControllerRef.current = new AbortController();
+    const controller = new AbortController();
+    parseAbortControllerRef.current = controller;
 
-    setStatus('loading');
-    setFileCount(rpyFiles.length);
-    setParseProgress({ doneFiles: 0, totalFiles: rpyFiles.length, currentFile: '' });
-    setErrorMsg('');
+    dispatch({ type: 'START_READING', fileCount: rpyFiles.length });
 
     // ── Phase 1: Read files from disk ──────────────────────────────────────
+    perf.mark('read');
     let inputs: Array<{ name: string; content: string }>;
     try {
       inputs = await Promise.all(
@@ -112,41 +168,46 @@ export default function App() {
         })),
       );
     } catch (err: unknown) {
+      if (!isActiveRun()) return;
       if (err instanceof FileReadError) {
-        setErrorMsg(err.message);
+        dispatch({ type: 'FAIL', message: err.message });
       } else {
         const detail = err instanceof Error ? err.message : String(err);
-        setErrorMsg(`An unexpected error occurred while reading files: ${detail}`);
+        dispatch({ type: 'FAIL', message: `An unexpected error occurred while reading files: ${detail}` });
       }
-      setStatus('error');
-      setParseProgress(null);
       return;
     }
+    perf.measure('read', 'read_files_ms', { files: rpyFiles.length });
+    if (!isActiveRun()) return;
 
     // ── Phase 2: Parse the Ren'Py scripts ─────────────────────────────────
+    dispatch({ type: 'START_PARSING' });
+    perf.mark('parse');
     try {
       const { nodes, edges } = await parseRenpyFilesInWorker({
         files: inputs,
-        signal: parseAbortControllerRef.current.signal,
-        onProgress: (progress) => setParseProgress(progress),
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (!isActiveRun()) return;
+          dispatch({ type: 'PROGRESS', progress });
+        },
       });
-      setFlowNodes(nodes);
-      setFlowEdges(edges);
-      setStatus('done');
-      setParseProgress(null);
+      if (!isActiveRun()) return;
+      perf.measure('parse', 'parse_ms', { files: rpyFiles.length, nodes: nodes.length, edges: edges.length });
+      dispatch({ type: 'PARSE_SUCCESS', nodes, edges });
     } catch (err: unknown) {
+      if (!isActiveRun()) return;
       if (err instanceof DOMException && err.name === 'AbortError') {
-        setErrorMsg('Parsing was cancelled.');
+        dispatch({ type: 'FAIL', message: 'Parsing was cancelled.' });
       } else {
         const detail = err instanceof Error ? err.message : String(err);
-        setErrorMsg(
-          `Failed to parse Ren'Py scripts: ${detail}. Ensure your .rpy files contain valid Ren'Py syntax.`,
-        );
+        dispatch({
+          type: 'FAIL',
+          message: `Failed to parse Ren'Py scripts: ${detail}. Ensure your .rpy files contain valid Ren'Py syntax.`,
+        });
       }
-      setStatus('error');
-      setParseProgress(null);
     }
-  }, []);
+  }, [perf]);
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────
   const onDrop = useCallback(
@@ -178,29 +239,27 @@ export default function App() {
       </header>
 
       {/* Main content */}
-      {status === 'done' && flowNodes.length > 0 ? (
+      {state.phase === 'done' && state.flowNodes.length > 0 ? (
         /* ── Flowchart view ─────────────────────────────────────────────── */
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Re-upload button */}
           <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex items-center gap-3 text-sm text-violet-700">
-            <span>
-              Parsed <strong>{fileCount}</strong> .rpy file
-              {fileCount !== 1 ? 's' : ''} →{' '}
-              <strong>{flowNodes.length}</strong> nodes,{' '}
-              <strong>{flowEdges.length}</strong> edges
+              <span>
+              Parsed <strong>{state.fileCount}</strong> .rpy file
+              {state.fileCount !== 1 ? 's' : ''} →{' '}
+              <strong>{state.flowNodes.length}</strong> nodes,{' '}
+              <strong>{state.flowEdges.length}</strong> edges
             </span>
             <button
               onClick={() => {
-                setStatus('idle');
-                setFlowNodes([]);
-                setFlowEdges([]);
+                dispatch({ type: 'RESET' });
               }}
               className="ml-auto text-xs underline text-violet-600 hover:text-violet-800"
             >
               Upload a different folder
             </button>
           </div>
-          <FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />
+          <FlowchartViewer flowNodes={state.flowNodes} flowEdges={state.flowEdges} />
         </div>
       ) : (
         /* ── Upload area ─────────────────────────────────────────────────── */
@@ -214,17 +273,18 @@ export default function App() {
               onDragOver={onDragOver}
               className="flex flex-col items-center justify-center gap-4 w-full h-64 rounded-2xl border-2 border-dashed border-violet-300 bg-white hover:bg-violet-50 hover:border-violet-400 transition-colors cursor-pointer"
             >
-              {status === 'loading' ? (
-                <>
-                  <Loader2 size={40} className="text-violet-500 animate-spin" aria-hidden="true" />
-                  <p className="text-gray-600 font-medium">
-                    Parsing {parseProgress?.doneFiles ?? 0} / {parseProgress?.totalFiles ?? fileCount}{' '}
-                    .rpy file{(parseProgress?.totalFiles ?? fileCount) !== 1 ? 's' : ''}…
-                  </p>
-                  {parseProgress?.currentFile && (
-                    <p className="text-xs text-gray-500">Current: {parseProgress.currentFile}</p>
-                  )}
-                </>
+               {state.phase === 'reading' || state.phase === 'parsing' ? (
+                 <>
+                   <Loader2 size={40} className="text-violet-500 animate-spin" aria-hidden="true" />
+                   <p className="text-gray-600 font-medium">
+                     {state.phase === 'reading'
+                       ? `Reading ${state.fileCount} .rpy file${state.fileCount !== 1 ? 's' : ''}…`
+                       : `Parsing ${state.parseProgress?.doneFiles ?? 0} / ${state.parseProgress?.totalFiles ?? state.fileCount} .rpy file${(state.parseProgress?.totalFiles ?? state.fileCount) !== 1 ? 's' : ''}…`}
+                   </p>
+                   {state.parseProgress?.currentFile && (
+                     <p className="text-xs text-gray-500">Current: {state.parseProgress.currentFile}</p>
+                   )}
+                 </>
               ) : (
                 <>
                   <Upload size={40} className="text-violet-400" aria-hidden="true" />
@@ -256,7 +316,7 @@ export default function App() {
               onChange={(e) => void processFiles(e.target.files)}
             />
 
-            {status === 'loading' && (
+             {state.phase === 'parsing' && (
               <div className="mt-4 flex justify-center">
                 <button
                   type="button"
@@ -270,15 +330,15 @@ export default function App() {
             )}
 
             {/* Error message */}
-            {status === 'error' && (
+             {state.phase === 'error' && (
               <div className="mt-4 flex items-start gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
-                <p className="text-sm">{errorMsg}</p>
+                 <p className="text-sm">{state.errorMsg}</p>
               </div>
             )}
 
             {/* Empty result warning */}
-            {status === 'done' && flowNodes.length === 0 && (
+             {state.phase === 'done' && state.flowNodes.length === 0 && (
               <div className="mt-4 flex items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
                 <p className="text-sm">
