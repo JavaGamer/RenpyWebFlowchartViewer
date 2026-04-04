@@ -15,8 +15,6 @@ import {
   Position,
   type NodeTypes,
   type EdgeTypes,
-  type Node,
-  type Edge,
   type NodeProps,
   type EdgeProps,
   type ReactFlowInstance,
@@ -27,32 +25,28 @@ import {
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import dagre from '@dagrejs/dagre';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './types';
+import {
+  type CanvasNode,
+  type CanvasEdge,
+  type LabelNodeType,
+  type MenuNodeType,
+  type LabeledEdgeType,
+  type EdgeKindFilter,
+  type NodeData,
+  type EdgeData,
+  applyDagreLayout,
+  buildVisibleEdges,
+  buildVisibleNodes,
+  getNodeCenter,
+} from './flowchartTransforms';
+import { createPerfTracker } from './perf';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const NODE_WIDTH = 220;
-const NODE_HEIGHT_LABEL = 90;
-const NODE_HEIGHT_MENU = 80;
 const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25] as const;
-
-// ─── Custom node data types ───────────────────────────────────────────────────
-
-interface NodeData extends Record<string, unknown> {
-  label: string;
-  dialogueCount: number;
-  nodeType: 'LABEL' | 'MENU';
-  chapter?: string;
-  parentLabelId?: string;
-  theme: 'violet' | 'highContrast' | 'colorblind';
-}
-
-type LabelNodeType = Node<NodeData, 'labelNode'>;
-type MenuNodeType = Node<NodeData, 'menuNode'>;
-type CanvasNode = LabelNodeType | MenuNodeType;
 
 // ─── Custom node components ───────────────────────────────────────────────────
 
@@ -186,18 +180,6 @@ const nodeTypes: NodeTypes = {
   menuNode: MenuNodeComponent,
 };
 
-// ─── Custom edge data type ────────────────────────────────────────────────────
-
-interface EdgeData extends Record<string, unknown> {
-  label: string;
-  kind?: 'sequence' | 'jump' | 'call' | 'call_return';
-}
-
-type EdgeKindFilter = 'sequence' | 'jump' | 'call' | 'call_return';
-
-type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
-type CanvasEdge = LabeledEdgeType;
-
 // ─── Custom edge component ────────────────────────────────────────────────────
 
 function LabeledEdge({
@@ -246,85 +228,6 @@ const edgeTypes: EdgeTypes = {
   labeled: LabeledEdge,
 };
 
-// ─── Dagre layout ─────────────────────────────────────────────────────────────
-
-function applyDagreLayout(
-  rawNodes: FlowNode[],
-  rawEdges: FlowEdge[],
-  direction: 'TB' | 'LR',
-): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({
-    rankdir: direction,
-    // LR layouts place many wide label cards in neighboring columns; extra rank
-    // spacing helps reduce crowding and edge-label overlap.
-    ranksep: direction === 'TB' ? 80 : 110,
-    nodesep: 50,
-    marginx: 20,
-    marginy: 20,
-  });
-
-  rawNodes.forEach((n) => {
-    g.setNode(n.id, {
-      width: NODE_WIDTH,
-      height: n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU,
-    });
-  });
-
-  rawEdges.forEach((e) => {
-    if (g.hasNode(e.source) && g.hasNode(e.target)) {
-      g.setEdge(e.source, e.target);
-    }
-  });
-
-  dagre.layout(g);
-
-  const nodes: CanvasNode[] = rawNodes.map((n) => {
-    const pos = g.node(n.id);
-    const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
-    return {
-      id: n.id,
-      type: n.type === 'LABEL' ? 'labelNode' : 'menuNode',
-      position: {
-        x: pos ? pos.x - NODE_WIDTH / 2 : 0,
-        y: pos ? pos.y - h / 2 : 0,
-      },
-        data: {
-          label: n.label,
-          dialogueCount: n.dialogueCount,
-          nodeType: n.type,
-          chapter: n.chapter,
-          parentLabelId: n.parentLabelId,
-          theme: 'violet',
-        },
-        draggable: true,
-      };
-    });
-
-  const edges: CanvasEdge[] = rawEdges
-    .filter((e) => g.hasNode(e.source) && g.hasNode(e.target))
-    .map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind },
-      markerEnd: { type: 'arrowclosed' as const },
-      style: { stroke: '#6b7280', strokeWidth: 1.5 },
-    }));
-
-  return { nodes, edges };
-}
-
-function getNodeCenter(node: CanvasNode): { x: number; y: number } {
-  const nodeHeight = node.type === 'labelNode' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
-  return {
-    x: node.position.x + NODE_WIDTH / 2,
-    y: node.position.y + nodeHeight / 2,
-  };
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
@@ -336,6 +239,7 @@ export default function FlowchartViewer({
   flowNodes,
   flowEdges,
 }: FlowchartViewerProps) {
+  const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
@@ -356,12 +260,19 @@ export default function FlowchartViewer({
     call_return: globalThis.localStorage?.getItem('rfv.edge.call_return') !== 'false',
   }));
   const [focusNodeId, setFocusNodeId] = useState<string>('');
+  const [largeGraphMode, setLargeGraphMode] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => applyDagreLayout(flowNodes, flowEdges, layoutDirection),
-    [flowNodes, flowEdges, layoutDirection],
-  );
+  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
+    perf.mark('layout');
+    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection);
+    perf.measure('layout', 'layout_ms', {
+      nodes: flowNodes.length,
+      edges: flowEdges.length,
+      direction: layoutDirection,
+    });
+    return laidOut;
+  }, [flowNodes, flowEdges, layoutDirection, perf]);
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
 
@@ -397,6 +308,10 @@ export default function FlowchartViewer({
   }, [layoutNodes, layoutEdges, setEdges, setNodes]);
 
   useEffect(() => {
+    setLargeGraphMode(flowNodes.length > 150 || flowEdges.length > 250);
+  }, [flowEdges.length, flowNodes.length]);
+
+  useEffect(() => {
     globalThis.localStorage?.setItem('rfv.theme', theme);
   }, [theme]);
 
@@ -423,24 +338,18 @@ export default function FlowchartViewer({
     [collapsedParentLabels, flowNodes],
   );
 
-  const visibleNodes = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return nodes.map((n) => {
-      const nodeData = n.data as NodeData;
-      const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
-      const labelCollapsed = collapsedLabelChildren.has(n.id);
-      const matchesSearch =
-        query.length === 0 ||
-        nodeData.label.toLowerCase().includes(query) ||
-        String(nodeData.dialogueCount).includes(query);
-      const matchesDialogue = nodeData.dialogueCount >= minDialogue;
-      return {
-        ...n,
-        data: { ...nodeData, theme },
-        hidden: Boolean(chapterCollapsed || labelCollapsed || !matchesSearch || !matchesDialogue),
-      };
-    });
-  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes, search, theme]);
+  const visibleNodes = useMemo(
+    () =>
+      buildVisibleNodes({
+        nodes,
+        search,
+        minDialogue,
+        collapsedChapters,
+        collapsedLabelChildren,
+        theme,
+      }),
+    [collapsedChapters, collapsedLabelChildren, minDialogue, nodes, search, theme],
+  );
 
   const visibleNodeIds = useMemo(
     () => new Set(visibleNodes.filter((n) => !n.hidden).map((n) => n.id)),
@@ -449,20 +358,20 @@ export default function FlowchartViewer({
 
   const visibleEdges = useMemo(
     () =>
-      edges
-        .map((e) => ({ ...e, style: { ...(e.style || {}), stroke: THEMES[theme].edge, strokeWidth: 1.5 } }))
-        .filter((e) => {
-          const kind = ((e.data as EdgeData | undefined)?.kind ?? 'sequence') as EdgeKindFilter;
-          if (!visibleEdgeKinds[kind]) return false;
-          if (!showCallReturns && kind === 'call_return') return false;
-          return true;
-        })
-        .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)),
-    [edges, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
+      buildVisibleEdges({
+        edges,
+        showCallReturns,
+        visibleEdgeKinds,
+        visibleNodeIds,
+        edgeColor: THEMES[theme].edge,
+        largeGraphMode,
+      }),
+    [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
 
   const onExport = useCallback(() => {
     if (!flowRef.current) return;
+    const startedAt = performance.now();
     toBlob(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       pixelRatio: 2,
@@ -477,14 +386,19 @@ export default function FlowchartViewer({
         a.href = url;
         a.click();
         URL.revokeObjectURL(url);
+        perf.log('export_png_ms', performance.now() - startedAt, {
+          nodeCount: visibleNodeIds.size,
+          edgeCount: visibleEdges.length,
+        });
       })
       .catch((err: unknown) => {
         console.error('Export failed:', err);
       });
-  }, [theme]);
+  }, [perf, theme, visibleEdges.length, visibleNodeIds.size]);
 
   const onExportSvg = useCallback(() => {
     if (!flowRef.current) return;
+    const startedAt = performance.now();
     toSvg(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       width: flowRef.current.offsetWidth,
@@ -495,11 +409,15 @@ export default function FlowchartViewer({
         a.download = 'renpy-flowchart.svg';
         a.href = svgDataUrl;
         a.click();
+        perf.log('export_svg_ms', performance.now() - startedAt, {
+          nodeCount: visibleNodeIds.size,
+          edgeCount: visibleEdges.length,
+        });
       })
       .catch((err: unknown) => {
         console.error('SVG export failed:', err);
       });
-  }, [theme]);
+  }, [perf, theme, visibleEdges.length, visibleNodeIds.size]);
 
 
   const onFocusSelectedNode = useCallback(() => {
@@ -547,6 +465,18 @@ export default function FlowchartViewer({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onExport]);
 
+  useEffect(() => {
+    if (!perf.enabled) return;
+    const startedAt = performance.now();
+    const id = requestAnimationFrame(() => {
+      perf.log('render_commit_ms', performance.now() - startedAt, {
+        visibleNodes: visibleNodeIds.size,
+        visibleEdges: visibleEdges.length,
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [perf, visibleEdges.length, visibleNodeIds.size]);
+
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
@@ -586,6 +516,15 @@ export default function FlowchartViewer({
               aria-label="Show call returns"
             />
             Show call returns
+          </label>
+          <label className="text-xs flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={largeGraphMode}
+              onChange={(e) => setLargeGraphMode(e.target.checked)}
+              aria-label="Enable large graph mode"
+            />
+            Large graph mode
           </label>
           <label className="text-xs flex items-center gap-1">
             <LayoutGrid size={14} aria-hidden="true" />
