@@ -17,19 +17,19 @@ class MockWorker {
 
 vi.stubGlobal('Worker', MockWorker as unknown as typeof Worker);
 
+const emitWorkerMessage = (data: unknown) => {
+  const handlers = Array.from(workerMessageHandlers);
+  for (const handler of handlers) {
+    handler({ data } as MessageEvent);
+  }
+};
+
 describe('parseRenpyFilesInWorker', () => {
   beforeEach(() => {
     postedMessages = [];
     workerMessageHandlers = new Set();
     vi.resetModules();
   });
-
-  const emitWorkerMessage = (data: unknown) => {
-    const handlers = Array.from(workerMessageHandlers);
-    for (const handler of handlers) {
-      handler({ data } as MessageEvent);
-    }
-  };
 
   it('supports concurrent requests and resolves each by requestId', async () => {
     const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
@@ -45,6 +45,21 @@ describe('parseRenpyFilesInWorker', () => {
 
     await expect(second).resolves.toEqual({ nodes: [{ id: 'b' }], edges: [] });
     await expect(first).resolves.toEqual({ nodes: [{ id: 'a' }], edges: [] });
+  });
+
+  it('ignores stale responses with a different requestId for the active request', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+
+    const request = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+
+    emitWorkerMessage({ type: 'result', requestId: requestId + 1000, nodes: [{ id: 'stale' }], edges: [] });
+    await expect(
+      Promise.race([request.then(() => 'resolved'), Promise.resolve('pending')]),
+    ).resolves.toBe('pending');
+
+    emitWorkerMessage({ type: 'result', requestId, nodes: [{ id: 'a' }], edges: [] });
+    await expect(request).resolves.toEqual({ nodes: [{ id: 'a' }], edges: [] });
   });
 
   it('posts cancel message and rejects with AbortError when signal aborts', async () => {
