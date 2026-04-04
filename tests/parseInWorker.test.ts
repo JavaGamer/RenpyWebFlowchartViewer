@@ -1,14 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-let workerMessageHandler: ((event: MessageEvent) => void) | null = null;
+let workerMessageHandlers = new Set<(event: MessageEvent) => void>();
 let postedMessages: unknown[] = [];
 
 class MockWorker {
   addEventListener(type: string, handler: (event: MessageEvent) => void) {
-    if (type === 'message') workerMessageHandler = handler;
+    if (type === 'message') workerMessageHandlers.add(handler);
   }
   removeEventListener(type: string, handler: (event: MessageEvent) => void) {
-    if (type === 'message' && workerMessageHandler === handler) workerMessageHandler = null;
+    if (type === 'message') workerMessageHandlers.delete(handler);
   }
   postMessage(message: unknown) {
     postedMessages.push(message);
@@ -20,11 +20,18 @@ vi.stubGlobal('Worker', MockWorker as unknown as typeof Worker);
 describe('parseRenpyFilesInWorker', () => {
   beforeEach(() => {
     postedMessages = [];
-    workerMessageHandler = null;
+    workerMessageHandlers = new Set();
     vi.resetModules();
   });
 
-  it('ignores stale responses from older requests and resolves latest request', async () => {
+  const emitWorkerMessage = (data: unknown) => {
+    const handlers = Array.from(workerMessageHandlers);
+    for (const handler of handlers) {
+      handler({ data } as MessageEvent);
+    }
+  };
+
+  it('supports concurrent requests and resolves each by requestId', async () => {
     const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
 
     const first = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
@@ -33,15 +40,11 @@ describe('parseRenpyFilesInWorker', () => {
     const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
     const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
 
-    workerMessageHandler?.({
-      data: { type: 'result', requestId: firstRequestId, nodes: [{ id: 'a' }], edges: [] },
-    } as MessageEvent);
-    workerMessageHandler?.({
-      data: { type: 'result', requestId: secondRequestId, nodes: [{ id: 'b' }], edges: [] },
-    } as MessageEvent);
+    emitWorkerMessage({ type: 'result', requestId: secondRequestId, nodes: [{ id: 'b' }], edges: [] });
+    emitWorkerMessage({ type: 'result', requestId: firstRequestId, nodes: [{ id: 'a' }], edges: [] });
 
     await expect(second).resolves.toEqual({ nodes: [{ id: 'b' }], edges: [] });
-    await expect(Promise.race([first.then(() => 'resolved'), Promise.resolve('pending')])).resolves.toBe('pending');
+    await expect(first).resolves.toEqual({ nodes: [{ id: 'a' }], edges: [] });
   });
 
   it('posts cancel message and rejects with AbortError when signal aborts', async () => {
