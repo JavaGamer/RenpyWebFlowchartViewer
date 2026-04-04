@@ -7,8 +7,12 @@ export interface PerfEvent {
 function isPerfEnabled(): boolean {
   const perfFlag = (globalThis as { __RFV_DEBUG_PERF__?: unknown }).__RFV_DEBUG_PERF__;
   if (perfFlag === true) return true;
-  if (typeof globalThis.localStorage === 'undefined') return false;
-  return globalThis.localStorage.getItem('rfv.debugPerf') === 'true';
+  try {
+    if (typeof globalThis.localStorage === 'undefined') return false;
+    return globalThis.localStorage.getItem('rfv.debugPerf') === 'true';
+  } catch {
+    return false;
+  }
 }
 
 export function createPerfTracker(scope: string) {
