@@ -2,8 +2,15 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { LabelNodeType, MenuNodeType } from '../flowchartTransforms';
 import { THEMES } from './viewerTheme';
 
+function getTheme(themeName: unknown) {
+  if (typeof themeName === 'string' && themeName in THEMES) {
+    return THEMES[themeName as keyof typeof THEMES];
+  }
+  return THEMES.violet;
+}
+
 export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
-  const theme = THEMES[(data.theme as keyof typeof THEMES) || 'violet'];
+  const theme = getTheme(data.theme);
   return (
     <div
       className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
@@ -30,7 +37,7 @@ export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
 }
 
 export function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
-  const theme = THEMES[(data.theme as keyof typeof THEMES) || 'violet'];
+  const theme = getTheme(data.theme);
   return (
     <div
       className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
