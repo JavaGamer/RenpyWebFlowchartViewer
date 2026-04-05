@@ -150,6 +150,7 @@ describe('parseRenpyFiles', () => {
     const node = result.nodes.find((n) => n.id === 'scene');
     expect(node).toBeDefined();
     expect(node?.dialogueCount).toBe(3);
+    expect(node?.dialogueLines).toEqual(['line one', 'line two', 'line three']);
   });
 
   // ── Menu detection ───────────────────────────────────────────────────────────

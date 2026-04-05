@@ -231,7 +231,12 @@ export function handleToken(
 
       if (ownerId) {
         const ownerNode = state.nodeMap.get(ownerId);
-        if (ownerNode) ownerNode.dialogueCount += 1;
+        if (ownerNode) {
+          ownerNode.dialogueCount += 1;
+          const line = val();
+          if (!ownerNode.dialogueLines) ownerNode.dialogueLines = [];
+          ownerNode.dialogueLines.push(line);
+        }
       }
     }
   }

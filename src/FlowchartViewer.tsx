@@ -5,7 +5,7 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import {
   ReactFlow,
   Background,
@@ -22,6 +22,7 @@ import type { FlowNode, FlowEdge } from './domain/graph';
 import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
+  INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
   LARGE_GRAPH_EDGE_THRESHOLD,
   LARGE_GRAPH_NODE_THRESHOLD,
   SEARCH_DEBOUNCE_MS,
@@ -46,6 +47,45 @@ import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
 interface FlowchartViewerProps {
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
+}
+
+interface DialogueSearchResult {
+  nodeId: string;
+  nodeLabel: string;
+  lineIndex: number;
+  lineText: string;
+}
+
+function renderHighlightedText(text: string, query: string) {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return text;
+  const lowerText = text.toLowerCase();
+  const lowerQuery = normalizedQuery.toLowerCase();
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  let key = 0;
+
+  while (cursor < text.length) {
+    const matchIndex = lowerText.indexOf(lowerQuery, cursor);
+    if (matchIndex === -1) {
+      nodes.push(text.slice(cursor));
+      break;
+    }
+    if (matchIndex > cursor) {
+      nodes.push(text.slice(cursor, matchIndex));
+    }
+    const matched = text.slice(matchIndex, matchIndex + normalizedQuery.length);
+    const markKey = `hl-${key}`;
+    key += 1;
+    nodes.push(
+      <mark key={markKey} className="bg-yellow-200 text-inherit rounded px-0.5">
+        {matched}
+      </mark>,
+    );
+    cursor = matchIndex + normalizedQuery.length;
+  }
+
+  return nodes;
 }
 
 export default function FlowchartViewer({
@@ -76,6 +116,10 @@ export default function FlowchartViewer({
   }));
   const [focusNodeId, setFocusNodeId] = useState<string>('');
   const [largeGraphModeOverride, setLargeGraphModeOverride] = useState<boolean | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
+  const [selectedDialogueLineIndex, setSelectedDialogueLineIndex] = useState<number | null>(null);
+  const [showAllInspectorLines, setShowAllInspectorLines] = useState(false);
+  const [activeDialogueResultIndex, setActiveDialogueResultIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
@@ -194,6 +238,42 @@ export default function FlowchartViewer({
     [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
 
+  const selectedNode = useMemo(
+    () => visibleNodes.find((n) => n.id === selectedNodeId && !n.hidden) ?? null,
+    [selectedNodeId, visibleNodes],
+  );
+
+  const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined;
+
+  const dialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
+    const query = effectiveSearch.trim().toLowerCase();
+    if (!query) return [];
+    const results: DialogueSearchResult[] = [];
+    for (const node of visibleNodes) {
+      if (node.hidden) continue;
+      const data = node.data as { label: string; dialogueLines?: string[] };
+      const lines = data.dialogueLines ?? [];
+      lines.forEach((line, idx) => {
+        if (line.toLowerCase().includes(query)) {
+          results.push({
+            nodeId: node.id,
+            nodeLabel: data.label,
+            lineIndex: idx + 1,
+            lineText: line,
+          });
+        }
+      });
+    }
+    return results;
+  }, [effectiveSearch, visibleNodes]);
+
+  const resolvedActiveDialogueResultIndex = useMemo(() => {
+    if (dialogueSearchResults.length === 0) return -1;
+    if (activeDialogueResultIndex < 0) return 0;
+    if (activeDialogueResultIndex >= dialogueSearchResults.length) return dialogueSearchResults.length - 1;
+    return activeDialogueResultIndex;
+  }, [activeDialogueResultIndex, dialogueSearchResults.length]);
+
   const isLargeExportTarget = useMemo(
     () =>
       visibleNodeIds.size + visibleEdges.length >= LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
@@ -267,6 +347,55 @@ export default function FlowchartViewer({
     });
   }, [focusNodeId, visibleNodes]);
 
+  const focusVisibleNode = useCallback((nodeId: string) => {
+    const target = visibleNodes.find((n) => n.id === nodeId && !n.hidden);
+    if (!target || !flowInstanceRef.current) return;
+    const center = getNodeCenter(target);
+    flowInstanceRef.current.setCenter(center.x, center.y, {
+      zoom: 1.1,
+      duration: 250,
+    });
+  }, [visibleNodes]);
+
+  const onSelectDialogueSearchResult = useCallback((result: DialogueSearchResult) => {
+    const targetNode = visibleNodes.find((node) => node.id === result.nodeId && !node.hidden);
+    const targetNodeData = targetNode?.data as { dialogueLines?: string[] } | undefined;
+    const totalLines = targetNodeData?.dialogueLines?.length ?? 0;
+    const selectedLineOutsidePreview = result.lineIndex > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
+    const hasTruncation = totalLines > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
+    setSelectedNodeId(result.nodeId);
+    setSelectedDialogueLineIndex(result.lineIndex);
+    setShowAllInspectorLines(hasTruncation && selectedLineOutsidePreview);
+    focusVisibleNode(result.nodeId);
+  }, [focusVisibleNode, visibleNodes]);
+
+  const onSearchInputKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (dialogueSearchResults.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveDialogueResultIndex((prev) => {
+        const base = prev < 0 ? 0 : prev;
+        return (base + 1 + dialogueSearchResults.length) % dialogueSearchResults.length;
+      });
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveDialogueResultIndex((prev) => {
+        const base = prev < 0 ? 0 : prev;
+        return (base - 1 + dialogueSearchResults.length) % dialogueSearchResults.length;
+      });
+      return;
+    }
+    if (event.key === 'Enter') {
+      if (resolvedActiveDialogueResultIndex < 0) return;
+      event.preventDefault();
+      const selected = dialogueSearchResults[resolvedActiveDialogueResultIndex];
+      setActiveDialogueResultIndex(resolvedActiveDialogueResultIndex);
+      onSelectDialogueSearchResult(selected);
+    }
+  }, [dialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex]);
+
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
     const blob = new Blob([graphJson], { type: 'application/json' });
@@ -328,8 +457,9 @@ export default function FlowchartViewer({
               ref={searchInputRef}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search labels or dialogue count"
-              aria-label="Search labels or dialogue count"
+              onKeyDown={onSearchInputKeyDown}
+              placeholder="Search labels, dialogue lines, or dialogue count"
+              aria-label="Search labels, dialogue lines, or dialogue count"
               className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-60"
             />
           </label>
@@ -521,33 +651,129 @@ export default function FlowchartViewer({
         )}
       </div>
 
-      {/* Flow canvas */}
-      <div ref={flowRef} className="flex-1" style={{ backgroundColor: THEMES[theme].pageBg }}>
-        <ReactFlow
-          nodes={visibleNodes}
-          edges={visibleEdges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onInit={(instance) => {
-            flowInstanceRef.current = instance as ReactFlowInstance<CanvasNode, CanvasEdge>;
-          }}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          minZoom={0.1}
-          maxZoom={2.5}
-          nodesDraggable
-          proOptions={{ hideAttribution: false }}
+      {/* Flow canvas + inspector */}
+      <div className="flex-1 flex min-h-0">
+        <div ref={flowRef} className="flex-1" style={{ backgroundColor: THEMES[theme].pageBg }}>
+          <ReactFlow
+            nodes={visibleNodes}
+            edges={visibleEdges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={(_, node) => {
+              setSelectedNodeId(node.id);
+              setSelectedDialogueLineIndex(null);
+              setShowAllInspectorLines(false);
+            }}
+            onInit={(instance) => {
+              flowInstanceRef.current = instance as ReactFlowInstance<CanvasNode, CanvasEdge>;
+            }}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            minZoom={0.1}
+            maxZoom={2.5}
+            nodesDraggable
+            proOptions={{ hideAttribution: false }}
+          >
+            <Background color={THEMES[theme].grid} gap={20} />
+            <Controls />
+            <MiniMap
+              nodeColor={(n) =>
+                n.type === 'labelNode' ? THEMES[theme].minimapLabel : THEMES[theme].minimapMenu
+              }
+            />
+          </ReactFlow>
+        </div>
+        <aside
+          className="w-96 max-w-[40%] min-w-[280px] border-l border-gray-200 bg-white p-3 overflow-y-auto"
+          aria-label="Inspector panel"
         >
-          <Background color={THEMES[theme].grid} gap={20} />
-          <Controls />
-          <MiniMap
-            nodeColor={(n) =>
-              n.type === 'labelNode' ? THEMES[theme].minimapLabel : THEMES[theme].minimapMenu
-            }
-          />
-        </ReactFlow>
+          <div className="text-sm font-semibold mb-2">Inspector</div>
+          {effectiveSearch.trim().length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs font-semibold text-gray-700 mb-1">
+                Dialogue line matches ({dialogueSearchResults.length})
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {dialogueSearchResults.length === 0 ? (
+                  <div className="text-xs text-gray-500">
+                    No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
+                  </div>
+                ) : (
+                  dialogueSearchResults.map((result, resultIndex) => (
+                    <button
+                      key={`${result.nodeId}-${result.lineIndex}`}
+                      type="button"
+                      aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
+                      onClick={() => {
+                        setActiveDialogueResultIndex(resultIndex);
+                        onSelectDialogueSearchResult(result);
+                      }}
+                      className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 ${
+                        resultIndex === resolvedActiveDialogueResultIndex
+                          ? 'border-violet-400 bg-violet-50'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
+                      <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
+                    </button>
+                  ))
+                )}
+              </div>
+              {dialogueSearchResults.length > 0 && (
+                <div className="mt-1 text-[11px] text-gray-500">
+                  Tip: with search focused, use ↑/↓ to move results and Enter to open.
+                </div>
+              )}
+            </div>
+          )}
+          {!selectedNode || !selectedNodeData ? (
+            <div className="text-xs text-gray-500">
+              {effectiveSearch.trim().length > 0
+                ? 'Choose a search result or click a visible node to inspect dialogue lines.'
+                : 'Select a node to inspect dialogue lines, or search to jump to matching dialogue.'}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="text-xs">
+                <span className="font-semibold">Node:</span> {selectedNodeData.label}
+              </div>
+              <div className="text-xs">
+                <span className="font-semibold">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
+              </div>
+              <div className="text-xs font-semibold">Dialogue</div>
+              <div className="space-y-1">
+                {(showAllInspectorLines
+                  ? selectedNodeData.dialogueLines ?? []
+                  : (selectedNodeData.dialogueLines ?? []).slice(0, INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT)
+                ).map((line, idx) => {
+                  const absoluteIndex = idx + 1;
+                  const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
+                  return (
+                    <div
+                      key={`${selectedNodeId}-${absoluteIndex}`}
+                      className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                    >
+                      <span className="font-medium mr-1">{absoluteIndex}.</span>
+                      {renderHighlightedText(line, effectiveSearch)}
+                    </div>
+                  );
+                })}
+              </div>
+              {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllInspectorLines((prev) => !prev)}
+                  className="text-xs text-violet-700 hover:underline"
+                >
+                  {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
+                </button>
+              )}
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );

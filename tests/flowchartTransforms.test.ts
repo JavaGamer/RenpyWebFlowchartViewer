@@ -11,7 +11,14 @@ import type { FlowNode, FlowEdge } from '../src/domain/graph';
 
 describe('flowchartTransforms', () => {
   const flowNodes: FlowNode[] = [
-    { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 2, chapter: 'ch1' },
+    {
+      id: 'start',
+      type: 'LABEL',
+      label: 'start',
+      dialogueCount: 2,
+      dialogueLines: ['hello there', 'general kenobi'],
+      chapter: 'ch1',
+    },
     { id: 'menu_1', type: 'MENU', label: 'menu', dialogueCount: 0, parentLabelId: 'start' },
   ];
   const flowEdges: FlowEdge[] = [
@@ -41,6 +48,21 @@ describe('flowchartTransforms', () => {
       minDialogue: 1,
       collapsedChapters: { ch1: false },
       collapsedLabelChildren: new Set<string>(['menu_1']),
+      theme: 'violet',
+    });
+    const byId = new Map(visible.map((n) => [n.id, n]));
+    expect(byId.get('start')?.hidden).toBe(false);
+    expect(byId.get('menu_1')?.hidden).toBe(true);
+  });
+
+  it('matches search against dialogue lines', () => {
+    const layout = applyDagreLayout(flowNodes, flowEdges, 'TB');
+    const visible = buildVisibleNodes({
+      nodes: layout.nodes,
+      search: 'kenobi',
+      minDialogue: 0,
+      collapsedChapters: { ch1: false },
+      collapsedLabelChildren: new Set<string>(),
       theme: 'violet',
     });
     const byId = new Map(visible.map((n) => [n.id, n]));

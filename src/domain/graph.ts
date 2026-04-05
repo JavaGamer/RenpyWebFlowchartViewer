@@ -13,6 +13,8 @@ export interface FlowNode {
   label: string;
   /** Number of dialogue lines inside this block. */
   dialogueCount: number;
+  /** Dialogue line text captured from say statements in this block. */
+  dialogueLines?: string[];
   /** Source chapter inferred from the .rpy filename. */
   chapter?: string;
   /** Parent label id for MENU nodes. */
