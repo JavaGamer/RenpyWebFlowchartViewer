@@ -56,6 +56,36 @@ interface DialogueSearchResult {
   lineText: string;
 }
 
+function renderHighlightedText(text: string, query: string) {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return text;
+  const lowerText = text.toLowerCase();
+  const lowerQuery = normalizedQuery.toLowerCase();
+  const nodes: Array<JSX.Element | string> = [];
+  let cursor = 0;
+  let key = 0;
+
+  while (cursor < text.length) {
+    const matchIndex = lowerText.indexOf(lowerQuery, cursor);
+    if (matchIndex === -1) {
+      nodes.push(text.slice(cursor));
+      break;
+    }
+    if (matchIndex > cursor) {
+      nodes.push(text.slice(cursor, matchIndex));
+    }
+    const matched = text.slice(matchIndex, matchIndex + normalizedQuery.length);
+    nodes.push(
+      <mark key={`hl-${key++}`} className="bg-yellow-200 text-inherit rounded px-0.5">
+        {matched}
+      </mark>,
+    );
+    cursor = matchIndex + normalizedQuery.length;
+  }
+
+  return nodes;
+}
+
 export default function FlowchartViewer({
   flowNodes,
   flowEdges,
@@ -87,6 +117,7 @@ export default function FlowchartViewer({
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
   const [selectedDialogueLineIndex, setSelectedDialogueLineIndex] = useState<number | null>(null);
   const [showAllInspectorLines, setShowAllInspectorLines] = useState(false);
+  const [activeDialogueResultIndex, setActiveDialogueResultIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
@@ -234,6 +265,18 @@ export default function FlowchartViewer({
     return results;
   }, [effectiveSearch, visibleNodes]);
 
+  useEffect(() => {
+    if (dialogueSearchResults.length === 0) {
+      setActiveDialogueResultIndex(-1);
+      return;
+    }
+    setActiveDialogueResultIndex((prev) => {
+      if (prev < 0) return 0;
+      if (prev >= dialogueSearchResults.length) return dialogueSearchResults.length - 1;
+      return prev;
+    });
+  }, [dialogueSearchResults]);
+
   const isLargeExportTarget = useMemo(
     () =>
       visibleNodeIds.size + visibleEdges.length >= LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
@@ -324,6 +367,25 @@ export default function FlowchartViewer({
     focusVisibleNode(result.nodeId);
   }, [focusVisibleNode]);
 
+  const onSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (dialogueSearchResults.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveDialogueResultIndex((prev) => (prev + 1 + dialogueSearchResults.length) % dialogueSearchResults.length);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveDialogueResultIndex((prev) => (prev - 1 + dialogueSearchResults.length) % dialogueSearchResults.length);
+      return;
+    }
+    if (event.key === 'Enter') {
+      if (activeDialogueResultIndex < 0) return;
+      event.preventDefault();
+      onSelectDialogueSearchResult(dialogueSearchResults[activeDialogueResultIndex]);
+    }
+  }, [activeDialogueResultIndex, dialogueSearchResults, onSelectDialogueSearchResult]);
+
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
     const blob = new Blob([graphJson], { type: 'application/json' });
@@ -385,6 +447,7 @@ export default function FlowchartViewer({
               ref={searchInputRef}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={onSearchInputKeyDown}
               placeholder="Search labels, dialogue lines, or dialogue count"
               aria-label="Search labels, dialogue lines, or dialogue count"
               className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-60"
@@ -624,25 +687,44 @@ export default function FlowchartViewer({
               </div>
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {dialogueSearchResults.length === 0 ? (
-                  <div className="text-xs text-gray-500">No dialogue line matches.</div>
+                  <div className="text-xs text-gray-500">
+                    No dialogue lines matched “{effectiveSearch.trim()}”. Try a shorter query or clear other filters.
+                  </div>
                 ) : (
-                  dialogueSearchResults.map((result) => (
+                  dialogueSearchResults.map((result, resultIndex) => (
                     <button
                       key={`${result.nodeId}-${result.lineIndex}`}
                       type="button"
-                      onClick={() => onSelectDialogueSearchResult(result)}
-                      className="w-full text-left border border-gray-200 rounded px-2 py-1 hover:bg-gray-50"
+                      aria-selected={resultIndex === activeDialogueResultIndex}
+                      onClick={() => {
+                        setActiveDialogueResultIndex(resultIndex);
+                        onSelectDialogueSearchResult(result);
+                      }}
+                      className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 ${
+                        resultIndex === activeDialogueResultIndex
+                          ? 'border-violet-400 bg-violet-50'
+                          : 'border-gray-200'
+                      }`}
                     >
                       <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                      <div className="text-xs text-gray-600 truncate">{result.lineText}</div>
+                      <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
                     </button>
                   ))
                 )}
               </div>
+              {dialogueSearchResults.length > 0 && (
+                <div className="mt-1 text-[11px] text-gray-500">
+                  Tip: with search focused, use ↑/↓ to move results and Enter to open.
+                </div>
+              )}
             </div>
           )}
           {!selectedNode || !selectedNodeData ? (
-            <div className="text-xs text-gray-500">Select a node or a search match to inspect dialogue lines.</div>
+            <div className="text-xs text-gray-500">
+              {effectiveSearch.trim().length > 0
+                ? 'Choose a search result or click a visible node to inspect dialogue lines.'
+                : 'Select a node to inspect dialogue lines, or search to jump to matching dialogue.'}
+            </div>
           ) : (
             <div className="space-y-2">
               <div className="text-xs">
@@ -665,7 +747,7 @@ export default function FlowchartViewer({
                       className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
                     >
                       <span className="font-medium mr-1">{absoluteIndex}.</span>
-                      {line}
+                      {renderHighlightedText(line, effectiveSearch)}
                     </div>
                   );
                 })}
