@@ -263,7 +263,8 @@ describe('FlowchartViewer behavior coverage', () => {
 
     await user.click(screen.getByRole('button', { name: /node-start/i }));
     expect(screen.getByLabelText(/Inspector panel/i)).toBeInTheDocument();
-    expect(screen.getByText(/Dialogue lines:\s*22/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dialogue lines:/i)).toBeInTheDocument();
+    expect(screen.getByText(/^22$/)).toBeInTheDocument();
     expect(screen.getByText('20.')).toBeInTheDocument();
     expect(screen.queryByText('21.')).not.toBeInTheDocument();
 
@@ -276,7 +277,7 @@ describe('FlowchartViewer behavior coverage', () => {
     await user.clear(search);
     await user.type(search, 'needle');
     expect(await screen.findByText(/Dialogue line matches \(1\)/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /start · line 21/i }));
+    await user.click(screen.getByRole('button', { name: /line 21/i }));
     expect(screen.getByText('21.')).toBeInTheDocument();
   });
 });

@@ -628,7 +628,7 @@ export default function FlowchartViewer({
                 ) : (
                   dialogueSearchResults.map((result) => (
                     <button
-                      key={`${result.nodeId}-${result.lineIndex}-${result.lineText}`}
+                      key={`${result.nodeId}-${result.lineIndex}`}
                       type="button"
                       onClick={() => onSelectDialogueSearchResult(result)}
                       className="w-full text-left border border-gray-200 rounded px-2 py-1 hover:bg-gray-50"
@@ -661,7 +661,7 @@ export default function FlowchartViewer({
                   const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
                   return (
                     <div
-                      key={`${selectedNodeId}-${absoluteIndex}-${line}`}
+                      key={`${selectedNodeId}-${absoluteIndex}`}
                       className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
                     >
                       <span className="font-medium mr-1">{absoluteIndex}.</span>
