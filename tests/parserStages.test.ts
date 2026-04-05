@@ -3,8 +3,10 @@ import { analyzeTokenMeta } from '../src/parser/tokenMeta';
 import { PARSER_TOKENS } from '../src/parserTokens';
 import { createGraphState } from '../src/parser/pipelineState';
 import { finalizeRoles } from '../src/parser/roleFinalization';
-import { addNode } from '../src/parser/graphMutations';
+import { addNode, addOutgoing, addIncoming } from '../src/parser/graphMutations';
 import { handleToken } from '../src/parser/tokenHandling';
+import { materializeCallReturnEdges } from '../src/parser/callReturnFinalization';
+import { classifyNodeRole } from '../src/parser/roleClassification';
 
 describe('parser stage modules', () => {
   it('analyzes token meta flags correctly', () => {
@@ -73,5 +75,56 @@ describe('parser stage modules', () => {
     expect(scanState.waitForMenuNameForId).toBeNull();
     expect(scanState.menuStack).toHaveLength(0);
     expect(scanState.conditionalIndentStack).toHaveLength(0);
+  });
+
+  it('materializes call return edges from pending call-return pairs', () => {
+    const state = createGraphState();
+    state.pendingCallReturns.push({ callerLabelId: 'caller', callTargetId: 'callee' });
+
+    materializeCallReturnEdges(state);
+
+    expect(state.edges).toContainEqual(
+      expect.objectContaining({
+        id: 'ret_callee__caller',
+        source: 'callee',
+        target: 'caller',
+        kind: 'call_return',
+        label: 'return',
+      }),
+    );
+  });
+
+  it('classifies utility role for called labels with return and no story traffic', () => {
+    const state = createGraphState();
+    addNode(state, {
+      id: 'util_label',
+      type: 'LABEL',
+      label: 'util_label',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    state.calledLabels.add('util_label');
+    state.hasReturnInLabel.add('util_label');
+
+    const node = state.nodes[0]!;
+    expect(classifyNodeRole(state, node)).toBe('utility');
+  });
+
+  it('classifies story role when sequence traffic exists', () => {
+    const state = createGraphState();
+    addNode(state, {
+      id: 'story_label',
+      type: 'LABEL',
+      label: 'story_label',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    addOutgoing(state, 'story_label', 'sequence');
+    addIncoming(state, 'story_label', 'sequence');
+    state.hasReturnInLabel.add('story_label');
+    state.calledLabels.add('story_label');
+
+    const node = state.nodes[0]!;
+    expect(classifyNodeRole(state, node)).toBe('story');
   });
 });
