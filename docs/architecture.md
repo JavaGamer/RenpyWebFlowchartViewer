@@ -10,21 +10,29 @@ This project is organized into layered modules to keep parser correctness, UI re
 
 - **Application (`src/application`)**
   - Use-case orchestration and policy logic.
-  - Examples: upload validation, app reducer/state transitions, parse service abstraction, user-facing error mapping.
+  - Examples: upload validation, app reducer/state transitions, parse service abstraction, upload→read→parse workflow, user-facing error mapping.
 
 - **Infrastructure (`src/infrastructure`)**
   - Adapters for browser/runtime boundaries.
-  - Examples: file reader wrapper, worker protocol contract.
+  - Examples: file reader wrapper, parser worker client wrapper, worker protocol contract.
 
-- **UI (`src/*.tsx`, `src/flowchartTransforms.ts`)**
+- **UI (`src/*.tsx`, `src/flowchartTransforms.ts`, `src/ui`)**
   - React components and rendering concerns.
   - Uses application and domain abstractions instead of low-level runtime details directly.
 
 ## Parser and Worker Lifecycle
 
 - `parser.ts` remains the parser API surface (`parseRenpyFiles`) and output contract (`FlowNode[]`, `FlowEdge[]`).
-- `parseInWorker.ts` and `parserWorker.ts` use a versioned protocol (`src/infrastructure/workerProtocol.ts`) to exchange parse/cancel/progress/result/error messages.
+- `src/infrastructure/parserWorkerClient.ts` and `parserWorker.ts` use a versioned protocol (`src/infrastructure/workerProtocol.ts`) to exchange parse/cancel/progress/result/error messages.
 - Cancellation and stale response handling are request-id scoped.
+
+## Enforced Dependency Direction
+
+- `domain` → no dependencies on application/infrastructure/ui
+- `application` → may depend on domain + infrastructure contracts
+- `infrastructure` → may depend on domain, but not on application/ui
+- `ui` → may depend on application/domain/config/ui helpers
+- parser pipeline modules (`src/parser`) → may depend on domain/parser modules, not ui
 
 ## Configuration and Persistence
 

@@ -11,23 +11,14 @@ import {
   Background,
   Controls,
   MiniMap,
-  Handle,
-  Position,
-  type NodeTypes,
-  type EdgeTypes,
-  type NodeProps,
-  type EdgeProps,
   type ReactFlowInstance,
-  BaseEdge,
-  EdgeLabelRenderer,
-  getBezierPath,
   useNodesState,
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
-import type { FlowNode, FlowEdge } from './types';
+import type { FlowNode, FlowEdge } from './domain/graph';
 import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
@@ -40,9 +31,6 @@ import type { ThemeName, LayoutDirection } from './ui/viewerTypes';
 import {
   type CanvasNode,
   type CanvasEdge,
-  type LabelNodeType,
-  type MenuNodeType,
-  type LabeledEdgeType,
   type EdgeKindFilter,
   applyDagreLayout,
   buildVisibleEdges,
@@ -50,188 +38,8 @@ import {
   getNodeCenter,
 } from './flowchartTransforms';
 import { createPerfTracker } from './perf';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-// ─── Custom node components ───────────────────────────────────────────────────
-
-interface ThemeColors {
-  pageBg: string;
-  panelBg: string;
-  text: string;
-  subtleText: string;
-  labelBorder: string;
-  labelBg: string;
-  labelTitle: string;
-  labelText: string;
-  menuBorder: string;
-  menuBg: string;
-  menuTitle: string;
-  menuText: string;
-  edge: string;
-  grid: string;
-  minimapLabel: string;
-  minimapMenu: string;
-}
-
-const THEMES: Record<ThemeName, ThemeColors> = {
-  violet: {
-    pageBg: '#f9fafb',
-    panelBg: '#ffffff',
-    text: '#111827',
-    subtleText: '#4b5563',
-    labelBorder: '#7c3aed',
-    labelBg: '#f5f3ff',
-    labelTitle: '#8b5cf6',
-    labelText: '#4c1d95',
-    menuBorder: '#d97706',
-    menuBg: '#fffbeb',
-    menuTitle: '#f59e0b',
-    menuText: '#78350f',
-    edge: '#4b5563',
-    grid: '#d1d5db',
-    minimapLabel: '#8b5cf6',
-    minimapMenu: '#f59e0b',
-  },
-  highContrast: {
-    pageBg: '#ffffff',
-    panelBg: '#ffffff',
-    text: '#000000',
-    subtleText: '#111111',
-    labelBorder: '#000000',
-    labelBg: '#ffffff',
-    labelTitle: '#111111',
-    labelText: '#000000',
-    menuBorder: '#000000',
-    menuBg: '#f3f4f6',
-    menuTitle: '#111111',
-    menuText: '#000000',
-    edge: '#000000',
-    grid: '#9ca3af',
-    minimapLabel: '#000000',
-    minimapMenu: '#4b5563',
-  },
-  colorblind: {
-    pageBg: '#f8fafc',
-    panelBg: '#ffffff',
-    text: '#0f172a',
-    subtleText: '#334155',
-    labelBorder: '#0072b2',
-    labelBg: '#e0f2fe',
-    labelTitle: '#0369a1',
-    labelText: '#0c4a6e',
-    menuBorder: '#e69f00',
-    menuBg: '#fff7cc',
-    menuTitle: '#a16207',
-    menuText: '#713f12',
-    edge: '#334155',
-    grid: '#cbd5e1',
-    minimapLabel: '#0072b2',
-    minimapMenu: '#e69f00',
-  },
-};
-
-function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
-  const theme = THEMES[(data.theme as keyof typeof THEMES) || 'violet'];
-  return (
-    <div
-      className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
-      style={{ borderColor: theme.labelBorder, backgroundColor: theme.labelBg }}
-    >
-      <Handle type="target" position={Position.Top} />
-      <div
-        className="text-xs font-semibold uppercase tracking-widest mb-1"
-        style={{ color: theme.labelTitle }}
-      >
-        Label
-      </div>
-      <div className="font-mono font-bold truncate text-sm" style={{ color: theme.labelText }}>
-        {data.label}
-      </div>
-      {data.dialogueCount > 0 && (
-        <div className="mt-1 text-xs" style={{ color: theme.labelTitle }}>
-          {data.dialogueCount} dialogue line{data.dialogueCount !== 1 ? 's' : ''}
-        </div>
-      )}
-      <Handle type="source" position={Position.Bottom} />
-    </div>
-  );
-}
-
-function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
-  const theme = THEMES[(data.theme as keyof typeof THEMES) || 'violet'];
-  return (
-    <div
-      className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
-      style={{ borderColor: theme.menuBorder, backgroundColor: theme.menuBg }}
-    >
-      <Handle type="target" position={Position.Top} />
-      <div
-        className="text-xs font-semibold uppercase tracking-widest mb-1"
-        style={{ color: theme.menuTitle }}
-      >
-        Menu
-      </div>
-      <div className="font-mono font-bold truncate text-sm" style={{ color: theme.menuText }}>
-        {data.label}
-      </div>
-      <Handle type="source" position={Position.Bottom} />
-    </div>
-  );
-}
-
-const nodeTypes: NodeTypes = {
-  labelNode: LabelNodeComponent,
-  menuNode: MenuNodeComponent,
-};
-
-// ─── Custom edge component ────────────────────────────────────────────────────
-
-function LabeledEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  data,
-  markerEnd,
-  style,
-}: EdgeProps<LabeledEdgeType>) {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
-
-  return (
-    <>
-      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
-      {data?.label && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'all',
-            }}
-            className="bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[10px] text-gray-600 max-w-[120px] truncate shadow-sm nodrag nopan"
-          >
-            {data.label}
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
-  );
-}
-
-const edgeTypes: EdgeTypes = {
-  labeled: LabeledEdge,
-};
+import { THEMES } from './ui/viewerTheme';
+import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 

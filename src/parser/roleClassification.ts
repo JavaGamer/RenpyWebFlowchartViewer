@@ -1,4 +1,4 @@
-import type { FlowNode } from '../types';
+import type { FlowNode } from '../domain/graph';
 import type { ParseGraphState, EdgeKind } from './pipelineTypes';
 
 export function classifyNodeRole(state: ParseGraphState, node: FlowNode): FlowNode['role'] {

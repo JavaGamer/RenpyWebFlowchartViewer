@@ -121,8 +121,8 @@ Then open <http://localhost:8080>.
 
 - **Domain layer** (`src/domain`): graph model and shared domain-level types.
 - **Application layer** (`src/application`): orchestration logic (upload validation, app reducer, parse service, error policy).
-- **Infrastructure layer** (`src/infrastructure`): runtime adapters (file reading, worker protocol contract).
-- **UI layer** (`src/*.tsx`, `src/flowchartTransforms.ts`): React rendering and interaction logic.
+- **Infrastructure layer** (`src/infrastructure`): runtime adapters (file reading, parser worker client, worker protocol contract).
+- **UI layer** (`src/*.tsx`, `src/flowchartTransforms.ts`, `src/ui`): React rendering and interaction logic.
 
 See `docs/architecture.md` for the detailed architecture and flow.
 

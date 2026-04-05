@@ -19,5 +19,27 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          './types',
+          '../types',
+          '**/src/types',
+        ],
+      }],
+    },
+  },
+  {
+    files: ['src/infrastructure/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          '../application/*',
+          './application/*',
+          '../ui/*',
+          './ui/*',
+        ],
+      }],
+    },
   },
 ])
