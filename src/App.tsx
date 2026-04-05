@@ -60,7 +60,12 @@ export default function App() {
   );
 
   const onDragOver = (e: React.DragEvent<HTMLLabelElement>) => e.preventDefault();
-  const openFolderPicker = useCallback(() => fileInputRef.current?.click(), []);
+  const openFolderPicker = useCallback(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }, []);
   const totalSizeMiB = Math.round(MAX_TOTAL_RPY_SIZE_BYTES / (1024 * 1024));
   const statusMessage =
     state.phase === 'idle'
