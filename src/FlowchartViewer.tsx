@@ -5,7 +5,7 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import {
   ReactFlow,
   Background,
@@ -61,7 +61,7 @@ function renderHighlightedText(text: string, query: string) {
   if (!normalizedQuery) return text;
   const lowerText = text.toLowerCase();
   const lowerQuery = normalizedQuery.toLowerCase();
-  const nodes: Array<JSX.Element | string> = [];
+  const nodes: ReactNode[] = [];
   let cursor = 0;
   let key = 0;
 
@@ -265,17 +265,12 @@ export default function FlowchartViewer({
     return results;
   }, [effectiveSearch, visibleNodes]);
 
-  useEffect(() => {
-    if (dialogueSearchResults.length === 0) {
-      setActiveDialogueResultIndex(-1);
-      return;
-    }
-    setActiveDialogueResultIndex((prev) => {
-      if (prev < 0) return 0;
-      if (prev >= dialogueSearchResults.length) return dialogueSearchResults.length - 1;
-      return prev;
-    });
-  }, [dialogueSearchResults]);
+  const resolvedActiveDialogueResultIndex = useMemo(() => {
+    if (dialogueSearchResults.length === 0) return -1;
+    if (activeDialogueResultIndex < 0) return 0;
+    if (activeDialogueResultIndex >= dialogueSearchResults.length) return dialogueSearchResults.length - 1;
+    return activeDialogueResultIndex;
+  }, [activeDialogueResultIndex, dialogueSearchResults.length]);
 
   const isLargeExportTarget = useMemo(
     () =>
@@ -367,24 +362,32 @@ export default function FlowchartViewer({
     focusVisibleNode(result.nodeId);
   }, [focusVisibleNode]);
 
-  const onSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+  const onSearchInputKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (dialogueSearchResults.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveDialogueResultIndex((prev) => (prev + 1 + dialogueSearchResults.length) % dialogueSearchResults.length);
+      setActiveDialogueResultIndex((prev) => {
+        const base = prev < 0 ? 0 : prev;
+        return (base + 1 + dialogueSearchResults.length) % dialogueSearchResults.length;
+      });
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setActiveDialogueResultIndex((prev) => (prev - 1 + dialogueSearchResults.length) % dialogueSearchResults.length);
+      setActiveDialogueResultIndex((prev) => {
+        const base = prev < 0 ? 0 : prev;
+        return (base - 1 + dialogueSearchResults.length) % dialogueSearchResults.length;
+      });
       return;
     }
     if (event.key === 'Enter') {
-      if (activeDialogueResultIndex < 0) return;
+      if (resolvedActiveDialogueResultIndex < 0) return;
       event.preventDefault();
-      onSelectDialogueSearchResult(dialogueSearchResults[activeDialogueResultIndex]);
+      const selected = dialogueSearchResults[resolvedActiveDialogueResultIndex];
+      setActiveDialogueResultIndex(resolvedActiveDialogueResultIndex);
+      onSelectDialogueSearchResult(selected);
     }
-  }, [activeDialogueResultIndex, dialogueSearchResults, onSelectDialogueSearchResult]);
+  }, [dialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex]);
 
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
@@ -695,13 +698,13 @@ export default function FlowchartViewer({
                     <button
                       key={`${result.nodeId}-${result.lineIndex}`}
                       type="button"
-                      aria-selected={resultIndex === activeDialogueResultIndex}
+                      aria-selected={resultIndex === resolvedActiveDialogueResultIndex}
                       onClick={() => {
                         setActiveDialogueResultIndex(resultIndex);
                         onSelectDialogueSearchResult(result);
                       }}
                       className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 ${
-                        resultIndex === activeDialogueResultIndex
+                        resultIndex === resolvedActiveDialogueResultIndex
                           ? 'border-violet-400 bg-violet-50'
                           : 'border-gray-200'
                       }`}

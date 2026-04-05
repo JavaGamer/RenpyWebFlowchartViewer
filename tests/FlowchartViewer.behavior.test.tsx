@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import FlowchartViewer from '../src/FlowchartViewer';
@@ -279,5 +279,42 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(await screen.findByText(/Dialogue line matches \(1\)/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /line 21/i }));
     expect(screen.getByText('21.')).toBeInTheDocument();
+    const highlightedResult = screen.getByRole('button', { name: /line 21/i });
+    expect(within(highlightedResult).getByText('needle')).toContainHTML('mark');
+    const needleMarks = screen.getAllByText('needle', { selector: 'mark' });
+    expect(needleMarks.length).toBeGreaterThan(0);
+  });
+
+  it('supports keyboard navigation for dialogue search results and empty-state guidance', async () => {
+    const user = userEvent.setup();
+    const keyboardNode: FlowNode[] = [
+      {
+        id: 'start',
+        type: 'LABEL',
+        label: 'start',
+        dialogueCount: 22,
+        dialogueLines: Array.from({ length: 22 }, (_, i) =>
+          i === 0 || i === 20 ? `needle line ${i + 1}` : `line ${i + 1}`,
+        ),
+        chapter: 'chapter1',
+      },
+    ];
+    render(<FlowchartViewer flowNodes={keyboardNode} flowEdges={[]} />);
+
+    const search = screen.getByRole('textbox', {
+      name: /Search labels, dialogue lines, or dialogue count/i,
+    });
+
+    await user.type(search, 'needle');
+    expect(await screen.findByText(/Dialogue line matches \(2\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/use ↑\/↓ to move results and Enter to open/i)).toBeInTheDocument();
+
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(screen.getByText('21.')).toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, 'missing');
+    expect(await screen.findByText(/No dialogue lines matched “missing”/i)).toBeInTheDocument();
   });
 });

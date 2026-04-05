@@ -8,6 +8,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, and counts dialogue lines per block.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and collapse graph sections by chapter or parent label.
+- **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
 - **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
@@ -46,6 +47,32 @@ npm run bench:perf    # run perf baseline benchmark and write perf-data/baseline
 ```
 
 Coverage thresholds are enforced for parser-critical files in CI.
+
+## Search + Inspector UX (Polish Release Criteria)
+
+This release is considered done when all of the following are true:
+
+- Parser capture of dialogue lines is present on node data.
+- Search matches labels, dialogue count, and dialogue line content.
+- Dialogue match results can be selected to focus and inspect the owning node.
+- Inspector shows dialogue lines with default truncation at 20 lines, with show more/less toggle.
+- Search terms are visually highlighted in both results and inspector dialogue lines.
+- Keyboard navigation is supported for results from the search input:
+  - `↑` / `↓` moves active result
+  - `Enter` opens active result in inspector
+- Empty and zero-result states provide clear guidance text.
+
+### Interaction shortcuts
+
+- `Ctrl/Cmd + F` — focus search input
+- `Ctrl/Cmd + L` — fit graph to view
+- `Ctrl/Cmd + E` — export PNG
+
+### Follow-up ideas (out of scope for this release)
+
+- Advanced search filters (type/scoped matching)
+- Pinning or multi-node inspector views
+- Additional result grouping/sorting controls
 
 ## Performance Benchmarking
 
