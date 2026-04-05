@@ -263,8 +263,7 @@ describe('FlowchartViewer behavior coverage', () => {
 
     await user.click(screen.getByRole('button', { name: /node-start/i }));
     expect(screen.getByLabelText(/Inspector panel/i)).toBeInTheDocument();
-    expect(screen.getByText(/Dialogue lines:/i)).toBeInTheDocument();
-    expect(screen.getByText(/^22$/)).toBeInTheDocument();
+    expect(screen.getByText(/Dialogue lines:/i).parentElement).toHaveTextContent('Dialogue lines: 22');
     expect(screen.getByText('20.')).toBeInTheDocument();
     expect(screen.queryByText('21.')).not.toBeInTheDocument();
 
@@ -280,7 +279,7 @@ describe('FlowchartViewer behavior coverage', () => {
     await user.click(screen.getByRole('button', { name: /line 21/i }));
     expect(screen.getByText('21.')).toBeInTheDocument();
     const highlightedResult = screen.getByRole('button', { name: /line 21/i });
-    expect(within(highlightedResult).getByText('needle')).toContainHTML('mark');
+    expect(within(highlightedResult).getByText('needle', { selector: 'mark' })).toBeInTheDocument();
     const inspector = screen.getByLabelText(/Inspector panel/i);
     const inspectorNeedleMark = within(inspector).getAllByText('needle', { selector: 'mark' });
     expect(inspectorNeedleMark.length).toBe(2);

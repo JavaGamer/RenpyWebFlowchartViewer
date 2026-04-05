@@ -698,14 +698,14 @@ export default function FlowchartViewer({
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {dialogueSearchResults.length === 0 ? (
                   <div className="text-xs text-gray-500">
-                    No dialogue lines matched “{effectiveSearch.trim()}”. Try a broader query or clear other filters.
+                    No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
                   </div>
                 ) : (
                   dialogueSearchResults.map((result, resultIndex) => (
                     <button
                       key={`${result.nodeId}-${result.lineIndex}`}
                       type="button"
-                      aria-selected={resultIndex === resolvedActiveDialogueResultIndex}
+                      aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
                       onClick={() => {
                         setActiveDialogueResultIndex(resultIndex);
                         onSelectDialogueSearchResult(result);
