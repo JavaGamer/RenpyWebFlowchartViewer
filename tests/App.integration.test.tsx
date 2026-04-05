@@ -468,7 +468,9 @@ describe('App – upload → parse → render integration', () => {
     });
 
     const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
-    const searchInput = view.getByRole('textbox', { name: /Search labels or dialogue count/i });
+    const searchInput = view.getByRole('textbox', {
+      name: /Search labels, dialogue lines, or dialogue count/i,
+    });
     await user.type(searchInput, 'second');
 
     await waitFor(() => {

@@ -9,6 +9,7 @@ export const NODE_HEIGHT_MENU = 80;
 export interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
+  dialogueLines?: string[];
   nodeType: 'LABEL' | 'MENU';
   chapter?: string;
   parentLabelId?: string;
@@ -72,6 +73,7 @@ export function applyDagreLayout(
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
+        dialogueLines: n.dialogueLines,
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
@@ -121,6 +123,7 @@ export function buildVisibleNodes(params: {
     const matchesSearch =
       query.length === 0 ||
       nodeData.label.toLowerCase().includes(query) ||
+      (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query)) ||
       String(nodeData.dialogueCount).includes(query);
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
     return {

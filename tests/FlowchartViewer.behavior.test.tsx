@@ -17,6 +17,7 @@ vi.mock('@xyflow/react', () => {
     nodeTypes,
     edgeTypes,
     onInit,
+    onNodeClick,
     children,
   }: {
     nodes: Array<{
@@ -35,6 +36,7 @@ vi.mock('@xyflow/react', () => {
     nodeTypes?: Record<string, React.ComponentType<unknown>>;
     edgeTypes?: Record<string, React.ComponentType<unknown>>;
     onInit?: (instance: unknown) => void;
+    onNodeClick?: (event: unknown, node: { id: string }) => void;
     children?: React.ReactNode;
   }) => {
     React.useEffect(() => {
@@ -45,18 +47,24 @@ vi.mock('@xyflow/react', () => {
         {nodes.map((n) => {
           const NodeComp = n.type && nodeTypes ? nodeTypes[n.type] : null;
           return NodeComp ? (
-            <NodeComp
+            <button
               key={n.id}
-              id={n.id}
-              data={n.data}
-              selected={false}
-              dragging={false}
-              isConnectable
-              xPos={n.position.x}
-              yPos={n.position.y}
-              zIndex={0}
-              type={n.type}
-            />
+              type="button"
+              aria-label={`node-${n.id}`}
+              onClick={() => onNodeClick?.({}, { id: n.id })}
+            >
+              <NodeComp
+                id={n.id}
+                data={n.data}
+                selected={false}
+                dragging={false}
+                isConnectable
+                xPos={n.position.x}
+                yPos={n.position.y}
+                zIndex={0}
+                type={n.type}
+              />
+            </button>
           ) : null;
         })}
         {edges.map((e) => {
@@ -143,6 +151,7 @@ describe('FlowchartViewer behavior coverage', () => {
       type: 'LABEL',
       label: 'start',
       dialogueCount: 2,
+      dialogueLines: ['hello world', 'another line'],
       chapter: 'chapter1',
     },
     {
@@ -204,7 +213,11 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(reactFlowTestUtils.__test.flowApi.setCenter).toHaveBeenCalled();
 
     fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
-    expect(screen.getByRole('textbox', { name: /Search labels or dialogue count/i })).toHaveFocus();
+    expect(
+      screen.getByRole('textbox', {
+        name: /Search labels, dialogue lines, or dialogue count/i,
+      }),
+    ).toHaveFocus();
 
     fireEvent.keyDown(window, { key: 'l', ctrlKey: true });
     expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
@@ -230,5 +243,40 @@ describe('FlowchartViewer behavior coverage', () => {
       expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
       expect(rafSpy).toHaveBeenCalled();
     });
+  });
+
+  it('shows inspector with truncated dialogue lines and clickable dialogue search results', async () => {
+    const user = userEvent.setup();
+    const extendedNode: FlowNode[] = [
+      {
+        id: 'start',
+        type: 'LABEL',
+        label: 'start',
+        dialogueCount: 22,
+        dialogueLines: Array.from({ length: 22 }, (_, i) =>
+          i === 20 ? 'special needle line' : `line ${i + 1}`,
+        ),
+        chapter: 'chapter1',
+      },
+    ];
+    render(<FlowchartViewer flowNodes={extendedNode} flowEdges={[]} />);
+
+    await user.click(screen.getByRole('button', { name: /node-start/i }));
+    expect(screen.getByLabelText(/Inspector panel/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dialogue lines:\s*22/i)).toBeInTheDocument();
+    expect(screen.getByText('20.')).toBeInTheDocument();
+    expect(screen.queryByText('21.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Show more/i }));
+    expect(screen.getByText('21.')).toBeInTheDocument();
+
+    const search = screen.getByRole('textbox', {
+      name: /Search labels, dialogue lines, or dialogue count/i,
+    });
+    await user.clear(search);
+    await user.type(search, 'needle');
+    expect(await screen.findByText(/Dialogue line matches \(1\)/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /start · line 21/i }));
+    expect(screen.getByText('21.')).toBeInTheDocument();
   });
 });
