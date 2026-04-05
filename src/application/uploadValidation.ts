@@ -16,7 +16,7 @@ export function validateRpyUpload(files: FileList | null): UploadValidationResul
 
   const rpyFiles: File[] = [];
   for (const file of files) {
-    if (file.name.endsWith('.rpy')) rpyFiles.push(file);
+    if (file.name.toLowerCase().endsWith('.rpy')) rpyFiles.push(file);
   }
 
   if (rpyFiles.length === 0) {

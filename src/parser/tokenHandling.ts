@@ -95,6 +95,8 @@ export function handleToken(
         kind: 'sequence',
         label: parentMenu?.optionText ?? undefined,
       });
+      addOutgoing(state, source, 'sequence');
+      addIncoming(state, newMenuId, 'sequence');
     }
 
     scanState.menuStack.push({ id: newMenuId, optionText: null });

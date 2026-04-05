@@ -130,6 +130,50 @@ describe('parser stage modules', () => {
     expect(classifyNodeRole(state, node)).toBe('story');
   });
 
+  it('records sequence traffic indexes when adding menu sequence edge', () => {
+    const state = createGraphState();
+    addNode(state, {
+      id: 'start',
+      type: 'LABEL',
+      label: 'start',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    const scanState = {
+      currentLabelId: 'start',
+      menuStack: [],
+      conditionalIndentStack: [],
+      labelHasExplicitExit: false,
+      waitForLabelName: false,
+      waitForJumpTarget: false,
+      waitForCallTarget: false,
+      waitForMenuNameForId: null as string | null,
+    };
+
+    handleToken(state, scanState, {
+      type: PARSER_TOKENS.kwMenuObserved,
+      meta: {
+        menuDepth: 1,
+        hasLabelStatement: false,
+        hasMenuStatement: true,
+        hasMenuBlock: true,
+        hasMenuOption: false,
+        hasMenuOptionBlock: false,
+        hasJumpStatement: false,
+        hasCallStatement: false,
+        hasSayNarrator: false,
+        hasSayCharacter: false,
+        hasSayStatement: false,
+      },
+      val: () => 'menu',
+      chapter: 'ch',
+      menuDepth: 1,
+    });
+
+    expect(state.outgoingByLabel.get('start')?.has('sequence')).toBe(true);
+    expect(state.incomingByLabel.get('menu_1')?.has('sequence')).toBe(true);
+  });
+
   it('processFlatToken delegates conditional updates and token handling', () => {
     const state = createGraphState();
     const scanState = {

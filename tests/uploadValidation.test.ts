@@ -35,4 +35,12 @@ describe('validateRpyUpload', () => {
     expect(result.errorMessage).toBeNull();
     expect(result.rpyFiles).toHaveLength(2);
   });
+
+  it('accepts .rpy files case-insensitively', () => {
+    const files = toFileList([makeRpy('SCRIPT.RPY')]);
+    const result = validateRpyUpload(files);
+    expect(result.errorMessage).toBeNull();
+    expect(result.rpyFiles).toHaveLength(1);
+    expect(result.rpyFiles[0]?.name).toBe('SCRIPT.RPY');
+  });
 });
