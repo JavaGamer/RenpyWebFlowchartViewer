@@ -49,3 +49,13 @@ npm run test:coverage
    - Any testing performed
    - How architectural boundaries were preserved (domain/application/infrastructure/ui)
 5. Address CI or review feedback and keep the PR scope focused.
+
+## UI/UX + Accessibility Checklist
+
+For UI-facing changes, verify:
+
+- Responsive behavior on representative widths (mobile, tablet, desktop).
+- Keyboard navigation for controls and search workflows.
+- Focus-visible styles on interactive controls remain clear.
+- ARIA labels and semantic structure are preserved for key regions.
+- Contrast remains acceptable in default, high-contrast, and colorblind-safe themes.

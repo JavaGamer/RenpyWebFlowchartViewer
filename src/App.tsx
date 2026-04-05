@@ -62,17 +62,23 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full min-h-screen bg-gray-50 font-sans">
+      <a
+        href="#flowchart-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:text-violet-700 focus:shadow"
+      >
+        Skip to flowchart
+      </a>
       {/* Header */}
-      <header className="shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-3 shadow-sm">
-        <div className="flex items-center gap-2">
+      <header className="shrink-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex flex-wrap items-center gap-2 sm:gap-3 shadow-sm">
+        <div className="flex items-center gap-2 min-w-0">
           <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center">
             <FolderOpen size={16} className="text-white" />
           </div>
-          <h1 className="text-lg font-bold text-gray-900 tracking-tight">
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight truncate">
             Ren'Py Flowchart Viewer
           </h1>
         </div>
-        <span className="ml-2 text-xs text-gray-400 hidden sm:block">
+        <span className="w-full sm:w-auto text-xs text-gray-700 sm:ml-2 text-center sm:text-left">
           Upload a Ren'Py project folder to visualize its script structure
         </span>
       </header>
@@ -80,10 +86,10 @@ export default function App() {
       {/* Main content */}
       {state.phase === 'done' && state.flowNodes.length > 0 ? (
         /* ── Flowchart view ─────────────────────────────────────────────── */
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <main id="flowchart-main" className="flex-1 flex flex-col overflow-hidden" aria-label="Flowchart viewer">
           {/* Re-upload button */}
-          <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex items-center gap-3 text-sm text-violet-700">
-              <span>
+          <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-violet-700">
+            <span>
               Parsed <strong>{state.fileCount}</strong> .rpy file
               {state.fileCount !== 1 ? 's' : ''} →{' '}
               <strong>{state.flowNodes.length}</strong> nodes,{' '}
@@ -93,13 +99,13 @@ export default function App() {
               onClick={() => {
                 dispatch({ type: 'RESET' });
               }}
-              className="ml-auto text-xs underline text-violet-600 hover:text-violet-800"
+              className="sm:ml-auto text-xs underline text-violet-600 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
             >
               Upload a different folder
             </button>
           </div>
           <FlowchartViewer flowNodes={state.flowNodes} flowEdges={state.flowEdges} />
-        </div>
+        </main>
       ) : (
         /* ── Upload area ─────────────────────────────────────────────────── */
         <div className="flex-1 flex flex-col items-center justify-center p-8">
@@ -110,7 +116,7 @@ export default function App() {
               aria-label="Upload Ren'Py project folder"
               onDrop={onDrop}
               onDragOver={onDragOver}
-              className="flex flex-col items-center justify-center gap-4 w-full h-64 rounded-2xl border-2 border-dashed border-violet-300 bg-white hover:bg-violet-50 hover:border-violet-400 transition-colors cursor-pointer"
+              className="flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed border-violet-300 bg-white hover:bg-violet-50 hover:border-violet-400 transition-colors cursor-pointer p-5 sm:p-6"
             >
                {state.phase === 'reading' || state.phase === 'parsing' ? (
                  <>
@@ -160,7 +166,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => parseAbortControllerRef.current?.abort()}
-                  className="text-xs underline text-gray-600 hover:text-gray-800"
+                  className="text-xs underline text-gray-600 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
                   aria-label="Cancel parsing"
                 >
                   Cancel parsing
@@ -170,15 +176,15 @@ export default function App() {
 
             {/* Error message */}
              {state.phase === 'error' && (
-              <div className="mt-4 flex items-start gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+              <div className="mt-4 flex flex-col sm:flex-row items-start gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
-                 <p className="text-sm">{state.errorMsg}</p>
+                <p className="text-sm">{state.errorMsg}</p>
               </div>
             )}
 
             {/* Empty result warning */}
              {state.phase === 'done' && state.flowNodes.length === 0 && (
-              <div className="mt-4 flex items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
+              <div className="mt-4 flex flex-col sm:flex-row items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
                 <p className="text-sm">
                   No labels or menus were found. Make sure the folder contains
@@ -188,7 +194,7 @@ export default function App() {
             )}
 
             {/* Feature hints */}
-            <div className="mt-8 grid grid-cols-2 gap-3 text-center text-xs text-gray-400">
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-center text-xs text-gray-400">
               {[
                 ['Labels', 'Visualize every label block'],
                 ['Menus', 'See every choice menu'],

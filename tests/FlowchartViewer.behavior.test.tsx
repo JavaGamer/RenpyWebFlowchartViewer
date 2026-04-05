@@ -221,6 +221,8 @@ describe('FlowchartViewer behavior coverage', () => {
 
     fireEvent.keyDown(window, { key: 'l', ctrlKey: true });
     expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
+
+    expect(screen.getByText(/Shortcuts: Ctrl\/Cmd\+F search/i)).toBeInTheDocument();
   });
 
   it('uses onInit instance for zoom and relayout controls', async () => {
@@ -316,5 +318,18 @@ describe('FlowchartViewer behavior coverage', () => {
     await user.clear(search);
     await user.type(search, 'missing');
     expect(await screen.findByText(/No dialogue lines matched “missing”/i)).toBeInTheDocument();
+  });
+
+  it('keeps inspector in the document flow and includes focus-visible affordance classes', async () => {
+    const user = userEvent.setup();
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    await user.click(screen.getByRole('button', { name: /node-start/i }));
+    const inspector = screen.getByLabelText(/Inspector panel/i);
+    expect(inspector.className).toContain('w-full');
+    expect(inspector.className).toContain('xl:w-96');
+
+    const exportPng = screen.getByRole('button', { name: /Export flowchart as PNG/i });
+    expect(exportPng.className).toContain('focus-visible:ring-2');
   });
 });

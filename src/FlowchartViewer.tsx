@@ -443,15 +443,16 @@ export default function FlowchartViewer({
   }, [perf, visibleEdges.length, visibleNodeIds.size]);
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
+    <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white shrink-0 gap-4">
-        <div className="text-sm" style={{ color: THEMES[theme].subtleText }}>
-          {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
-          {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="relative flex items-center">
+      <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0">
+        <div className="flex flex-col gap-2">
+          <div className="text-sm" style={{ color: THEMES[theme].subtleText }}>
+            {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
+            {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative flex items-center">
             <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
             <input
               ref={searchInputRef}
@@ -460,21 +461,22 @@ export default function FlowchartViewer({
               onKeyDown={onSearchInputKeyDown}
               placeholder="Search labels, dialogue lines, or dialogue count"
               aria-label="Search labels, dialogue lines, or dialogue count"
-              className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-60"
+              className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-[14rem] max-w-[80vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             />
           </label>
-          <label className="text-xs flex items-center gap-1">
-            Min dialogue
+            <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
+              Minimum dialogue lines
             <input
+              id="min-dialogue-input"
               type="number"
               min={0}
               value={minDialogue}
               onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
               aria-label="Minimum dialogue lines"
-              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm"
+              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             />
           </label>
-          <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1">
             <input
               type="checkbox"
               checked={showCallReturns}
@@ -483,7 +485,7 @@ export default function FlowchartViewer({
             />
             Show call returns
           </label>
-          <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1">
             <input
               type="checkbox"
               checked={largeGraphMode}
@@ -492,34 +494,34 @@ export default function FlowchartViewer({
             />
             Large graph mode
           </label>
-          <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1">
             <LayoutGrid size={14} aria-hidden="true" />
             Layout
             <select
               value={layoutDirection}
               onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
               aria-label="Auto layout direction"
-              className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               <option value="TB">Top to bottom</option>
               <option value="LR">Left to right</option>
             </select>
           </label>
-          <button
+            <button
             onClick={relayout}
-            className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             aria-label="Re-run auto layout"
           >
             Auto-layout
           </button>
-          <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1">
             <Palette size={14} aria-hidden="true" />
             Theme
             <select
               value={theme}
               onChange={(e) => setTheme(e.target.value as ThemeName)}
               aria-label="Color theme"
-              className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               <option value="violet">Default</option>
               <option value="highContrast">High contrast</option>
@@ -527,13 +529,13 @@ export default function FlowchartViewer({
             </select>
           </label>
 
-          <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1">
             Focus label
             <select
               value={focusNodeId}
               onChange={(e) => setFocusNodeId(e.target.value)}
               aria-label="Focus label"
-              className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               <option value="">Select label</option>
               {labels.map((label) => (
@@ -545,14 +547,14 @@ export default function FlowchartViewer({
             <button
               type="button"
               onClick={onFocusSelectedNode}
-              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
               aria-label="Center selected label"
             >
               <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
               Center
             </button>
           </label>
-          <div className="flex items-center gap-1 text-xs">
+            <div className="flex flex-wrap items-center gap-1 text-xs">
             <span>Edges</span>
             {(['sequence', 'jump', 'call', 'call_return'] as const).map((kind) => (
               <label key={kind} className="inline-flex items-center gap-1">
@@ -569,66 +571,70 @@ export default function FlowchartViewer({
             ))}
           </div>
 
-          {ZOOM_PRESETS.map((preset) => (
+            {ZOOM_PRESETS.map((preset) => (
             <button
               key={preset}
               onClick={() => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
-              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
               aria-label={`Zoom to ${Math.round(preset * 100)} percent`}
             >
               <ZoomIn size={12} className="inline mr-1" aria-hidden="true" />
               {Math.round(preset * 100)}%
             </button>
           ))}
-        </div>
-        <div className="flex items-center gap-2">
-          {isLargeExportTarget && (
-            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-              Large graph export: PNG quality reduced for responsiveness
+            <span className="text-[11px] text-gray-500">
+              Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG
             </span>
-          )}
-          <button
-            onClick={onExport}
-            aria-label="Export flowchart as PNG"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
-          >
-            <Download size={14} aria-hidden="true" />
-            Export PNG
-          </button>
-          <button
-            onClick={onExportSvg}
-            aria-label="Export flowchart as SVG"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-300 bg-white hover:bg-violet-50 rounded-lg transition-colors"
-          >
-            <Download size={14} aria-hidden="true" />
-            Export SVG
-          </button>
-          <button
-            onClick={onExportJson}
-            aria-label="Export graph as JSON"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors"
-          >
-            <Download size={14} aria-hidden="true" />
-            Export JSON
-          </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isLargeExportTarget && (
+              <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                Large graph export: PNG quality reduced for responsiveness
+              </span>
+            )}
+            <button
+              onClick={onExport}
+              aria-label="Export flowchart as PNG"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            >
+              <Download size={14} aria-hidden="true" />
+              Export PNG
+            </button>
+            <button
+              onClick={onExportSvg}
+              aria-label="Export flowchart as SVG"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-300 bg-white hover:bg-violet-50 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            >
+              <Download size={14} aria-hidden="true" />
+              Export SVG
+            </button>
+            <button
+              onClick={onExportJson}
+              aria-label="Export graph as JSON"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            >
+              <Download size={14} aria-hidden="true" />
+              Export JSON
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-gray-200 px-4 py-2 bg-white flex flex-wrap gap-4 text-xs">
+      <div className="shrink-0 border-b border-gray-200 px-3 sm:px-4 py-2 bg-white flex flex-wrap gap-4 text-xs">
         {chapters.length > 0 && (
           <div className="flex items-center gap-2">
             <span className="font-semibold">Chapter subgraphs:</span>
             {chapters.map((chapter) => (
-              <button
-                key={chapter}
-                onClick={() =>
-                  setCollapsedChapters((prev) => ({ ...prev, [chapter]: !prev[chapter] }))
-                }
-                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
-              >
-                {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
-              </button>
+                <button
+                  key={chapter}
+                  onClick={() =>
+                    setCollapsedChapters((prev) => ({ ...prev, [chapter]: !prev[chapter] }))
+                  }
+                  className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                  aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
+                >
+                  {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
+                </button>
             ))}
           </div>
         )}
@@ -636,24 +642,24 @@ export default function FlowchartViewer({
           <div className="flex items-center gap-2">
             <span className="font-semibold">Label subgraphs:</span>
             {labels.map((label) => (
-              <button
-                key={label}
-                onClick={() =>
-                  setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
-                }
-                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
-              >
-                {collapsedParentLabels[label] ? '▸' : '▾'} {label}
-              </button>
+                <button
+                  key={label}
+                  onClick={() =>
+                    setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
+                  }
+                  className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                  aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
+                >
+                  {collapsedParentLabels[label] ? '▸' : '▾'} {label}
+                </button>
             ))}
           </div>
         )}
       </div>
 
       {/* Flow canvas + inspector */}
-      <div className="flex-1 flex min-h-0">
-        <div ref={flowRef} className="flex-1" style={{ backgroundColor: THEMES[theme].pageBg }}>
+      <div className="flex-1 flex flex-col xl:flex-row min-h-0">
+        <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
           <ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}
@@ -686,7 +692,7 @@ export default function FlowchartViewer({
           </ReactFlow>
         </div>
         <aside
-          className="w-96 max-w-[40%] min-w-[280px] border-l border-gray-200 bg-white p-3 overflow-y-auto"
+          className="w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l border-gray-200 bg-white p-3 overflow-y-auto max-h-[45vh] xl:max-h-none"
           aria-label="Inspector panel"
         >
           <div className="text-sm font-semibold mb-2">Inspector</div>
@@ -710,7 +716,7 @@ export default function FlowchartViewer({
                         setActiveDialogueResultIndex(resultIndex);
                         onSelectDialogueSearchResult(result);
                       }}
-                      className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 ${
+                      className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
                         resultIndex === resolvedActiveDialogueResultIndex
                           ? 'border-violet-400 bg-violet-50'
                           : 'border-gray-200'
@@ -766,7 +772,7 @@ export default function FlowchartViewer({
                 <button
                   type="button"
                   onClick={() => setShowAllInspectorLines((prev) => !prev)}
-                  className="text-xs text-violet-700 hover:underline"
+                  className="text-xs text-violet-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
                 >
                   {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
                 </button>
