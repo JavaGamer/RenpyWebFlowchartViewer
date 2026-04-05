@@ -56,8 +56,6 @@ interface DialogueSearchResult {
   lineText: string;
 }
 
-const FLOW_CANVAS_MIN_HEIGHT_CLASS = 'min-h-[320px]';
-
 function renderHighlightedText(text: string, query: string) {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return text;
@@ -466,7 +464,7 @@ export default function FlowchartViewer({
               className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-[14rem] max-w-[80vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             />
           </label>
-            <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
+            <label className="text-xs flex items-center gap-1">
               Minimum dialogue lines
             <input
               id="min-dialogue-input"
@@ -661,7 +659,7 @@ export default function FlowchartViewer({
 
       {/* Flow canvas + inspector */}
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
-        <div ref={flowRef} className={`flex-1 ${FLOW_CANVAS_MIN_HEIGHT_CLASS}`} style={{ backgroundColor: THEMES[theme].pageBg }}>
+        <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
           <ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}
