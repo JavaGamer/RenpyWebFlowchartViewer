@@ -455,6 +455,16 @@ describe('App – upload → parse → render integration', () => {
     expect(label).toHaveAttribute('aria-label', 'Upload Ren\'Py project folder');
   });
 
+  it('renders a skip link and persistent upload guidance text', () => {
+    const { container } = render(<App />);
+    const view = within(container);
+
+    expect(view.getByRole('link', { name: /Skip to flowchart/i })).toHaveAttribute('href', '#flowchart-main');
+    expect(
+      view.getByText(/Upload a Ren'Py project folder to visualize its script structure/i),
+    ).toBeInTheDocument();
+  });
+
   it('filters visible nodes via search and supports chapter collapse controls', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

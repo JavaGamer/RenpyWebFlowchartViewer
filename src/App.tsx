@@ -78,7 +78,7 @@ export default function App() {
             Ren'Py Flowchart Viewer
           </h1>
         </div>
-        <span className="w-full sm:w-auto text-xs text-gray-500 sm:ml-2">
+        <span className="w-full sm:w-auto text-xs text-gray-700 sm:ml-2 text-center sm:text-left">
           Upload a Ren'Py project folder to visualize its script structure
         </span>
       </header>

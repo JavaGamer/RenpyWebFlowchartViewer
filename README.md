@@ -11,8 +11,10 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
 - **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
+- **Keyboard accessibility** — focus-visible controls, skip link support, and shortcut hints for common actions.
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
 - **Export options** — export the current chart as PNG or SVG, and optionally download the raw graph as JSON.
+- **Responsive UI** — toolbar, canvas, and inspector adapt for desktop, tablet, and mobile widths.
 
 ## Usage
 
@@ -67,6 +69,13 @@ This release is considered done when all of the following are true:
 - `Ctrl/Cmd + F` — focus search input
 - `Ctrl/Cmd + L` — fit graph to view
 - `Ctrl/Cmd + E` — export PNG
+
+## Browser and Device Support
+
+- Designed for modern Chromium, Firefox, and Safari browsers.
+- Folder upload uses the widely supported `webkitdirectory`/`directory` attributes where available.
+- If browser support for folder attributes is limited, select files manually in the file picker.
+- Layout and inspector behavior are optimized for desktop, tablet, and mobile viewports.
 
 ### Follow-up ideas (out of scope for this release)
 
