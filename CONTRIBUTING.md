@@ -58,4 +58,6 @@ For UI-facing changes, verify:
 - Keyboard navigation for controls and search workflows.
 - Focus-visible styles on interactive controls remain clear.
 - ARIA labels and semantic structure are preserved for key regions.
+- Viewer control landmarks/groups remain present (`Viewer controls`, `Search and filters`, `Layout and focus controls`, `Export controls`).
 - Contrast remains acceptable in default, high-contrast, and colorblind-safe themes.
+- Upload flow feedback remains clear across idle, reading, parsing, error, and empty-result states.

@@ -56,6 +56,12 @@ interface DialogueSearchResult {
   lineText: string;
 }
 
+function truncateForAria(text: string, maxLength = 80): string {
+  const normalized = text.trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1)}…`;
+}
+
 function renderHighlightedText(text: string, query: string) {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return text;
@@ -445,37 +451,42 @@ export default function FlowchartViewer({
   return (
     <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
-      <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-        <div className="flex flex-col gap-2">
+      <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0" role="toolbar" aria-label="Viewer controls">
+        <div className="flex flex-col gap-3">
           <div className="text-sm" style={{ color: THEMES[theme].subtleText }}>
             {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
             {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="relative flex items-center">
-            <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
-            <input
-              ref={searchInputRef}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={onSearchInputKeyDown}
-              placeholder="Search labels, dialogue lines, or dialogue count"
-              aria-label="Search labels, dialogue lines, or dialogue count"
-              className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-[14rem] max-w-[80vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            />
-          </label>
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Search and filters">
+            <label htmlFor="viewer-search-input" className="text-xs font-medium text-gray-700">Search</label>
+            <div className="relative flex items-center min-w-[12rem]">
+              <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
+              <input
+                id="viewer-search-input"
+                ref={searchInputRef}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={onSearchInputKeyDown}
+                placeholder="Search labels, dialogue lines, or dialogue count"
+                aria-describedby="viewer-search-help"
+                className="pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-md w-[14rem] max-w-[80vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              />
+            </div>
+            <span id="viewer-search-help" className="sr-only">
+              Search labels, dialogue lines, or dialogue count.
+            </span>
             <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
               Minimum dialogue lines
             <input
-              id="min-dialogue-input"
-              type="number"
-              min={0}
-              value={minDialogue}
-              onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
-              aria-label="Minimum dialogue lines"
-              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            />
-          </label>
+               id="min-dialogue-input"
+               type="number"
+               min={0}
+               value={minDialogue}
+               onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
+               aria-label="Minimum dialogue lines"
+               className="w-16 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+             />
+           </label>
             <label className="text-xs flex items-center gap-1">
             <input
               type="checkbox"
@@ -484,7 +495,7 @@ export default function FlowchartViewer({
               aria-label="Show call returns"
             />
             Show call returns
-          </label>
+             </label>
             <label className="text-xs flex items-center gap-1">
             <input
               type="checkbox"
@@ -493,20 +504,22 @@ export default function FlowchartViewer({
               aria-label="Enable large graph mode"
             />
             Large graph mode
-          </label>
+             </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Layout and focus controls">
             <label className="text-xs flex items-center gap-1">
-            <LayoutGrid size={14} aria-hidden="true" />
-            Layout
-            <select
-              value={layoutDirection}
-              onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
-              aria-label="Auto layout direction"
-              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            >
-              <option value="TB">Top to bottom</option>
-              <option value="LR">Left to right</option>
-            </select>
-          </label>
+             <LayoutGrid size={14} aria-hidden="true" />
+             Layout
+             <select
+               value={layoutDirection}
+               onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
+               aria-label="Auto layout direction"
+               className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+             >
+               <option value="TB">Top to bottom</option>
+               <option value="LR">Left to right</option>
+             </select>
+           </label>
             <button
             onClick={relayout}
             className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
@@ -514,31 +527,31 @@ export default function FlowchartViewer({
           >
             Auto-layout
           </button>
-            <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1 flex-wrap">
             <Palette size={14} aria-hidden="true" />
             Theme
             <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value as ThemeName)}
-              aria-label="Color theme"
-              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            >
-              <option value="violet">Default</option>
-              <option value="highContrast">High contrast</option>
-              <option value="colorblind">Colorblind-safe</option>
-            </select>
-          </label>
+               value={theme}
+               onChange={(e) => setTheme(e.target.value as ThemeName)}
+               aria-label="Color theme"
+               className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+             >
+               <option value="violet">Default</option>
+               <option value="highContrast">High contrast</option>
+               <option value="colorblind">Colorblind-safe</option>
+             </select>
+           </label>
 
-            <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1 flex-wrap">
             Focus label
             <select
-              value={focusNodeId}
-              onChange={(e) => setFocusNodeId(e.target.value)}
-              aria-label="Focus label"
-              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            >
-              <option value="">Select label</option>
-              {labels.map((label) => (
+               value={focusNodeId}
+               onChange={(e) => setFocusNodeId(e.target.value)}
+               aria-label="Focus label"
+               className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+             >
+               <option value="">Select label</option>
+               {labels.map((label) => (
                 <option key={label} value={label}>
                   {label}
                 </option>
@@ -586,7 +599,7 @@ export default function FlowchartViewer({
               Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Export controls">
             {isLargeExportTarget && (
               <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
                 Large graph export: PNG quality reduced for responsiveness
@@ -620,7 +633,7 @@ export default function FlowchartViewer({
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-gray-200 px-3 sm:px-4 py-2 bg-white flex flex-wrap gap-4 text-xs">
+      <div className="shrink-0 border-b border-gray-200 px-3 sm:px-4 py-2 bg-white flex flex-wrap gap-4 text-xs" role="toolbar" aria-label="Chapter and label subgraph filters">
         {chapters.length > 0 && (
           <div className="flex items-center gap-2">
             <span className="font-semibold">Chapter subgraphs:</span>
@@ -701,38 +714,40 @@ export default function FlowchartViewer({
               <div className="text-xs font-semibold text-gray-700 mb-1">
                 Dialogue line matches ({dialogueSearchResults.length})
               </div>
-              <div className="space-y-1 max-h-48 overflow-y-auto">
-                {dialogueSearchResults.length === 0 ? (
-                  <div className="text-xs text-gray-500">
-                    No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
-                  </div>
-                ) : (
-                  dialogueSearchResults.map((result, resultIndex) => (
-                    <button
-                      key={`${result.nodeId}-${result.lineIndex}`}
-                      type="button"
-                      aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
-                      onClick={() => {
-                        setActiveDialogueResultIndex(resultIndex);
-                        onSelectDialogueSearchResult(result);
-                      }}
-                      className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
-                        resultIndex === resolvedActiveDialogueResultIndex
-                          ? 'border-violet-400 bg-violet-50'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                      <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
-                    </button>
+           <ul className="space-y-1 max-h-48 overflow-y-auto" aria-label="Dialogue search results">
+                  {dialogueSearchResults.length === 0 ? (
+                    <li className="text-xs text-gray-500" role="status" aria-live="polite">
+                      No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
+                    </li>
+                  ) : (
+                     dialogueSearchResults.map((result, resultIndex) => (
+                      <li key={`${result.nodeId}-${result.lineIndex}`}>
+                        <button
+                          type="button"
+                          aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
+                          aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
+                          onClick={() => {
+                            setActiveDialogueResultIndex(resultIndex);
+                            onSelectDialogueSearchResult(result);
+                        }}
+                        className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
+                          resultIndex === resolvedActiveDialogueResultIndex
+                            ? 'border-violet-400 bg-violet-50'
+                            : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
+                        <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
+                      </button>
+                    </li>
                   ))
                 )}
-              </div>
-              {dialogueSearchResults.length > 0 && (
-                <div className="mt-1 text-[11px] text-gray-500">
-                  Tip: with search focused, use ↑/↓ to move results and Enter to open.
-                </div>
-              )}
+              </ul>
+               {dialogueSearchResults.length > 0 && (
+                 <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
+                   Tip: with search focused, use ↑/↓ to move results and Enter to open.
+                 </div>
+               )}
             </div>
           )}
           {!selectedNode || !selectedNodeData ? (
