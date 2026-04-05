@@ -7,6 +7,8 @@ import { addNode, addOutgoing, addIncoming } from '../src/parser/graphMutations'
 import { handleToken } from '../src/parser/tokenHandling';
 import { materializeCallReturnEdges } from '../src/parser/callReturnFinalization';
 import { classifyNodeRole } from '../src/parser/roleClassification';
+import { processFlatToken, processFlatTokens } from '../src/parser/tokenScanStage';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 
 describe('parser stage modules', () => {
   it('analyzes token meta flags correctly', () => {
@@ -126,5 +128,77 @@ describe('parser stage modules', () => {
 
     const node = state.nodes[0]!;
     expect(classifyNodeRole(state, node)).toBe('story');
+  });
+
+  it('processFlatToken delegates conditional updates and token handling', () => {
+    const state = createGraphState();
+    const scanState = {
+      currentLabelId: null as string | null,
+      menuStack: [],
+      conditionalIndentStack: [],
+      labelHasExplicitExit: false,
+      waitForLabelName: false,
+      waitForJumpTarget: true,
+      waitForCallTarget: true,
+      waitForMenuNameForId: 'menu_1',
+    };
+    const doc = TextDocument.create('file://t.rpy', 'rpy', 1, 'label start:\n');
+
+    processFlatToken(
+      state,
+      scanState,
+      {
+        type: PARSER_TOKENS.kwLabel,
+        metaTokens: [PARSER_TOKENS.metaLabelStatement],
+        startPos: { character: 0 },
+        getValue: () => 'label',
+      },
+      doc,
+      'ch',
+    );
+
+    expect(scanState.waitForLabelName).toBe(true);
+    expect(scanState.waitForJumpTarget).toBe(false);
+    expect(scanState.waitForCallTarget).toBe(false);
+    expect(scanState.waitForMenuNameForId).toBeNull();
+  });
+
+  it('processFlatTokens processes token stream in order', () => {
+    const state = createGraphState();
+    const scanState = {
+      currentLabelId: null as string | null,
+      menuStack: [],
+      conditionalIndentStack: [],
+      labelHasExplicitExit: false,
+      waitForLabelName: false,
+      waitForJumpTarget: false,
+      waitForCallTarget: false,
+      waitForMenuNameForId: null as string | null,
+    };
+    const doc = TextDocument.create('file://t.rpy', 'rpy', 1, 'label start:\n');
+
+    processFlatTokens(
+      state,
+      scanState,
+      [
+        {
+          type: PARSER_TOKENS.kwLabel,
+          metaTokens: [PARSER_TOKENS.metaLabelStatement],
+          startPos: { character: 0 },
+          getValue: () => 'label',
+        },
+        {
+          type: PARSER_TOKENS.entityFunctionName,
+          metaTokens: [PARSER_TOKENS.metaLabelStatement],
+          startPos: { character: 6 },
+          getValue: () => 'start',
+        },
+      ],
+      doc,
+      'ch',
+    );
+
+    expect(state.nodeMap.has('start')).toBe(true);
+    expect(scanState.currentLabelId).toBe('start');
   });
 });
