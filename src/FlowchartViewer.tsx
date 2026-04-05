@@ -716,8 +716,10 @@ export default function FlowchartViewer({
               </div>
            <ul className="space-y-1 max-h-48 overflow-y-auto" aria-label="Dialogue search results">
                   {dialogueSearchResults.length === 0 ? (
-                    <li className="text-xs text-gray-500" role="status" aria-live="polite">
-                      No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
+                    <li className="text-xs text-gray-500">
+                      <div role="status" aria-live="polite">
+                        No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
+                      </div>
                     </li>
                   ) : (
                      dialogueSearchResults.map((result, resultIndex) => (
