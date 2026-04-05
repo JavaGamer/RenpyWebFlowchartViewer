@@ -1,0 +1,5 @@
+export const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25] as const;
+export const LARGE_GRAPH_NODE_THRESHOLD = 180;
+export const LARGE_GRAPH_EDGE_THRESHOLD = 320;
+export const LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD = 900;
+export const SEARCH_DEBOUNCE_MS = 120;

@@ -10,143 +10,35 @@
 
 import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
-import { parseRenpyFilesInWorker } from './parseInWorker';
 import FlowchartViewer from './FlowchartViewer';
-import type { FlowNode, FlowEdge } from './types';
 import { createPerfTracker } from './perf';
-
-// ─── Error types ─────────────────────────────────────────────────────────────
-
-/** Thrown when the FileReader API cannot load a file from disk. */
-class FileReadError extends Error {
-  constructor(filename: string) {
-    super(`Could not read "${filename}". The file may be inaccessible or corrupted.`);
-    this.name = 'FileReadError';
-  }
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const MAX_RPY_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MiB (~2 MB)
-const MAX_RPY_FILE_COUNT = 300;
-const MAX_TOTAL_RPY_SIZE_BYTES = 25 * 1024 * 1024; // 25 MiB
-
-function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new FileReadError(file.name));
-    reader.readAsText(file);
-  });
-}
+import { readFileAsText } from './infrastructure/fileReader';
+import { validateRpyUpload } from './application/uploadValidation';
+import { appReducer, initialAppState } from './application/appState';
+import { toFileReadErrorMessage, toParseErrorMessage } from './application/errorMessages';
+import { workerParseService } from './application/parseService';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function App() {
-  type AppPhase = 'idle' | 'reading' | 'parsing' | 'done' | 'error';
-  type ParseProgress = {
-    doneFiles: number;
-    totalFiles: number;
-    currentFile: string;
-  };
-  interface AppState {
-    phase: AppPhase;
-    flowNodes: FlowNode[];
-    flowEdges: FlowEdge[];
-    errorMsg: string;
-    fileCount: number;
-    parseProgress: ParseProgress | null;
-  }
-  type Action =
-    | { type: 'RESET' }
-    | { type: 'START_READING'; fileCount: number }
-    | { type: 'START_PARSING' }
-    | { type: 'PROGRESS'; progress: ParseProgress }
-    | { type: 'PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[] }
-    | { type: 'FAIL'; message: string };
-
-  const initialState: AppState = {
-    phase: 'idle',
-    flowNodes: [],
-    flowEdges: [],
-    errorMsg: '',
-    fileCount: 0,
-    parseProgress: null,
-  };
-
-  function appReducer(state: AppState, action: Action): AppState {
-    switch (action.type) {
-      case 'RESET':
-        return initialState;
-      case 'START_READING':
-        return {
-          ...state,
-          phase: 'reading',
-          fileCount: action.fileCount,
-          errorMsg: '',
-          parseProgress: { doneFiles: 0, totalFiles: action.fileCount, currentFile: '' },
-        };
-      case 'START_PARSING':
-        return { ...state, phase: 'parsing' };
-      case 'PROGRESS':
-        return { ...state, parseProgress: action.progress };
-      case 'PARSE_SUCCESS':
-        return {
-          ...state,
-          phase: 'done',
-          flowNodes: action.nodes,
-          flowEdges: action.edges,
-          parseProgress: null,
-        };
-      case 'FAIL':
-        return { ...state, phase: 'error', errorMsg: action.message, parseProgress: null };
-      default:
-        return state;
-    }
-  }
-
   const perf = useMemo(() => createPerfTracker('app'), []);
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(appReducer, initialAppState);
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
     const runId = ++activeRunIdRef.current;
     const isActiveRun = () => activeRunIdRef.current === runId;
 
-    const rpyFiles: File[] = [];
-    for (const file of files) {
-      if (file.name.endsWith('.rpy')) rpyFiles.push(file);
-    }
-
-    if (rpyFiles.length === 0) {
-      dispatch({ type: 'FAIL', message: 'No .rpy files found in the selected directory.' });
-      return;
-    }
-    if (rpyFiles.length > MAX_RPY_FILE_COUNT) {
+    const { rpyFiles, errorMessage } = validateRpyUpload(files);
+    if (errorMessage) {
       dispatch({
         type: 'FAIL',
-        message: `Too many .rpy files selected (${rpyFiles.length}). Please select ${MAX_RPY_FILE_COUNT} files or fewer.`,
-      });
-      return;
-    }
-    const totalRpySize = rpyFiles.reduce((sum, file) => sum + file.size, 0);
-    if (totalRpySize > MAX_TOTAL_RPY_SIZE_BYTES) {
-      const mib = (totalRpySize / (1024 * 1024)).toFixed(1);
-      dispatch({
-        type: 'FAIL',
-        message: `Selected .rpy files total ${mib} MiB, which exceeds the 25 MiB import limit. Please split the upload into smaller batches.`,
-      });
-      return;
-    }
-
-    const oversizedFile = rpyFiles.find((file) => file.size > MAX_RPY_FILE_SIZE_BYTES);
-    if (oversizedFile) {
-      dispatch({
-        type: 'FAIL',
-        message: `“${oversizedFile.name}” is too large to import. Please upload .rpy files smaller than 2 MiB (about 2 MB).`,
+        message: errorMessage,
       });
       return;
     }
@@ -169,12 +61,7 @@ export default function App() {
       );
     } catch (err: unknown) {
       if (!isActiveRun()) return;
-      if (err instanceof FileReadError) {
-        dispatch({ type: 'FAIL', message: err.message });
-      } else {
-        const detail = err instanceof Error ? err.message : String(err);
-        dispatch({ type: 'FAIL', message: `An unexpected error occurred while reading files: ${detail}` });
-      }
+      dispatch({ type: 'FAIL', message: toFileReadErrorMessage(err) });
       return;
     }
     perf.measure('read', 'read_files_ms', { files: rpyFiles.length });
@@ -184,7 +71,7 @@ export default function App() {
     dispatch({ type: 'START_PARSING' });
     perf.mark('parse');
     try {
-      const { nodes, edges } = await parseRenpyFilesInWorker({
+      const { nodes, edges } = await workerParseService.parse({
         files: inputs,
         signal: controller.signal,
         onProgress: (progress) => {
@@ -197,15 +84,10 @@ export default function App() {
       dispatch({ type: 'PARSE_SUCCESS', nodes, edges });
     } catch (err: unknown) {
       if (!isActiveRun()) return;
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        dispatch({ type: 'FAIL', message: 'Parsing was cancelled.' });
-      } else {
-        const detail = err instanceof Error ? err.message : String(err);
-        dispatch({
-          type: 'FAIL',
-          message: `Failed to parse Ren'Py scripts: ${detail}. Ensure your .rpy files contain valid Ren'Py syntax.`,
-        });
-      }
+      dispatch({
+        type: 'FAIL',
+        message: toParseErrorMessage(err),
+      });
     }
   }, [perf]);
 

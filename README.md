@@ -115,6 +115,16 @@ Then open <http://localhost:8080>.
   - strict role classification
 - Token and meta IDs come from `@renpy/ast` enums via `src/parserTokens.ts` with runtime validation guards, instead of hardcoded numeric literals.
 - Current tokenizer quirk: Ren'Py `menu` may be observed as `KeywordTokenType.Def`; this is guarded and validated at startup.
+- Worker message exchange uses a versioned protocol contract in `src/infrastructure/workerProtocol.ts`.
+
+## Application Architecture
+
+- **Domain layer** (`src/domain`): graph model and shared domain-level types.
+- **Application layer** (`src/application`): orchestration logic (upload validation, app reducer, parse service, error policy).
+- **Infrastructure layer** (`src/infrastructure`): runtime adapters (file reading, worker protocol contract).
+- **UI layer** (`src/*.tsx`, `src/flowchartTransforms.ts`): React rendering and interaction logic.
+
+See `docs/architecture.md` for the detailed architecture and flow.
 
 ### Duplicate labels across files
 

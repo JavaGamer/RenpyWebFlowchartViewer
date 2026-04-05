@@ -28,6 +28,15 @@ import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './types';
+import { STORAGE_KEYS } from './config/storageKeys';
+import {
+  LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
+  LARGE_GRAPH_EDGE_THRESHOLD,
+  LARGE_GRAPH_NODE_THRESHOLD,
+  SEARCH_DEBOUNCE_MS,
+  ZOOM_PRESETS,
+} from './config/viewerConfig';
+import type { ThemeName, LayoutDirection } from './domain/graph';
 import {
   type CanvasNode,
   type CanvasEdge,
@@ -43,11 +52,6 @@ import {
 import { createPerfTracker } from './perf';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25] as const;
-const LARGE_GRAPH_NODE_THRESHOLD = 180;
-const LARGE_GRAPH_EDGE_THRESHOLD = 320;
-const LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD = 900;
 
 // ─── Custom node components ───────────────────────────────────────────────────
 
@@ -70,7 +74,7 @@ interface ThemeColors {
   minimapMenu: string;
 }
 
-const THEMES: Record<'violet' | 'highContrast' | 'colorblind', ThemeColors> = {
+const THEMES: Record<ThemeName, ThemeColors> = {
   violet: {
     pageBg: '#f9fafb',
     panelBg: '#ffffff',
@@ -243,22 +247,24 @@ export default function FlowchartViewer({
   const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
-  const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
+  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('TB');
   const [searchInput, setSearchInput] = useState('');
   const [minDialogue, setMinDialogue] = useState(0);
-  const [theme, setTheme] = useState<'violet' | 'highContrast' | 'colorblind'>(() => {
-    const raw = globalThis.localStorage?.getItem('rfv.theme');
+  const [theme, setTheme] = useState<ThemeName>(() => {
+    const raw = globalThis.localStorage?.getItem(STORAGE_KEYS.theme);
     if (raw === 'violet' || raw === 'highContrast' || raw === 'colorblind') return raw;
     return 'violet';
   });
   const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
   const [collapsedParentLabels, setCollapsedParentLabels] = useState<Record<string, boolean>>({});
-  const [showCallReturns, setShowCallReturns] = useState(() => globalThis.localStorage?.getItem('rfv.showCallReturns') === 'true');
+  const [showCallReturns, setShowCallReturns] = useState(
+    () => globalThis.localStorage?.getItem(STORAGE_KEYS.showCallReturns) === 'true',
+  );
   const [visibleEdgeKinds, setVisibleEdgeKinds] = useState<Record<EdgeKindFilter, boolean>>(() => ({
-    sequence: globalThis.localStorage?.getItem('rfv.edge.sequence') !== 'false',
-    jump: globalThis.localStorage?.getItem('rfv.edge.jump') !== 'false',
-    call: globalThis.localStorage?.getItem('rfv.edge.call') !== 'false',
-    call_return: globalThis.localStorage?.getItem('rfv.edge.call_return') !== 'false',
+    sequence: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeSequence) !== 'false',
+    jump: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeJump) !== 'false',
+    call: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeCall) !== 'false',
+    call_return: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeCallReturn) !== 'false',
   }));
   const [focusNodeId, setFocusNodeId] = useState<string>('');
   const [largeGraphModeOverride, setLargeGraphModeOverride] = useState<boolean | null>(null);
@@ -273,7 +279,7 @@ export default function FlowchartViewer({
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedSearch(searchInput);
-    }, 120);
+    }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
   }, [searchInput]);
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
@@ -323,18 +329,18 @@ export default function FlowchartViewer({
   }, [layoutNodes, layoutEdges, setEdges, setNodes]);
 
   useEffect(() => {
-    globalThis.localStorage?.setItem('rfv.theme', theme);
+    globalThis.localStorage?.setItem(STORAGE_KEYS.theme, theme);
   }, [theme]);
 
   useEffect(() => {
-    globalThis.localStorage?.setItem('rfv.showCallReturns', String(showCallReturns));
+    globalThis.localStorage?.setItem(STORAGE_KEYS.showCallReturns, String(showCallReturns));
   }, [showCallReturns]);
 
   useEffect(() => {
-    globalThis.localStorage?.setItem('rfv.edge.sequence', String(visibleEdgeKinds.sequence));
-    globalThis.localStorage?.setItem('rfv.edge.jump', String(visibleEdgeKinds.jump));
-    globalThis.localStorage?.setItem('rfv.edge.call', String(visibleEdgeKinds.call));
-    globalThis.localStorage?.setItem('rfv.edge.call_return', String(visibleEdgeKinds.call_return));
+    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeSequence, String(visibleEdgeKinds.sequence));
+    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeJump, String(visibleEdgeKinds.jump));
+    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeCall, String(visibleEdgeKinds.call));
+    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeCallReturn, String(visibleEdgeKinds.call_return));
   }, [visibleEdgeKinds]);
 
   const collapsedLabelChildren = useMemo(
@@ -553,7 +559,7 @@ export default function FlowchartViewer({
             Layout
             <select
               value={layoutDirection}
-              onChange={(e) => setLayoutDirection(e.target.value as 'TB' | 'LR')}
+              onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
               aria-label="Auto layout direction"
               className="px-2 py-1 border border-gray-300 rounded-md text-sm"
             >
@@ -573,7 +579,7 @@ export default function FlowchartViewer({
             Theme
             <select
               value={theme}
-              onChange={(e) => setTheme(e.target.value as 'violet' | 'highContrast' | 'colorblind')}
+              onChange={(e) => setTheme(e.target.value as ThemeName)}
               aria-label="Color theme"
               className="px-2 py-1 border border-gray-300 rounded-md text-sm"
             >
