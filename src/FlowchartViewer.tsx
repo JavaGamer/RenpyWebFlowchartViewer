@@ -464,7 +464,7 @@ export default function FlowchartViewer({
               className="pl-7 pr-2 py-1 text-sm border border-gray-300 rounded-md w-[14rem] max-w-[80vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             />
           </label>
-            <label className="text-xs flex items-center gap-1">
+            <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
               Minimum dialogue lines
             <input
               id="min-dialogue-input"
