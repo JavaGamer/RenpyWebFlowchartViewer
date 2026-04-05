@@ -1,9 +1,6 @@
 export type NodeType = 'LABEL' | 'MENU';
 export type NodeRole = 'story' | 'detour' | 'utility' | 'state_toggle' | 'menu';
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
-export type ThemeName = 'violet' | 'highContrast' | 'colorblind';
-export type LayoutDirection = 'TB' | 'LR';
-export type AppPhase = 'idle' | 'reading' | 'parsing' | 'done' | 'error';
 
 /** A node in the flowchart graph. */
 export interface FlowNode {

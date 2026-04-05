@@ -36,7 +36,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   ZOOM_PRESETS,
 } from './config/viewerConfig';
-import type { ThemeName, LayoutDirection } from './domain/graph';
+import type { ThemeName, LayoutDirection } from './ui/viewerTypes';
 import {
   type CanvasNode,
   type CanvasEdge,
