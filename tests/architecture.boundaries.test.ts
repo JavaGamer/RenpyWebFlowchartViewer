@@ -1,14 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { globSync } from 'node:fs';
-import { resolve, relative } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve, relative, extname } from 'node:path';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 const srcRoot = resolve(repoRoot, 'src');
 
-const tsFiles = globSync('**/*.{ts,tsx}', {
-  cwd: srcRoot,
-}).map((file) => resolve(srcRoot, file)).filter((file) => !file.endsWith('.d.ts'));
+function listSourceFiles(root: string): string[] {
+  const files: string[] = [];
+  const stack = [root];
+  while (stack.length > 0) {
+    const currentDir = stack.pop()!;
+    const entries = readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = resolve(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if ((extname(entry.name) === '.ts' || extname(entry.name) === '.tsx') && !entry.name.endsWith('.d.ts')) {
+        files.push(fullPath);
+      }
+    }
+  }
+  return files;
+}
+
+const tsFiles = listSourceFiles(srcRoot);
 
 function relativeFromSrc(file: string): string {
   return relative(srcRoot, file).replaceAll('\\', '/');
