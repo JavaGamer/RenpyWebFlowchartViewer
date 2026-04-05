@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from './config/storageKeys';
+
 export interface PerfEvent {
   metric: string;
   ms: number;
@@ -9,7 +11,7 @@ function isPerfEnabled(): boolean {
   if (perfFlag === true) return true;
   try {
     if (typeof globalThis.localStorage === 'undefined') return false;
-    return globalThis.localStorage.getItem('rfv.debugPerf') === 'true';
+    return globalThis.localStorage.getItem(STORAGE_KEYS.debugPerf) === 'true';
   } catch {
     return false;
   }

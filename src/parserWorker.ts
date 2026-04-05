@@ -1,55 +1,21 @@
 import { parseRenpyFiles } from './parser';
-import type { FlowNode, FlowEdge } from './types';
-
-interface ParseRequest {
-  type: 'parse';
-  requestId: number;
-  files: Array<{ name: string; content: string }>;
-  wantsProgress?: boolean;
-}
-
-interface CancelRequest {
-  type: 'cancel';
-  requestId: number;
-}
-
-type WorkerRequest = ParseRequest | CancelRequest;
-
-interface ProgressMessage {
-  type: 'progress';
-  requestId: number;
-  doneFiles: number;
-  totalFiles: number;
-  currentFile: string;
-  elapsedMs?: number;
-}
-
-interface ResultMessage {
-  type: 'result';
-  requestId: number;
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  elapsedMs?: number;
-}
-
-interface ErrorMessage {
-  type: 'error';
-  requestId: number;
-  message: string;
-  elapsedMs?: number;
-}
-
-type WorkerResponse = ProgressMessage | ResultMessage | ErrorMessage;
+import {
+  PARSER_WORKER_PROTOCOL_VERSION,
+  type WorkerRequestMessage,
+  type WorkerResponseMessage,
+  type ProgressResponseMessage,
+} from './infrastructure/workerProtocol';
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
 
-function postMessageSafe(message: WorkerResponse) {
+function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
 }
 
-self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
+self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
   const message = event.data;
+  if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
 
   if (message.type === 'cancel') {
     cancelledRequests.add(message.requestId);
@@ -64,7 +30,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const wantsProgress = message.wantsProgress !== false;
   const progressThrottleMs = files.length > 40 ? 30 : 0;
   let lastProgressAt = 0;
-  let pendingProgress: ProgressMessage | null = null;
+  let pendingProgress: ProgressResponseMessage | null = null;
 
   try {
     const result = await parseRenpyFiles(files, {
@@ -74,7 +40,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         }
         if (!wantsProgress) return;
         const now = performance.now();
-        const nextProgress: ProgressMessage = {
+        const nextProgress: ProgressResponseMessage = {
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
           type: 'progress',
           requestId,
           doneFiles,
@@ -98,6 +65,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
 
     if (!cancelledRequests.has(requestId)) {
       postMessageSafe({
+        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
         type: 'result',
         requestId,
         nodes: result.nodes,
@@ -109,6 +77,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     if (!cancelledRequests.has(requestId)) {
       const messageText = error instanceof Error ? error.message : String(error);
       postMessageSafe({
+        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
         type: 'error',
         requestId,
         message: messageText,

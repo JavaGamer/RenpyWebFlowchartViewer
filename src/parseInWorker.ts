@@ -1,4 +1,10 @@
 import type { FlowNode, FlowEdge } from './types';
+import {
+  PARSER_WORKER_PROTOCOL_VERSION,
+  type WorkerResponseMessage,
+  type ParseRequestMessage,
+  type CancelRequestMessage,
+} from './infrastructure/workerProtocol';
 
 interface ParseRequestPayload {
   files: Array<{ name: string; content: string }>;
@@ -15,29 +21,6 @@ interface ParseResultPayload {
   nodes: FlowNode[];
   edges: FlowEdge[];
 }
-
-type WorkerResponse =
-  | {
-      type: 'progress';
-      requestId: number;
-      doneFiles: number;
-      totalFiles: number;
-      currentFile: string;
-      elapsedMs?: number;
-    }
-  | {
-      type: 'result';
-      requestId: number;
-      nodes: FlowNode[];
-      edges: FlowEdge[];
-      elapsedMs?: number;
-    }
-  | {
-      type: 'error';
-      requestId: number;
-      message: string;
-      elapsedMs?: number;
-    };
 
 let requestCounter = 0;
 
@@ -62,8 +45,9 @@ export function parseRenpyFilesInWorker({
       cb();
     };
 
-    const onMessage = (event: MessageEvent<WorkerResponse>) => {
+    const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
       const message = event.data;
+      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
       if (message.requestId !== requestId) return;
 
       if (message.type === 'progress') {
@@ -93,13 +77,25 @@ export function parseRenpyFilesInWorker({
       settle(() => {
         worker.removeEventListener('message', onMessage);
         signal?.removeEventListener('abort', onAbort);
-        worker.postMessage({ type: 'cancel', requestId });
+        const cancelMessage: CancelRequestMessage = {
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'cancel',
+          requestId,
+        };
+        worker.postMessage(cancelMessage);
         reject(new DOMException('Parsing cancelled', 'AbortError'));
       });
     };
 
     worker.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, { once: true });
-    worker.postMessage({ type: 'parse', requestId, files, wantsProgress: Boolean(onProgress) });
+    const parseMessage: ParseRequestMessage = {
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'parse',
+      requestId,
+      files,
+      wantsProgress: Boolean(onProgress),
+    };
+    worker.postMessage(parseMessage);
   });
 }
