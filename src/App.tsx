@@ -28,7 +28,6 @@ export default function App() {
   const processFilesWithPerf = useCallback(
     async (files: FileList | null) => {
       perf.mark('read');
-      perf.mark('parse');
       const processFiles = createProcessUpload({
         parseService: workerParseService,
         dispatch,
@@ -37,13 +36,16 @@ export default function App() {
         onReadMeasured: (fileCount) => {
           perf.measure('read', 'read_files_ms', { files: fileCount });
         },
+        onParseStarted: () => {
+          perf.mark('parse');
+        },
         onParseMeasured: ({ fileCount, nodeCount, edgeCount }) => {
           perf.measure('parse', 'parse_ms', { files: fileCount, nodes: nodeCount, edges: edgeCount });
         },
       });
       await processFiles(files);
     },
-    [perf],
+    [dispatch, perf],
   );
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────

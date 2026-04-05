@@ -29,13 +29,17 @@ function relativeFromSrc(file: string): string {
   return relative(srcRoot, file).replaceAll('\\', '/');
 }
 
+const legacyTypesImportPattern = /from ['"](?:\.\.?\/)+(?:src\/)?types(?:\/index)?['"]/;
+const infraForbiddenImportPattern = /from ['"](?:\.\.?\/)+(?:ui|application)\//;
+const parserUiForbiddenImportPattern = /from ['"](?:\.\.?\/)+ui\//;
+
 describe('architecture import boundaries', () => {
   it('disallows legacy src/types entrypoint imports', () => {
     const offenders: string[] = [];
     for (const file of tsFiles) {
       const rel = relativeFromSrc(file);
       const source = readFileSync(file, 'utf8');
-      if (source.includes("from './types'") || source.includes('from "../types"') || source.includes('from "../src/types"') || source.includes('from "./src/types"')) {
+      if (legacyTypesImportPattern.test(source)) {
         offenders.push(rel);
       }
     }
@@ -48,12 +52,7 @@ describe('architecture import boundaries', () => {
       const rel = relativeFromSrc(file);
       if (!rel.startsWith('infrastructure/')) continue;
       const source = readFileSync(file, 'utf8');
-      if (
-        source.match(/from ['"]\.\.\/ui\//) ||
-        source.match(/from ['"]\.\.\/application\//) ||
-        source.match(/from ['"]\.\/ui\//) ||
-        source.match(/from ['"]\.\/application\//)
-      ) {
+      if (infraForbiddenImportPattern.test(source)) {
         offenders.push(rel);
       }
     }
@@ -66,7 +65,7 @@ describe('architecture import boundaries', () => {
       const rel = relativeFromSrc(file);
       if (!rel.startsWith('parser/')) continue;
       const source = readFileSync(file, 'utf8');
-      if (source.match(/from ['"]\.\.\/ui\//) || source.match(/from ['"]\.\/ui\//)) {
+      if (parserUiForbiddenImportPattern.test(source)) {
         offenders.push(rel);
       }
     }

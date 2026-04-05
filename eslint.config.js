@@ -23,8 +23,17 @@ export default defineConfig([
       'no-restricted-imports': ['error', {
         patterns: [
           './types',
+          './types/index',
           '../types',
+          '../types/index',
+          '../../types',
+          '../../types/index',
+          '../../../types',
+          '../../../types/index',
+          '../../../../types',
+          '../../../../types/index',
           '**/src/types',
+          '**/src/types/index',
         ],
       }],
     },

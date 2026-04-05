@@ -11,6 +11,7 @@ export interface ProcessUploadDeps {
   activeRunIdRef: RefObject<number>;
   parseAbortControllerRef: RefObject<AbortController | null>;
   onReadMeasured?: (fileCount: number) => void;
+  onParseStarted?: () => void;
   onParseMeasured?: (data: { fileCount: number; nodeCount: number; edgeCount: number }) => void;
 }
 
@@ -21,6 +22,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     activeRunIdRef,
     parseAbortControllerRef,
     onReadMeasured,
+    onParseStarted,
     onParseMeasured,
   } = deps;
 
@@ -61,6 +63,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     onReadMeasured?.(rpyFiles.length);
     if (!isActiveRun()) return;
 
+    onParseStarted?.();
     dispatch({ type: 'START_PARSING' });
     try {
       const { nodes, edges } = await parseService.parse({
