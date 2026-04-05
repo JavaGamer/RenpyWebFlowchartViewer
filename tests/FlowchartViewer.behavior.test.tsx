@@ -282,7 +282,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const highlightedResult = screen.getByRole('button', { name: /line 21/i });
     expect(within(highlightedResult).getByText('needle')).toContainHTML('mark');
     const needleMarks = screen.getAllByText('needle', { selector: 'mark' });
-    expect(needleMarks.length).toBeGreaterThan(0);
+    expect(needleMarks.length).toBe(2);
   });
 
   it('supports keyboard navigation for dialogue search results and empty-state guidance', async () => {

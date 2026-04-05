@@ -691,7 +691,7 @@ export default function FlowchartViewer({
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {dialogueSearchResults.length === 0 ? (
                   <div className="text-xs text-gray-500">
-                    No dialogue lines matched “{effectiveSearch.trim()}”. Try a shorter query or clear other filters.
+                    No dialogue lines matched “{effectiveSearch.trim()}”. Try a broader query or clear other filters.
                   </div>
                 ) : (
                   dialogueSearchResults.map((result, resultIndex) => (
