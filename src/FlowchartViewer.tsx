@@ -356,11 +356,16 @@ export default function FlowchartViewer({
   }, [visibleNodes]);
 
   const onSelectDialogueSearchResult = useCallback((result: DialogueSearchResult) => {
+    const targetNode = visibleNodes.find((node) => node.id === result.nodeId && !node.hidden);
+    const targetNodeData = targetNode?.data as { dialogueLines?: string[] } | undefined;
+    const totalLines = targetNodeData?.dialogueLines?.length ?? 0;
+    const selectedLineOutsidePreview = result.lineIndex > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
+    const hasTruncation = totalLines > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
     setSelectedNodeId(result.nodeId);
     setSelectedDialogueLineIndex(result.lineIndex);
-    setShowAllInspectorLines(result.lineIndex > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT);
+    setShowAllInspectorLines(hasTruncation && selectedLineOutsidePreview);
     focusVisibleNode(result.nodeId);
-  }, [focusVisibleNode]);
+  }, [focusVisibleNode, visibleNodes]);
 
   const onSearchInputKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (dialogueSearchResults.length === 0) return;

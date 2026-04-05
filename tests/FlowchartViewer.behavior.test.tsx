@@ -281,8 +281,9 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByText('21.')).toBeInTheDocument();
     const highlightedResult = screen.getByRole('button', { name: /line 21/i });
     expect(within(highlightedResult).getByText('needle')).toContainHTML('mark');
-    const needleMarks = screen.getAllByText('needle', { selector: 'mark' });
-    expect(needleMarks.length).toBe(2);
+    const inspector = screen.getByLabelText(/Inspector panel/i);
+    const inspectorNeedleMark = within(inspector).getAllByText('needle', { selector: 'mark' });
+    expect(inspectorNeedleMark.length).toBe(2);
   });
 
   it('supports keyboard navigation for dialogue search results and empty-state guidance', async () => {
