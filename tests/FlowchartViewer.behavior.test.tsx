@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import FlowchartViewer from '../src/FlowchartViewer';
-import type { FlowNode, FlowEdge } from '../src/types';
+import type { FlowNode, FlowEdge } from '../src/domain/graph';
 import * as ReactFlowLib from '@xyflow/react';
 
 vi.mock('@xyflow/react', () => {

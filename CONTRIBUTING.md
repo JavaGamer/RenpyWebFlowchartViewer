@@ -47,4 +47,5 @@ npm run test:coverage
    - What changed
    - Why it changed
    - Any testing performed
+   - How architectural boundaries were preserved (domain/application/infrastructure/ui)
 5. Address CI or review feedback and keep the PR scope focused.

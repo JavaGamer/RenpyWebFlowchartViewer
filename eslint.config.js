@@ -19,5 +19,36 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          './types',
+          './types/index',
+          '../types',
+          '../types/index',
+          '../../types',
+          '../../types/index',
+          '../../../types',
+          '../../../types/index',
+          '../../../../types',
+          '../../../../types/index',
+          '**/src/types',
+          '**/src/types/index',
+        ],
+      }],
+    },
+  },
+  {
+    files: ['src/infrastructure/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          '../application/*',
+          './application/*',
+          '../ui/*',
+          './ui/*',
+        ],
+      }],
+    },
   },
 ])

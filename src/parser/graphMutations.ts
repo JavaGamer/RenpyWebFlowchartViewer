@@ -1,4 +1,4 @@
-import type { FlowEdge, FlowNode } from '../types';
+import type { FlowEdge, FlowNode } from '../domain/graph';
 import type { ParseGraphState, EdgeKind } from './pipelineTypes';
 import { assertInvariant } from './pipelineInvariants';
 

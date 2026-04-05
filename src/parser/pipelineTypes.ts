@@ -1,4 +1,4 @@
-import type { FlowNode, FlowEdge } from '../types';
+import type { FlowNode, FlowEdge } from '../domain/graph';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 

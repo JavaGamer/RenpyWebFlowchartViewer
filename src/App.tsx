@@ -12,11 +12,9 @@ import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
 import FlowchartViewer from './FlowchartViewer';
 import { createPerfTracker } from './perf';
-import { readFileAsText } from './infrastructure/fileReader';
-import { validateRpyUpload } from './application/uploadValidation';
 import { appReducer, initialAppState } from './application/appState';
-import { toFileReadErrorMessage, toParseErrorMessage } from './application/errorMessages';
 import { workerParseService } from './application/parseService';
+import { createProcessUpload } from './application/processUpload';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -27,77 +25,36 @@ export default function App() {
   const activeRunIdRef = useRef(0);
 
   // ── Process selected files ─────────────────────────────────────────────────
-  const processFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) {
-      return;
-    }
-    const runId = ++activeRunIdRef.current;
-    const isActiveRun = () => activeRunIdRef.current === runId;
-
-    const { rpyFiles, errorMessage } = validateRpyUpload(files);
-    if (errorMessage) {
-      dispatch({
-        type: 'FAIL',
-        message: errorMessage,
-      });
-      return;
-    }
-
-    parseAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    parseAbortControllerRef.current = controller;
-
-    dispatch({ type: 'START_READING', fileCount: rpyFiles.length });
-
-    // ── Phase 1: Read files from disk ──────────────────────────────────────
-    perf.mark('read');
-    let inputs: Array<{ name: string; content: string }>;
-    try {
-      inputs = await Promise.all(
-        rpyFiles.map(async (f) => ({
-          name: f.name,
-          content: await readFileAsText(f),
-        })),
-      );
-    } catch (err: unknown) {
-      if (!isActiveRun()) return;
-      dispatch({ type: 'FAIL', message: toFileReadErrorMessage(err) });
-      return;
-    }
-    perf.measure('read', 'read_files_ms', { files: rpyFiles.length });
-    if (!isActiveRun()) return;
-
-    // ── Phase 2: Parse the Ren'Py scripts ─────────────────────────────────
-    dispatch({ type: 'START_PARSING' });
-    perf.mark('parse');
-    try {
-      const { nodes, edges } = await workerParseService.parse({
-        files: inputs,
-        signal: controller.signal,
-        onProgress: (progress) => {
-          if (!isActiveRun()) return;
-          dispatch({ type: 'PROGRESS', progress });
+  const processFilesWithPerf = useCallback(
+    async (files: FileList | null) => {
+      perf.mark('read');
+      const processFiles = createProcessUpload({
+        parseService: workerParseService,
+        dispatch,
+        activeRunIdRef,
+        parseAbortControllerRef,
+        onReadMeasured: (fileCount) => {
+          perf.measure('read', 'read_files_ms', { files: fileCount });
+        },
+        onParseStarted: () => {
+          perf.mark('parse');
+        },
+        onParseMeasured: ({ fileCount, nodeCount, edgeCount }) => {
+          perf.measure('parse', 'parse_ms', { files: fileCount, nodes: nodeCount, edges: edgeCount });
         },
       });
-      if (!isActiveRun()) return;
-      perf.measure('parse', 'parse_ms', { files: rpyFiles.length, nodes: nodes.length, edges: edges.length });
-      dispatch({ type: 'PARSE_SUCCESS', nodes, edges });
-    } catch (err: unknown) {
-      if (!isActiveRun()) return;
-      dispatch({
-        type: 'FAIL',
-        message: toParseErrorMessage(err),
-      });
-    }
-  }, [perf]);
+      await processFiles(files);
+    },
+    [dispatch, perf],
+  );
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────
   const onDrop = useCallback(
     (e: React.DragEvent<HTMLLabelElement>) => {
       e.preventDefault();
-      void processFiles(e.dataTransfer.files);
+      void processFilesWithPerf(e.dataTransfer.files);
     },
-    [processFiles],
+    [processFilesWithPerf],
   );
 
   const onDragOver = (e: React.DragEvent<HTMLLabelElement>) => e.preventDefault();
@@ -195,7 +152,7 @@ export default function App() {
               webkitdirectory=""
               directory=""
               multiple
-              onChange={(e) => void processFiles(e.target.files)}
+              onChange={(e) => void processFilesWithPerf(e.target.files)}
             />
 
              {state.phase === 'parsing' && (

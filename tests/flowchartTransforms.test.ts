@@ -7,7 +7,7 @@ import {
   type CanvasEdge,
   type CanvasNode,
 } from '../src/flowchartTransforms';
-import type { FlowNode, FlowEdge } from '../src/types';
+import type { FlowNode, FlowEdge } from '../src/domain/graph';
 
 describe('flowchartTransforms', () => {
   const flowNodes: FlowNode[] = [
