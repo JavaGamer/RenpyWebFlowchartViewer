@@ -15,6 +15,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
 - **Export options** — export the current chart as PNG or SVG, and optionally download the raw graph as JSON.
 - **Responsive UI** — toolbar, canvas, and inspector adapt for desktop, tablet, and mobile widths.
+- **Upload status guidance** — onboarding includes idle limits guidance, explicit read/parse status text, and a one-click retry action on failure.
 
 ## Usage
 
@@ -23,6 +24,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 3. Select the folder that contains your Ren'Py `.rpy` scripts (e.g. the `game/` directory of a project).
 4. The flowchart is generated automatically.
 5. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
+6. If import fails, use **Try again** in the error panel to reopen folder selection immediately.
 
 ## Running Locally
 
@@ -62,6 +64,11 @@ This release is considered done when all of the following are true:
 - Keyboard navigation is supported for results from the search input:
   - `↑` / `↓` moves active result
   - `Enter` opens active result in inspector
+- Control areas are grouped and labeled for assistive technology:
+  - viewer controls
+  - search and filters
+  - layout and focus controls
+  - export controls
 - Empty and zero-result states provide clear guidance text.
 
 ### Interaction shortcuts

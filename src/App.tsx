@@ -15,6 +15,7 @@ import { createPerfTracker } from './perf';
 import { appReducer, initialAppState } from './application/appState';
 import { workerParseService } from './application/parseService';
 import { createProcessUpload } from './application/processUpload';
+import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialAppState);
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFilesWithPerf = useCallback(
@@ -58,6 +60,25 @@ export default function App() {
   );
 
   const onDragOver = (e: React.DragEvent<HTMLLabelElement>) => e.preventDefault();
+  const openFolderPicker = useCallback(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }, []);
+  const totalSizeMiB = Math.round(MAX_TOTAL_RPY_SIZE_BYTES / (1024 * 1024));
+  const statusMessage =
+    state.phase === 'idle'
+      ? `Ready to import up to ${MAX_RPY_FILE_COUNT} .rpy files (${totalSizeMiB} MiB total).`
+      : state.phase === 'reading'
+        ? 'Reading selected files locally in your browser.'
+        : state.phase === 'parsing'
+          ? 'Parsing scripts and building graph nodes and edges.'
+          : state.phase === 'error'
+            ? 'Import failed. Review the error and try selecting files again.'
+            : state.phase === 'done' && state.flowNodes.length === 0
+              ? 'Import succeeded but no labels or menus were found.'
+              : '';
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -78,10 +99,10 @@ export default function App() {
             Ren'Py Flowchart Viewer
           </h1>
         </div>
-        <span className="w-full sm:w-auto text-xs text-gray-700 sm:ml-2 text-center sm:text-left">
-          Upload a Ren'Py project folder to visualize its script structure
-        </span>
-      </header>
+            <span className="w-full sm:w-auto text-xs text-gray-700 sm:ml-2 text-center sm:text-left">
+              Upload a Ren'Py project folder to visualize its script structure
+            </span>
+          </header>
 
       {/* Main content */}
       {state.phase === 'done' && state.flowNodes.length > 0 ? (
@@ -110,6 +131,14 @@ export default function App() {
         /* ── Upload area ─────────────────────────────────────────────────── */
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="w-full max-w-xl">
+            <div
+              className="mb-3 text-xs text-gray-600 bg-white border border-gray-200 rounded-xl px-3 py-2"
+              role="status"
+              aria-live="polite"
+              aria-busy={state.phase === 'reading' || state.phase === 'parsing'}
+            >
+              {statusMessage}
+            </div>
             {/* Drop zone */}
             <label
               htmlFor="folder-input"
@@ -151,6 +180,7 @@ export default function App() {
             {/* Hidden file input with directory support */}
             <input
               id="folder-input"
+              ref={fileInputRef}
               type="file"
               aria-label="Select Ren'Py project folder"
               className="hidden"
@@ -162,25 +192,34 @@ export default function App() {
             />
 
              {state.phase === 'parsing' && (
-              <div className="mt-4 flex justify-center">
-                <button
+               <div className="mt-4 flex justify-center">
+                 <button
                   type="button"
                   onClick={() => parseAbortControllerRef.current?.abort()}
                   className="text-xs underline text-gray-600 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
                   aria-label="Cancel parsing"
                 >
-                  Cancel parsing
-                </button>
-              </div>
-            )}
+                   Cancel parsing
+                 </button>
+               </div>
+             )}
 
             {/* Error message */}
-             {state.phase === 'error' && (
-              <div className="mt-4 flex flex-col sm:flex-row items-start gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
-                <p className="text-sm">{state.errorMsg}</p>
-              </div>
-            )}
+              {state.phase === 'error' && (
+               <div className="mt-4 flex flex-col items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                <div className="flex flex-col sm:flex-row items-start gap-2">
+                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
+                 <p className="text-sm">{state.errorMsg}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openFolderPicker}
+                  className="text-xs underline text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+                >
+                  Try again
+                </button>
+               </div>
+             )}
 
             {/* Empty result warning */}
              {state.phase === 'done' && state.flowNodes.length === 0 && (

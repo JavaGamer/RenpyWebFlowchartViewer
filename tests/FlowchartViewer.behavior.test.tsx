@@ -215,7 +215,7 @@ describe('FlowchartViewer behavior coverage', () => {
     fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
     expect(
       screen.getByRole('textbox', {
-        name: /Search labels, dialogue lines, or dialogue count/i,
+        name: /Search/i,
       }),
     ).toHaveFocus();
 
@@ -223,6 +223,10 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
 
     expect(screen.getByText(/Shortcuts: Ctrl\/Cmd\+F search/i)).toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: /Viewer controls/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Search and filters/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Layout and focus controls/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Export controls/i })).toBeInTheDocument();
   });
 
   it('uses onInit instance for zoom and relayout controls', async () => {
@@ -273,7 +277,7 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByText('21.')).toBeInTheDocument();
 
     const search = screen.getByRole('textbox', {
-      name: /Search labels, dialogue lines, or dialogue count/i,
+      name: /Search/i,
     });
     await user.clear(search);
     await user.type(search, 'needle');
@@ -304,7 +308,7 @@ describe('FlowchartViewer behavior coverage', () => {
     render(<FlowchartViewer flowNodes={keyboardNode} flowEdges={[]} />);
 
     const search = screen.getByRole('textbox', {
-      name: /Search labels, dialogue lines, or dialogue count/i,
+      name: /Search/i,
     });
 
     await user.type(search, 'needle');

@@ -204,7 +204,7 @@ describe('App – upload → parse → render integration', () => {
 
     await waitFor(() => {
       expect(
-        view.getByText(/No labels or menus were found/i),
+        view.getByText(/No labels or menus were found\. Make sure the folder contains/i),
       ).toBeInTheDocument();
     });
   });
@@ -284,6 +284,7 @@ describe('App – upload → parse → render integration', () => {
       expect(
         view.getByText(/Ensure your \.rpy files contain valid Ren'Py syntax/i),
       ).toBeInTheDocument();
+      expect(view.getByRole('button', { name: /Try again/i })).toBeInTheDocument();
     });
   });
 
@@ -455,6 +456,14 @@ describe('App – upload → parse → render integration', () => {
     expect(label).toHaveAttribute('aria-label', 'Upload Ren\'Py project folder');
   });
 
+  it('shows idle import limits guidance in live status region', () => {
+    const { container } = render(<App />);
+    const view = within(container);
+    expect(
+      view.getByText(/Ready to import up to 300 \.rpy files \(25 MiB total\)/i),
+    ).toBeInTheDocument();
+  });
+
   it('renders a skip link and persistent upload guidance text', () => {
     const { container } = render(<App />);
     const view = within(container);
@@ -479,7 +488,7 @@ describe('App – upload → parse → render integration', () => {
 
     const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
     const searchInput = view.getByRole('textbox', {
-      name: /Search labels, dialogue lines, or dialogue count/i,
+      name: /Search/i,
     });
     await user.type(searchInput, 'second');
 
