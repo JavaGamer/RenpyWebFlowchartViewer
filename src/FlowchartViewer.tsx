@@ -75,8 +75,10 @@ function renderHighlightedText(text: string, query: string) {
       nodes.push(text.slice(cursor, matchIndex));
     }
     const matched = text.slice(matchIndex, matchIndex + normalizedQuery.length);
+    const markKey = `hl-${key}`;
+    key += 1;
     nodes.push(
-      <mark key={`hl-${key++}`} className="bg-yellow-200 text-inherit rounded px-0.5">
+      <mark key={markKey} className="bg-yellow-200 text-inherit rounded px-0.5">
         {matched}
       </mark>,
     );
@@ -241,7 +243,7 @@ export default function FlowchartViewer({
     [selectedNodeId, visibleNodes],
   );
 
-  const selectedNodeData = (selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined) ?? undefined;
+  const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined;
 
   const dialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
     const query = effectiveSearch.trim().toLowerCase();
