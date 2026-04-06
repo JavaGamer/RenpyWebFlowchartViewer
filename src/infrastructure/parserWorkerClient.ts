@@ -22,6 +22,7 @@ export function parseRenpyFilesInWorker({
   files,
   onProgress,
   signal,
+  maxParallelFiles,
 }: ParseWorkerClientRequest): Promise<ParseWorkerClientResult> {
   const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
@@ -88,6 +89,7 @@ export function parseRenpyFilesInWorker({
       requestId,
       files,
       wantsProgress: Boolean(onProgress),
+      maxParallelFiles,
     };
     parserWorker.postMessage(parseMessage);
   });

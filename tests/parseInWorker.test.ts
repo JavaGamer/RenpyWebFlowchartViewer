@@ -113,4 +113,24 @@ describe('parseRenpyFilesInWorker', () => {
     expect(cancelMessage?.protocolVersion).toBe(PARSER_WORKER_PROTOCOL_VERSION);
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('forwards maxParallelFiles in parse request message', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'parallel.rpy', content: 'label parallel:' }],
+      maxParallelFiles: 4,
+    });
+    const parseMessage = postedMessages[0] as { requestId: number; maxParallelFiles?: number };
+    expect(parseMessage.maxParallelFiles).toBe(4);
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId: parseMessage.requestId,
+      nodes: [],
+      edges: [],
+    });
+    await expect(request).resolves.toEqual({ nodes: [], edges: [] });
+  });
 });

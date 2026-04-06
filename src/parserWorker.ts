@@ -24,7 +24,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   if (message.type !== 'parse') return;
 
-  const { requestId, files } = message;
+  const { requestId, files, maxParallelFiles } = message;
   activeRequestId = requestId;
   const startedAt = performance.now();
   const wantsProgress = message.wantsProgress !== false;
@@ -34,6 +34,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   try {
     const result = await parseRenpyFiles(files, {
+      maxParallelFiles,
       onProgress: ({ doneFiles, totalFiles, currentFile }) => {
         if (cancelledRequests.has(requestId)) {
           throw new Error('Parsing cancelled');
