@@ -42,13 +42,14 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     activeRunIdRef.current = runId;
     const isActiveRun = () => activeRunIdRef.current === runId;
 
+    parseAbortControllerRef.current?.abort();
+    parseAbortControllerRef.current = null;
+
     const { rpyFiles, errorMessage } = validateRpyUpload(files);
     if (errorMessage) {
       dispatch({ type: 'FAIL', message: errorMessage });
       return;
     }
-
-    parseAbortControllerRef.current?.abort();
     const controller = new AbortController();
     parseAbortControllerRef.current = controller;
 

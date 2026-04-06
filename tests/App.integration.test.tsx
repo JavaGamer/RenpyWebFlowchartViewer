@@ -681,6 +681,42 @@ describe('App – upload → parse → render integration', () => {
     expect(parseSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('cancels an active parse when a new invalid upload is selected', async () => {
+    const user = userEvent.setup();
+    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
+    let aborted = false;
+    parseSpy.mockImplementationOnce(
+      ({ signal }) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              reject(new DOMException('Parsing cancelled', 'AbortError'));
+            },
+            { once: true },
+          );
+        }),
+    );
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+
+    await user.upload(input, makeRpyFile('slow.rpy', 'label slow:\n    "x"\n'));
+    await user.upload(input, new File(['not renpy'], 'notes.txt', { type: 'text/plain' }));
+
+    await waitFor(() => {
+      expect(view.getByText(/No \.rpy files found/i)).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(view.queryByText(/Parsing was cancelled/i)).not.toBeInTheDocument();
+    });
+    expect(aborted).toBe(true);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('supports minimum dialogue filter, layout switching, zoom controls, and label subgraph controls', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
