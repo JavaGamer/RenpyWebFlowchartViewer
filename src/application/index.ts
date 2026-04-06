@@ -4,6 +4,7 @@ export {
   type AppAction,
   type AppState,
   type ParseProgress,
+  type DialogueSearchMode,
 } from './appState';
 export { createProcessUpload, type ProcessUploadDeps } from './processUpload';
 export {

@@ -31,6 +31,7 @@ export function processFlatToken(
   token: FlatTokenLike,
   document: TextDocument,
   chapter: string,
+  captureDialogueLines: boolean,
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
@@ -42,7 +43,7 @@ export function processFlatToken(
   const menuDepth = meta.menuDepth;
 
   maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-  handleToken(state, scanState, { type, meta, val, chapter, menuDepth });
+  handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
 }
 
 function* iterateStreamTokens(
@@ -119,6 +120,7 @@ export function processTokenTreeStream(
   tokenTree: TokenTree,
   document: TextDocument,
   chapter: string,
+  captureDialogueLines = true,
 ): void {
   const meta = createEmptyTokenMeta();
   const startOffsetCache = new WeakMap<TreeNode, number>();
@@ -135,7 +137,7 @@ export function processTokenTreeStream(
     };
     const menuDepth = meta.menuDepth;
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-    handleToken(state, scanState, { type, meta, val, chapter, menuDepth });
+    handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
   }
 }
 
@@ -145,6 +147,7 @@ export function processFlatTokens(
   tokens: Iterable<FlatTokenLike>,
   document: TextDocument,
   chapter: string,
+  captureDialogueLines: boolean,
 ): void {
   const meta = createEmptyTokenMeta();
 
@@ -163,6 +166,6 @@ export function processFlatTokens(
     const menuDepth = meta.menuDepth;
 
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-    handleToken(state, scanState, { type, meta, val, chapter, menuDepth });
+    handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
   }
 }

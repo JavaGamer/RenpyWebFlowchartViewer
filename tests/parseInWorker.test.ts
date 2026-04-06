@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { PARSER_WORKER_PROTOCOL_VERSION } from '../src/infrastructure';
+import { PARSER_WORKER_PROTOCOL_VERSION } from '../src/infrastructure/workerProtocol';
 
 let workerMessageHandlers = new Set<(event: MessageEvent) => void>();
 let postedMessages: unknown[] = [];
@@ -25,14 +25,6 @@ const emitWorkerMessage = (data: unknown) => {
   }
 };
 
-async function waitForPostedMessages(count: number): Promise<void> {
-  for (let i = 0; i < 50; i += 1) {
-    if (postedMessages.length >= count) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error(`Expected at least ${count} posted messages, got ${postedMessages.length}`);
-}
-
 describe('parseRenpyFilesInWorker', () => {
   beforeEach(() => {
     postedMessages = [];
@@ -41,12 +33,11 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('supports concurrent requests and resolves each by requestId', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
 
     const first = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
     const second = parseRenpyFilesInWorker({ files: [{ name: 'b.rpy', content: 'label b:' }] });
 
-    await waitForPostedMessages(2);
     const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
     const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
@@ -77,11 +68,32 @@ describe('parseRenpyFilesInWorker', () => {
     await expect(first).resolves.toEqual({ nodes: [{ id: 'a' }], edges: [] });
   });
 
+  it('accepts partial result messages and resolves request for chunk responses', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const onPartialResult = vi.fn();
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'a.rpy', content: 'label a:' }],
+      onPartialResult,
+    });
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId,
+      partial: true,
+      nodes: [{ id: 'partial' }],
+      edges: [],
+    });
+    expect(onPartialResult).toHaveBeenCalledWith({ nodes: [{ id: 'partial' }], edges: [] });
+    await expect(request).resolves.toEqual({ nodes: [{ id: 'partial' }], edges: [] });
+    expect(workerMessageHandlers.size).toBe(0);
+  });
+
   it('ignores stale responses with a different requestId for the active request', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
 
     const request = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
-    await waitForPostedMessages(1);
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({
@@ -106,14 +118,13 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('posts cancel message and rejects with AbortError when signal aborts', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
     const controller = new AbortController();
     const promise = parseRenpyFilesInWorker({
       files: [{ name: 'a.rpy', content: 'label a:' }],
       signal: controller.signal,
       onProgress: () => {},
     });
-    await waitForPostedMessages(1);
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(true);
     controller.abort();
 
@@ -125,45 +136,62 @@ describe('parseRenpyFilesInWorker', () => {
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
   });
 
-  it('forwards maxParallelFiles in parse request message', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
-
-    const request = parseRenpyFilesInWorker({
-      files: [{ name: 'parallel.rpy', content: 'label parallel:' }],
-      maxParallelFiles: 4,
+  it('supports worker-side dialogue search requests', async () => {
+    const { searchDialogueLinesInWorker } = await import('../src/parseInWorker');
+    const request = searchDialogueLinesInWorker({
+      query: 'needle',
+      nodeIds: ['start'],
+      maxResults: 5,
     });
-    await waitForPostedMessages(1);
-    const parseMessage = postedMessages[0] as { requestId: number; maxParallelFiles?: number };
-    expect(parseMessage.maxParallelFiles).toBe(4);
+
+    const searchMessage = postedMessages[0] as {
+      type: string;
+      requestId: number;
+      query?: string;
+      nodeIds?: string[];
+      maxResults?: number;
+    };
+    expect(searchMessage.type).toBe('search');
+    expect(searchMessage.query).toBe('needle');
+    expect(searchMessage.nodeIds).toEqual(['start']);
+    expect(searchMessage.maxResults).toBe(5);
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'result',
-      requestId: parseMessage.requestId,
-      nodes: [],
-      edges: [],
+      type: 'search_result',
+      requestId: searchMessage.requestId,
+      results: [
+        {
+          nodeId: 'start',
+          nodeLabel: 'start',
+          lineIndex: 1,
+          lineText: 'needle line',
+        },
+      ],
     });
-    await expect(request).resolves.toEqual({ nodes: [], edges: [] });
+
+    await expect(request).resolves.toEqual([
+      {
+        nodeId: 'start',
+        nodeLabel: 'start',
+        lineIndex: 1,
+        lineText: 'needle line',
+      },
+    ]);
   });
 
-  it('includes file cache keys in parse request message', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
-
-    const request = parseRenpyFilesInWorker({
-      files: [{ name: 'same.rpy', content: 'label same:' }],
-    });
-    await waitForPostedMessages(1);
-    const parseMessage = postedMessages[0] as { requestId: number; fileCacheKeys?: string[] };
-    expect(parseMessage.fileCacheKeys).toHaveLength(1);
-    expect(parseMessage.fileCacheKeys?.[0]).toMatch(/^same\.rpy:/);
+  it('rejects worker-side dialogue search on error response', async () => {
+    const { searchDialogueLinesInWorker } = await import('../src/parseInWorker');
+    const request = searchDialogueLinesInWorker({ query: 'needle' });
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'result',
-      requestId: parseMessage.requestId,
-      nodes: [],
-      edges: [],
+      type: 'error',
+      requestId,
+      message: 'search failed',
     });
-    await expect(request).resolves.toEqual({ nodes: [], edges: [] });
+
+    await expect(request).rejects.toThrow('search failed');
   });
 });

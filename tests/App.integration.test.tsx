@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, cleanup, within, act, fireEvent, createEvent } from '@testing-library/react';
+import { render, waitFor, cleanup, within, fireEvent, createEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
@@ -210,6 +210,9 @@ describe('App – upload → parse → render integration', () => {
       expect(
         view.getByText(/No labels or menus were found\. Make sure the folder contains/i),
       ).toBeInTheDocument();
+      expect(container).toHaveTextContent(/Tip: try selecting the Ren'Py/i);
+      expect(container).toHaveTextContent(/game\//i);
+      expect(container).toHaveTextContent(/folder directly\./i);
     });
   });
 
@@ -289,6 +292,7 @@ describe('App – upload → parse → render integration', () => {
         view.getByText(/Ensure your \.rpy files contain valid Ren'Py syntax/i),
       ).toBeInTheDocument();
       expect(view.getByRole('button', { name: /Try again/i })).toBeInTheDocument();
+      expect(view.getByRole('button', { name: /Start over/i })).toBeInTheDocument();
     });
   });
 
@@ -343,16 +347,12 @@ describe('App – upload → parse → render integration', () => {
       const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
 
       // First export
-      await act(async () => {
-        await user.click(exportBtn);
-      });
+      await user.click(exportBtn);
       expect(revokeObjectURL).toHaveBeenCalledTimes(1);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
 
       // Second export -- revokeObjectURL must be called again, not accumulated
-      await act(async () => {
-        await user.click(exportBtn);
-      });
+      await user.click(exportBtn);
       expect(revokeObjectURL).toHaveBeenCalledTimes(2);
       expect(toBlob).toHaveBeenCalledTimes(2);
     } finally {
@@ -382,16 +382,12 @@ describe('App – upload → parse → render integration', () => {
 
     try {
       const exportSvgBtn = view.getByRole('button', { name: /Export flowchart as SVG/i });
-      await act(async () => {
-        await user.click(exportSvgBtn);
-      });
+      await user.click(exportSvgBtn);
       expect(toSvg).toHaveBeenCalledTimes(1);
       expect(createObjectURL).toHaveBeenCalledTimes(0);
 
       const exportJsonBtn = view.getByRole('button', { name: /Export graph as JSON/i });
-      await act(async () => {
-        await user.click(exportJsonBtn);
-      });
+      await user.click(exportJsonBtn);
       expect(createObjectURL).toHaveBeenCalledTimes(1);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:json');
       const jsonBlob = createObjectURL.mock.calls[0]?.[0];
@@ -434,6 +430,7 @@ describe('App – upload → parse → render integration', () => {
     );
     expect(edgeCountWithoutReturns).toBe(2);
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const toggle = view.getByRole('checkbox', { name: /Show call returns/i });
     await user.click(toggle);
 
@@ -464,7 +461,7 @@ describe('App – upload → parse → render integration', () => {
     const { container } = render(<App />);
     const view = within(container);
     expect(
-      view.getByText(/Ready to import up to 300 \.rpy files \(25 MiB total\)/i),
+      view.getByText(/Step 1 of 3.*up to 300 \.rpy files \(25 MiB total\)/i),
     ).toBeInTheDocument();
   });
 
@@ -474,7 +471,7 @@ describe('App – upload → parse → render integration', () => {
 
     expect(view.getByRole('link', { name: /Skip to flowchart/i })).toHaveAttribute('href', '#flowchart-main');
     expect(
-      view.getByText(/Upload a Ren'Py project folder to visualize its script structure/i),
+      view.getByText(/Upload a Ren'Py project folder to visualize script structure, search dialogue, and export flowcharts/i),
     ).toBeInTheDocument();
   });
 
@@ -502,6 +499,7 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.clear(searchInput);
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const chapterToggle = view.getByRole('button', { name: /Collapse chapter chapter1/i });
     await user.click(chapterToggle);
 
@@ -522,6 +520,7 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const themeSelect = view.getByRole('combobox', { name: /Color theme/i });
     await user.selectOptions(themeSelect, 'highContrast');
     expect(themeSelect).toHaveValue('highContrast');
@@ -557,6 +556,7 @@ describe('App – upload → parse → render integration', () => {
     const before = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
     expect(before).toBeGreaterThanOrEqual(3);
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(view.getByRole('checkbox', { name: /Show jump edges/i }));
 
     await waitFor(() => {
@@ -610,7 +610,7 @@ describe('App – upload → parse → render integration', () => {
     const view = within(container);
     const input = container.querySelector('#folder-input') as HTMLInputElement;
 
-    const uploadPromise = user.upload(input, [
+    await user.upload(input, [
       makeRpyFile('one.rpy', 'label one:\n    "x"\n'),
       makeRpyFile('two.rpy', 'label two:\n    "y"\n'),
     ]);
@@ -621,7 +621,6 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.click(view.getByRole('button', { name: /Cancel parsing/i }));
-    await uploadPromise;
 
     await waitFor(() => {
       expect(view.getByText(/Parsing was cancelled/i)).toBeInTheDocument();
@@ -686,7 +685,43 @@ describe('App – upload → parse → render integration', () => {
     expect(parseSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('supports minimum dialogue filter, layout switching, zoom controls, and collapse by label', async () => {
+  it('cancels an active parse when a new invalid upload is selected', async () => {
+    const user = userEvent.setup();
+    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
+    let aborted = false;
+    parseSpy.mockImplementationOnce(
+      ({ signal }) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              reject(new DOMException('Parsing cancelled', 'AbortError'));
+            },
+            { once: true },
+          );
+        }),
+    );
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+
+    await user.upload(input, makeRpyFile('slow.rpy', 'label slow:\n    "x"\n'));
+    await user.upload(input, new File(['not renpy'], 'notes.txt', { type: 'text/plain' }));
+
+    await waitFor(() => {
+      expect(view.getByText(/No \.rpy files found/i)).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(view.queryByText(/Parsing was cancelled/i)).not.toBeInTheDocument();
+    });
+    expect(aborted).toBe(true);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports minimum dialogue filter, layout switching, zoom controls, and label subgraph controls', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     const view = within(container);
@@ -708,6 +743,9 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
+    const searchMode = view.getByRole('combobox', { name: /Dialogue search mode/i });
+    expect(searchMode).toHaveValue('auto');
     const minDialogueInput = view.getByRole('spinbutton', { name: /Minimum dialogue lines/i });
     await user.clear(minDialogueInput);
     await user.type(minDialogueInput, '2');
@@ -746,6 +784,67 @@ describe('App – upload → parse → render integration', () => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
       expect(count).toBeLessThan(beforeCollapse);
     });
+
+    const labelFilter = view.getByRole('searchbox', { name: /Filter label subgraphs/i });
+    await user.clear(labelFilter);
+    await user.type(labelFilter, 'start');
+    expect(view.getByRole('button', { name: /Expand label start/i })).toBeInTheDocument();
+    expect(view.queryByRole('button', { name: /Collapse label end/i })).not.toBeInTheDocument();
+
+    await user.click(view.getByRole('button', { name: /Expand all visible label subgraphs/i }));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeGreaterThanOrEqual(beforeCollapse);
+    });
+
+    await user.clear(labelFilter);
+    await user.click(view.getByRole('button', { name: /Collapse all visible label subgraphs/i }));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeLessThan(beforeCollapse);
+    });
+  });
+
+  it('resets label collapse state on each new import', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const scriptWithMenu = [
+      'label start:',
+      '    menu:',
+      '        "Go":',
+      '            jump end',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    await user.upload(input, makeRpyFile('first.rpy', scriptWithMenu));
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
+    await user.click(view.getByRole('button', { name: /Collapse label start/i }));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeLessThan(initialCount);
+    });
+
+    await user.click(view.getByRole('button', { name: /Upload a different folder/i }));
+    const secondInput = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(secondInput, makeRpyFile('second.rpy', scriptWithMenu));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBe(initialCount);
+    });
+
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
+    expect(view.getByText(/0 collapsed/i)).toBeInTheDocument();
+    expect(view.getByRole('button', { name: /Collapse label start/i })).toBeInTheDocument();
   });
 
   it('handles PNG and SVG export failures without crashing', async () => {
@@ -765,18 +864,52 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
-    await act(async () => {
-      await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
-    });
+    await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('Export failed:', expect.anything());
     });
 
-    await act(async () => {
-      await user.click(view.getByRole('button', { name: /Export flowchart as SVG/i }));
-    });
+    await user.click(view.getByRole('button', { name: /Export flowchart as SVG/i }));
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('SVG export failed:', expect.anything());
     });
+  });
+
+  it('still revokes object URL when download click throws during PNG export', async () => {
+    const user = userEvent.setup();
+    const originalURL = globalThis.URL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    const createObjectURL = vi.fn().mockReturnValue('blob:png-fail');
+    const revokeObjectURL = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('URL', {
+      createObjectURL,
+      revokeObjectURL,
+    });
+    HTMLAnchorElement.prototype.click = vi.fn(() => {
+      throw new Error('download click failed');
+    });
+
+    try {
+      const { container } = render(<App />);
+      const view = within(container);
+      const input = container.querySelector('#folder-input') as HTMLInputElement;
+      await user.upload(input, makeRpyFile('click-fail.rpy', SAMPLE_RPY));
+      await waitFor(() => {
+        expect(view.getByTestId('react-flow')).toBeInTheDocument();
+      });
+
+      await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
+
+      await waitFor(() => {
+        expect(createObjectURL).toHaveBeenCalledTimes(1);
+        expect(revokeObjectURL).toHaveBeenCalledWith('blob:png-fail');
+        expect(consoleError).toHaveBeenCalledWith('Export failed:', expect.anything());
+      });
+    } finally {
+      vi.stubGlobal('URL', originalURL);
+      HTMLAnchorElement.prototype.click = originalClick;
+      consoleError.mockRestore();
+    }
   });
 });

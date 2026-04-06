@@ -52,12 +52,14 @@ function generateDataset(targetDir: string, files: number, labelsPerFile: number
 }
 
 function ensureBenchmarkDatasets() {
-  const marker = path.join(generatedDataDir, '.generated');
-  if (existsSync(marker)) return;
+  const requiredDatasets = ['small', 'medium', 'large', 'nearMax'];
+  const missing = requiredDatasets.some((name) => !existsSync(path.join(generatedDataDir, name)));
+  if (!missing) return;
   generateDataset(path.join(generatedDataDir, 'small'), 4, 12, 4);
   generateDataset(path.join(generatedDataDir, 'medium'), 18, 20, 3);
   generateDataset(path.join(generatedDataDir, 'large'), 60, 30, 2);
-  writeFileSync(marker, 'generated', 'utf8');
+  generateDataset(path.join(generatedDataDir, 'nearMax'), 260, 14, 3);
+  writeFileSync(path.join(generatedDataDir, '.generated'), 'generated', 'utf8');
 }
 
 function memorySnapshot() {
@@ -86,7 +88,7 @@ describe('performance baseline benchmarks', () => {
     'captures baseline timings for small/medium/large datasets',
     async () => {
       ensureBenchmarkDatasets();
-      const datasets = ['small', 'medium', 'large'];
+      const datasets = ['small', 'medium', 'large', 'nearMax'];
       const results: Array<Record<string, unknown>> = [];
 
       for (const dataset of datasets) {
@@ -97,6 +99,7 @@ describe('performance baseline benchmarks', () => {
         const fileDurations: number[] = [];
         let lastDoneFiles = 0;
         let lastTime = parseStarted;
+        let firstGraphMs: number | null = null;
         const parsed = await parseRenpyFiles(entries, {
           onProgress: ({ doneFiles }) => {
             const now = performance.now();
@@ -104,6 +107,9 @@ describe('performance baseline benchmarks', () => {
               fileDurations.push(now - lastTime);
               lastTime = now;
               lastDoneFiles = doneFiles;
+              if (firstGraphMs === null) {
+                firstGraphMs = now - parseStarted;
+              }
             }
           },
         });
@@ -145,6 +151,7 @@ describe('performance baseline benchmarks', () => {
           edges: parsed.edges.length,
           readMs: Number(readMs.toFixed(2)),
           parseMs: Number(parseMs.toFixed(2)),
+          firstGraphMs: Number((firstGraphMs ?? parseMs).toFixed(2)),
           parsePerFileAvgMs: Number(
             (
               fileDurations.reduce((sum, ms) => sum + ms, 0) / Math.max(fileDurations.length, 1)
@@ -166,7 +173,7 @@ describe('performance baseline benchmarks', () => {
         'utf8',
       );
 
-      expect(results).toHaveLength(3);
+      expect(results).toHaveLength(4);
       expect(results.every((result) => Number(result.parseMs) > 0)).toBe(true);
     },
     60_000,
