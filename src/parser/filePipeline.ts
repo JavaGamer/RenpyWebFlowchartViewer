@@ -55,20 +55,32 @@ export async function tokenizeOneFile(
 export function processTokenizedFile(
   state: ParseGraphState,
   tokenizedFile: TokenizedFile,
+  captureDialogueLines = true,
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
   parserPerf.mark('scan');
   const scanState = createScanState();
-  processTokenTreeStream(state, scanState, tokenTree, document, chapter);
+  processTokenTreeStream(state, scanState, tokenTree, document, chapter, captureDialogueLines);
   parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
 }
 
 export async function parseOneFile(
   state: ParseGraphState,
   file: { name: string; content: string },
-  options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
+  options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines'> = {},
   fileIndex?: number,
 ) {
   const tokenized = await tokenizeOneFile(file, options, fileIndex);
-  processTokenizedFile(state, tokenized);
+  const { chapter, document, tokenTree } = tokenized;
+  parserPerf.mark('scan');
+  const scanState = createScanState();
+  processTokenTreeStream(
+    state,
+    scanState,
+    tokenTree,
+    document,
+    chapter,
+    options.captureDialogueLines !== false,
+  );
+  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
 }

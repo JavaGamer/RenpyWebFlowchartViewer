@@ -20,17 +20,6 @@ This project is organized into layered modules to keep parser correctness, UI re
   - React components and rendering concerns.
   - Uses application and domain abstractions instead of low-level runtime details directly.
 
-## Public Layer Entrypoints
-
-Cross-layer imports should target layer entrypoints, not deep internals:
-
-- `src/domain/index.ts`
-- `src/application/index.ts`
-- `src/infrastructure/index.ts`
-- `src/ui/index.ts`
-
-Internal files within a layer may still import each other directly.
-
 ## Parser and Worker Lifecycle
 
 - `parser.ts` remains the parser API surface (`parseRenpyFiles`) and output contract (`FlowNode[]`, `FlowEdge[]`).
@@ -54,10 +43,32 @@ Internal files within a layer may still import each other directly.
 ## Testing Strategy
 
 - Existing parser and UI integration tests remain the regression safety net.
-- Default `npm run test` excludes perf benchmarks (`tests/perf/**`).
-- Perf baselines are opt-in via `npm run bench:perf`.
 - Boundary-focused tests were added for:
   - upload validation (`tests/uploadValidation.test.ts`)
   - app state transitions (`tests/appState.test.ts`)
   - worker protocol versioning behavior (`tests/parseInWorker.test.ts`)
-  - cross-layer deep import restrictions (`tests/architecture.boundaries.test.ts`)
+
+## UI Interaction Architecture (Progressive Disclosure)
+
+- `src/FlowchartViewer.tsx` keeps interaction hierarchy in the UI layer:
+  - **Primary controls** are always visible for high-frequency tasks (search/filter baseline, fit, zoom, export).
+  - **Advanced controls** are revealed on demand for lower-frequency tasks (layout/theme/focus/edge toggles/subgraph controls).
+- `src/flowchartTransforms.ts` remains responsible for graph visibility and transformation decisions (search filtering, edge filtering, large-graph edge-label behavior).
+- `src/ui/viewerTheme.ts` remains the source of theme tokens, while interactive control styling is standardized at component level using shared class constants.
+
+## UX and Accessibility Conventions
+
+- Upload flow states (`idle`, `reading`, `parsing`, `done`, `error`) should include explicit user-facing status guidance and next-step actions.
+- Error/empty states should provide concrete remediation guidance and a clear retry path.
+- Toolbar and inspector status text should use live-region semantics where changes are user-relevant.
+- Keyboard interaction should preserve:
+  - global shortcuts (`Ctrl/Cmd+F`, `Ctrl/Cmd+L`, `Ctrl/Cmd+E`)
+  - search-result navigation (`↑`, `↓`, `Enter`)
+  - visible focus affordances across controls.
+
+## UX Rollout Plan (Staged)
+
+- **Stage 1**: copy/status clarity, empty/error guidance, retry affordances, visual consistency quick wins.
+- **Stage 2**: control hierarchy restructuring and responsive layout improvements.
+- **Stage 3**: accessibility hardening and performance-perception polish.
+- **Stage 4**: documentation alignment and follow-up UX refinements.

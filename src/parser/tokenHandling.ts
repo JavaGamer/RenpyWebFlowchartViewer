@@ -10,6 +10,7 @@ interface HandleTokenInput {
   val: () => string;
   chapter: string;
   menuDepth: number;
+  captureDialogueLines: boolean;
 }
 
 export function handleToken(
@@ -17,7 +18,7 @@ export function handleToken(
   scanState: ParseScanState,
   input: HandleTokenInput,
 ): void {
-  const { type, meta, val, chapter, menuDepth } = input;
+  const { type, meta, val, chapter, menuDepth, captureDialogueLines } = input;
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
@@ -229,15 +230,17 @@ export function handleToken(
           ? menu.id
           : scanState.currentLabelId;
 
-      if (ownerId) {
-        const ownerNode = state.nodeMap.get(ownerId);
-        if (ownerNode) {
-          ownerNode.dialogueCount += 1;
-          const line = val();
-          if (!ownerNode.dialogueLines) ownerNode.dialogueLines = [];
-          ownerNode.dialogueLines.push(line);
+        if (ownerId) {
+          const ownerNode = state.nodeMap.get(ownerId);
+          if (ownerNode) {
+            ownerNode.dialogueCount += 1;
+            if (captureDialogueLines) {
+              const line = val();
+              if (!ownerNode.dialogueLines) ownerNode.dialogueLines = [];
+              ownerNode.dialogueLines.push(line);
+            }
+          }
         }
       }
-    }
   }
 }

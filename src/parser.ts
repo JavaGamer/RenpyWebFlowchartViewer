@@ -69,7 +69,7 @@ export async function parseRenpyFiles(
       }
       const file = files[idx];
       perf.mark(`file:${idx}:scan`);
-      processTokenizedFile(state, tokenized);
+      processTokenizedFile(state, tokenized, options.captureDialogueLines !== false);
       perf.measure(`file:${idx}:scan`, 'parse_file_scan_ms', { file: file.name });
       options.onProgress?.({
         doneFiles: idx + 1,

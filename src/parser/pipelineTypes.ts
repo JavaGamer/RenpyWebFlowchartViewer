@@ -47,6 +47,7 @@ export interface ParseOptions {
   maxParallelFiles?: number;
   tokenizedCache?: Map<string, { document: TextDocument; tokenTree: TokenTree }>;
   fileCacheKeys?: string[];
+  captureDialogueLines?: boolean;
 }
 
 export interface TokenMetaFlags {
