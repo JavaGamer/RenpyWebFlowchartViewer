@@ -63,6 +63,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       const effectiveDialogueMode =
         dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
       let readCount = 0;
+      let parsedFileCount = 0;
       for (let offset = 0; offset < rpyFiles.length; offset += READ_BATCH_SIZE) {
         if (!isActiveRun()) return;
         const batch = rpyFiles.slice(offset, offset + READ_BATCH_SIZE);
@@ -94,7 +95,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
                   dispatch({ type: 'PROGRESS', progress: {
-                    doneFiles: Math.min(offset + parseOffset + progress.doneFiles, rpyFiles.length),
+                    doneFiles: Math.min(parsedFileCount + progress.doneFiles, rpyFiles.length),
                     totalFiles: rpyFiles.length,
                     currentFile: progress.currentFile,
                   } });
@@ -108,21 +109,25 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               });
               parsedNodes = result.nodes;
               parsedEdges = result.edges;
+              parsedFileCount += parseChunk.length;
               if (!isLastChunk) {
                 dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
               }
             }
           } else {
+            const isFirstReadBatch = offset === 0;
+            const isLastReadBatch = offset + batch.length >= rpyFiles.length;
             const result = await parseService.parse({
               files: inputs,
-              appendToActiveGraph: false,
-              isFinalChunk: true,
+              appendToActiveGraph: true,
+              resetActiveGraph: isFirstReadBatch,
+              isFinalChunk: isLastReadBatch,
               captureDialogueLines: effectiveDialogueMode === 'full',
               signal: controller.signal,
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
                 dispatch({ type: 'PROGRESS', progress: {
-                  doneFiles: Math.min(offset + progress.doneFiles, rpyFiles.length),
+                  doneFiles: Math.min(parsedFileCount + progress.doneFiles, rpyFiles.length),
                   totalFiles: rpyFiles.length,
                   currentFile: progress.currentFile,
                 } });
@@ -130,6 +135,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             });
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
+            parsedFileCount += inputs.length;
             dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
           }
         } catch (err: unknown) {

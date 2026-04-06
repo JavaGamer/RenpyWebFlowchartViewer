@@ -82,6 +82,7 @@ export function parseRenpyFilesInWorker({
 
       if (message.type === 'result' && message.partial) {
         onPartialResult?.({ nodes: message.nodes, edges: message.edges });
+        resolve({ nodes: message.nodes, edges: message.edges });
         return;
       }
 
@@ -148,7 +149,7 @@ export function searchDialogueLinesInWorker({
   const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
   if (signal?.aborted) {
-    return Promise.reject(new DOMException('Parsing cancelled', 'AbortError'));
+    return Promise.reject(new DOMException('Search cancelled', 'AbortError'));
   }
 
   return new Promise((resolve, reject) => {
@@ -175,7 +176,7 @@ export function searchDialogueLinesInWorker({
       settle(() => {
         parserWorker.removeEventListener('message', onMessage);
         signal?.removeEventListener('abort', onAbort);
-        reject(new DOMException('Parsing cancelled', 'AbortError'));
+        reject(new DOMException('Search cancelled', 'AbortError'));
       });
     };
 

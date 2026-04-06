@@ -13,7 +13,7 @@ import {
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
 let accumulatedState = createGraphState();
-const dialogueIndex = new Map<string, Array<{ line: string; lineIndex: number }>>();
+const dialogueIndex = new Map<string, Array<{ line: string; lowerLine: string; lineIndex: number }>>();
 
 function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
@@ -49,7 +49,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       const lines = dialogueIndex.get(node.id);
       if (!lines || lines.length === 0) continue;
       for (const line of lines) {
-        if (line.line.toLowerCase().includes(query)) {
+        if (line.lowerLine.includes(query)) {
           results.push({
             nodeId: node.id,
             nodeLabel: node.label,
@@ -93,19 +93,28 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       }
       if (message.requestId !== activeRequestId) return;
       for (let idx = 0; idx < files.length; idx += 1) {
+        if (activeRequestId !== requestId) {
+          return;
+        }
         if (cancelledRequests.has(requestId)) {
           throw new Error('Parsing cancelled');
         }
         const file = files[idx];
+        const prevNodeCount = accumulatedState.nodes.length;
         await parseOneFile(accumulatedState, file, {
           captureDialogueLines: message.captureDialogueLines !== false,
         });
-        for (const node of accumulatedState.nodes) {
+        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
+          const node = accumulatedState.nodes[nodeIdx];
           if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
           if (dialogueIndex.has(node.id)) continue;
           dialogueIndex.set(
             node.id,
-            node.dialogueLines.map((line, idx) => ({ line, lineIndex: idx + 1 })),
+            node.dialogueLines.map((line, idx) => ({
+              line,
+              lowerLine: line.toLowerCase(),
+              lineIndex: idx + 1,
+            })),
           );
         }
         if (wantsProgress) {
@@ -169,7 +178,11 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
         dialogueIndex.set(
           node.id,
-          node.dialogueLines.map((line, idx) => ({ line, lineIndex: idx + 1 })),
+          node.dialogueLines.map((line, idx) => ({
+            line,
+            lowerLine: line.toLowerCase(),
+            lineIndex: idx + 1,
+          })),
         );
       }
     }

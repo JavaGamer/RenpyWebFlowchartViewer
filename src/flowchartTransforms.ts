@@ -5,6 +5,7 @@ import type { FlowNode, FlowEdge } from './domain/graph';
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
 export const NODE_HEIGHT_MENU = 80;
+export const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
 
 export interface NodeData extends Record<string, unknown> {
   label: string;
@@ -29,8 +30,6 @@ export type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
 export type CanvasEdge = LabeledEdgeType;
 
 export type EdgeKindFilter = 'sequence' | 'jump' | 'call' | 'call_return';
-
-const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
 
 export function applyDagreLayout(
   rawNodes: FlowNode[],
@@ -236,6 +235,10 @@ export function buildVisibleNodes(params: {
       const prevData = previous.data as NodeData;
       if (
         previous.hidden === hidden &&
+        previous.position.x === n.position.x &&
+        previous.position.y === n.position.y &&
+        previous.measured?.width === n.measured?.width &&
+        previous.measured?.height === n.measured?.height &&
         prevData.theme === theme &&
         prevData.label === nodeData.label &&
         prevData.dialogueCount === nodeData.dialogueCount &&

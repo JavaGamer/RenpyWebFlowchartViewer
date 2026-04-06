@@ -40,6 +40,7 @@ import {
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
+  PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from './flowchartTransforms';
 import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
@@ -195,9 +196,11 @@ export default function FlowchartViewer({
   }, [searchInput]);
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
 
+  const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
     perf.mark('layout');
-    const progressive = autoLargeGraphMode;
+    const progressive = shouldProgressiveLayout;
     const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive });
     perf.measure('layout', 'layout_ms', {
       nodes: flowNodes.length,
@@ -206,7 +209,7 @@ export default function FlowchartViewer({
       progressive,
     });
     return laidOut;
-  }, [autoLargeGraphMode, flowEdges, flowNodes, layoutDirection, perf]);
+  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout]);
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
 
@@ -277,7 +280,7 @@ export default function FlowchartViewer({
     setNodes(layoutNodes);
     setEdges(layoutEdges);
     nodePositionsRef.current = new Map(layoutNodes.map((n) => [n.id, n.position]));
-    const progressive = autoLargeGraphMode;
+    const progressive = shouldProgressiveLayout;
     if (!progressive) return;
     const refineId = window.setTimeout(() => {
       const refined = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
@@ -289,7 +292,7 @@ export default function FlowchartViewer({
       setEdges(refined.edges);
     }, 0);
     return () => window.clearTimeout(refineId);
-  }, [autoLargeGraphMode, flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes]);
+  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout]);
 
   useEffect(() => {
     globalThis.localStorage?.setItem(STORAGE_KEYS.theme, theme);
