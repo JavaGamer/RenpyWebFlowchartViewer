@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, cleanup, within, act, fireEvent, createEvent } from '@testing-library/react';
+import { render, waitFor, cleanup, within, fireEvent, createEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
@@ -343,16 +343,12 @@ describe('App – upload → parse → render integration', () => {
       const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
 
       // First export
-      await act(async () => {
-        await user.click(exportBtn);
-      });
+      await user.click(exportBtn);
       expect(revokeObjectURL).toHaveBeenCalledTimes(1);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
 
       // Second export -- revokeObjectURL must be called again, not accumulated
-      await act(async () => {
-        await user.click(exportBtn);
-      });
+      await user.click(exportBtn);
       expect(revokeObjectURL).toHaveBeenCalledTimes(2);
       expect(toBlob).toHaveBeenCalledTimes(2);
     } finally {
@@ -382,16 +378,12 @@ describe('App – upload → parse → render integration', () => {
 
     try {
       const exportSvgBtn = view.getByRole('button', { name: /Export flowchart as SVG/i });
-      await act(async () => {
-        await user.click(exportSvgBtn);
-      });
+      await user.click(exportSvgBtn);
       expect(toSvg).toHaveBeenCalledTimes(1);
       expect(createObjectURL).toHaveBeenCalledTimes(0);
 
       const exportJsonBtn = view.getByRole('button', { name: /Export graph as JSON/i });
-      await act(async () => {
-        await user.click(exportJsonBtn);
-      });
+      await user.click(exportJsonBtn);
       expect(createObjectURL).toHaveBeenCalledTimes(1);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:json');
       const jsonBlob = createObjectURL.mock.calls[0]?.[0];
@@ -614,7 +606,7 @@ describe('App – upload → parse → render integration', () => {
     const view = within(container);
     const input = container.querySelector('#folder-input') as HTMLInputElement;
 
-    const uploadPromise = user.upload(input, [
+    await user.upload(input, [
       makeRpyFile('one.rpy', 'label one:\n    "x"\n'),
       makeRpyFile('two.rpy', 'label two:\n    "y"\n'),
     ]);
@@ -625,7 +617,6 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.click(view.getByRole('button', { name: /Cancel parsing/i }));
-    await uploadPromise;
 
     await waitFor(() => {
       expect(view.getByText(/Parsing was cancelled/i)).toBeInTheDocument();
@@ -688,6 +679,42 @@ describe('App – upload → parse → render integration', () => {
 
     expect(view.queryByText(/Parsing was cancelled/i)).not.toBeInTheDocument();
     expect(parseSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels an active parse when a new invalid upload is selected', async () => {
+    const user = userEvent.setup();
+    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
+    let aborted = false;
+    parseSpy.mockImplementationOnce(
+      ({ signal }) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              reject(new DOMException('Parsing cancelled', 'AbortError'));
+            },
+            { once: true },
+          );
+        }),
+    );
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+
+    await user.upload(input, makeRpyFile('slow.rpy', 'label slow:\n    "x"\n'));
+    await user.upload(input, new File(['not renpy'], 'notes.txt', { type: 'text/plain' }));
+
+    await waitFor(() => {
+      expect(view.getByText(/No \.rpy files found/i)).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(view.queryByText(/Parsing was cancelled/i)).not.toBeInTheDocument();
+    });
+    expect(aborted).toBe(true);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
   });
 
   it('supports minimum dialogue filter, layout switching, zoom controls, and label subgraph controls', async () => {
@@ -833,16 +860,12 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
-    await act(async () => {
-      await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
-    });
+    await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('Export failed:', expect.anything());
     });
 
-    await act(async () => {
-      await user.click(view.getByRole('button', { name: /Export flowchart as SVG/i }));
-    });
+    await user.click(view.getByRole('button', { name: /Export flowchart as SVG/i }));
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('SVG export failed:', expect.anything());
     });
@@ -872,9 +895,7 @@ describe('App – upload → parse → render integration', () => {
         expect(view.getByTestId('react-flow')).toBeInTheDocument();
       });
 
-      await act(async () => {
-        await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
-      });
+      await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
 
       await waitFor(() => {
         expect(createObjectURL).toHaveBeenCalledTimes(1);
