@@ -1,4 +1,4 @@
-import type { FlowEdge, FlowNode } from '../domain/graph';
+import type { FlowEdge, FlowNode } from '../domain';
 import type { AppPhase } from './appTypes';
 
 export type ParseProgress = {

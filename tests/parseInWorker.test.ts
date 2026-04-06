@@ -25,6 +25,14 @@ const emitWorkerMessage = (data: unknown) => {
   }
 };
 
+async function waitForPostedMessages(count: number): Promise<void> {
+  for (let i = 0; i < 50; i += 1) {
+    if (postedMessages.length >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`Expected at least ${count} posted messages, got ${postedMessages.length}`);
+}
+
 describe('parseRenpyFilesInWorker', () => {
   beforeEach(() => {
     postedMessages = [];
@@ -33,11 +41,12 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('supports concurrent requests and resolves each by requestId', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
 
     const first = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
     const second = parseRenpyFilesInWorker({ files: [{ name: 'b.rpy', content: 'label b:' }] });
 
+    await waitForPostedMessages(2);
     const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
     const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
@@ -69,13 +78,12 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('accepts partial result messages and resolves request for chunk responses', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
-    const onPartialResult = vi.fn();
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');    const onPartialResult = vi.fn();
     const request = parseRenpyFilesInWorker({
       files: [{ name: 'a.rpy', content: 'label a:' }],
       onPartialResult,
     });
-    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+    await waitForPostedMessages(1);    const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
@@ -91,9 +99,10 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('ignores stale responses with a different requestId for the active request', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
 
     const request = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
+    await waitForPostedMessages(1);
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({
@@ -118,13 +127,14 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('posts cancel message and rejects with AbortError when signal aborts', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
     const controller = new AbortController();
     const promise = parseRenpyFilesInWorker({
       files: [{ name: 'a.rpy', content: 'label a:' }],
       signal: controller.signal,
       onProgress: () => {},
     });
+    await waitForPostedMessages(1);
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(true);
     controller.abort();
 
@@ -137,8 +147,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('supports worker-side dialogue search requests', async () => {
-    const { searchDialogueLinesInWorker } = await import('../src/parseInWorker');
-    const request = searchDialogueLinesInWorker({
+    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');    const request = searchDialogueLinesInWorker({
       query: 'needle',
       nodeIds: ['start'],
       maxResults: 5,
@@ -181,8 +190,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('rejects worker-side dialogue search on error response', async () => {
-    const { searchDialogueLinesInWorker } = await import('../src/parseInWorker');
-    const request = searchDialogueLinesInWorker({ query: 'needle' });
+    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');    const request = searchDialogueLinesInWorker({ query: 'needle' });
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({

@@ -21,8 +21,7 @@ import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'luci
 import type { FlowNode, FlowEdge } from './domain/graph';
 import type { DialogueSearchMode } from './application/appState';
 import type { ParseService } from './application/parseService';
-import { workerParseService } from './application/parseService';
-import { STORAGE_KEYS } from './config/storageKeys';
+import { workerParseService } from './application/parseService';import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
   INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
@@ -46,7 +45,6 @@ import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
 import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
 import type { DialogueSearchResult } from './infrastructure/workerProtocol';
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {

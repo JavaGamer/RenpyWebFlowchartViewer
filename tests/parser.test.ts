@@ -788,4 +788,26 @@ describe('parseRenpyFiles', () => {
       expect.objectContaining({ source: 'intro', target: 'ending' }),
     );
   });
+
+  it('preserves output semantics when tokenization is parallelized', async () => {
+    const files = [
+      {
+        name: 'chapter_one.rpy',
+        content: ['label same:', '    "one"', '', 'label a:', '    jump z', ''].join('\n'),
+      },
+      {
+        name: 'chapter_two.rpy',
+        content: ['label same:', '    "two"', '', 'label z:', '    return', ''].join('\n'),
+      },
+      {
+        name: 'chapter_three.rpy',
+        content: ['label k:', '    call z', '', 'label end:', '    "done"', ''].join('\n'),
+      },
+    ];
+
+    const sequential = await parseRenpyFiles(files);
+    const parallel = await parseRenpyFiles(files, { maxParallelFiles: 3 });
+
+    expect(parallel).toEqual(sequential);
+  });
 });

@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "bench:perf": "vitest run tests/perf.baseline.test.ts"
+    "bench:perf": "vitest run -c vitest.perf.config.ts"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

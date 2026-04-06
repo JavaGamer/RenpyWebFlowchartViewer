@@ -7,8 +7,9 @@ import { addNode, addOutgoing, addIncoming } from '../src/parser/graphMutations'
 import { handleToken } from '../src/parser/tokenHandling';
 import { materializeCallReturnEdges } from '../src/parser/callReturnFinalization';
 import { classifyNodeRole } from '../src/parser/roleClassification';
-import { processFlatToken, processFlatTokens } from '../src/parser/tokenScanStage';
+import { processFlatToken, processFlatTokens, processTokenTreeStream } from '../src/parser/tokenScanStage';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 
 describe('parser stage modules', () => {
   it('analyzes token meta flags correctly', () => {
@@ -244,5 +245,30 @@ describe('parser stage modules', () => {
 
     expect(state.nodeMap.has('start')).toBe(true);
     expect(scanState.currentLabelId).toBe('start');
+  });
+
+  it('processTokenTreeStream processes token tree without flattening', async () => {
+    const state = createGraphState();
+    const scanState = {
+      currentLabelId: null as string | null,
+      menuStack: [],
+      conditionalIndentStack: [],
+      labelHasExplicitExit: false,
+      waitForLabelName: false,
+      waitForJumpTarget: false,
+      waitForCallTarget: false,
+      waitForMenuNameForId: null as string | null,
+    };
+    const script = ['label start:', '    "hello"', '', 'label next:', '    jump start', ''].join('\n');
+    const doc = TextDocument.create('file://t.rpy', 'rpy', 1, script);
+    const tokenTree = await Tokenizer.tokenizeDocument(doc);
+
+    processTokenTreeStream(state, scanState, tokenTree, doc, 'ch');
+
+    expect(state.nodeMap.has('start')).toBe(true);
+    expect(state.nodeMap.has('next')).toBe(true);
+    expect(state.edges).toEqual(
+      expect.arrayContaining([expect.objectContaining({ source: 'next', target: 'start', kind: 'jump' })]),
+    );
   });
 });

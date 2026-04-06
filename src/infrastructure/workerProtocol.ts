@@ -1,4 +1,4 @@
-import type { FlowEdge, FlowNode } from '../domain/graph';
+import type { FlowEdge, FlowNode } from '../domain';
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 1 as const;
 
@@ -9,13 +9,45 @@ export interface ParseProgressPayload {
   elapsedMs?: number;
 }
 
+/**
+ * Client-side parse request shape used by the worker wrapper.
+ * This is not a structured-cloneable worker protocol payload because it may
+ * contain callbacks and an AbortSignal.
+ */
+export interface ParseWorkerClientRequest {
+  files: Array<{ name: string; content: string }>;
+  onProgress?: (progress: ParseProgressPayload) => void;
+  signal?: AbortSignal;
+  maxParallelFiles?: number;
+  captureDialogueLines?: boolean;
+  appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+  onPartialResult?: (partial: ParseWorkerClientResult) => void;
+}
+
+/**
+ * Client-side parse result shape returned by the worker wrapper.
+ * This is distinct from the wire-level worker protocol message types below.
+ */
+export interface ParseWorkerClientResult {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+/** @deprecated Use ParseWorkerClientRequest. */
+export type ParseWorkerRequest = ParseWorkerClientRequest;
+/** @deprecated Use ParseWorkerClientResult. */
+export type ParseWorkerResult = ParseWorkerClientResult;
+
 export interface ParseRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
   type: 'parse';
   requestId: number;
   files: Array<{ name: string; content: string }>;
+  fileCacheKeys?: string[];
   wantsProgress?: boolean;
-  captureDialogueLines?: boolean;
+  maxParallelFiles?: number;  captureDialogueLines?: boolean;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;

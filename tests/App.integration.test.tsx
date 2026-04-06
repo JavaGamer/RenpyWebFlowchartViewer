@@ -16,7 +16,7 @@ import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 import { toBlob, toSvg } from 'html-to-image';
 import App from '../src/App';
 import * as parser from '../src/parser';
-import * as parserWorker from '../src/parseInWorker';
+import * as infrastructure from '../src/infrastructure';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -74,9 +74,13 @@ vi.mock('@xyflow/react', () => {
 });
 
 // html-to-image requires canvas; return a stub Blob.
-vi.mock('../src/parseInWorker', () => ({
-  parseRenpyFilesInWorker: vi.fn(async ({ files }: { files: Array<{ name: string; content: string }> }) => parser.parseRenpyFiles(files)),
-}));
+vi.mock('../src/infrastructure', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/infrastructure')>();
+  return {
+    ...actual,
+    parseRenpyFilesInWorker: vi.fn(async ({ files }: { files: Array<{ name: string; content: string }> }) => parser.parseRenpyFiles(files)),
+  };
+});
 
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn().mockResolvedValue(new Blob(['stub'], { type: 'image/png' })),
@@ -270,7 +274,7 @@ describe('App – upload → parse → render integration', () => {
   it('shows an actionable parse error message when the parser throws', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(parserWorker, 'parseRenpyFilesInWorker').mockRejectedValueOnce(
+    vi.spyOn(infrastructure, 'parseRenpyFilesInWorker').mockRejectedValueOnce(
       new Error('Unexpected token at line 3'),
     );
 
@@ -589,7 +593,7 @@ describe('App – upload → parse → render integration', () => {
 
   it('exposes parser progress updates and supports cancel parsing action', async () => {
     const user = userEvent.setup();
-    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker').mockImplementationOnce(
+    const parseSpy = vi.spyOn(infrastructure, 'parseRenpyFilesInWorker').mockImplementationOnce(
       async ({ onProgress, signal }) => {
         onProgress?.({ doneFiles: 1, totalFiles: 2, currentFile: 'one.rpy' });
         await new Promise((_, reject) => {
@@ -649,7 +653,7 @@ describe('App – upload → parse → render integration', () => {
 
   it('ignores stale cancellation/error from a superseded parse run', async () => {
     const user = userEvent.setup();
-    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
+    const parseSpy = vi.spyOn(infrastructure, 'parseRenpyFilesInWorker');
     parseSpy.mockImplementationOnce(
       ({ signal }) =>
         new Promise((_, reject) => {
@@ -683,8 +687,7 @@ describe('App – upload → parse → render integration', () => {
 
   it('cancels an active parse when a new invalid upload is selected', async () => {
     const user = userEvent.setup();
-    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
-    let aborted = false;
+    const parseSpy = vi.spyOn(infrastructure, 'parseRenpyFilesInWorker');    let aborted = false;
     parseSpy.mockImplementationOnce(
       ({ signal }) =>
         new Promise((_, reject) => {

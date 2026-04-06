@@ -32,6 +32,19 @@ function relativeFromSrc(file: string): string {
 const legacyTypesImportPattern = /from ['"](?:\.\.?\/)+(?:src\/)?types(?:\/index)?['"]/;
 const infraForbiddenImportPattern = /from ['"](?:\.\.?\/)+(?:ui|application)\//;
 const parserUiForbiddenImportPattern = /from ['"](?:\.\.?\/)+ui\//;
+const layerImportPattern = /from ['"]((?:\.\.?\/)+(domain|application|infrastructure|ui)(?:\/[^'"]+)?)['"]/g;
+
+function detectLayer(relativePath: string): 'domain' | 'application' | 'infrastructure' | 'ui' | 'parser' | 'config' | 'other' {
+  if (relativePath === 'parserWorker.ts') return 'infrastructure';
+  if (relativePath.startsWith('domain/')) return 'domain';
+  if (relativePath.startsWith('application/')) return 'application';
+  if (relativePath.startsWith('infrastructure/')) return 'infrastructure';
+  if (relativePath.startsWith('ui/')) return 'ui';
+  if (relativePath.startsWith('parser/')) return 'parser';
+  if (relativePath.startsWith('config/')) return 'config';
+  if (relativePath.endsWith('.tsx')) return 'ui';
+  return 'other';
+}
 
 describe('architecture import boundaries', () => {
   it('disallows legacy src/types entrypoint imports', () => {
@@ -67,6 +80,28 @@ describe('architecture import boundaries', () => {
       const source = readFileSync(file, 'utf8');
       if (parserUiForbiddenImportPattern.test(source)) {
         offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('disallows deep cross-layer imports when a layer entrypoint exists', () => {
+    const offenders: string[] = [];
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      const sourceLayer = detectLayer(rel);
+      const source = readFileSync(file, 'utf8');
+      for (const match of source.matchAll(layerImportPattern)) {
+        const importPath = match[1];
+        const targetLayer = match[2] as 'domain' | 'application' | 'infrastructure' | 'ui';
+        const normalizedImportPath = importPath.replace(/^(\.\.\/|\.\/)+/, '');
+        const isDeepImport =
+          normalizedImportPath !== targetLayer
+          && normalizedImportPath.startsWith(`${targetLayer}/`);
+        const isSameLayer = sourceLayer === targetLayer;
+        if (isDeepImport && !isSameLayer) {
+          offenders.push(`${rel} -> ${importPath}`);
+        }
       }
     }
     expect(offenders).toEqual([]);

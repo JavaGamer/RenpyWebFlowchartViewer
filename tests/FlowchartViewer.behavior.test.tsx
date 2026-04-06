@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import FlowchartViewer from '../src/FlowchartViewer';
-import type { FlowNode, FlowEdge } from '../src/domain/graph';
+import type { FlowNode, FlowEdge } from '../src/domain';
 import * as ReactFlowLib from '@xyflow/react';
 import type { ParseService } from '../src/application/parseService';
 

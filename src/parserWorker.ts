@@ -1,5 +1,6 @@
 import { parseRenpyFiles } from './parser';
-import { createGraphState } from './parser/pipelineState';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';import { createGraphState } from './parser/pipelineState';
 import { parseOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import {
@@ -10,9 +11,44 @@ import {
   type DialogueSearchResult,
 } from './infrastructure/workerProtocol';
 
+type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
+
+class BoundedTokenizedCache extends Map<string, TokenizedCacheEntry> {
+  private readonly maxEntries: number;
+
+  constructor(maxEntries: number) {
+    super();
+    this.maxEntries = maxEntries;
+  }
+
+  override get(key: string): TokenizedCacheEntry | undefined {
+    const value = super.get(key);
+    if (value !== undefined) {
+      super.delete(key);
+      super.set(key, value);
+    }
+    return value;
+  }
+
+  override set(key: string, value: TokenizedCacheEntry): this {
+    if (super.has(key)) {
+      super.delete(key);
+    }
+    super.set(key, value);
+    while (this.size > this.maxEntries) {
+      const oldestKey = this.keys().next().value;
+      if (oldestKey === undefined) break;
+      super.delete(oldestKey);
+    }
+    return this;
+  }
+}
+
+const MAX_TOKENIZED_CACHE_ENTRIES = 200;
+
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
-let accumulatedState = createGraphState();
+const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);let accumulatedState = createGraphState();
 const dialogueIndex = new Map<string, Array<{ line: string; lowerLine: string; lineIndex: number }>>();
 
 function postMessageSafe(message: WorkerResponseMessage) {
@@ -73,7 +109,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   if (message.type !== 'parse') return;
 
-  const { requestId, files } = message;
+  const { requestId, files, maxParallelFiles, fileCacheKeys } = message;
   activeRequestId = requestId;
   const startedAt = performance.now();
   const wantsProgress = message.wantsProgress !== false;
@@ -101,10 +137,16 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         }
         const file = files[idx];
         const prevNodeCount = accumulatedState.nodes.length;
-        await parseOneFile(accumulatedState, file, {
-          captureDialogueLines: message.captureDialogueLines !== false,
-        });
-        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
+        await parseOneFile(
+          accumulatedState,
+          file,
+          {
+            captureDialogueLines: message.captureDialogueLines !== false,
+            tokenizedCache,
+            fileCacheKeys,
+          },
+          idx,
+        );        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
           const node = accumulatedState.nodes[nodeIdx];
           if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
           if (dialogueIndex.has(node.id)) continue;
@@ -146,7 +188,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       result = { nodes: accumulatedState.nodes, edges: accumulatedState.edges };
     } else {
       result = await parseRenpyFiles(files, {
-        captureDialogueLines: message.captureDialogueLines !== false,
+        maxParallelFiles,
+        tokenizedCache,
+        fileCacheKeys,        captureDialogueLines: message.captureDialogueLines !== false,
         onProgress: ({ doneFiles, totalFiles, currentFile }) => {
           if (cancelledRequests.has(requestId)) {
             throw new Error('Parsing cancelled');
