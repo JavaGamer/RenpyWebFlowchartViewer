@@ -69,16 +69,18 @@ export default function App() {
   const totalSizeMiB = Math.round(MAX_TOTAL_RPY_SIZE_BYTES / (1024 * 1024));
   const statusMessage =
     state.phase === 'idle'
-      ? `Ready to import up to ${MAX_RPY_FILE_COUNT} .rpy files (${totalSizeMiB} MiB total).`
+      ? `Step 1 of 3 — Select a project folder with up to ${MAX_RPY_FILE_COUNT} .rpy files (${totalSizeMiB} MiB total).`
       : state.phase === 'reading'
-        ? 'Reading selected files locally in your browser.'
+        ? 'Step 2 of 3 — Reading selected files locally in your browser.'
         : state.phase === 'parsing'
-          ? 'Parsing scripts and building graph nodes and edges.'
+          ? 'Step 3 of 3 — Parsing scripts and building graph nodes and edges.'
           : state.phase === 'error'
-            ? 'Import failed. Review the error and try selecting files again.'
+            ? 'Import failed. Review the guidance below, then choose a folder again.'
             : state.phase === 'done' && state.flowNodes.length === 0
-              ? 'Import succeeded but no labels or menus were found.'
-              : '';
+              ? 'Import completed, but no labels or menus were found.'
+              : state.phase === 'done'
+                ? 'Import complete. You can now explore, filter, and export the graph.'
+                : '';
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -99,10 +101,10 @@ export default function App() {
             Ren'Py Flowchart Viewer
           </h1>
         </div>
-            <span className="w-full sm:w-auto text-xs text-gray-700 sm:ml-2 text-center sm:text-left">
-              Upload a Ren'Py project folder to visualize its script structure
-            </span>
-          </header>
+          <span className="w-full sm:w-auto text-xs text-gray-700 sm:ml-2 text-center sm:text-left">
+            Upload a Ren'Py project folder to visualize script structure, search dialogue, and export flowcharts
+          </span>
+        </header>
 
       {/* Main content */}
       {state.phase === 'done' && state.flowNodes.length > 0 ? (
@@ -140,6 +142,7 @@ export default function App() {
               role="status"
               aria-live="polite"
               aria-busy={state.phase === 'reading' || state.phase === 'parsing'}
+              aria-atomic="true"
             >
               {statusMessage}
             </div>
@@ -171,7 +174,7 @@ export default function App() {
                       Drop your Ren'Py project folder here
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
-                      or click to browse and select the folder
+                      or click to choose the folder
                     </p>
                   </div>
                   <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
@@ -199,42 +202,61 @@ export default function App() {
                <div className="mt-4 flex justify-center">
                  <button
                   type="button"
-                  onClick={() => parseAbortControllerRef.current?.abort()}
-                  className="text-xs underline text-gray-600 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
-                  aria-label="Cancel parsing"
-                >
-                   Cancel parsing
-                 </button>
-               </div>
-             )}
-
-            {/* Error message */}
-              {state.phase === 'error' && (
-               <div className="mt-4 flex flex-col items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
-                <div className="flex flex-col sm:flex-row items-start gap-2">
-                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
-                 <p className="text-sm">{state.errorMsg}</p>
+                   onClick={() => parseAbortControllerRef.current?.abort()}
+                   className="text-xs underline text-gray-600 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                   aria-label="Cancel parsing"
+                 >
+                    Cancel parsing
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={openFolderPicker}
-                  className="text-xs underline text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
-                >
-                  Try again
-                </button>
+              )}
+
+             {/* Error message */}
+               {state.phase === 'error' && (
+                <div className="mt-4 flex flex-col items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                  <div className="flex flex-col sm:flex-row items-start gap-2">
+                  <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="text-sm space-y-1">
+                    <p>{state.errorMsg}</p>
+                    <p className="text-xs text-red-800">
+                      Next steps: confirm the folder contains valid <code className="px-1 rounded bg-red-100">.rpy</code> scripts, then retry.
+                    </p>
+                  </div>
+                 </div>
+                 <div className="flex flex-wrap gap-2">
+                   <button
+                     type="button"
+                     onClick={openFolderPicker}
+                     className="text-xs px-2.5 py-1.5 rounded-md bg-red-700 text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                   >
+                     Try again
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => dispatch({ type: 'RESET' })}
+                     className="text-xs underline text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+                   >
+                     Start over
+                   </button>
+                 </div>
+                </div>
+              )}
+
+             {/* Empty result warning */}
+              {state.phase === 'done' && state.flowNodes.length === 0 && (
+               <div className="mt-4 flex flex-col sm:flex-row items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
+                 <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
+                 <div className="text-sm space-y-1">
+                   <p>
+                     No labels or menus were found. Make sure the folder contains
+                     valid Ren'Py <code className="text-xs bg-amber-100 px-1 rounded">.rpy</code> scripts.
+                   </p>
+                   <p className="text-xs text-amber-800">
+                     Tip: try selecting the Ren'Py <code className="text-[11px] bg-amber-100 px-1 rounded">game/</code> folder directly.
+                   </p>
+                 </div>
                </div>
              )}
-
-            {/* Empty result warning */}
-             {state.phase === 'done' && state.flowNodes.length === 0 && (
-              <div className="mt-4 flex flex-col sm:flex-row items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
-                <p className="text-sm">
-                  No labels or menus were found. Make sure the folder contains
-                  valid Ren'Py <code className="text-xs bg-amber-100 px-1 rounded">.rpy</code> scripts.
-                </p>
-              </div>
-            )}
 
             {/* Feature hints */}
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-center text-xs text-gray-400">

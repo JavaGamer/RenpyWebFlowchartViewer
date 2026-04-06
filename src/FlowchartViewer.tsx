@@ -208,12 +208,14 @@ export default function FlowchartViewer({
     () => labels.filter((label) => collapsedParentLabels[label]).length,
     [collapsedParentLabels, labels],
   );
+  const shouldShowAllLabelSubgraphToggles =
+    showAllLabelSubgraphToggles && visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES;
   const visibleLabelSubgraphToggles = useMemo(
     () =>
-      showAllLabelSubgraphToggles
+      shouldShowAllLabelSubgraphToggles
         ? visibleSubgraphLabels
         : visibleSubgraphLabels.slice(0, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES),
-    [showAllLabelSubgraphToggles, visibleSubgraphLabels],
+    [shouldShowAllLabelSubgraphToggles, visibleSubgraphLabels],
   );
   const hiddenLabelSubgraphToggleCount =
     visibleSubgraphLabels.length - visibleLabelSubgraphToggles.length;
@@ -258,12 +260,6 @@ export default function FlowchartViewer({
     globalThis.localStorage?.setItem(STORAGE_KEYS.edgeCall, String(visibleEdgeKinds.call));
     globalThis.localStorage?.setItem(STORAGE_KEYS.edgeCallReturn, String(visibleEdgeKinds.call_return));
   }, [visibleEdgeKinds]);
-
-  useEffect(() => {
-    if (visibleSubgraphLabels.length <= MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES) {
-      setShowAllLabelSubgraphToggles(false);
-    }
-  }, [visibleSubgraphLabels.length]);
 
   const collapsedLabelChildren = useMemo(
     () => deriveCollapsedLabelChildren(flowNodes, collapsedParentLabels),
@@ -545,7 +541,7 @@ export default function FlowchartViewer({
       {/* Toolbar */}
       <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0" role="toolbar" aria-label="Viewer controls">
         <div className="flex flex-col gap-3">
-          <div className="text-sm" style={{ color: THEMES[theme].subtleText }} role="status" aria-live="polite">
+          <div className="text-sm" style={{ color: THEMES[theme].subtleText }} aria-live="off">
             {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
             {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
           </div>
@@ -711,7 +707,7 @@ export default function FlowchartViewer({
                   <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
                   Center
                 </button>
-                <span className="text-[11px] text-gray-600" role="status" aria-live="polite">
+                <span className="text-[11px] text-gray-600" aria-live="off">
                   {!focusNodeId
                     ? 'Select a label, then center it in view.'
                     : focusTargetNode
@@ -849,12 +845,12 @@ export default function FlowchartViewer({
                               onClick={() => setShowAllLabelSubgraphToggles((prev) => !prev)}
                               className={CONTROL_BUTTON_CLASS}
                               aria-label={
-                                showAllLabelSubgraphToggles
+                                shouldShowAllLabelSubgraphToggles
                                   ? 'Show fewer label subgraph toggles'
                                   : `Show ${hiddenLabelSubgraphToggleCount} more label subgraph toggles`
                               }
                             >
-                              {showAllLabelSubgraphToggles
+                              {shouldShowAllLabelSubgraphToggles
                                 ? 'Show fewer'
                                 : `Show ${hiddenLabelSubgraphToggleCount} more`}
                             </button>

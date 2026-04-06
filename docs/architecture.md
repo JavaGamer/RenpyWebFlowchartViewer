@@ -47,3 +47,28 @@ This project is organized into layered modules to keep parser correctness, UI re
   - upload validation (`tests/uploadValidation.test.ts`)
   - app state transitions (`tests/appState.test.ts`)
   - worker protocol versioning behavior (`tests/parseInWorker.test.ts`)
+
+## UI Interaction Architecture (Progressive Disclosure)
+
+- `src/FlowchartViewer.tsx` keeps interaction hierarchy in the UI layer:
+  - **Primary controls** are always visible for high-frequency tasks (search/filter baseline, fit, zoom, export).
+  - **Advanced controls** are revealed on demand for lower-frequency tasks (layout/theme/focus/edge toggles/subgraph controls).
+- `src/flowchartTransforms.ts` remains responsible for graph visibility and transformation decisions (search filtering, edge filtering, large-graph edge-label behavior).
+- `src/ui/viewerTheme.ts` remains the source of theme tokens, while interactive control styling is standardized at component level using shared class constants.
+
+## UX and Accessibility Conventions
+
+- Upload flow states (`idle`, `reading`, `parsing`, `done`, `error`) should include explicit user-facing status guidance and next-step actions.
+- Error/empty states should provide concrete remediation guidance and a clear retry path.
+- Toolbar and inspector status text should use live-region semantics where changes are user-relevant.
+- Keyboard interaction should preserve:
+  - global shortcuts (`Ctrl/Cmd+F`, `Ctrl/Cmd+L`, `Ctrl/Cmd+E`)
+  - search-result navigation (`↑`, `↓`, `Enter`)
+  - visible focus affordances across controls.
+
+## UX Rollout Plan (Staged)
+
+- **Stage 1**: copy/status clarity, empty/error guidance, retry affordances, visual consistency quick wins.
+- **Stage 2**: control hierarchy restructuring and responsive layout improvements.
+- **Stage 3**: accessibility hardening and performance-perception polish.
+- **Stage 4**: documentation alignment and follow-up UX refinements.

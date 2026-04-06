@@ -192,6 +192,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const user = userEvent.setup();
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
 
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
     const edgeToggle = screen.getByRole('checkbox', { name: /Show sequence edges/i });
     expect(edgeToggle).toBeChecked();
     await user.click(edgeToggle);
@@ -224,6 +225,7 @@ describe('FlowchartViewer behavior coverage', () => {
 
     expect(screen.getByText(/Shortcuts: Ctrl\/Cmd\+F search/i)).toBeInTheDocument();
     expect(screen.getByRole('toolbar', { name: /Viewer controls/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Primary controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Search and filters/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Layout and focus controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Export controls/i })).toBeInTheDocument();
@@ -244,6 +246,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const reactFlowTestUtils = ReactFlowLib as unknown as { __test: { flowApi: { zoomTo: ReturnType<typeof vi.fn>; fitView: ReturnType<typeof vi.fn> } } };
     expect(reactFlowTestUtils.__test.flowApi.zoomTo).toHaveBeenCalledWith(1, { duration: 250 });
 
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(screen.getByRole('button', { name: /Re-run auto layout/i }));
     await waitFor(() => {
       expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
