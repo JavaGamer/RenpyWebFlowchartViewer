@@ -84,9 +84,9 @@ function* iterateStreamTokens(
         startOffset: item.startOffset,
         getValue: item.token.getValue.bind(item.token),
       };
-      continue;
+    } else {
+      yield* iterateStreamTokens(item.child, nextMeta, startOffsetCache);
     }
-    yield* iterateStreamTokens(item.child, nextMeta, startOffsetCache);
   }
 }
 
