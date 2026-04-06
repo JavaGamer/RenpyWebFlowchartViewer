@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject } from 'react';
+import type { FlowEdge, FlowNode } from '../domain/graph';
 import { readFileAsText } from '../infrastructure/fileReader';
 import { validateRpyUpload } from './uploadValidation';
 import type { AppAction, DialogueSearchMode } from './appState';
@@ -53,8 +54,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     dispatch({ type: 'START_READING', fileCount: rpyFiles.length });
 
-    let parsedNodes: Array<{ id: string; type: 'LABEL' | 'MENU'; label: string; dialogueCount: number; dialogueLines?: string[]; chapter?: string; parentLabelId?: string }> = [];
-    let parsedEdges: Array<{ id: string; source: string; target: string; kind?: 'sequence' | 'jump' | 'call' | 'call_return'; label?: string }> = [];
+    let parsedNodes: FlowNode[] = [];
+    let parsedEdges: FlowEdge[] = [];
     try {
       onParseStarted?.();
       dispatch({ type: 'START_PARSING' });
@@ -77,10 +78,12 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
         try {
           if (shouldUseChunking) {
+            const isLastReadBatch = offset + batch.length >= rpyFiles.length;
             for (let parseOffset = 0; parseOffset < inputs.length; parseOffset += PARSE_BATCH_SIZE) {
               if (!isActiveRun()) return;
               const parseChunk = inputs.slice(parseOffset, parseOffset + PARSE_BATCH_SIZE);
-              const isLastChunk = offset + batch.length >= rpyFiles.length && parseOffset + parseChunk.length >= inputs.length;
+              const isLastParseChunkInBatch = parseOffset + parseChunk.length >= inputs.length;
+              const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
               const result = await parseService.parse({
                 files: parseChunk,
                 appendToActiveGraph: true,
@@ -111,6 +114,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
           } else {
             const result = await parseService.parse({
               files: inputs,
+              appendToActiveGraph: false,
+              isFinalChunk: true,
               captureDialogueLines: effectiveDialogueMode === 'full',
               signal: controller.signal,
               onProgress: (progress) => {

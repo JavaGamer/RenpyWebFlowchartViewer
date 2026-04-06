@@ -138,10 +138,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       activeRequestId = null;
     }
     cancelledRequests.delete(requestId);
-    if (appendToActiveGraph && isFinalChunk) {
-      accumulatedState = createGraphState();
-    }
-    if (wasCancelled) {
+    if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
       accumulatedState = createGraphState();
     }
   }
