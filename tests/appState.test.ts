@@ -16,4 +16,14 @@ describe('appReducer', () => {
     expect(next.parseProgress).toBeNull();
     expect(next.importRevision).toBe(1);
   });
+
+  it('updates dialogue search mode', () => {
+    const next = appReducer(initialAppState, { type: 'SET_DIALOGUE_SEARCH_MODE', mode: 'countOnly' });
+    expect(next.dialogueSearchMode).toBe('countOnly');
+  });
+
+  it('returns previous state for unknown actions', () => {
+    const next = appReducer(initialAppState, { type: 'UNKNOWN_ACTION' } as never);
+    expect(next).toBe(initialAppState);
+  });
 });
