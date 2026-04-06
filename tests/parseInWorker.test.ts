@@ -78,14 +78,12 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('accepts partial result messages and resolves request for chunk responses', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
-    const onPartialResult = vi.fn();
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');    const onPartialResult = vi.fn();
     const request = parseRenpyFilesInWorker({
       files: [{ name: 'a.rpy', content: 'label a:' }],
       onPartialResult,
     });
-    await waitForPostedMessages(1);
-    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+    await waitForPostedMessages(1);    const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
@@ -149,8 +147,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('supports worker-side dialogue search requests', async () => {
-    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');
-    const request = searchDialogueLinesInWorker({
+    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');    const request = searchDialogueLinesInWorker({
       query: 'needle',
       nodeIds: ['start'],
       maxResults: 5,
@@ -193,8 +190,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('rejects worker-side dialogue search on error response', async () => {
-    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');
-    const request = searchDialogueLinesInWorker({ query: 'needle' });
+    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');    const request = searchDialogueLinesInWorker({ query: 'needle' });
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({

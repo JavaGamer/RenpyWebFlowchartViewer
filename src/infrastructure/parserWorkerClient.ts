@@ -7,8 +7,7 @@ import {
   type ParseWorkerClientResult,
   type SearchRequestMessage,
   type DialogueSearchResult,
-} from './workerProtocol';
-let requestCounter = 0;
+} from './workerProtocol';let requestCounter = 0;
 const textEncoder = new TextEncoder();
 
 let worker: Worker | null = null;
@@ -234,6 +233,6 @@ export function searchDialogueLinesInWorker({
       nodeIds,
       maxResults,
     };
-    parserWorker.postMessage(searchMessage);
-  });
+    parserWorker.postMessage(searchMessage);  });
 }
+

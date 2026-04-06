@@ -1,7 +1,6 @@
 import { parseRenpyFiles } from './parser';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
-import { createGraphState } from './parser/pipelineState';
+import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';import { createGraphState } from './parser/pipelineState';
 import { parseOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import {
@@ -49,8 +48,7 @@ const MAX_TOKENIZED_CACHE_ENTRIES = 200;
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
-const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
-let accumulatedState = createGraphState();
+const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);let accumulatedState = createGraphState();
 const dialogueIndex = new Map<string, Array<{ line: string; lowerLine: string; lineIndex: number }>>();
 
 function postMessageSafe(message: WorkerResponseMessage) {
@@ -148,8 +146,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
             fileCacheKeys,
           },
           idx,
-        );
-        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
+        );        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
           const node = accumulatedState.nodes[nodeIdx];
           if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
           if (dialogueIndex.has(node.id)) continue;
@@ -193,8 +190,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       result = await parseRenpyFiles(files, {
         maxParallelFiles,
         tokenizedCache,
-        fileCacheKeys,
-        captureDialogueLines: message.captureDialogueLines !== false,
+        fileCacheKeys,        captureDialogueLines: message.captureDialogueLines !== false,
         onProgress: ({ doneFiles, totalFiles, currentFile }) => {
           if (cancelledRequests.has(requestId)) {
             throw new Error('Parsing cancelled');

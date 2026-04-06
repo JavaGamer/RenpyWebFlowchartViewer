@@ -76,8 +76,7 @@ export async function parseRenpyFiles(
         totalFiles: files.length,
         currentFile: file.name,
       });
-    }
-  }
+    }  }
 
   perf.mark('finalize');
   finalizeRoles(state);

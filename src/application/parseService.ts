@@ -1,10 +1,11 @@
+import type { FlowEdge, FlowNode } from '../domain/graph';
 import {
   parseRenpyFilesInWorker,
   searchDialogueLinesInWorker,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-  type DialogueSearchResult,
 } from '../infrastructure';
+import type { DialogueSearchResult } from '../infrastructure/workerProtocol';
 
 export type ParseServiceRequest = ParseWorkerClientRequest;
 export type ParseServiceResult = ParseWorkerClientResult;

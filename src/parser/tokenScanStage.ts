@@ -138,8 +138,7 @@ export function processTokenTreeStream(
     const menuDepth = meta.menuDepth;
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
     handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
-  }
-}
+  }}
 
 export function processFlatTokens(
   state: ParseGraphState,
@@ -166,6 +165,5 @@ export function processFlatTokens(
     const menuDepth = meta.menuDepth;
 
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-    handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
-  }
+    handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });  }
 }

@@ -47,8 +47,7 @@ export interface ParseRequestMessage {
   files: Array<{ name: string; content: string }>;
   fileCacheKeys?: string[];
   wantsProgress?: boolean;
-  maxParallelFiles?: number;
-  captureDialogueLines?: boolean;
+  maxParallelFiles?: number;  captureDialogueLines?: boolean;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;

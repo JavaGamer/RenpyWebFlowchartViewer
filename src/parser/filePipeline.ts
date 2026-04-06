@@ -68,8 +68,7 @@ export async function parseOneFile(
   state: ParseGraphState,
   file: { name: string; content: string },
   options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines'> = {},
-  fileIndex?: number,
-) {
+  fileIndex?: number,) {
   const tokenized = await tokenizeOneFile(file, options, fileIndex);
   const { chapter, document, tokenTree } = tokenized;
   parserPerf.mark('scan');
@@ -82,5 +81,4 @@ export async function parseOneFile(
     chapter,
     options.captureDialogueLines !== false,
   );
-  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
-}
+  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });}
