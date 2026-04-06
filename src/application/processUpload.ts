@@ -1,7 +1,7 @@
 import type { Dispatch, RefObject } from 'react';
 import { readFileAsText } from '../infrastructure/fileReader';
 import { validateRpyUpload } from './uploadValidation';
-import type { AppAction } from './appState';
+import type { AppAction, DialogueSearchMode } from './appState';
 import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
 
@@ -13,7 +13,12 @@ export interface ProcessUploadDeps {
   onReadMeasured?: (fileCount: number) => void;
   onParseStarted?: () => void;
   onParseMeasured?: (data: { fileCount: number; nodeCount: number; edgeCount: number }) => void;
+  dialogueSearchMode?: DialogueSearchMode;
 }
+
+const READ_BATCH_SIZE = 24;
+const PARSE_BATCH_SIZE = 32;
+const LARGE_PROJECT_THRESHOLD = 200;
 
 export function createProcessUpload(deps: ProcessUploadDeps) {
   const {
@@ -24,6 +29,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     onReadMeasured,
     onParseStarted,
     onParseMeasured,
+    dialogueSearchMode = 'auto',
   } = deps;
 
   return async function processUpload(files: FileList | null): Promise<void> {
@@ -47,42 +53,95 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     dispatch({ type: 'START_READING', fileCount: rpyFiles.length });
 
-    let inputs: Array<{ name: string; content: string }>;
+    let parsedNodes: Array<{ id: string; type: 'LABEL' | 'MENU'; label: string; dialogueCount: number; dialogueLines?: string[]; chapter?: string; parentLabelId?: string }> = [];
+    let parsedEdges: Array<{ id: string; source: string; target: string; kind?: 'sequence' | 'jump' | 'call' | 'call_return'; label?: string }> = [];
     try {
-      inputs = await Promise.all(
-        rpyFiles.map(async (f) => ({
-          name: f.name,
-          content: await readFileAsText(f),
-        })),
-      );
+      onParseStarted?.();
+      dispatch({ type: 'START_PARSING' });
+      const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
+      const effectiveDialogueMode =
+        dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
+      let readCount = 0;
+      for (let offset = 0; offset < rpyFiles.length; offset += READ_BATCH_SIZE) {
+        if (!isActiveRun()) return;
+        const batch = rpyFiles.slice(offset, offset + READ_BATCH_SIZE);
+        const inputs = await Promise.all(
+          batch.map(async (f) => ({
+            name: f.name,
+            content: await readFileAsText(f),
+          })),
+        );
+        readCount += inputs.length;
+        onReadMeasured?.(readCount);
+        if (!isActiveRun()) return;
+
+        try {
+          if (shouldUseChunking) {
+            for (let parseOffset = 0; parseOffset < inputs.length; parseOffset += PARSE_BATCH_SIZE) {
+              if (!isActiveRun()) return;
+              const parseChunk = inputs.slice(parseOffset, parseOffset + PARSE_BATCH_SIZE);
+              const isLastChunk = offset + batch.length >= rpyFiles.length && parseOffset + parseChunk.length >= inputs.length;
+              const result = await parseService.parse({
+                files: parseChunk,
+                appendToActiveGraph: true,
+                isFinalChunk: isLastChunk,
+                captureDialogueLines: effectiveDialogueMode === 'full',
+                signal: controller.signal,
+                onProgress: (progress) => {
+                  if (!isActiveRun()) return;
+                  dispatch({ type: 'PROGRESS', progress: {
+                    doneFiles: Math.min(offset + parseOffset + progress.doneFiles, rpyFiles.length),
+                    totalFiles: rpyFiles.length,
+                    currentFile: progress.currentFile,
+                  } });
+                },
+                onPartialResult: (partial) => {
+                  if (!isActiveRun()) return;
+                  parsedNodes = partial.nodes;
+                  parsedEdges = partial.edges;
+                  dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
+                },
+              });
+              parsedNodes = result.nodes;
+              parsedEdges = result.edges;
+              if (!isLastChunk) {
+                dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
+              }
+            }
+          } else {
+            const result = await parseService.parse({
+              files: inputs,
+              captureDialogueLines: effectiveDialogueMode === 'full',
+              signal: controller.signal,
+              onProgress: (progress) => {
+                if (!isActiveRun()) return;
+                dispatch({ type: 'PROGRESS', progress: {
+                  doneFiles: Math.min(offset + progress.doneFiles, rpyFiles.length),
+                  totalFiles: rpyFiles.length,
+                  currentFile: progress.currentFile,
+                } });
+              },
+            });
+            parsedNodes = result.nodes;
+            parsedEdges = result.edges;
+            dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
+          }
+        } catch (err: unknown) {
+          if (!isActiveRun()) return;
+          dispatch({
+            type: 'FAIL',
+            message: toParseErrorMessage(err),
+          });
+          return;
+        }
+      }
     } catch (err: unknown) {
       if (!isActiveRun()) return;
       dispatch({ type: 'FAIL', message: toFileReadErrorMessage(err) });
       return;
     }
-    onReadMeasured?.(rpyFiles.length);
     if (!isActiveRun()) return;
-
-    onParseStarted?.();
-    dispatch({ type: 'START_PARSING' });
-    try {
-      const { nodes, edges } = await parseService.parse({
-        files: inputs,
-        signal: controller.signal,
-        onProgress: (progress) => {
-          if (!isActiveRun()) return;
-          dispatch({ type: 'PROGRESS', progress });
-        },
-      });
-      if (!isActiveRun()) return;
-      onParseMeasured?.({ fileCount: rpyFiles.length, nodeCount: nodes.length, edgeCount: edges.length });
-      dispatch({ type: 'PARSE_SUCCESS', nodes, edges });
-    } catch (err: unknown) {
-      if (!isActiveRun()) return;
-      dispatch({
-        type: 'FAIL',
-        message: toParseErrorMessage(err),
-      });
-    }
+    onParseMeasured?.({ fileCount: rpyFiles.length, nodeCount: parsedNodes.length, edgeCount: parsedEdges.length });
+    dispatch({ type: 'PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
   };
 }

@@ -109,12 +109,21 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
 export function buildVisibleNodes(params: {
   nodes: CanvasNode[];
   search: string;
+  includeDialogueLineSearch?: boolean;
   minDialogue: number;
   collapsedChapters: Record<string, boolean>;
   collapsedLabelChildren: Set<string>;
   theme: 'violet' | 'highContrast' | 'colorblind';
 }): CanvasNode[] {
-  const { nodes, search, minDialogue, collapsedChapters, collapsedLabelChildren, theme } = params;
+  const {
+    nodes,
+    search,
+    includeDialogueLineSearch = true,
+    minDialogue,
+    collapsedChapters,
+    collapsedLabelChildren,
+    theme,
+  } = params;
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
@@ -123,7 +132,8 @@ export function buildVisibleNodes(params: {
     const matchesSearch =
       query.length === 0 ||
       nodeData.label.toLowerCase().includes(query) ||
-      (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query)) ||
+      (includeDialogueLineSearch &&
+        (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query))) ||
       String(nodeData.dialogueCount).includes(query);
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
     return {

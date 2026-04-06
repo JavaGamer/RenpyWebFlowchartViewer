@@ -9,6 +9,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
+- **Large-project optimization controls** — dialogue search mode can be set to full indexing or performance mode (label/count search only), with auto mode favoring faster first graph for near-max imports.
 - **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
 - **Keyboard accessibility** — focus-visible controls, skip link support, and shortcut hints for common actions.
@@ -31,6 +32,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 ## Interaction Model
 
 - **Primary controls (always visible)**: search, minimum dialogue filter, fit view, export actions, zoom presets, and keyboard shortcut hints.
+- **Search mode selector (always visible)**: choose `Auto`, `Full dialogue line search`, or `Performance mode` depending on import size and responsiveness needs.
 - **Advanced controls (on demand)**: layout direction, theme, focus-label centering, large-graph mode controls, edge-kind toggles, chapter collapse, and label subgraph tools.
 - **Inspector model**:
   - shows both node-level match count and dialogue-line results while searching
@@ -165,7 +167,7 @@ After running `npm run bench:perf`, summarize key metrics from `perf-data/baseli
   `@renpy/ast` uses module-level tokenizer state. Run tests in a clean process (`npm run test`) after changes instead of reusing stale watch state.
 
 - **Large uploads feel slow or heavy**  
-  Parsing runs in a Web Worker with progress updates and cancel support. If you hit upload limits (file count or total size), split uploads into smaller batches.
+  Parsing runs in a Web Worker with progress updates and cancel support. Near-max uploads now process in bounded batches and progressively update the graph so first graph appears sooner. In `Auto` dialogue mode, large imports may use performance search mode (label/count only); switch to `Full` to force dialogue line indexing.
 
 ## Docker
 

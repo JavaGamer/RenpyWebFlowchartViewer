@@ -153,6 +153,25 @@ describe('parseRenpyFiles', () => {
     expect(node?.dialogueLines).toEqual(['line one', 'line two', 'line three']);
   });
 
+  it('supports count-only dialogue mode for faster parse without line capture', async () => {
+    const script = [
+      'label scene:',
+      '    "line one"',
+      '    "line two"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles(
+      [{ name: 'scene.rpy', content: script }],
+      { captureDialogueLines: false },
+    );
+
+    const node = result.nodes.find((n) => n.id === 'scene');
+    expect(node).toBeDefined();
+    expect(node?.dialogueCount).toBe(2);
+    expect(node?.dialogueLines).toBeUndefined();
+  });
+
   // ── Menu detection ───────────────────────────────────────────────────────────
 
   it('parses an unnamed menu and creates a MENU node with a sequence edge from its parent label', async () => {

@@ -1,4 +1,7 @@
 import { parseRenpyFiles } from './parser';
+import { createGraphState } from './parser/pipelineState';
+import { parseOneFile } from './parser/filePipeline';
+import { finalizeRoles } from './parser/roleFinalization';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
@@ -8,6 +11,7 @@ import {
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
+let accumulatedState = createGraphState();
 
 function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
@@ -28,35 +32,78 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
   activeRequestId = requestId;
   const startedAt = performance.now();
   const wantsProgress = message.wantsProgress !== false;
+  const appendToActiveGraph = message.appendToActiveGraph === true;
+  const isFinalChunk = message.isFinalChunk !== false;
   const progressThrottleMs = files.length > 40 ? 30 : 0;
   let lastProgressAt = 0;
   let pendingProgress: ProgressResponseMessage | null = null;
 
   try {
-    const result = await parseRenpyFiles(files, {
-      onProgress: ({ doneFiles, totalFiles, currentFile }) => {
+    let result;
+    if (appendToActiveGraph) {
+      if (message.requestId !== activeRequestId) return;
+      for (let idx = 0; idx < files.length; idx += 1) {
         if (cancelledRequests.has(requestId)) {
           throw new Error('Parsing cancelled');
         }
-        if (!wantsProgress) return;
-        const now = performance.now();
-        const nextProgress: ProgressResponseMessage = {
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'progress',
-          requestId,
-          doneFiles,
-          totalFiles,
-          currentFile,
-          elapsedMs: performance.now() - startedAt,
-        };
-        pendingProgress = nextProgress;
-        if (progressThrottleMs <= 0 || now - lastProgressAt >= progressThrottleMs || doneFiles === totalFiles) {
-          postMessageSafe(nextProgress);
-          lastProgressAt = now;
-          pendingProgress = null;
+        const file = files[idx];
+        await parseOneFile(accumulatedState, file, {
+          captureDialogueLines: message.captureDialogueLines !== false,
+        });
+        if (wantsProgress) {
+          const now = performance.now();
+          const nextProgress: ProgressResponseMessage = {
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'progress',
+            requestId,
+            doneFiles: idx + 1,
+            totalFiles: files.length,
+            currentFile: file.name,
+            elapsedMs: performance.now() - startedAt,
+          };
+          pendingProgress = nextProgress;
+          if (
+            progressThrottleMs <= 0 ||
+            now - lastProgressAt >= progressThrottleMs ||
+            idx + 1 === files.length
+          ) {
+            postMessageSafe(nextProgress);
+            lastProgressAt = now;
+            pendingProgress = null;
+          }
         }
-      },
-    });
+      }
+      if (isFinalChunk) {
+        finalizeRoles(accumulatedState);
+      }
+      result = { nodes: accumulatedState.nodes, edges: accumulatedState.edges };
+    } else {
+      result = await parseRenpyFiles(files, {
+        captureDialogueLines: message.captureDialogueLines !== false,
+        onProgress: ({ doneFiles, totalFiles, currentFile }) => {
+          if (cancelledRequests.has(requestId)) {
+            throw new Error('Parsing cancelled');
+          }
+          if (!wantsProgress) return;
+          const now = performance.now();
+          const nextProgress: ProgressResponseMessage = {
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'progress',
+            requestId,
+            doneFiles,
+            totalFiles,
+            currentFile,
+            elapsedMs: performance.now() - startedAt,
+          };
+          pendingProgress = nextProgress;
+          if (progressThrottleMs <= 0 || now - lastProgressAt >= progressThrottleMs || doneFiles === totalFiles) {
+            postMessageSafe(nextProgress);
+            lastProgressAt = now;
+            pendingProgress = null;
+          }
+        },
+      });
+    }
 
     if (wantsProgress && pendingProgress) {
       postMessageSafe(pendingProgress);
@@ -71,6 +118,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         nodes: result.nodes,
         edges: result.edges,
         elapsedMs: performance.now() - startedAt,
+        partial: appendToActiveGraph && !isFinalChunk,
       });
     }
   } catch (error: unknown) {
@@ -85,9 +133,16 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       });
     }
   } finally {
+    const wasCancelled = cancelledRequests.has(requestId);
     if (activeRequestId === requestId) {
       activeRequestId = null;
     }
     cancelledRequests.delete(requestId);
+    if (appendToActiveGraph && isFinalChunk) {
+      accumulatedState = createGraphState();
+    }
+    if (wasCancelled) {
+      accumulatedState = createGraphState();
+    }
   }
 };

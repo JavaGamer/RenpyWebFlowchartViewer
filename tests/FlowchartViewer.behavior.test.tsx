@@ -327,6 +327,18 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(await screen.findByText(/No dialogue lines matched “missing”/i)).toBeInTheDocument();
   });
 
+  it('supports performance dialogue search mode with label/count-only matching', async () => {
+    const user = userEvent.setup();
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Dialogue search mode/i }), 'countOnly');
+    expect(screen.getByText(/Dialogue line search is disabled in performance mode/i)).toBeInTheDocument();
+
+    const search = screen.getByRole('textbox', { name: /Search/i });
+    await user.type(search, 'hello');
+    expect(screen.getByText(/Dialogue line matching is unavailable in performance mode/i)).toBeInTheDocument();
+  });
+
   it('keeps inspector in the document flow and includes focus-visible affordance classes', async () => {
     const user = userEvent.setup();
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);

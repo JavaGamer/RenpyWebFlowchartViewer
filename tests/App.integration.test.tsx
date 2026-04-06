@@ -713,6 +713,8 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
+    const searchMode = view.getByRole('combobox', { name: /Dialogue search mode/i });
+    expect(searchMode).toHaveValue('auto');
     const minDialogueInput = view.getByRole('spinbutton', { name: /Minimum dialogue lines/i });
     await user.clear(minDialogueInput);
     await user.type(minDialogueInput, '2');

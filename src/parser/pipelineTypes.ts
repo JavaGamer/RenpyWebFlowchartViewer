@@ -42,6 +42,7 @@ export interface ParseProgress {
 
 export interface ParseOptions {
   onProgress?: (progress: ParseProgress) => void;
+  captureDialogueLines?: boolean;
 }
 
 export interface TokenMetaFlags {

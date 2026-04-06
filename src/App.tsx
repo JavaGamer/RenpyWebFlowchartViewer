@@ -35,6 +35,7 @@ export default function App() {
         dispatch,
         activeRunIdRef,
         parseAbortControllerRef,
+        dialogueSearchMode: state.dialogueSearchMode,
         onReadMeasured: (fileCount) => {
           perf.measure('read', 'read_files_ms', { files: fileCount });
         },
@@ -47,7 +48,7 @@ export default function App() {
       });
       await processFiles(files);
     },
-    [dispatch, perf],
+    [dispatch, perf, state.dialogueSearchMode],
   );
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────
@@ -131,6 +132,8 @@ export default function App() {
             key={state.importRevision}
             flowNodes={state.flowNodes}
             flowEdges={state.flowEdges}
+            dialogueSearchMode={state.dialogueSearchMode}
+            onDialogueSearchModeChange={(mode) => dispatch({ type: 'SET_DIALOGUE_SEARCH_MODE', mode })}
           />
         </main>
       ) : (

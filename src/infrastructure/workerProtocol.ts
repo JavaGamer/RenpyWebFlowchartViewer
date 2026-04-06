@@ -15,6 +15,9 @@ export interface ParseRequestMessage {
   requestId: number;
   files: Array<{ name: string; content: string }>;
   wantsProgress?: boolean;
+  captureDialogueLines?: boolean;
+  appendToActiveGraph?: boolean;
+  isFinalChunk?: boolean;
 }
 
 export interface CancelRequestMessage {
@@ -42,6 +45,7 @@ export interface ResultResponseMessage {
   nodes: FlowNode[];
   edges: FlowEdge[];
   elapsedMs?: number;
+  partial?: boolean;
 }
 
 export interface ErrorResponseMessage {

@@ -68,6 +68,35 @@ describe('parseRenpyFilesInWorker', () => {
     await expect(first).resolves.toEqual({ nodes: [{ id: 'a' }], edges: [] });
   });
 
+  it('accepts partial result messages and resolves only on final result', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const onPartialResult = vi.fn();
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'a.rpy', content: 'label a:' }],
+      onPartialResult,
+    });
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId,
+      partial: true,
+      nodes: [{ id: 'partial' }],
+      edges: [],
+    });
+    expect(onPartialResult).toHaveBeenCalledWith({ nodes: [{ id: 'partial' }], edges: [] });
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId,
+      nodes: [{ id: 'final' }],
+      edges: [],
+    });
+    await expect(request).resolves.toEqual({ nodes: [{ id: 'final' }], edges: [] });
+  });
+
   it('ignores stale responses with a different requestId for the active request', async () => {
     const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
 

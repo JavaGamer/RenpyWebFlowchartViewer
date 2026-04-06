@@ -3,12 +3,16 @@ import { parseRenpyFilesInWorker } from '../parseInWorker';
 
 export interface ParseServiceRequest {
   files: Array<{ name: string; content: string }>;
+  appendToActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+  captureDialogueLines?: boolean;
   onProgress?: (progress: {
     doneFiles: number;
     totalFiles: number;
     currentFile: string;
     elapsedMs?: number;
   }) => void;
+  onPartialResult?: (partial: { nodes: FlowNode[]; edges: FlowEdge[] }) => void;
   signal?: AbortSignal;
 }
 

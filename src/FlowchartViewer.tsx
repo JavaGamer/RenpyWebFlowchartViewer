@@ -19,6 +19,7 @@ import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './domain/graph';
+import type { DialogueSearchMode } from './application/appState';
 import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
@@ -47,6 +48,8 @@ import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
 interface FlowchartViewerProps {
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
+  dialogueSearchMode?: DialogueSearchMode;
+  onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
 }
 
 interface DialogueSearchResult {
@@ -119,6 +122,8 @@ function renderHighlightedText(text: string, query: string) {
 export default function FlowchartViewer({
   flowNodes,
   flowEdges,
+  dialogueSearchMode = 'auto',
+  onDialogueSearchModeChange,
 }: FlowchartViewerProps) {
   const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
@@ -157,6 +162,22 @@ export default function FlowchartViewer({
     [flowEdges.length, flowNodes.length],
   );
   const largeGraphMode = largeGraphModeOverride ?? autoLargeGraphMode;
+  const [standaloneDialogueSearchMode, setStandaloneDialogueSearchMode] =
+    useState<DialogueSearchMode>(dialogueSearchMode);
+  useEffect(() => {
+    setStandaloneDialogueSearchMode(dialogueSearchMode);
+  }, [dialogueSearchMode]);
+  const selectedDialogueSearchMode = onDialogueSearchModeChange
+    ? dialogueSearchMode
+    : standaloneDialogueSearchMode;
+  const effectiveDialogueSearchMode = useMemo<DialogueSearchMode>(
+    () =>
+      selectedDialogueSearchMode === 'auto'
+        ? (autoLargeGraphMode ? 'countOnly' : 'full')
+        : selectedDialogueSearchMode,
+    [autoLargeGraphMode, selectedDialogueSearchMode],
+  );
+  const dialogueLineSearchEnabled = effectiveDialogueSearchMode === 'full';
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
 
   useEffect(() => {
@@ -282,12 +303,21 @@ export default function FlowchartViewer({
       buildVisibleNodes({
         nodes,
         search: effectiveSearch,
+        includeDialogueLineSearch: dialogueLineSearchEnabled,
         minDialogue,
         collapsedChapters,
         collapsedLabelChildren,
         theme,
       }),
-    [collapsedChapters, collapsedLabelChildren, effectiveSearch, minDialogue, nodes, theme],
+    [
+      collapsedChapters,
+      collapsedLabelChildren,
+      dialogueLineSearchEnabled,
+      effectiveSearch,
+      minDialogue,
+      nodes,
+      theme,
+    ],
   );
 
   const visibleNodeIds = useMemo(
@@ -316,6 +346,7 @@ export default function FlowchartViewer({
   const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined;
 
   const dialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
+    if (!dialogueLineSearchEnabled) return [];
     const query = effectiveSearch.trim().toLowerCase();
     if (!query) return [];
     const results: DialogueSearchResult[] = [];
@@ -335,7 +366,7 @@ export default function FlowchartViewer({
       });
     }
     return results;
-  }, [effectiveSearch, visibleNodes]);
+  }, [dialogueLineSearchEnabled, effectiveSearch, visibleNodes]);
   const nodeSearchMatchCount = useMemo(() => {
     const query = effectiveSearch.trim().toLowerCase();
     if (!query) return 0;
@@ -561,7 +592,9 @@ export default function FlowchartViewer({
                 />
               </div>
               <span id="viewer-search-help" className="sr-only">
-                Search labels, dialogue lines, or dialogue count.
+                {dialogueLineSearchEnabled
+                  ? 'Search labels, dialogue lines, or dialogue count.'
+                  : 'Search labels or dialogue count.'}
               </span>
               <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
                 Minimum dialogue lines
@@ -575,6 +608,32 @@ export default function FlowchartViewer({
                   className={`w-16 ${CONTROL_INPUT_CLASS}`}
                 />
               </label>
+              <label className="text-xs flex items-center gap-1" htmlFor="dialogue-search-mode-input">
+                Dialogue search mode
+                <select
+                  id="dialogue-search-mode-input"
+                  value={selectedDialogueSearchMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as DialogueSearchMode;
+                    if (onDialogueSearchModeChange) {
+                      onDialogueSearchModeChange(mode);
+                      return;
+                    }
+                    setStandaloneDialogueSearchMode(mode);
+                  }}
+                  aria-label="Dialogue search mode"
+                  className={CONTROL_INPUT_CLASS}
+                >
+                  <option value="auto">Auto (faster on large imports)</option>
+                  <option value="full">Full dialogue line search</option>
+                  <option value="countOnly">Performance mode (label/count only)</option>
+                </select>
+              </label>
+              {!dialogueLineSearchEnabled && (
+                <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  Dialogue line search is disabled in performance mode.
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -909,6 +968,12 @@ export default function FlowchartViewer({
               <div className="text-xs text-gray-700 mb-1" role="status" aria-live="polite">
                 Node matches (label/count): {nodeSearchMatchCount}
               </div>
+              {!dialogueLineSearchEnabled ? (
+                <div className="text-xs text-gray-600" role="status" aria-live="polite">
+                  Dialogue line matching is unavailable in performance mode.
+                </div>
+              ) : (
+                <>
               <div className="text-xs font-semibold text-gray-700 mb-1">
                 Dialogue line matches ({dialogueSearchResults.length})
               </div>
@@ -943,11 +1008,13 @@ export default function FlowchartViewer({
                   ))
                 )}
               </ul>
-               {dialogueSearchResults.length > 0 && (
-                 <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
-                   Tip: with search focused, use ↑/↓ to move results and Enter to open.
-                 </div>
-               )}
+                {dialogueSearchResults.length > 0 && (
+                  <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
+                    Tip: with search focused, use ↑/↓ to move results and Enter to open.
+                  </div>
+                )}
+                </>
+              )}
             </div>
           )}
           {!selectedNode || !selectedNodeData ? (

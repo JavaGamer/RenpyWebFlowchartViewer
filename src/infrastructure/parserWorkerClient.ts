@@ -8,12 +8,16 @@ import {
 
 interface ParseRequestPayload {
   files: Array<{ name: string; content: string }>;
+  appendToActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+  captureDialogueLines?: boolean;
   onProgress?: (progress: {
     doneFiles: number;
     totalFiles: number;
     currentFile: string;
     elapsedMs?: number;
   }) => void;
+  onPartialResult?: (partial: ParseResultPayload) => void;
   signal?: AbortSignal;
 }
 
@@ -35,7 +39,11 @@ function getParserWorker(): Worker {
 
 export function parseRenpyFilesInWorker({
   files,
+  appendToActiveGraph,
+  isFinalChunk,
+  captureDialogueLines,
   onProgress,
+  onPartialResult,
   signal,
 }: ParseRequestPayload): Promise<ParseResultPayload> {
   const parserWorker = getParserWorker();
@@ -65,6 +73,11 @@ export function parseRenpyFilesInWorker({
           currentFile: message.currentFile,
           elapsedMs: message.elapsedMs,
         });
+        return;
+      }
+
+      if (message.type === 'result' && message.partial) {
+        onPartialResult?.({ nodes: message.nodes, edges: message.edges });
         return;
       }
 
@@ -102,6 +115,9 @@ export function parseRenpyFilesInWorker({
       type: 'parse',
       requestId,
       files,
+      appendToActiveGraph,
+      isFinalChunk,
+      captureDialogueLines,
       wantsProgress: Boolean(onProgress),
     };
     parserWorker.postMessage(parseMessage);
