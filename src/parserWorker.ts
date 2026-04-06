@@ -1,6 +1,7 @@
 import { parseRenpyFiles } from './parser';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';import { createGraphState } from './parser/pipelineState';
+import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
+import { createGraphState } from './parser/pipelineState';
 import { parseOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import {
@@ -48,7 +49,8 @@ const MAX_TOKENIZED_CACHE_ENTRIES = 200;
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
-const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);let accumulatedState = createGraphState();
+const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
+let accumulatedState = createGraphState();
 const dialogueIndex = new Map<string, Array<{ line: string; lowerLine: string; lineIndex: number }>>();
 
 function postMessageSafe(message: WorkerResponseMessage) {
