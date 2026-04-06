@@ -40,27 +40,20 @@ export function processFlatTokens(
   chapter: string,
 ): void {
   const meta = createEmptyTokenMeta();
-  const menuToken = PARSER_TOKENS.kwMenuObserved;
-  const labelToken = PARSER_TOKENS.kwLabel;
-  const entityToken = PARSER_TOKENS.entityFunctionName;
-  const jumpToken = PARSER_TOKENS.kwJump;
-  const callToken = PARSER_TOKENS.kwCall;
-  const returnToken = PARSER_TOKENS.kwReturn;
-  const stringToken = PARSER_TOKENS.literalString;
-  const conditionalToken = PARSER_TOKENS.kwConditional;
+  const relevantTokens = new Set<number>([
+    PARSER_TOKENS.kwMenuObserved,
+    PARSER_TOKENS.kwLabel,
+    PARSER_TOKENS.entityFunctionName,
+    PARSER_TOKENS.kwJump,
+    PARSER_TOKENS.kwCall,
+    PARSER_TOKENS.kwReturn,
+    PARSER_TOKENS.literalString,
+    PARSER_TOKENS.kwConditional,
+  ]);
 
   for (const token of tokens) {
     const type = token.type as number;
-    if (
-      type !== menuToken &&
-      type !== labelToken &&
-      type !== entityToken &&
-      type !== jumpToken &&
-      type !== callToken &&
-      type !== returnToken &&
-      type !== stringToken &&
-      type !== conditionalToken
-    ) {
+    if (!relevantTokens.has(type)) {
       continue;
     }
 
