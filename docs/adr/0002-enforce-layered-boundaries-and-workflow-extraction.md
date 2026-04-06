@@ -18,9 +18,10 @@ After introducing layered boundaries (ADR 0001), key modules still had soft coup
 - Place worker client orchestration under infrastructure (`src/infrastructure/parserWorkerClient.ts`) and keep protocol contracts in infrastructure.
 - Extract the upload/read/parse lifecycle into an application workflow module (`src/application/processUpload.ts`).
 - Split viewer presentation concerns into focused UI modules (`src/ui/viewerTheme.ts`, `src/ui/viewerNodes.tsx`, `src/ui/viewerEdges.tsx`).
-- Remove legacy `src/types.ts` entrypoint usage and import graph contracts from `src/domain/graph`.
+- Remove legacy `src/types.ts` entrypoint usage and import graph contracts from `src/domain`.
+- Remove legacy worker re-export indirection (`src/parseInWorker.ts`) and import worker parse APIs from `src/infrastructure`.
 - Enforce lightweight import guardrails via eslint restricted-import rules.
-- Add architecture boundary tests to verify key layer direction constraints.
+- Add architecture boundary tests to verify key layer direction constraints and cross-layer deep-import restrictions.
 
 ## Consequences
 

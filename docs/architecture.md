@@ -20,6 +20,17 @@ This project is organized into layered modules to keep parser correctness, UI re
   - React components and rendering concerns.
   - Uses application and domain abstractions instead of low-level runtime details directly.
 
+## Public Layer Entrypoints
+
+Cross-layer imports should target layer entrypoints, not deep internals:
+
+- `src/domain/index.ts`
+- `src/application/index.ts`
+- `src/infrastructure/index.ts`
+- `src/ui/index.ts`
+
+Internal files within a layer may still import each other directly.
+
 ## Parser and Worker Lifecycle
 
 - `parser.ts` remains the parser API surface (`parseRenpyFiles`) and output contract (`FlowNode[]`, `FlowEdge[]`).
@@ -43,7 +54,10 @@ This project is organized into layered modules to keep parser correctness, UI re
 ## Testing Strategy
 
 - Existing parser and UI integration tests remain the regression safety net.
+- Default `npm run test` excludes perf benchmarks (`tests/perf/**`).
+- Perf baselines are opt-in via `npm run bench:perf`.
 - Boundary-focused tests were added for:
   - upload validation (`tests/uploadValidation.test.ts`)
   - app state transitions (`tests/appState.test.ts`)
   - worker protocol versioning behavior (`tests/parseInWorker.test.ts`)
+  - cross-layer deep import restrictions (`tests/architecture.boundaries.test.ts`)

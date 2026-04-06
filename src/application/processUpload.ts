@@ -1,5 +1,5 @@
 import type { Dispatch, RefObject } from 'react';
-import { readFileAsText } from '../infrastructure/fileReader';
+import { readFileAsText } from '../infrastructure';
 import { validateRpyUpload } from './uploadValidation';
 import type { AppAction } from './appState';
 import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';

@@ -5,7 +5,7 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -18,7 +18,6 @@ import {
 import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
-import type { FlowNode, FlowEdge } from './domain/graph';
 import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
@@ -41,58 +40,11 @@ import {
 import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
 import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
+import type { FlowchartViewerProps } from './ui/viewerTypesInternal';
+import { type DialogueSearchResult } from './ui/viewerText';
+import { ViewerInspector } from './ui/viewerInspector';
 
 // ─── Main component ───────────────────────────────────────────────────────────
-
-interface FlowchartViewerProps {
-  flowNodes: FlowNode[];
-  flowEdges: FlowEdge[];
-}
-
-interface DialogueSearchResult {
-  nodeId: string;
-  nodeLabel: string;
-  lineIndex: number;
-  lineText: string;
-}
-
-function truncateForAria(text: string, maxLength = 80): string {
-  const normalized = text.trim();
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength - 1)}…`;
-}
-
-function renderHighlightedText(text: string, query: string) {
-  const normalizedQuery = query.trim();
-  if (!normalizedQuery) return text;
-  const lowerText = text.toLowerCase();
-  const lowerQuery = normalizedQuery.toLowerCase();
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-  let key = 0;
-
-  while (cursor < text.length) {
-    const matchIndex = lowerText.indexOf(lowerQuery, cursor);
-    if (matchIndex === -1) {
-      nodes.push(text.slice(cursor));
-      break;
-    }
-    if (matchIndex > cursor) {
-      nodes.push(text.slice(cursor, matchIndex));
-    }
-    const matched = text.slice(matchIndex, matchIndex + normalizedQuery.length);
-    const markKey = `hl-${key}`;
-    key += 1;
-    nodes.push(
-      <mark key={markKey} className="bg-yellow-200 text-inherit rounded px-0.5">
-        {matched}
-      </mark>,
-    );
-    cursor = matchIndex + normalizedQuery.length;
-  }
-
-  return nodes;
-}
 
 export default function FlowchartViewer({
   flowNodes,
@@ -704,99 +656,19 @@ export default function FlowchartViewer({
             />
           </ReactFlow>
         </div>
-        <aside
-          className="w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l border-gray-200 bg-white p-3 overflow-y-auto max-h-[45vh] xl:max-h-none"
-          aria-label="Inspector panel"
-        >
-          <div className="text-sm font-semibold mb-2">Inspector</div>
-          {effectiveSearch.trim().length > 0 && (
-            <div className="mb-4">
-              <div className="text-xs font-semibold text-gray-700 mb-1">
-                Dialogue line matches ({dialogueSearchResults.length})
-              </div>
-           <ul className="space-y-1 max-h-48 overflow-y-auto" aria-label="Dialogue search results">
-                  {dialogueSearchResults.length === 0 ? (
-                    <li className="text-xs text-gray-500">
-                      <div role="status" aria-live="polite">
-                        No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
-                      </div>
-                    </li>
-                  ) : (
-                     dialogueSearchResults.map((result, resultIndex) => (
-                      <li key={`${result.nodeId}-${result.lineIndex}`}>
-                        <button
-                          type="button"
-                          aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
-                          aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
-                          onClick={() => {
-                            setActiveDialogueResultIndex(resultIndex);
-                            onSelectDialogueSearchResult(result);
-                        }}
-                        className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
-                          resultIndex === resolvedActiveDialogueResultIndex
-                            ? 'border-violet-400 bg-violet-50'
-                            : 'border-gray-200'
-                        }`}
-                      >
-                        <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                        <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-               {dialogueSearchResults.length > 0 && (
-                 <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
-                   Tip: with search focused, use ↑/↓ to move results and Enter to open.
-                 </div>
-               )}
-            </div>
-          )}
-          {!selectedNode || !selectedNodeData ? (
-            <div className="text-xs text-gray-500">
-              {effectiveSearch.trim().length > 0
-                ? 'Choose a search result or click a visible node to inspect dialogue lines.'
-                : 'Select a node to inspect dialogue lines, or search to jump to matching dialogue.'}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="text-xs">
-                <span className="font-semibold">Node:</span> {selectedNodeData.label}
-              </div>
-              <div className="text-xs">
-                <span className="font-semibold">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
-              </div>
-              <div className="text-xs font-semibold">Dialogue</div>
-              <div className="space-y-1">
-                {(showAllInspectorLines
-                  ? selectedNodeData.dialogueLines ?? []
-                  : (selectedNodeData.dialogueLines ?? []).slice(0, INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT)
-                ).map((line, idx) => {
-                  const absoluteIndex = idx + 1;
-                  const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
-                  return (
-                    <div
-                      key={`${selectedNodeId}-${absoluteIndex}`}
-                      className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
-                    >
-                      <span className="font-medium mr-1">{absoluteIndex}.</span>
-                      {renderHighlightedText(line, effectiveSearch)}
-                    </div>
-                  );
-                })}
-              </div>
-              {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllInspectorLines((prev) => !prev)}
-                  className="text-xs text-violet-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
-                >
-                  {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
-                </button>
-              )}
-            </div>
-          )}
-        </aside>
+        <ViewerInspector
+          effectiveSearch={effectiveSearch}
+          dialogueSearchResults={dialogueSearchResults}
+          resolvedActiveDialogueResultIndex={resolvedActiveDialogueResultIndex}
+          selectedNode={selectedNode}
+          selectedNodeData={selectedNodeData}
+          selectedNodeId={selectedNodeId}
+          selectedDialogueLineIndex={selectedDialogueLineIndex}
+          showAllInspectorLines={showAllInspectorLines}
+          onToggleShowAllInspectorLines={() => setShowAllInspectorLines((prev) => !prev)}
+          onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
+          onSelectDialogueSearchResult={onSelectDialogueSearchResult}
+        />
       </div>
     </div>
   );

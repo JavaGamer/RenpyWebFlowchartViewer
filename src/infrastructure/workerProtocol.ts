@@ -1,4 +1,4 @@
-import type { FlowEdge, FlowNode } from '../domain/graph';
+import type { FlowEdge, FlowNode } from '../domain';
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 1 as const;
 
@@ -7,6 +7,17 @@ export interface ParseProgressPayload {
   totalFiles: number;
   currentFile: string;
   elapsedMs?: number;
+}
+
+export interface ParseWorkerRequest {
+  files: Array<{ name: string; content: string }>;
+  onProgress?: (progress: ParseProgressPayload) => void;
+  signal?: AbortSignal;
+}
+
+export interface ParseWorkerResult {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
 }
 
 export interface ParseRequestMessage {

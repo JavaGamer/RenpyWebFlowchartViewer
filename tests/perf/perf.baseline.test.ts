@@ -9,11 +9,11 @@ import {
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
-import { parseRenpyFiles } from '../src/parser';
-import { applyDagreLayout, buildVisibleNodes, buildVisibleEdges } from '../src/flowchartTransforms';
+import { parseRenpyFiles } from '../../src/parser';
+import { applyDagreLayout, buildVisibleNodes, buildVisibleEdges } from '../../src/flowchartTransforms';
 
 const thisDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(thisDir, '..');
+const repoRoot = path.resolve(thisDir, '../..');
 const perfDataDir = path.join(repoRoot, 'perf-data');
 const generatedDataDir = path.join(perfDataDir, 'generated');
 const outPath = path.join(perfDataDir, 'baseline-results.json');

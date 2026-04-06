@@ -10,11 +10,9 @@
 
 import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
-import FlowchartViewer from './FlowchartViewer';
+import { FlowchartViewer } from './ui';
 import { createPerfTracker } from './perf';
-import { appReducer, initialAppState } from './application/appState';
-import { workerParseService } from './application/parseService';
-import { createProcessUpload } from './application/processUpload';
+import { appReducer, initialAppState, workerParseService, createProcessUpload } from './application';
 import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
 
 // ─── Component ────────────────────────────────────────────────────────────────

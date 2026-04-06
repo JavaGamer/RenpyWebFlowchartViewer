@@ -1,4 +1,4 @@
-import { FileReadError } from '../infrastructure/fileReader';
+import { FileReadError } from '../infrastructure';
 
 export function toFileReadErrorMessage(err: unknown): string {
   if (err instanceof FileReadError) {
