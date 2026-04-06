@@ -15,7 +15,7 @@ vi.mock('../src/parseInWorker', () => ({
   ]),
 }));
 
-describe('workerParseService', () => {
+describe('parseService', () => {
   it('delegates parse requests to parseRenpyFilesInWorker', async () => {
     const parseInWorker = await import('../src/parseInWorker');
     const { workerParseService } = await import('../src/application/parseService');

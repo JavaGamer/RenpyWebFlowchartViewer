@@ -31,6 +31,12 @@ function makeRpy(name: string): File {
   return new File(['label start:'], name, { type: 'text/plain' });
 }
 
+const LARGE_PROJECT_FILE_COUNT = 200;
+const READ_BATCH_SIZE = 24;
+const PARSE_BATCH_SIZE = 32;
+const EXPECTED_CHUNKED_PARSE_CALLS = Math.ceil(LARGE_PROJECT_FILE_COUNT / READ_BATCH_SIZE);
+const LAST_CHUNK_INDEX = EXPECTED_CHUNKED_PARSE_CALLS - 1;
+
 describe('createProcessUpload', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -156,11 +162,12 @@ describe('createProcessUpload', () => {
       parseAbortControllerRef: { current: null },
       dialogueSearchMode: 'auto',
     });
-    const files = Array.from({ length: 200 }, (_, i) => makeRpy(`f${i + 1}.rpy`));
+    const files = Array.from({ length: LARGE_PROJECT_FILE_COUNT }, (_, i) => makeRpy(`f${i + 1}.rpy`));
 
     await processUpload(toFileList(files));
 
-    expect(parse).toHaveBeenCalledTimes(9);
+    expect(PARSE_BATCH_SIZE).toBeGreaterThanOrEqual(READ_BATCH_SIZE);
+    expect(parse).toHaveBeenCalledTimes(EXPECTED_CHUNKED_PARSE_CALLS);
     expect(parse.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         appendToActiveGraph: true,
@@ -169,7 +176,7 @@ describe('createProcessUpload', () => {
         captureDialogueLines: false,
       }),
     );
-    expect(parse.mock.calls[8]?.[0]).toEqual(
+    expect(parse.mock.calls[LAST_CHUNK_INDEX]?.[0]).toEqual(
       expect.objectContaining({
         resetActiveGraph: false,
         isFinalChunk: true,
