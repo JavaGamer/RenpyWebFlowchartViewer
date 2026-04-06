@@ -5,6 +5,7 @@ import type { ParseGraphState } from './pipelineTypes';
 import { createScanState } from './pipelineState';
 import { processTokenTreeStream } from './tokenScanStage';
 import { createPerfTracker } from '../perf';
+import type { ParseOptions } from './pipelineTypes';
 
 let _docVersion = 0;
 const parserPerf = createPerfTracker('parser:file');
@@ -19,14 +20,32 @@ export interface TokenizedFile {
   chapter: string;
   document: TextDocument;
   tokenTree: TokenTree;
+  cacheKey?: string;
 }
 
-export async function tokenizeOneFile(file: { name: string; content: string }): Promise<TokenizedFile> {
+export async function tokenizeOneFile(
+  file: { name: string; content: string },
+  options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
+  fileIndex?: number,
+): Promise<TokenizedFile> {
   const chapter = file.name.replace(/\.rpy$/i, '');
+  const cacheKey =
+    fileIndex !== undefined && options.fileCacheKeys?.[fileIndex]
+      ? options.fileCacheKeys[fileIndex]
+      : undefined;
+
+  if (cacheKey && options.tokenizedCache?.has(cacheKey)) {
+    const cached = options.tokenizedCache.get(cacheKey)!;
+    return { file, chapter, document: cached.document, tokenTree: cached.tokenTree, cacheKey };
+  }
+
   parserPerf.mark('tokenize');
   const { document, nodes: tokenTree } = await renpyParse(file.content);
   parserPerf.measure('tokenize', 'parse_tokenize_ms', { file: file.name });
-  return { file, chapter, document, tokenTree };
+  if (cacheKey) {
+    options.tokenizedCache?.set(cacheKey, { document, tokenTree });
+  }
+  return { file, chapter, document, tokenTree, cacheKey };
 }
 
 export function processTokenizedFile(
@@ -43,7 +62,9 @@ export function processTokenizedFile(
 export async function parseOneFile(
   state: ParseGraphState,
   file: { name: string; content: string },
+  options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
+  fileIndex?: number,
 ) {
-  const tokenized = await tokenizeOneFile(file);
+  const tokenized = await tokenizeOneFile(file, options, fileIndex);
   processTokenizedFile(state, tokenized);
 }

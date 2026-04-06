@@ -8,6 +8,7 @@ import {
 } from './workerProtocol';
 
 let requestCounter = 0;
+const textEncoder = new TextEncoder();
 
 let worker: Worker | null = null;
 
@@ -16,6 +17,30 @@ function getParserWorker(): Worker {
     worker = new Worker(new URL('../parserWorker.ts', import.meta.url), { type: 'module' });
   }
   return worker;
+}
+
+function hashToHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    out += bytes[i]!.toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
+async function computeFileCacheKeys(files: Array<{ name: string; content: string }>): Promise<string[]> {
+  if (!globalThis.crypto?.subtle) {
+    return files.map((file) => `${file.name}:${file.content.length}`);
+  }
+
+  const digests = await Promise.all(
+    files.map(async (file) => {
+      const data = textEncoder.encode(file.content);
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+      return `${file.name}:${hashToHex(digest)}`;
+    }),
+  );
+  return digests;
 }
 
 export function parseRenpyFilesInWorker({
@@ -83,14 +108,28 @@ export function parseRenpyFilesInWorker({
 
     parserWorker.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, { once: true });
-    const parseMessage: ParseRequestMessage = {
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'parse',
-      requestId,
-      files,
-      wantsProgress: Boolean(onProgress),
-      maxParallelFiles,
-    };
-    parserWorker.postMessage(parseMessage);
+
+    void (async () => {
+      try {
+        const fileCacheKeys = await computeFileCacheKeys(files);
+        if (settled) return;
+        const parseMessage: ParseRequestMessage = {
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'parse',
+          requestId,
+          files,
+          fileCacheKeys,
+          wantsProgress: Boolean(onProgress),
+          maxParallelFiles,
+        };
+        parserWorker.postMessage(parseMessage);
+      } catch (error) {
+        settle(() => {
+          parserWorker.removeEventListener('message', onMessage);
+          signal?.removeEventListener('abort', onAbort);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
+      }
+    })();
   });
 }

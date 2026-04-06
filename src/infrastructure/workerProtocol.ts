@@ -40,6 +40,7 @@ export interface ParseRequestMessage {
   type: 'parse';
   requestId: number;
   files: Array<{ name: string; content: string }>;
+  fileCacheKeys?: string[];
   wantsProgress?: boolean;
   maxParallelFiles?: number;
 }

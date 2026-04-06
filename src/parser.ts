@@ -36,7 +36,7 @@ export async function parseRenpyFiles(
     for (let idx = 0; idx < files.length; idx += 1) {
       const file = files[idx];
       perf.mark(`file:${idx}`);
-      await parseOneFile(state, file);
+      await parseOneFile(state, file, options, idx);
       perf.measure(`file:${idx}`, 'parse_file_ms', { file: file.name });
       options.onProgress?.({
         doneFiles: idx + 1,
@@ -54,7 +54,7 @@ export async function parseRenpyFiles(
         nextIndex += 1;
         const file = files[idx];
         perf.mark(`file:${idx}:tokenize`);
-        const tokenized = await tokenizeOneFile(file);
+        const tokenized = await tokenizeOneFile(file, options, idx);
         perf.measure(`file:${idx}:tokenize`, 'parse_file_tokenize_ms', { file: file.name });
         tokenizedFiles[idx] = tokenized;
       }

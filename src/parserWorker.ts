@@ -1,4 +1,6 @@
 import { parseRenpyFiles } from './parser';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
@@ -8,6 +10,7 @@ import {
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
+const tokenizedCache = new Map<string, { document: TextDocument; tokenTree: TokenTree }>();
 
 function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
@@ -24,7 +27,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   if (message.type !== 'parse') return;
 
-  const { requestId, files, maxParallelFiles } = message;
+  const { requestId, files, maxParallelFiles, fileCacheKeys } = message;
   activeRequestId = requestId;
   const startedAt = performance.now();
   const wantsProgress = message.wantsProgress !== false;
@@ -35,6 +38,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
   try {
     const result = await parseRenpyFiles(files, {
       maxParallelFiles,
+      tokenizedCache,
+      fileCacheKeys,
       onProgress: ({ doneFiles, totalFiles, currentFile }) => {
         if (cancelledRequests.has(requestId)) {
           throw new Error('Parsing cancelled');
