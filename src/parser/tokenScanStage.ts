@@ -48,27 +48,58 @@ export function processFlatToken(
 function* iterateStreamTokens(
   node: TreeNode,
   inheritedMeta: number[],
+  startOffsetCache: WeakMap<TreeNode, number>,
 ): Generator<FlatTokenLike> {
   const token = node.token;
   const nextMeta = token ? [...inheritedMeta, token.type as number] : inheritedMeta;
+  const orderedItems: Array<
+    | { kind: 'token'; startOffset: number; token: NonNullable<TreeNode['token']> }
+    | { kind: 'child'; startOffset: number; child: TreeNode }
+  > = [];
+
   if (token && RELEVANT_TOKEN_TYPES.has(token.type as number)) {
-    yield {
-      type: token.type as number,
-      metaTokens: inheritedMeta,
-      startPos: token.startPos,
-      startOffset: token.startPos.charStartOffset,
-      getValue: token.getValue.bind(token),
-    };
+    orderedItems.push({
+      kind: 'token',
+      startOffset: token.startPos.charStartOffset ?? Number.MAX_SAFE_INTEGER,
+      token,
+    });
   }
-  const children = [...node.children];
-  children.sort((a, b) => {
-    const aStart = a.token?.startPos.charStartOffset ?? Number.MAX_SAFE_INTEGER;
-    const bStart = b.token?.startPos.charStartOffset ?? Number.MAX_SAFE_INTEGER;
-    return aStart - bStart;
-  });
-  for (const child of children) {
-    yield* iterateStreamTokens(child, nextMeta);
+
+  for (const child of node.children) {
+    orderedItems.push({
+      kind: 'child',
+      startOffset: getNodeStartOffset(child, startOffsetCache),
+      child,
+    });
   }
+
+  orderedItems.sort((a, b) => a.startOffset - b.startOffset);
+
+  for (const item of orderedItems) {
+    if (item.kind === 'token') {
+      yield {
+        type: item.token.type as number,
+        metaTokens: inheritedMeta,
+        startPos: item.token.startPos,
+        startOffset: item.startOffset,
+        getValue: item.token.getValue.bind(item.token),
+      };
+      continue;
+    }
+    yield* iterateStreamTokens(item.child, nextMeta, startOffsetCache);
+  }
+}
+
+function getNodeStartOffset(node: TreeNode, cache: WeakMap<TreeNode, number>): number {
+  const cached = cache.get(node);
+  if (cached !== undefined) return cached;
+  let minOffset = node.token?.startPos.charStartOffset ?? Number.MAX_SAFE_INTEGER;
+  for (const child of node.children) {
+    const childOffset = getNodeStartOffset(child, cache);
+    if (childOffset < minOffset) minOffset = childOffset;
+  }
+  cache.set(node, minOffset);
+  return minOffset;
 }
 
 function normalizeLiteralString(raw: string): string {
@@ -90,9 +121,8 @@ export function processTokenTreeStream(
   chapter: string,
 ): void {
   const meta = createEmptyTokenMeta();
-  const tokens = [...iterateStreamTokens(tokenTree.root, [])];
-  tokens.sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0));
-  for (const token of tokens) {
+  const startOffsetCache = new WeakMap<TreeNode, number>();
+  for (const token of iterateStreamTokens(tokenTree.root, [], startOffsetCache)) {
     const type = token.type as number;
     analyzeTokenMetaInto(token.metaTokens as Iterable<number>, meta);
     let tokenText: string | undefined;

@@ -42,9 +42,10 @@ export async function tokenizeOneFile(
     }
   }
 
-  parserPerf.mark('tokenize');
+  const tokenizeMark = `tokenize:${cacheKey ?? file.name}:${fileIndex ?? -1}`;
+  parserPerf.mark(tokenizeMark);
   const { document, nodes: tokenTree } = await renpyParse(file.content);
-  parserPerf.measure('tokenize', 'parse_tokenize_ms', { file: file.name });
+  parserPerf.measure(tokenizeMark, 'parse_tokenize_ms', { file: file.name });
   if (cacheKey && tokenizedCache) {
     tokenizedCache.set(cacheKey, { document, tokenTree });
   }
