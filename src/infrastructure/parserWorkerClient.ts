@@ -168,6 +168,14 @@ export function searchDialogueLinesInWorker({
       const message = event.data;
       if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
       if (message.requestId !== requestId) return;
+      if (message.type === 'error') {
+        settle(() => {
+          parserWorker.removeEventListener('message', onMessage);
+          signal?.removeEventListener('abort', onAbort);
+        });
+        reject(new Error(message.message));
+        return;
+      }
       if (message.type !== 'search_result') return;
       settle(() => {
         parserWorker.removeEventListener('message', onMessage);
