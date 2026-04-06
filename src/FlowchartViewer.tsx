@@ -217,10 +217,6 @@ export default function FlowchartViewer({
         : visibleSubgraphLabels.slice(0, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES),
     [shouldShowAllLabelSubgraphToggles, visibleSubgraphLabels],
   );
-  const hiddenLabelSubgraphToggleCount = Math.max(
-    visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES,
-    0,
-  );
   const largeGraphModeStatusText = useMemo(() => {
     if (autoLargeGraphMode && largeGraphModeOverride === null) {
       return 'Auto-enabled from graph size.';
@@ -850,12 +846,12 @@ export default function FlowchartViewer({
                               aria-label={
                                 shouldShowAllLabelSubgraphToggles
                                   ? 'Show fewer label subgraph toggles'
-                                  : `Show ${hiddenLabelSubgraphToggleCount} more label subgraph toggles`
+                                  : `Show ${Math.max(visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES, 0)} more label subgraph toggles`
                               }
                             >
                               {shouldShowAllLabelSubgraphToggles
                                 ? 'Show fewer'
-                                : `Show ${hiddenLabelSubgraphToggleCount} more`}
+                                : `Show ${Math.max(visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES, 0)} more`}
                             </button>
                           )}
                         </>
