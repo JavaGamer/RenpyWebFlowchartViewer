@@ -87,6 +87,7 @@ describe('parseRenpyFilesInWorker', () => {
     });
     expect(onPartialResult).toHaveBeenCalledWith({ nodes: [{ id: 'partial' }], edges: [] });
     await expect(request).resolves.toEqual({ nodes: [{ id: 'partial' }], edges: [] });
+    expect(workerMessageHandlers.size).toBe(0);
   });
 
   it('ignores stale responses with a different requestId for the active request', async () => {
@@ -177,5 +178,20 @@ describe('parseRenpyFilesInWorker', () => {
         lineText: 'needle line',
       },
     ]);
+  });
+
+  it('rejects worker-side dialogue search on error response', async () => {
+    const { searchDialogueLinesInWorker } = await import('../src/parseInWorker');
+    const request = searchDialogueLinesInWorker({ query: 'needle' });
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'error',
+      requestId,
+      message: 'search failed',
+    });
+
+    await expect(request).rejects.toThrow('search failed');
   });
 });
