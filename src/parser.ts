@@ -27,7 +27,9 @@ export async function parseRenpyFiles(
   for (let idx = 0; idx < files.length; idx += 1) {
     const file = files[idx];
     perf.mark(`file:${idx}`);
-    await parseOneFile(state, file);
+    await parseOneFile(state, file, {
+      captureDialogueLines: options.captureDialogueLines !== false,
+    });
     perf.measure(`file:${idx}`, 'parse_file_ms', { file: file.name });
     options.onProgress?.({
       doneFiles: idx + 1,

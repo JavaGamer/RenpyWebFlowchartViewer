@@ -70,6 +70,21 @@ describe('flowchartTransforms', () => {
     expect(byId.get('menu_1')?.hidden).toBe(true);
   });
 
+  it('can disable dialogue-line matching in performance mode', () => {
+    const layout = applyDagreLayout(flowNodes, flowEdges, 'TB');
+    const visible = buildVisibleNodes({
+      nodes: layout.nodes,
+      search: 'kenobi',
+      includeDialogueLineSearch: false,
+      minDialogue: 0,
+      collapsedChapters: { ch1: false },
+      collapsedLabelChildren: new Set<string>(),
+      theme: 'violet',
+    });
+    const byId = new Map(visible.map((n) => [n.id, n]));
+    expect(byId.get('start')?.hidden).toBe(true);
+  });
+
   it('builds visible edges with kind filters and large-graph label suppression', () => {
     const layout = applyDagreLayout(flowNodes, flowEdges, 'TB');
     const edges = buildVisibleEdges({

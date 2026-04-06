@@ -7,6 +7,8 @@ export type ParseProgress = {
   currentFile: string;
 };
 
+export type DialogueSearchMode = 'auto' | 'full' | 'countOnly';
+
 export interface AppState {
   phase: AppPhase;
   flowNodes: FlowNode[];
@@ -15,6 +17,7 @@ export interface AppState {
   fileCount: number;
   parseProgress: ParseProgress | null;
   importRevision: number;
+  dialogueSearchMode: DialogueSearchMode;
 }
 
 export type AppAction =
@@ -22,7 +25,9 @@ export type AppAction =
   | { type: 'START_READING'; fileCount: number }
   | { type: 'START_PARSING' }
   | { type: 'PROGRESS'; progress: ParseProgress }
+  | { type: 'PARTIAL_PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[] }
   | { type: 'PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[] }
+  | { type: 'SET_DIALOGUE_SEARCH_MODE'; mode: DialogueSearchMode }
   | { type: 'FAIL'; message: string };
 
 export const initialAppState: AppState = {
@@ -33,6 +38,7 @@ export const initialAppState: AppState = {
   fileCount: 0,
   parseProgress: null,
   importRevision: 0,
+  dialogueSearchMode: 'auto',
 };
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -51,6 +57,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, phase: 'parsing' };
     case 'PROGRESS':
       return { ...state, parseProgress: action.progress };
+    case 'PARTIAL_PARSE_SUCCESS':
+      return {
+        ...state,
+        phase: 'parsing',
+        flowNodes: action.nodes,
+        flowEdges: action.edges,
+      };
     case 'PARSE_SUCCESS':
       return {
         ...state,
@@ -59,6 +72,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         flowEdges: action.edges,
         parseProgress: null,
         importRevision: state.importRevision + 1,
+      };
+    case 'SET_DIALOGUE_SEARCH_MODE':
+      return {
+        ...state,
+        dialogueSearchMode: action.mode,
       };
     case 'FAIL':
       return { ...state, phase: 'error', errorMsg: action.message, parseProgress: null };

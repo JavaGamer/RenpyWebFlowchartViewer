@@ -19,6 +19,9 @@ import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import type { FlowNode, FlowEdge } from './domain/graph';
+import type { DialogueSearchMode } from './application/appState';
+import type { ParseService } from './application/parseService';
+import { workerParseService } from './application/parseService';
 import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
@@ -37,23 +40,21 @@ import {
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
+  PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from './flowchartTransforms';
 import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
 import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
+import type { DialogueSearchResult } from './infrastructure/workerProtocol';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
-}
-
-interface DialogueSearchResult {
-  nodeId: string;
-  nodeLabel: string;
-  lineIndex: number;
-  lineText: string;
+  dialogueSearchMode?: DialogueSearchMode;
+  onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
+  parseService?: ParseService;
 }
 
 const CONTROL_INPUT_CLASS =
@@ -119,6 +120,9 @@ function renderHighlightedText(text: string, query: string) {
 export default function FlowchartViewer({
   flowNodes,
   flowEdges,
+  dialogueSearchMode = 'auto',
+  onDialogueSearchModeChange,
+  parseService = workerParseService,
 }: FlowchartViewerProps) {
   const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
@@ -149,14 +153,39 @@ export default function FlowchartViewer({
   const [selectedDialogueLineIndex, setSelectedDialogueLineIndex] = useState<number | null>(null);
   const [showAllInspectorLines, setShowAllInspectorLines] = useState(false);
   const [activeDialogueResultIndex, setActiveDialogueResultIndex] = useState(-1);
+  const [dialogueSearchResults, setDialogueSearchResults] = useState<DialogueSearchResult[]>([]);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showAllLabelSubgraphToggles, setShowAllLabelSubgraphToggles] = useState(false);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const [previousVisibleNodesById, setPreviousVisibleNodesById] = useState<Map<string, CanvasNode>>(
+    new Map(),
+  );
+  const [previousVisibleEdgesById, setPreviousVisibleEdgesById] = useState<Map<string, CanvasEdge>>(
+    new Map(),
+  );
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
     [flowEdges.length, flowNodes.length],
   );
   const largeGraphMode = largeGraphModeOverride ?? autoLargeGraphMode;
+  const [standaloneDialogueSearchMode, setStandaloneDialogueSearchMode] =
+    useState<DialogueSearchMode>(dialogueSearchMode);
+  useEffect(() => {
+    setStandaloneDialogueSearchMode(dialogueSearchMode);
+  }, [dialogueSearchMode]);
+  const selectedDialogueSearchMode = onDialogueSearchModeChange
+    ? dialogueSearchMode
+    : standaloneDialogueSearchMode;
+  const effectiveDialogueSearchMode = useMemo<DialogueSearchMode>(
+    () =>
+      selectedDialogueSearchMode === 'auto'
+        ? (autoLargeGraphMode ? 'countOnly' : 'full')
+        : selectedDialogueSearchMode,
+    [autoLargeGraphMode, selectedDialogueSearchMode],
+  );
+  const dialogueLineSearchEnabled = effectiveDialogueSearchMode === 'full';
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
 
   useEffect(() => {
@@ -167,16 +196,20 @@ export default function FlowchartViewer({
   }, [searchInput]);
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
 
+  const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
     perf.mark('layout');
-    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection);
+    const progressive = shouldProgressiveLayout;
+    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive });
     perf.measure('layout', 'layout_ms', {
       nodes: flowNodes.length,
       edges: flowEdges.length,
       direction: layoutDirection,
+      progressive,
     });
     return laidOut;
-  }, [flowNodes, flowEdges, layoutDirection, perf]);
+  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout]);
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
 
@@ -231,7 +264,11 @@ export default function FlowchartViewer({
   }, [autoLargeGraphMode, largeGraphModeOverride]);
 
   const relayout = useCallback(() => {
-    const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection);
+    const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
+      progressive: false,
+      previousPositions: nodePositionsRef.current,
+    });
+    nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
     setNodes(next.nodes);
     setEdges(next.edges);
     requestAnimationFrame(() => {
@@ -242,7 +279,20 @@ export default function FlowchartViewer({
   useEffect(() => {
     setNodes(layoutNodes);
     setEdges(layoutEdges);
-  }, [layoutNodes, layoutEdges, setEdges, setNodes]);
+    nodePositionsRef.current = new Map(layoutNodes.map((n) => [n.id, n.position]));
+    const progressive = shouldProgressiveLayout;
+    if (!progressive) return;
+    const refineId = window.setTimeout(() => {
+      const refined = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
+        progressive: false,
+        previousPositions: nodePositionsRef.current,
+      });
+      nodePositionsRef.current = new Map(refined.nodes.map((n) => [n.id, n.position]));
+      setNodes(refined.nodes);
+      setEdges(refined.edges);
+    }, 0);
+    return () => window.clearTimeout(refineId);
+  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout]);
 
   useEffect(() => {
     globalThis.localStorage?.setItem(STORAGE_KEYS.theme, theme);
@@ -277,17 +327,110 @@ export default function FlowchartViewer({
     [visibleSubgraphLabels],
   );
 
+  const dialogueSearchCandidateNodeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const node of nodes) {
+      const nodeData = node.data as { chapter?: string; dialogueCount?: number } | undefined;
+      const chapterCollapsed = nodeData?.chapter ? collapsedChapters[nodeData.chapter] : false;
+      const labelCollapsed = collapsedLabelChildren.has(node.id);
+      const dialogueCount = nodeData?.dialogueCount ?? 0;
+      if (chapterCollapsed || labelCollapsed) continue;
+      if (dialogueCount < minDialogue) continue;
+      ids.push(node.id);
+    }
+    return ids;
+  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes]);
+
+  useEffect(() => {
+    if (!largeGraphMode) return;
+    const query = effectiveSearch.trim();
+    if (!dialogueLineSearchEnabled || !query) {
+      searchAbortControllerRef.current?.abort();
+      searchAbortControllerRef.current = null;
+      setDialogueSearchResults([]);
+      return;
+    }
+    searchAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+    void parseService
+      .searchDialogueLines({
+        query,
+        nodeIds: dialogueSearchCandidateNodeIds,
+        maxResults: largeGraphMode ? 500 : 2000,
+        signal: controller.signal,
+      })
+      .then((results) => {
+        if (controller.signal.aborted) return;
+        setDialogueSearchResults(results);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setDialogueSearchResults([]);
+      });
+    return () => controller.abort();
+  }, [
+    dialogueLineSearchEnabled,
+    dialogueSearchCandidateNodeIds,
+    effectiveSearch,
+    largeGraphMode,
+    parseService,
+  ]);
+
+  const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
+    if (!dialogueLineSearchEnabled) return [];
+    const query = effectiveSearch.trim().toLowerCase();
+    if (!query) return [];
+    const results: DialogueSearchResult[] = [];
+    for (const node of nodes) {
+      const nodeData = node.data as { label: string; chapter?: string; dialogueCount?: number; dialogueLines?: string[] };
+      const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
+      const labelCollapsed = collapsedLabelChildren.has(node.id);
+      if (chapterCollapsed || labelCollapsed) continue;
+      if ((nodeData.dialogueCount ?? 0) < minDialogue) continue;
+      const lines = nodeData.dialogueLines ?? [];
+      lines.forEach((line, idx) => {
+        if (line.toLowerCase().includes(query)) {
+          results.push({
+            nodeId: node.id,
+            nodeLabel: nodeData.label,
+            lineIndex: idx + 1,
+            lineText: line,
+          });
+        }
+      });
+    }
+    return results;
+  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, effectiveSearch, minDialogue, nodes]);
+
+  const activeDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
+
   const visibleNodes = useMemo(
     () =>
       buildVisibleNodes({
         nodes,
         search: effectiveSearch,
+        includeDialogueLineSearch: dialogueLineSearchEnabled,
+        dialogueMatchNodeIds: dialogueLineSearchEnabled
+          ? new Set(activeDialogueSearchResults.map((result) => result.nodeId))
+          : null,
         minDialogue,
         collapsedChapters,
         collapsedLabelChildren,
         theme,
+        previousById: previousVisibleNodesById,
       }),
-    [collapsedChapters, collapsedLabelChildren, effectiveSearch, minDialogue, nodes, theme],
+    [
+      activeDialogueSearchResults,
+      collapsedChapters,
+      collapsedLabelChildren,
+      dialogueLineSearchEnabled,
+      effectiveSearch,
+      minDialogue,
+      nodes,
+      previousVisibleNodesById,
+      theme,
+    ],
   );
 
   const visibleNodeIds = useMemo(
@@ -304,9 +447,34 @@ export default function FlowchartViewer({
         visibleNodeIds,
         edgeColor: THEMES[theme].edge,
         largeGraphMode,
+        previousById: previousVisibleEdgesById,
       }),
-    [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
+    [edges, largeGraphMode, previousVisibleEdgesById, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
+
+  useEffect(() => {
+    setPreviousVisibleNodesById((previous) => {
+      if (
+        previous.size === visibleNodes.length &&
+        visibleNodes.every((node) => previous.get(node.id) === node)
+      ) {
+        return previous;
+      }
+      return new Map(visibleNodes.map((node) => [node.id, node]));
+    });
+  }, [visibleNodes]);
+
+  useEffect(() => {
+    setPreviousVisibleEdgesById((previous) => {
+      if (
+        previous.size === visibleEdges.length &&
+        visibleEdges.every((edge) => previous.get(edge.id) === edge)
+      ) {
+        return previous;
+      }
+      return new Map(visibleEdges.map((edge) => [edge.id, edge]));
+    });
+  }, [visibleEdges]);
 
   const selectedNode = useMemo(
     () => visibleNodes.find((n) => n.id === selectedNodeId && !n.hidden) ?? null,
@@ -315,27 +483,6 @@ export default function FlowchartViewer({
 
   const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined;
 
-  const dialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
-    const query = effectiveSearch.trim().toLowerCase();
-    if (!query) return [];
-    const results: DialogueSearchResult[] = [];
-    for (const node of visibleNodes) {
-      if (node.hidden) continue;
-      const data = node.data as { label: string; dialogueLines?: string[] };
-      const lines = data.dialogueLines ?? [];
-      lines.forEach((line, idx) => {
-        if (line.toLowerCase().includes(query)) {
-          results.push({
-            nodeId: node.id,
-            nodeLabel: data.label,
-            lineIndex: idx + 1,
-            lineText: line,
-          });
-        }
-      });
-    }
-    return results;
-  }, [effectiveSearch, visibleNodes]);
   const nodeSearchMatchCount = useMemo(() => {
     const query = effectiveSearch.trim().toLowerCase();
     if (!query) return 0;
@@ -353,11 +500,11 @@ export default function FlowchartViewer({
   }, [effectiveSearch, visibleNodes]);
 
   const resolvedActiveDialogueResultIndex = useMemo(() => {
-    if (dialogueSearchResults.length === 0) return -1;
+    if (activeDialogueSearchResults.length === 0) return -1;
     if (activeDialogueResultIndex < 0) return 0;
-    if (activeDialogueResultIndex >= dialogueSearchResults.length) return dialogueSearchResults.length - 1;
+    if (activeDialogueResultIndex >= activeDialogueSearchResults.length) return activeDialogueSearchResults.length - 1;
     return activeDialogueResultIndex;
-  }, [activeDialogueResultIndex, dialogueSearchResults.length]);
+  }, [activeDialogueResultIndex, activeDialogueSearchResults.length]);
 
   const isLargeExportTarget = useMemo(
     () =>
@@ -455,12 +602,12 @@ export default function FlowchartViewer({
   }, [focusVisibleNode, visibleNodes]);
 
   const onSearchInputKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (dialogueSearchResults.length === 0) return;
+    if (activeDialogueSearchResults.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setActiveDialogueResultIndex((prev) => {
         const base = prev < 0 ? 0 : prev;
-        return (base + 1 + dialogueSearchResults.length) % dialogueSearchResults.length;
+        return (base + 1 + activeDialogueSearchResults.length) % activeDialogueSearchResults.length;
       });
       return;
     }
@@ -468,18 +615,18 @@ export default function FlowchartViewer({
       event.preventDefault();
       setActiveDialogueResultIndex((prev) => {
         const base = prev < 0 ? 0 : prev;
-        return (base - 1 + dialogueSearchResults.length) % dialogueSearchResults.length;
+        return (base - 1 + activeDialogueSearchResults.length) % activeDialogueSearchResults.length;
       });
       return;
     }
     if (event.key === 'Enter') {
       if (resolvedActiveDialogueResultIndex < 0) return;
       event.preventDefault();
-      const selected = dialogueSearchResults[resolvedActiveDialogueResultIndex];
+      const selected = activeDialogueSearchResults[resolvedActiveDialogueResultIndex];
       setActiveDialogueResultIndex(resolvedActiveDialogueResultIndex);
       onSelectDialogueSearchResult(selected);
     }
-  }, [dialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex]);
+  }, [activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex]);
 
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
@@ -561,7 +708,9 @@ export default function FlowchartViewer({
                 />
               </div>
               <span id="viewer-search-help" className="sr-only">
-                Search labels, dialogue lines, or dialogue count.
+                {dialogueLineSearchEnabled
+                  ? 'Search labels, dialogue lines, or dialogue count.'
+                  : 'Search labels or dialogue count.'}
               </span>
               <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
                 Minimum dialogue lines
@@ -575,6 +724,32 @@ export default function FlowchartViewer({
                   className={`w-16 ${CONTROL_INPUT_CLASS}`}
                 />
               </label>
+              <label className="text-xs flex items-center gap-1" htmlFor="dialogue-search-mode-input">
+                Dialogue search mode
+                <select
+                  id="dialogue-search-mode-input"
+                  value={selectedDialogueSearchMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as DialogueSearchMode;
+                    if (onDialogueSearchModeChange) {
+                      onDialogueSearchModeChange(mode);
+                      return;
+                    }
+                    setStandaloneDialogueSearchMode(mode);
+                  }}
+                  aria-label="Dialogue search mode"
+                  className={CONTROL_INPUT_CLASS}
+                >
+                  <option value="auto">Auto (faster on large imports)</option>
+                  <option value="full">Full dialogue line search</option>
+                  <option value="countOnly">Performance mode (label/count only)</option>
+                </select>
+              </label>
+              {!dialogueLineSearchEnabled && (
+                <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  Dialogue line search is disabled in performance mode.
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -909,19 +1084,25 @@ export default function FlowchartViewer({
               <div className="text-xs text-gray-700 mb-1" role="status" aria-live="polite">
                 Node matches (label/count): {nodeSearchMatchCount}
               </div>
+              {!dialogueLineSearchEnabled ? (
+                <div className="text-xs text-gray-600" role="status" aria-live="polite">
+                  Dialogue line matching is unavailable in performance mode.
+                </div>
+              ) : (
+                <>
               <div className="text-xs font-semibold text-gray-700 mb-1">
-                Dialogue line matches ({dialogueSearchResults.length})
+                Dialogue line matches ({activeDialogueSearchResults.length})
               </div>
            <ul className="space-y-1 max-h-48 overflow-y-auto" aria-label="Dialogue search results">
-                  {dialogueSearchResults.length === 0 ? (
+                  {activeDialogueSearchResults.length === 0 ? (
                     <li className="text-xs text-gray-500">
                       <div role="status" aria-live="polite">
                         No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
                       </div>
                     </li>
                   ) : (
-                     dialogueSearchResults.map((result, resultIndex) => (
-                      <li key={`${result.nodeId}-${result.lineIndex}`}>
+                     activeDialogueSearchResults.map((result, resultIndex) => (
+                       <li key={`${result.nodeId}-${result.lineIndex}`}>
                         <button
                           type="button"
                           aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
@@ -943,11 +1124,13 @@ export default function FlowchartViewer({
                   ))
                 )}
               </ul>
-               {dialogueSearchResults.length > 0 && (
-                 <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
-                   Tip: with search focused, use ↑/↓ to move results and Enter to open.
-                 </div>
-               )}
+                {activeDialogueSearchResults.length > 0 && (
+                  <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
+                    Tip: with search focused, use ↑/↓ to move results and Enter to open.
+                  </div>
+                )}
+                </>
+              )}
             </div>
           )}
           {!selectedNode || !selectedNodeData ? (

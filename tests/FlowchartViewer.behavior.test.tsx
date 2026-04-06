@@ -7,6 +7,7 @@ import React from 'react';
 import FlowchartViewer from '../src/FlowchartViewer';
 import type { FlowNode, FlowEdge } from '../src/domain/graph';
 import * as ReactFlowLib from '@xyflow/react';
+import type { ParseService } from '../src/application/parseService';
 
 vi.mock('@xyflow/react', () => {
   const flowApi = { zoomTo: vi.fn(), fitView: vi.fn(), setCenter: vi.fn() };
@@ -325,6 +326,47 @@ describe('FlowchartViewer behavior coverage', () => {
     await user.clear(search);
     await user.type(search, 'missing');
     expect(await screen.findByText(/No dialogue lines matched “missing”/i)).toBeInTheDocument();
+  });
+
+  it('supports performance dialogue search mode with label/count-only matching', async () => {
+    const user = userEvent.setup();
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Dialogue search mode/i }), 'countOnly');
+    expect(screen.getByText(/Dialogue line search is disabled in performance mode/i)).toBeInTheDocument();
+
+    const search = screen.getByRole('textbox', { name: /Search/i });
+    await user.type(search, 'hello');
+    expect(screen.getByText(/Dialogue line matching is unavailable in performance mode/i)).toBeInTheDocument();
+  });
+
+  it('uses worker-backed dialogue search for large graph mode', async () => {
+    const user = userEvent.setup();
+    const largeNodes: FlowNode[] = Array.from({ length: 181 }, (_, i) => ({
+      id: `label_${i}`,
+      type: 'LABEL',
+      label: `label_${i}`,
+      dialogueCount: 1,
+      dialogueLines: [`line ${i}`],
+      chapter: 'chapter1',
+    }));
+    const searchDialogueLines = vi.fn().mockResolvedValue([
+      { nodeId: 'label_10', nodeLabel: 'label_10', lineIndex: 1, lineText: 'needle line' },
+    ]);
+    const parseService: ParseService = {
+      parse: vi.fn(),
+      searchDialogueLines,
+    };
+
+    render(<FlowchartViewer flowNodes={largeNodes} flowEdges={[]} parseService={parseService} />);
+    await user.selectOptions(screen.getByRole('combobox', { name: /Dialogue search mode/i }), 'full');
+    const search = screen.getByRole('textbox', { name: /Search/i });
+    await user.type(search, 'needle');
+
+    await waitFor(() => {
+      expect(searchDialogueLines).toHaveBeenCalled();
+    });
+    expect(await screen.findByText(/Dialogue line matches \(1\)/i)).toBeInTheDocument();
   });
 
   it('keeps inspector in the document flow and includes focus-visible affordance classes', async () => {

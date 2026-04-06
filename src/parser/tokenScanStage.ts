@@ -17,6 +17,7 @@ export function processFlatToken(
   token: FlatTokenLike,
   document: TextDocument,
   chapter: string,
+  captureDialogueLines: boolean,
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMeta(token.metaTokens as Iterable<number>);
@@ -28,7 +29,7 @@ export function processFlatToken(
   const menuDepth = meta.menuDepth;
 
   maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-  handleToken(state, scanState, { type, meta, val, chapter, menuDepth });
+  handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
 }
 
 export function processFlatTokens(
@@ -37,8 +38,9 @@ export function processFlatTokens(
   tokens: Iterable<FlatTokenLike>,
   document: TextDocument,
   chapter: string,
+  captureDialogueLines: boolean,
 ): void {
   for (const token of tokens) {
-    processFlatToken(state, scanState, token, document, chapter);
+    processFlatToken(state, scanState, token, document, chapter, captureDialogueLines);
   }
 }

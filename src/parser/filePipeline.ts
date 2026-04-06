@@ -14,10 +14,11 @@ async function renpyParse(content: string) {
 export async function parseOneFile(
   state: ParseGraphState,
   file: { name: string; content: string },
+  options?: { captureDialogueLines?: boolean },
 ) {
   const chapter = file.name.replace(/\.rpy$/i, '');
   const { document, nodes: tokenTree } = await renpyParse(file.content);
   const flat = tokenTree.flatten();
   const scanState = createScanState();
-  processFlatTokens(state, scanState, flat, document, chapter);
+  processFlatTokens(state, scanState, flat, document, chapter, options?.captureDialogueLines !== false);
 }

@@ -68,6 +68,27 @@ describe('parseRenpyFilesInWorker', () => {
     await expect(first).resolves.toEqual({ nodes: [{ id: 'a' }], edges: [] });
   });
 
+  it('accepts partial result messages and resolves request for chunk responses', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const onPartialResult = vi.fn();
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'a.rpy', content: 'label a:' }],
+      onPartialResult,
+    });
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId,
+      partial: true,
+      nodes: [{ id: 'partial' }],
+      edges: [],
+    });
+    expect(onPartialResult).toHaveBeenCalledWith({ nodes: [{ id: 'partial' }], edges: [] });
+    await expect(request).resolves.toEqual({ nodes: [{ id: 'partial' }], edges: [] });
+  });
+
   it('ignores stale responses with a different requestId for the active request', async () => {
     const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
 
@@ -112,5 +133,49 @@ describe('parseRenpyFilesInWorker', () => {
     expect(cancelMessage?.type).toBe('cancel');
     expect(cancelMessage?.protocolVersion).toBe(PARSER_WORKER_PROTOCOL_VERSION);
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('supports worker-side dialogue search requests', async () => {
+    const { searchDialogueLinesInWorker } = await import('../src/parseInWorker');
+    const request = searchDialogueLinesInWorker({
+      query: 'needle',
+      nodeIds: ['start'],
+      maxResults: 5,
+    });
+
+    const searchMessage = postedMessages[0] as {
+      type: string;
+      requestId: number;
+      query?: string;
+      nodeIds?: string[];
+      maxResults?: number;
+    };
+    expect(searchMessage.type).toBe('search');
+    expect(searchMessage.query).toBe('needle');
+    expect(searchMessage.nodeIds).toEqual(['start']);
+    expect(searchMessage.maxResults).toBe(5);
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'search_result',
+      requestId: searchMessage.requestId,
+      results: [
+        {
+          nodeId: 'start',
+          nodeLabel: 'start',
+          lineIndex: 1,
+          lineText: 'needle line',
+        },
+      ],
+    });
+
+    await expect(request).resolves.toEqual([
+      {
+        nodeId: 'start',
+        nodeLabel: 'start',
+        lineIndex: 1,
+        lineText: 'needle line',
+      },
+    ]);
   });
 });
