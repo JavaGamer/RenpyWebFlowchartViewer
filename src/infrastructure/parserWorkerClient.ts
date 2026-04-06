@@ -3,8 +3,8 @@ import {
   type WorkerResponseMessage,
   type ParseRequestMessage,
   type CancelRequestMessage,
-  type ParseWorkerRequest,
-  type ParseWorkerResult,
+  type ParseWorkerClientRequest,
+  type ParseWorkerClientResult,
 } from './workerProtocol';
 
 let requestCounter = 0;
@@ -22,7 +22,7 @@ export function parseRenpyFilesInWorker({
   files,
   onProgress,
   signal,
-}: ParseWorkerRequest): Promise<ParseWorkerResult> {
+}: ParseWorkerClientRequest): Promise<ParseWorkerClientResult> {
   const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
   if (signal?.aborted) {

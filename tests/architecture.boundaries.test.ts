@@ -94,7 +94,8 @@ describe('architecture import boundaries', () => {
       for (const match of source.matchAll(layerImportPattern)) {
         const importPath = match[1];
         const targetLayer = match[2] as 'domain' | 'application' | 'infrastructure' | 'ui';
-        const isDeepImport = importPath.split('/').length > 2;
+        const normalizedImportPath = importPath.replace(/^(\.\.\/|\.\/)+/, '');
+        const isDeepImport = normalizedImportPath.startsWith(`${targetLayer}/`);
         const isSameLayer = sourceLayer === targetLayer;
         if (isDeepImport && !isSameLayer) {
           offenders.push(`${rel} -> ${importPath}`);

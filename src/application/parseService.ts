@@ -1,7 +1,7 @@
-import { parseRenpyFilesInWorker, type ParseWorkerRequest, type ParseWorkerResult } from '../infrastructure';
+import { parseRenpyFilesInWorker, type ParseWorkerClientRequest, type ParseWorkerClientResult } from '../infrastructure';
 
-export type ParseServiceRequest = ParseWorkerRequest;
-export type ParseServiceResult = ParseWorkerResult;
+export type ParseServiceRequest = ParseWorkerClientRequest;
+export type ParseServiceResult = ParseWorkerClientResult;
 
 export interface ParseService {
   parse(request: ParseServiceRequest): Promise<ParseServiceResult>;

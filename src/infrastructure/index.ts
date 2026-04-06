@@ -8,6 +8,8 @@ export {
   type ResultResponseMessage,
   type ErrorResponseMessage,
   type WorkerResponseMessage,
+  type ParseWorkerClientRequest,
+  type ParseWorkerClientResult,
   type ParseWorkerRequest,
   type ParseWorkerResult,
 } from './workerProtocol';
