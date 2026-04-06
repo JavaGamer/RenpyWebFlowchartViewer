@@ -3,7 +3,7 @@ import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { ParseGraphState } from './pipelineTypes';
 import { createScanState } from './pipelineState';
-import { processFlatTokens } from './tokenScanStage';
+import { processTokenTreeStream } from './tokenScanStage';
 import { createPerfTracker } from '../perf';
 
 let _docVersion = 0;
@@ -34,13 +34,9 @@ export function processTokenizedFile(
   tokenizedFile: TokenizedFile,
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
-  parserPerf.mark('flatten');
-  const flat = tokenTree.flatten();
-  parserPerf.measure('flatten', 'parse_flatten_ms', { file: file.name });
-
   parserPerf.mark('scan');
   const scanState = createScanState();
-  processFlatTokens(state, scanState, flat, document, chapter);
+  processTokenTreeStream(state, scanState, tokenTree, document, chapter);
   parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
 }
 
