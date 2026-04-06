@@ -47,7 +47,7 @@ npm run preview      # serve the built app locally
 ```bash
 npm run test          # run parser unit tests
 npm run test:coverage # run tests with coverage report
-npm run bench:perf    # run perf baseline benchmark and write perf-data/baseline-results.json
+npm run bench:perf    # run opt-in perf baseline benchmark and write perf-data/baseline-results.json
 ```
 
 Coverage thresholds are enforced for parser-critical files in CI.
@@ -166,6 +166,20 @@ Then open <http://localhost:8080>.
 - **Application layer** (`src/application`): orchestration logic (upload validation, app reducer, parse service, error policy).
 - **Infrastructure layer** (`src/infrastructure`): runtime adapters (file reading, parser worker client, worker protocol contract).
 - **UI layer** (`src/*.tsx`, `src/flowchartTransforms.ts`, `src/ui`): React rendering and interaction logic.
+
+### Layer entrypoints
+
+Cross-layer imports are routed through canonical public entrypoints:
+
+- `src/domain/index.ts`
+- `src/application/index.ts`
+- `src/infrastructure/index.ts`
+- `src/ui/index.ts`
+
+#### Migration notes
+
+- `src/parseInWorker.ts` was removed.
+- Import `parseRenpyFilesInWorker` from `src/infrastructure` instead.
 
 See `docs/architecture.md` for the detailed architecture and flow.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { PARSER_WORKER_PROTOCOL_VERSION } from '../src/infrastructure/workerProtocol';
+import { PARSER_WORKER_PROTOCOL_VERSION } from '../src/infrastructure';
 
 let workerMessageHandlers = new Set<(event: MessageEvent) => void>();
 let postedMessages: unknown[] = [];
@@ -33,7 +33,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('supports concurrent requests and resolves each by requestId', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
 
     const first = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
     const second = parseRenpyFilesInWorker({ files: [{ name: 'b.rpy', content: 'label b:' }] });
@@ -69,7 +69,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('ignores stale responses with a different requestId for the active request', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
 
     const request = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
@@ -96,7 +96,7 @@ describe('parseRenpyFilesInWorker', () => {
   });
 
   it('posts cancel message and rejects with AbortError when signal aborts', async () => {
-    const { parseRenpyFilesInWorker } = await import('../src/parseInWorker');
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
     const controller = new AbortController();
     const promise = parseRenpyFilesInWorker({
       files: [{ name: 'a.rpy', content: 'label a:' }],

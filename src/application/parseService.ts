@@ -1,19 +1,10 @@
-import type { FlowEdge, FlowNode } from '../domain/graph';
-import { parseRenpyFilesInWorker } from '../parseInWorker';
+import { parseRenpyFilesInWorker, type ParseWorkerClientRequest, type ParseWorkerClientResult } from '../infrastructure';
 
-export interface ParseServiceRequest {
-  files: Array<{ name: string; content: string }>;
-  onProgress?: (progress: {
-    doneFiles: number;
-    totalFiles: number;
-    currentFile: string;
-    elapsedMs?: number;
-  }) => void;
-  signal?: AbortSignal;
-}
+export type ParseServiceRequest = ParseWorkerClientRequest;
+export type ParseServiceResult = ParseWorkerClientResult;
 
 export interface ParseService {
-  parse(request: ParseServiceRequest): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] }>;
+  parse(request: ParseServiceRequest): Promise<ParseServiceResult>;
 }
 
 export const workerParseService: ParseService = {

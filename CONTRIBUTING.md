@@ -32,6 +32,12 @@ Optional coverage run:
 npm run test:coverage
 ```
 
+Optional perf baseline run:
+
+```bash
+npm run bench:perf
+```
+
 ## Troubleshooting During Development
 
 - `@renpy/ast` can keep module-level tokenizer cache between test runs. If test behavior looks stale, rerun `npm run test` in a clean process.
@@ -48,6 +54,7 @@ npm run test:coverage
    - Why it changed
    - Any testing performed
    - How architectural boundaries were preserved (domain/application/infrastructure/ui)
+   - Whether cross-layer imports were kept on layer entrypoints (`src/domain`, `src/application`, `src/infrastructure`, `src/ui`)
 5. Address CI or review feedback and keep the PR scope focused.
 
 ## UI/UX + Accessibility Checklist

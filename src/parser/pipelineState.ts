@@ -1,4 +1,4 @@
-import type { FlowNode } from '../domain/graph';
+import type { FlowNode } from '../domain';
 import type { ParseGraphState, ParseScanState, EdgeKind } from './pipelineTypes';
 
 export function createGraphState(): ParseGraphState {

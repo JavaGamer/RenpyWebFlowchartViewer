@@ -1,6 +1,6 @@
 import dagre from '@dagrejs/dagre';
 import type { Edge, Node } from '@xyflow/react';
-import type { FlowNode, FlowEdge } from './domain/graph';
+import type { FlowNode, FlowEdge } from './domain';
 
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;

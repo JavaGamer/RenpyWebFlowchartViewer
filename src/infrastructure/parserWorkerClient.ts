@@ -1,26 +1,11 @@
-import type { FlowNode, FlowEdge } from '../domain/graph';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerResponseMessage,
   type ParseRequestMessage,
   type CancelRequestMessage,
+  type ParseWorkerClientRequest,
+  type ParseWorkerClientResult,
 } from './workerProtocol';
-
-interface ParseRequestPayload {
-  files: Array<{ name: string; content: string }>;
-  onProgress?: (progress: {
-    doneFiles: number;
-    totalFiles: number;
-    currentFile: string;
-    elapsedMs?: number;
-  }) => void;
-  signal?: AbortSignal;
-}
-
-interface ParseResultPayload {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-}
 
 let requestCounter = 0;
 
@@ -37,7 +22,7 @@ export function parseRenpyFilesInWorker({
   files,
   onProgress,
   signal,
-}: ParseRequestPayload): Promise<ParseResultPayload> {
+}: ParseWorkerClientRequest): Promise<ParseWorkerClientResult> {
   const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
   if (signal?.aborted) {
