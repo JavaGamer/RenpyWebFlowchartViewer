@@ -28,22 +28,25 @@ export async function tokenizeOneFile(
   options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
   fileIndex?: number,
 ): Promise<TokenizedFile> {
+  const { tokenizedCache } = options;
   const chapter = file.name.replace(/\.rpy$/i, '');
   const cacheKey =
     fileIndex !== undefined && options.fileCacheKeys?.[fileIndex]
       ? options.fileCacheKeys[fileIndex]
       : undefined;
 
-  if (cacheKey && options.tokenizedCache?.has(cacheKey)) {
-    const cached = options.tokenizedCache.get(cacheKey)!;
-    return { file, chapter, document: cached.document, tokenTree: cached.tokenTree, cacheKey };
+  if (cacheKey && tokenizedCache) {
+    const cached = tokenizedCache.get(cacheKey);
+    if (cached) {
+      return { file, chapter, document: cached.document, tokenTree: cached.tokenTree, cacheKey };
+    }
   }
 
   parserPerf.mark('tokenize');
   const { document, nodes: tokenTree } = await renpyParse(file.content);
   parserPerf.measure('tokenize', 'parse_tokenize_ms', { file: file.name });
-  if (cacheKey) {
-    options.tokenizedCache?.set(cacheKey, { document, tokenTree });
+  if (cacheKey && tokenizedCache) {
+    tokenizedCache.set(cacheKey, { document, tokenTree });
   }
   return { file, chapter, document, tokenTree, cacheKey };
 }

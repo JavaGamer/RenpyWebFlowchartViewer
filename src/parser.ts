@@ -64,7 +64,9 @@ export async function parseRenpyFiles(
 
     for (let idx = 0; idx < files.length; idx += 1) {
       const tokenized = tokenizedFiles[idx];
-      if (!tokenized) continue;
+      if (!tokenized) {
+        throw new Error(`Failed to tokenize file at index ${idx} (${files[idx]?.name ?? 'unknown'})`);
+      }
       const file = files[idx];
       perf.mark(`file:${idx}:scan`);
       processTokenizedFile(state, tokenized);

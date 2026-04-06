@@ -28,9 +28,21 @@ function hashToHex(buffer: ArrayBuffer): string {
   return out;
 }
 
+/**
+ * Lightweight deterministic hash used only for cache keys when Web Crypto is unavailable.
+ */
+function simpleStringHash(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 async function computeFileCacheKeys(files: Array<{ name: string; content: string }>): Promise<string[]> {
   if (!globalThis.crypto?.subtle) {
-    return files.map((file) => `${file.name}:${file.content.length}`);
+    return files.map((file) => `${file.name}:${file.content.length}:${simpleStringHash(file.content)}`);
   }
 
   const digests = await Promise.all(
