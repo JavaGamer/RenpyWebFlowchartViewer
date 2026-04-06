@@ -81,8 +81,12 @@ export function parseRenpyFilesInWorker({
       }
 
       if (message.type === 'result' && message.partial) {
-        onPartialResult?.({ nodes: message.nodes, edges: message.edges });
-        resolve({ nodes: message.nodes, edges: message.edges });
+        settle(() => {
+          parserWorker.removeEventListener('message', onMessage);
+          signal?.removeEventListener('abort', onAbort);
+          onPartialResult?.({ nodes: message.nodes, edges: message.edges });
+          resolve({ nodes: message.nodes, edges: message.edges });
+        });
         return;
       }
 

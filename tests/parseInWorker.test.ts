@@ -87,6 +87,7 @@ describe('parseRenpyFilesInWorker', () => {
     });
     expect(onPartialResult).toHaveBeenCalledWith({ nodes: [{ id: 'partial' }], edges: [] });
     await expect(request).resolves.toEqual({ nodes: [{ id: 'partial' }], edges: [] });
+    expect(workerMessageHandlers.size).toBe(0);
   });
 
   it('ignores stale responses with a different requestId for the active request', async () => {
