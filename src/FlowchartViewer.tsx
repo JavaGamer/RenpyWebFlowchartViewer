@@ -217,8 +217,10 @@ export default function FlowchartViewer({
         : visibleSubgraphLabels.slice(0, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES),
     [shouldShowAllLabelSubgraphToggles, visibleSubgraphLabels],
   );
-  const hiddenLabelSubgraphToggleCount =
-    visibleSubgraphLabels.length - visibleLabelSubgraphToggles.length;
+  const hiddenLabelSubgraphToggleCount = Math.max(
+    visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES,
+    0,
+  );
   const largeGraphModeStatusText = useMemo(() => {
     if (autoLargeGraphMode && largeGraphModeOverride === null) {
       return 'Auto-enabled from graph size.';
@@ -342,7 +344,8 @@ export default function FlowchartViewer({
     const query = effectiveSearch.trim().toLowerCase();
     if (!query) return 0;
     let matches = 0;
-    for (const node of nodes) {
+    for (const node of visibleNodes) {
+      if (node.hidden) continue;
       const data = node.data as { label?: string; dialogueCount?: number };
       const label = data.label ?? '';
       const dialogueCount = data.dialogueCount ?? 0;
@@ -351,7 +354,7 @@ export default function FlowchartViewer({
       }
     }
     return matches;
-  }, [effectiveSearch, nodes]);
+  }, [effectiveSearch, visibleNodes]);
 
   const resolvedActiveDialogueResultIndex = useMemo(() => {
     if (dialogueSearchResults.length === 0) return -1;
@@ -839,7 +842,7 @@ export default function FlowchartViewer({
                               {collapsedParentLabels[label] ? '▸' : '▾'} {label}
                             </button>
                           ))}
-                          {hiddenLabelSubgraphToggleCount > 0 && (
+                          {visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES && (
                             <button
                               type="button"
                               onClick={() => setShowAllLabelSubgraphToggles((prev) => !prev)}
