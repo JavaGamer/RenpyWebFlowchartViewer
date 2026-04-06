@@ -30,11 +30,23 @@ export type CanvasEdge = LabeledEdgeType;
 
 export type EdgeKindFilter = 'sequence' | 'jump' | 'call' | 'call_return';
 
+const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
+
 export function applyDagreLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
   direction: 'TB' | 'LR',
+  options?: {
+    progressive?: boolean;
+    previousPositions?: Map<string, { x: number; y: number }>;
+  },
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+  const shouldUseProgressive =
+    options?.progressive === true && rawNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+  if (shouldUseProgressive) {
+    return applyProgressiveDagreLayout(rawNodes, rawEdges, direction, options?.previousPositions);
+  }
+
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -98,6 +110,83 @@ export function applyDagreLayout(
   return { nodes, edges };
 }
 
+function applyProgressiveDagreLayout(
+  rawNodes: FlowNode[],
+  rawEdges: FlowEdge[],
+  direction: 'TB' | 'LR',
+  previousPositions?: Map<string, { x: number; y: number }>,
+): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+  const subset = rawNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
+  const subsetIds = new Set(subset.map((n) => n.id));
+  const subsetEdges = rawEdges.filter((e) => subsetIds.has(e.source) && subsetIds.has(e.target));
+  const base = applyDagreLayout(subset, subsetEdges, direction);
+  const positionById = new Map<string, { x: number; y: number }>(
+    base.nodes.map((n) => [n.id, n.position]),
+  );
+  let maxX = 0;
+  let maxY = 0;
+  for (const node of base.nodes) {
+    if (node.position.x > maxX) maxX = node.position.x;
+    if (node.position.y > maxY) maxY = node.position.y;
+  }
+
+  const fallbackStartX = maxX + 80;
+  const fallbackStartY = maxY + 80;
+  const fallbackStrideX = NODE_WIDTH + 24;
+  const fallbackStrideY = NODE_HEIGHT_LABEL + 24;
+  let fallbackIndex = 0;
+  for (const node of rawNodes) {
+    if (positionById.has(node.id)) continue;
+    const previous = previousPositions?.get(node.id);
+    if (previous) {
+      positionById.set(node.id, previous);
+      continue;
+    }
+    const col = fallbackIndex % 8;
+    const row = Math.floor(fallbackIndex / 8);
+    positionById.set(node.id, {
+      x: fallbackStartX + col * fallbackStrideX,
+      y: fallbackStartY + row * fallbackStrideY,
+    });
+    fallbackIndex += 1;
+  }
+
+  const nodes: CanvasNode[] = rawNodes.map((n) => {
+    const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
+    const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
+    return {
+      id: n.id,
+      type: n.type === 'LABEL' ? 'labelNode' : 'menuNode',
+      position: { x: pos.x, y: pos.y },
+      data: {
+        label: n.label,
+        dialogueCount: n.dialogueCount,
+        dialogueLines: n.dialogueLines,
+        nodeType: n.type,
+        chapter: n.chapter,
+        parentLabelId: n.parentLabelId,
+        theme: 'violet',
+      },
+      draggable: true,
+      measured: { width: NODE_WIDTH, height: h },
+    };
+  });
+
+  const edges: CanvasEdge[] = rawEdges
+    .filter((e) => positionById.has(e.source) && positionById.has(e.target))
+    .map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: 'labeled',
+      data: { label: e.label ?? '', kind: e.kind },
+      markerEnd: { type: 'arrowclosed' as const },
+      style: { stroke: '#6b7280', strokeWidth: 1.5 },
+    }));
+
+  return { nodes, edges };
+}
+
 export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
   const nodeHeight = node.type === 'labelNode' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
   return {
@@ -110,19 +199,23 @@ export function buildVisibleNodes(params: {
   nodes: CanvasNode[];
   search: string;
   includeDialogueLineSearch?: boolean;
+  dialogueMatchNodeIds?: Set<string> | null;
   minDialogue: number;
   collapsedChapters: Record<string, boolean>;
   collapsedLabelChildren: Set<string>;
   theme: 'violet' | 'highContrast' | 'colorblind';
+  previousById?: Map<string, CanvasNode>;
 }): CanvasNode[] {
   const {
     nodes,
     search,
     includeDialogueLineSearch = true,
+    dialogueMatchNodeIds = null,
     minDialogue,
     collapsedChapters,
     collapsedLabelChildren,
     theme,
+    previousById,
   } = params;
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
@@ -132,14 +225,32 @@ export function buildVisibleNodes(params: {
     const matchesSearch =
       query.length === 0 ||
       nodeData.label.toLowerCase().includes(query) ||
+      (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
         (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query))) ||
       String(nodeData.dialogueCount).includes(query);
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
+    const hidden = Boolean(chapterCollapsed || labelCollapsed || !matchesSearch || !matchesDialogue);
+    const previous = previousById?.get(n.id);
+    if (previous) {
+      const prevData = previous.data as NodeData;
+      if (
+        previous.hidden === hidden &&
+        prevData.theme === theme &&
+        prevData.label === nodeData.label &&
+        prevData.dialogueCount === nodeData.dialogueCount &&
+        prevData.dialogueLines === nodeData.dialogueLines &&
+        prevData.nodeType === nodeData.nodeType &&
+        prevData.chapter === nodeData.chapter &&
+        prevData.parentLabelId === nodeData.parentLabelId
+      ) {
+        return previous;
+      }
+    }
     return {
       ...n,
       data: { ...nodeData, theme },
-      hidden: Boolean(chapterCollapsed || labelCollapsed || !matchesSearch || !matchesDialogue),
+      hidden,
     };
   });
 }
@@ -151,8 +262,17 @@ export function buildVisibleEdges(params: {
   visibleNodeIds: Set<string>;
   edgeColor: string;
   largeGraphMode: boolean;
+  previousById?: Map<string, CanvasEdge>;
 }): CanvasEdge[] {
-  const { edges, showCallReturns, visibleEdgeKinds, visibleNodeIds, edgeColor, largeGraphMode } =
+  const {
+    edges,
+    showCallReturns,
+    visibleEdgeKinds,
+    visibleNodeIds,
+    edgeColor,
+    largeGraphMode,
+    previousById,
+  } =
     params;
   const visible: CanvasEdge[] = [];
   for (const edge of edges) {
@@ -162,6 +282,19 @@ export function buildVisibleEdges(params: {
     if (!showCallReturns && kind === 'call_return') continue;
     if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
     const edgeLabel = largeGraphMode && kind === 'sequence' ? '' : (edgeData.label ?? '');
+    const previous = previousById?.get(edge.id);
+    const previousData = previous?.data as EdgeData | undefined;
+    if (
+      previous &&
+      previousData?.label === edgeLabel &&
+      previousData?.kind === kind &&
+      previous.source === edge.source &&
+      previous.target === edge.target &&
+      previous.style?.stroke === edgeColor
+    ) {
+      visible.push(previous);
+      continue;
+    }
     visible.push({
       ...edge,
       data: { ...edgeData, label: edgeLabel, kind },

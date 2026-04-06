@@ -17,7 +17,24 @@ export interface ParseRequestMessage {
   wantsProgress?: boolean;
   captureDialogueLines?: boolean;
   appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
+}
+
+export interface DialogueSearchResult {
+  nodeId: string;
+  nodeLabel: string;
+  lineIndex: number;
+  lineText: string;
+}
+
+export interface SearchRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: 'search';
+  requestId: number;
+  query: string;
+  nodeIds?: string[];
+  maxResults?: number;
 }
 
 export interface CancelRequestMessage {
@@ -26,7 +43,7 @@ export interface CancelRequestMessage {
   requestId: number;
 }
 
-export type WorkerRequestMessage = ParseRequestMessage | CancelRequestMessage;
+export type WorkerRequestMessage = ParseRequestMessage | SearchRequestMessage | CancelRequestMessage;
 
 export interface ProgressResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
@@ -56,7 +73,16 @@ export interface ErrorResponseMessage {
   elapsedMs?: number;
 }
 
+export interface SearchResultResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: 'search_result';
+  requestId: number;
+  results: DialogueSearchResult[];
+  elapsedMs?: number;
+}
+
 export type WorkerResponseMessage =
   | ProgressResponseMessage
   | ResultResponseMessage
-  | ErrorResponseMessage;
+  | ErrorResponseMessage
+  | SearchResultResponseMessage;

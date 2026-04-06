@@ -4,11 +4,14 @@ import {
   type WorkerResponseMessage,
   type ParseRequestMessage,
   type CancelRequestMessage,
+  type SearchRequestMessage,
+  type DialogueSearchResult,
 } from './workerProtocol';
 
 interface ParseRequestPayload {
   files: Array<{ name: string; content: string }>;
   appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
   captureDialogueLines?: boolean;
   onProgress?: (progress: {
@@ -40,6 +43,7 @@ function getParserWorker(): Worker {
 export function parseRenpyFilesInWorker({
   files,
   appendToActiveGraph,
+  resetActiveGraph,
   isFinalChunk,
   captureDialogueLines,
   onProgress,
@@ -90,8 +94,11 @@ export function parseRenpyFilesInWorker({
         resolve({ nodes: message.nodes, edges: message.edges });
         return;
       }
-
-      reject(new Error(message.message));
+      if (message.type === 'error') {
+        reject(new Error(message.message));
+        return;
+      }
+      reject(new Error('Unexpected parser worker response'));
     };
 
     const onAbort = () => {
@@ -116,10 +123,72 @@ export function parseRenpyFilesInWorker({
       requestId,
       files,
       appendToActiveGraph,
+      resetActiveGraph,
       isFinalChunk,
       captureDialogueLines,
       wantsProgress: Boolean(onProgress),
     };
     parserWorker.postMessage(parseMessage);
+  });
+}
+
+interface SearchRequestPayload {
+  query: string;
+  nodeIds?: string[];
+  maxResults?: number;
+  signal?: AbortSignal;
+}
+
+export function searchDialogueLinesInWorker({
+  query,
+  nodeIds,
+  maxResults,
+  signal,
+}: SearchRequestPayload): Promise<DialogueSearchResult[]> {
+  const parserWorker = getParserWorker();
+  const requestId = ++requestCounter;
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException('Parsing cancelled', 'AbortError'));
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (cb: () => void) => {
+      if (settled) return;
+      settled = true;
+      cb();
+    };
+
+    const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
+      const message = event.data;
+      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
+      if (message.requestId !== requestId) return;
+      if (message.type !== 'search_result') return;
+      settle(() => {
+        parserWorker.removeEventListener('message', onMessage);
+        signal?.removeEventListener('abort', onAbort);
+      });
+      resolve(message.results);
+    };
+
+    const onAbort = () => {
+      settle(() => {
+        parserWorker.removeEventListener('message', onMessage);
+        signal?.removeEventListener('abort', onAbort);
+        reject(new DOMException('Parsing cancelled', 'AbortError'));
+      });
+    };
+
+    parserWorker.addEventListener('message', onMessage);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const searchMessage: SearchRequestMessage = {
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'search',
+      requestId,
+      query,
+      nodeIds,
+      maxResults,
+    };
+    parserWorker.postMessage(searchMessage);
   });
 }

@@ -7,11 +7,13 @@ import {
   type WorkerRequestMessage,
   type WorkerResponseMessage,
   type ProgressResponseMessage,
+  type DialogueSearchResult,
 } from './infrastructure/workerProtocol';
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
 let accumulatedState = createGraphState();
+const dialogueIndex = new Map<string, Array<{ line: string; lineIndex: number }>>();
 
 function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
@@ -26,6 +28,49 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     return;
   }
 
+  if (message.type === 'search') {
+    const startedAt = performance.now();
+    const query = message.query.trim().toLowerCase();
+    if (!query) {
+      postMessageSafe({
+        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+        type: 'search_result',
+        requestId: message.requestId,
+        results: [],
+        elapsedMs: performance.now() - startedAt,
+      });
+      return;
+    }
+    const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, 2000));
+    const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
+    const results: DialogueSearchResult[] = [];
+    for (const node of accumulatedState.nodes) {
+      if (allowedIds && !allowedIds.has(node.id)) continue;
+      const lines = dialogueIndex.get(node.id);
+      if (!lines || lines.length === 0) continue;
+      for (const line of lines) {
+        if (line.line.toLowerCase().includes(query)) {
+          results.push({
+            nodeId: node.id,
+            nodeLabel: node.label,
+            lineIndex: line.lineIndex,
+            lineText: line.line,
+          });
+          if (results.length >= maxResults) break;
+        }
+      }
+      if (results.length >= maxResults) break;
+    }
+    postMessageSafe({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'search_result',
+      requestId: message.requestId,
+      results,
+      elapsedMs: performance.now() - startedAt,
+    });
+    return;
+  }
+
   if (message.type !== 'parse') return;
 
   const { requestId, files } = message;
@@ -33,6 +78,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
   const startedAt = performance.now();
   const wantsProgress = message.wantsProgress !== false;
   const appendToActiveGraph = message.appendToActiveGraph === true;
+  const resetActiveGraph = message.resetActiveGraph === true;
   const isFinalChunk = message.isFinalChunk !== false;
   const progressThrottleMs = files.length > 40 ? 30 : 0;
   let lastProgressAt = 0;
@@ -41,6 +87,10 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
   try {
     let result;
     if (appendToActiveGraph) {
+      if (resetActiveGraph) {
+        accumulatedState = createGraphState();
+        dialogueIndex.clear();
+      }
       if (message.requestId !== activeRequestId) return;
       for (let idx = 0; idx < files.length; idx += 1) {
         if (cancelledRequests.has(requestId)) {
@@ -50,6 +100,14 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         await parseOneFile(accumulatedState, file, {
           captureDialogueLines: message.captureDialogueLines !== false,
         });
+        for (const node of accumulatedState.nodes) {
+          if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
+          if (dialogueIndex.has(node.id)) continue;
+          dialogueIndex.set(
+            node.id,
+            node.dialogueLines.map((line, idx) => ({ line, lineIndex: idx + 1 })),
+          );
+        }
         if (wantsProgress) {
           const now = performance.now();
           const nextProgress: ProgressResponseMessage = {
@@ -103,6 +161,17 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           }
         },
       });
+      accumulatedState = createGraphState();
+      accumulatedState.nodes = result.nodes;
+      accumulatedState.edges = result.edges;
+      dialogueIndex.clear();
+      for (const node of result.nodes) {
+        if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
+        dialogueIndex.set(
+          node.id,
+          node.dialogueLines.map((line, idx) => ({ line, lineIndex: idx + 1 })),
+        );
+      }
     }
 
     if (wantsProgress && pendingProgress) {
@@ -140,6 +209,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     cancelledRequests.delete(requestId);
     if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
       accumulatedState = createGraphState();
+      dialogueIndex.clear();
     }
   }
 };

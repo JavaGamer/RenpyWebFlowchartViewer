@@ -87,6 +87,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               const result = await parseService.parse({
                 files: parseChunk,
                 appendToActiveGraph: true,
+                resetActiveGraph: offset === 0 && parseOffset === 0,
                 isFinalChunk: isLastChunk,
                 captureDialogueLines: effectiveDialogueMode === 'full',
                 signal: controller.signal,
