@@ -192,6 +192,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const user = userEvent.setup();
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
 
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
     const edgeToggle = screen.getByRole('checkbox', { name: /Show sequence edges/i });
     expect(edgeToggle).toBeChecked();
     await user.click(edgeToggle);
@@ -224,6 +225,7 @@ describe('FlowchartViewer behavior coverage', () => {
 
     expect(screen.getByText(/Shortcuts: Ctrl\/Cmd\+F search/i)).toBeInTheDocument();
     expect(screen.getByRole('toolbar', { name: /Viewer controls/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Primary controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Search and filters/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Layout and focus controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Export controls/i })).toBeInTheDocument();
@@ -244,6 +246,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const reactFlowTestUtils = ReactFlowLib as unknown as { __test: { flowApi: { zoomTo: ReturnType<typeof vi.fn>; fitView: ReturnType<typeof vi.fn> } } };
     expect(reactFlowTestUtils.__test.flowApi.zoomTo).toHaveBeenCalledWith(1, { duration: 250 });
 
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(screen.getByRole('button', { name: /Re-run auto layout/i }));
     await waitFor(() => {
       expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
@@ -335,5 +338,37 @@ describe('FlowchartViewer behavior coverage', () => {
 
     const exportPng = screen.getByRole('button', { name: /Export flowchart as PNG/i });
     expect(exportPng.className).toContain('focus-visible:ring-2');
+  });
+
+  it('keeps node match count aligned with current visibility filters', async () => {
+    const user = userEvent.setup();
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    const search = screen.getByRole('textbox', { name: /Search/i });
+    await user.type(search, 'start');
+    expect(screen.getByText(/Node matches \(label\/count\): 1/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
+    await user.click(screen.getByRole('button', { name: /Collapse chapter chapter1/i }));
+    expect(screen.getByText(/Node matches \(label\/count\): 0/i)).toBeInTheDocument();
+  });
+
+  it('keeps label toggle control available for show more and show fewer states', async () => {
+    const user = userEvent.setup();
+    const manyLabels: FlowNode[] = Array.from({ length: 30 }, (_, i) => ({
+      id: `label_${i + 1}`,
+      type: 'LABEL',
+      label: `label_${i + 1}`,
+      dialogueCount: 1,
+      chapter: 'chapter1',
+    }));
+
+    render(<FlowchartViewer flowNodes={manyLabels} flowEdges={[]} />);
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
+
+    const showMore = screen.getByRole('button', { name: /Show 6 more label subgraph toggles/i });
+    expect(showMore).toBeInTheDocument();
+    await user.click(showMore);
+    expect(screen.getByRole('button', { name: /Show fewer label subgraph toggles/i })).toBeInTheDocument();
   });
 });

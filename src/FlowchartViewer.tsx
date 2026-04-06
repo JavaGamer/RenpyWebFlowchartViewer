@@ -56,6 +56,14 @@ interface DialogueSearchResult {
   lineText: string;
 }
 
+const CONTROL_INPUT_CLASS =
+  'px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
+const CONTROL_BUTTON_CLASS =
+  'px-2 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-50 disabled:cursor-not-allowed';
+const PRIMARY_BUTTON_CLASS =
+  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
+const MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES = 24;
+
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],
   collapsedParentLabels: Record<string, boolean>,
@@ -141,6 +149,8 @@ export default function FlowchartViewer({
   const [selectedDialogueLineIndex, setSelectedDialogueLineIndex] = useState<number | null>(null);
   const [showAllInspectorLines, setShowAllInspectorLines] = useState(false);
   const [activeDialogueResultIndex, setActiveDialogueResultIndex] = useState(-1);
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
+  const [showAllLabelSubgraphToggles, setShowAllLabelSubgraphToggles] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
@@ -198,6 +208,27 @@ export default function FlowchartViewer({
     () => labels.filter((label) => collapsedParentLabels[label]).length,
     [collapsedParentLabels, labels],
   );
+  const shouldShowAllLabelSubgraphToggles =
+    showAllLabelSubgraphToggles && visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES;
+  const visibleLabelSubgraphToggles = useMemo(
+    () =>
+      shouldShowAllLabelSubgraphToggles
+        ? visibleSubgraphLabels
+        : visibleSubgraphLabels.slice(0, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES),
+    [shouldShowAllLabelSubgraphToggles, visibleSubgraphLabels],
+  );
+  const largeGraphModeStatusText = useMemo(() => {
+    if (autoLargeGraphMode && largeGraphModeOverride === null) {
+      return 'Auto-enabled from graph size.';
+    }
+    if (autoLargeGraphMode && largeGraphModeOverride !== null) {
+      return 'Auto-detected large graph; manual override active.';
+    }
+    if (!autoLargeGraphMode && largeGraphModeOverride === true) {
+      return 'Manually enabled.';
+    }
+    return 'Off.';
+  }, [autoLargeGraphMode, largeGraphModeOverride]);
 
   const relayout = useCallback(() => {
     const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection);
@@ -304,6 +335,21 @@ export default function FlowchartViewer({
       });
     }
     return results;
+  }, [effectiveSearch, visibleNodes]);
+  const nodeSearchMatchCount = useMemo(() => {
+    const query = effectiveSearch.trim().toLowerCase();
+    if (!query) return 0;
+    let matches = 0;
+    for (const node of visibleNodes) {
+      if (node.hidden) continue;
+      const data = node.data as { label?: string; dialogueCount?: number };
+      const label = data.label ?? '';
+      const dialogueCount = data.dialogueCount ?? 0;
+      if (label.toLowerCase().includes(query) || String(dialogueCount).includes(query)) {
+        matches += 1;
+      }
+    }
+    return matches;
   }, [effectiveSearch, visibleNodes]);
 
   const resolvedActiveDialogueResultIndex = useMemo(() => {
@@ -445,6 +491,9 @@ export default function FlowchartViewer({
     a.click();
     URL.revokeObjectURL(url);
   }, [flowEdges, flowNodes]);
+  const onFitView = useCallback(() => {
+    flowInstanceRef.current?.fitView({ padding: 0.2 });
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -481,156 +530,60 @@ export default function FlowchartViewer({
     return () => cancelAnimationFrame(id);
   }, [perf, visibleEdges.length, visibleNodeIds.size]);
 
+  const focusTargetNode = useMemo(
+    () => visibleNodes.find((n) => n.id === focusNodeId && !n.hidden),
+    [focusNodeId, visibleNodes],
+  );
+
   return (
     <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
       <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0" role="toolbar" aria-label="Viewer controls">
         <div className="flex flex-col gap-3">
-          <div className="text-sm" style={{ color: THEMES[theme].subtleText }}>
+          <div className="text-sm" style={{ color: THEMES[theme].subtleText }} aria-live="off">
             {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
             {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
           </div>
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Search and filters">
-            <label htmlFor="viewer-search-input" className="text-xs font-medium text-gray-700">Search</label>
-            <div className="relative flex items-center min-w-[12rem]">
-              <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
-              <input
-                id="viewer-search-input"
-                ref={searchInputRef}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={onSearchInputKeyDown}
-                placeholder="Search labels, dialogue lines, or dialogue count"
-                aria-describedby="viewer-search-help"
-                className="pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-md w-[14rem] max-w-[80vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-              />
+          <div className="flex flex-wrap items-start gap-2 md:gap-3" role="group" aria-label="Primary controls">
+            <div className="flex flex-wrap items-center gap-2 grow" role="group" aria-label="Search and filters">
+              <label htmlFor="viewer-search-input" className="text-xs font-medium text-gray-700">Search</label>
+              <div className="relative flex items-center min-w-[12rem] grow sm:grow-0">
+                <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
+                <input
+                  id="viewer-search-input"
+                  ref={searchInputRef}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={onSearchInputKeyDown}
+                  placeholder="Search labels, dialogue lines, or dialogue count"
+                  aria-describedby="viewer-search-help"
+                  className={`pl-7 pr-2 w-full sm:w-[16rem] max-w-[90vw] ${CONTROL_INPUT_CLASS}`}
+                />
+              </div>
+              <span id="viewer-search-help" className="sr-only">
+                Search labels, dialogue lines, or dialogue count.
+              </span>
+              <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
+                Minimum dialogue lines
+                <input
+                  id="min-dialogue-input"
+                  type="number"
+                  min={0}
+                  value={minDialogue}
+                  onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
+                  aria-label="Minimum dialogue lines"
+                  className={`w-16 ${CONTROL_INPUT_CLASS}`}
+                />
+              </label>
             </div>
-            <span id="viewer-search-help" className="sr-only">
-              Search labels, dialogue lines, or dialogue count.
-            </span>
-            <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
-              Minimum dialogue lines
-            <input
-               id="min-dialogue-input"
-               type="number"
-               min={0}
-               value={minDialogue}
-               onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
-               aria-label="Minimum dialogue lines"
-               className="w-16 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-             />
-           </label>
-            <label className="text-xs flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={showCallReturns}
-              onChange={(e) => setShowCallReturns(e.target.checked)}
-              aria-label="Show call returns"
-            />
-            Show call returns
-             </label>
-            <label className="text-xs flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={largeGraphMode}
-              onChange={(e) => setLargeGraphModeOverride(e.target.checked)}
-              aria-label="Enable large graph mode"
-            />
-            Large graph mode
-             </label>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Layout and focus controls">
-            <label className="text-xs flex items-center gap-1">
-             <LayoutGrid size={14} aria-hidden="true" />
-             Layout
-             <select
-               value={layoutDirection}
-               onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
-               aria-label="Auto layout direction"
-               className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-             >
-               <option value="TB">Top to bottom</option>
-               <option value="LR">Left to right</option>
-             </select>
-           </label>
-            <button
-            onClick={relayout}
-            className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            aria-label="Re-run auto layout"
-          >
-            Auto-layout
-          </button>
-            <label className="text-xs flex items-center gap-1 flex-wrap">
-            <Palette size={14} aria-hidden="true" />
-            Theme
-            <select
-               value={theme}
-               onChange={(e) => setTheme(e.target.value as ThemeName)}
-               aria-label="Color theme"
-               className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-             >
-               <option value="violet">Default</option>
-               <option value="highContrast">High contrast</option>
-               <option value="colorblind">Colorblind-safe</option>
-             </select>
-           </label>
-
-            <label className="text-xs flex items-center gap-1 flex-wrap">
-            Focus label
-            <select
-               value={focusNodeId}
-               onChange={(e) => setFocusNodeId(e.target.value)}
-               aria-label="Focus label"
-               className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-             >
-               <option value="">Select label</option>
-               {labels.map((label) => (
-                <option key={label} value={label}>
-                  {label}
-                </option>
-              ))}
-            </select>
             <button
               type="button"
-              onClick={onFocusSelectedNode}
-              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-              aria-label="Center selected label"
+              onClick={onFitView}
+              className={CONTROL_BUTTON_CLASS}
+              aria-label="Fit graph to view"
             >
-              <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
-              Center
+              Fit view
             </button>
-          </label>
-            <div className="flex flex-wrap items-center gap-1 text-xs">
-            <span>Edges</span>
-            {(['sequence', 'jump', 'call', 'call_return'] as const).map((kind) => (
-              <label key={kind} className="inline-flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={visibleEdgeKinds[kind]}
-                  onChange={(e) =>
-                    setVisibleEdgeKinds((prev) => ({ ...prev, [kind]: e.target.checked }))
-                  }
-                  aria-label={`Show ${kind.replace('_', ' ')} edges`}
-                />
-                {kind.replace('_', ' ')}
-              </label>
-            ))}
-          </div>
-
-            {ZOOM_PRESETS.map((preset) => (
-            <button
-              key={preset}
-              onClick={() => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
-              className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-              aria-label={`Zoom to ${Math.round(preset * 100)} percent`}
-            >
-              <ZoomIn size={12} className="inline mr-1" aria-hidden="true" />
-              {Math.round(preset * 100)}%
-            </button>
-          ))}
-            <span className="text-[11px] text-gray-500">
-              Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG
-            </span>
           </div>
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Export controls">
             {isLargeExportTarget && (
@@ -641,7 +594,7 @@ export default function FlowchartViewer({
             <button
               onClick={onExport}
               aria-label="Export flowchart as PNG"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className={`${PRIMARY_BUTTON_CLASS} text-white bg-violet-600 hover:bg-violet-700`}
             >
               <Download size={14} aria-hidden="true" />
               Export PNG
@@ -649,7 +602,7 @@ export default function FlowchartViewer({
             <button
               onClick={onExportSvg}
               aria-label="Export flowchart as SVG"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-300 bg-white hover:bg-violet-50 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className={`${PRIMARY_BUTTON_CLASS} text-violet-700 border border-violet-300 bg-white hover:bg-violet-50`}
             >
               <Download size={14} aria-hidden="true" />
               Export SVG
@@ -657,93 +610,259 @@ export default function FlowchartViewer({
             <button
               onClick={onExportJson}
               aria-label="Export graph as JSON"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className={`${PRIMARY_BUTTON_CLASS} text-gray-700 border border-gray-300 bg-white hover:bg-gray-50`}
             >
               <Download size={14} aria-hidden="true" />
               Export JSON
             </button>
           </div>
-        </div>
-      </div>
-
-      <div className="shrink-0 border-b border-gray-200 px-3 sm:px-4 py-2 bg-white flex flex-wrap gap-4 text-xs" role="toolbar" aria-label="Chapter and label subgraph filters">
-        {chapters.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Chapter subgraphs:</span>
-            {chapters.map((chapter) => (
-                <button
-                  key={chapter}
-                  onClick={() =>
-                    setCollapsedChapters((prev) => ({ ...prev, [chapter]: !prev[chapter] }))
-                  }
-                  className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                  aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
-                >
-                  {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
-                </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {ZOOM_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                onClick={() => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
+                className={CONTROL_BUTTON_CLASS}
+                aria-label={`Zoom to ${Math.round(preset * 100)} percent`}
+              >
+                <ZoomIn size={12} className="inline mr-1" aria-hidden="true" />
+                {Math.round(preset * 100)}%
+              </button>
             ))}
+            <span className="text-[11px] text-gray-500">
+              Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedControls((prev) => !prev)}
+              className={CONTROL_BUTTON_CLASS}
+              aria-expanded={showAdvancedControls}
+              aria-controls="viewer-advanced-controls"
+              aria-label={showAdvancedControls ? 'Hide advanced controls' : 'Show advanced controls'}
+            >
+              {showAdvancedControls ? 'Hide advanced controls' : 'Show advanced controls'}
+            </button>
           </div>
-        )}
-        {labels.length > 0 && (
-          <div className="flex flex-col gap-2 min-w-[18rem]" role="group" aria-label="Label subgraphs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold">Label subgraphs:</span>
-              <span className="text-[11px] text-gray-600" aria-live="polite">
-                {collapsedLabelCount} collapsed
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label htmlFor="label-subgraph-filter" className="sr-only">
-                Filter label subgraphs
-              </label>
-              <input
-                id="label-subgraph-filter"
-                type="search"
-                value={labelSubgraphSearchInput}
-                onChange={(e) => setLabelSubgraphSearchInput(e.target.value)}
-                placeholder="Filter labels"
-                aria-label="Filter label subgraphs"
-                className="px-2 py-1 border border-gray-300 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-              />
-              <button
-                type="button"
-                onClick={() => setAllVisibleSubgraphLabelsCollapsed(true)}
-                disabled={visibleSubgraphLabels.length === 0}
-                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                aria-label="Collapse all visible label subgraphs"
-              >
-                Collapse all
-              </button>
-              <button
-                type="button"
-                onClick={() => setAllVisibleSubgraphLabelsCollapsed(false)}
-                disabled={visibleSubgraphLabels.length === 0}
-                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                aria-label="Expand all visible label subgraphs"
-              >
-                Expand all
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {visibleSubgraphLabels.length === 0 ? (
-                <span className="text-[11px] text-gray-500">No labels match the filter.</span>
-              ) : (
-                visibleSubgraphLabels.map((label) => (
-                  <button
-                    key={label}
-                    onClick={() =>
-                      setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
-                    }
-                    className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                    aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
+          {showAdvancedControls && (
+            <div id="viewer-advanced-controls" className="border border-gray-200 rounded-lg p-3 flex flex-col gap-3" role="group" aria-label="Advanced controls">
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Layout and focus controls">
+                <label className="text-xs flex items-center gap-1">
+                  <LayoutGrid size={14} aria-hidden="true" />
+                  Layout
+                  <select
+                    value={layoutDirection}
+                    onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
+                    aria-label="Auto layout direction"
+                    className={CONTROL_INPUT_CLASS}
                   >
-                    {collapsedParentLabels[label] ? '▸' : '▾'} {label}
+                    <option value="TB">Top to bottom</option>
+                    <option value="LR">Left to right</option>
+                  </select>
+                </label>
+                <button
+                  onClick={relayout}
+                  className={CONTROL_BUTTON_CLASS}
+                  aria-label="Re-run auto layout"
+                >
+                  Auto-layout
+                </button>
+                <label className="text-xs flex items-center gap-1 flex-wrap">
+                  <Palette size={14} aria-hidden="true" />
+                  Theme
+                  <select
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value as ThemeName)}
+                    aria-label="Color theme"
+                    className={CONTROL_INPUT_CLASS}
+                  >
+                    <option value="violet">Default</option>
+                    <option value="highContrast">High contrast</option>
+                    <option value="colorblind">Colorblind-safe</option>
+                  </select>
+                </label>
+
+                <label className="text-xs flex items-center gap-1 flex-wrap">
+                  Focus label
+                  <select
+                    value={focusNodeId}
+                    onChange={(e) => setFocusNodeId(e.target.value)}
+                    aria-label="Focus label"
+                    className={CONTROL_INPUT_CLASS}
+                  >
+                    <option value="">Select label</option>
+                    {labels.map((label) => (
+                      <option key={label} value={label}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={onFocusSelectedNode}
+                  disabled={!focusNodeId}
+                  className={CONTROL_BUTTON_CLASS}
+                  aria-label="Center selected label"
+                >
+                  <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
+                  Center
+                </button>
+                <span className="text-[11px] text-gray-600" aria-live="off">
+                  {!focusNodeId
+                    ? 'Select a label, then center it in view.'
+                    : focusTargetNode
+                      ? `Ready to center: ${focusNodeId}`
+                      : `${focusNodeId} is hidden by current filters.`}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs" role="group" aria-label="Advanced graph filters">
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={showCallReturns}
+                    onChange={(e) => setShowCallReturns(e.target.checked)}
+                    aria-label="Show call returns"
+                  />
+                  Show call returns
+                </label>
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={largeGraphMode}
+                    onChange={(e) => setLargeGraphModeOverride(e.target.checked)}
+                    aria-label="Enable large graph mode"
+                  />
+                  Large graph mode
+                </label>
+                {largeGraphModeOverride !== null && (
+                  <button
+                    type="button"
+                    className={CONTROL_BUTTON_CLASS}
+                    onClick={() => setLargeGraphModeOverride(null)}
+                    aria-label="Use automatic large graph mode"
+                  >
+                    Use auto
                   </button>
-                ))
-              )}
+                )}
+                <span className="text-[11px] text-gray-600" role="status" aria-live="polite">
+                  {largeGraphModeStatusText}
+                </span>
+                <div className="flex flex-wrap items-center gap-1 text-xs">
+                  <span>Edges</span>
+                  {(['sequence', 'jump', 'call', 'call_return'] as const).map((kind) => (
+                    <label key={kind} className="inline-flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={visibleEdgeKinds[kind]}
+                        onChange={(e) =>
+                          setVisibleEdgeKinds((prev) => ({ ...prev, [kind]: e.target.checked }))
+                        }
+                        aria-label={`Show ${kind.replace('_', ' ')} edges`}
+                      />
+                      {kind.replace('_', ' ')}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-gray-200 pt-3 flex flex-col gap-3" role="group" aria-label="Chapter and label subgraph filters">
+                {chapters.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-xs">Chapter subgraphs:</span>
+                    {chapters.map((chapter) => (
+                      <button
+                        key={chapter}
+                        onClick={() =>
+                          setCollapsedChapters((prev) => ({ ...prev, [chapter]: !prev[chapter] }))
+                        }
+                        className={CONTROL_BUTTON_CLASS}
+                        aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
+                      >
+                        {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {labels.length > 0 && (
+                  <div className="flex flex-col gap-2 min-w-[18rem]" role="group" aria-label="Label subgraphs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-xs">Label subgraphs:</span>
+                      <span className="text-[11px] text-gray-600" aria-live="polite">
+                        {collapsedLabelCount} collapsed
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label htmlFor="label-subgraph-filter" className="sr-only">
+                        Filter label subgraphs
+                      </label>
+                      <input
+                        id="label-subgraph-filter"
+                        type="search"
+                        value={labelSubgraphSearchInput}
+                        onChange={(e) => setLabelSubgraphSearchInput(e.target.value)}
+                        placeholder="Filter labels"
+                        aria-label="Filter label subgraphs"
+                        className={CONTROL_INPUT_CLASS}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAllVisibleSubgraphLabelsCollapsed(true)}
+                        disabled={visibleSubgraphLabels.length === 0}
+                        className={CONTROL_BUTTON_CLASS}
+                        aria-label="Collapse all visible label subgraphs"
+                      >
+                        Collapse all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAllVisibleSubgraphLabelsCollapsed(false)}
+                        disabled={visibleSubgraphLabels.length === 0}
+                        className={CONTROL_BUTTON_CLASS}
+                        aria-label="Expand all visible label subgraphs"
+                      >
+                        Expand all
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {visibleSubgraphLabels.length === 0 ? (
+                        <span className="text-[11px] text-gray-500">No labels match the filter.</span>
+                      ) : (
+                        <>
+                          {visibleLabelSubgraphToggles.map((label) => (
+                            <button
+                              key={label}
+                              onClick={() =>
+                                setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
+                              }
+                              className={CONTROL_BUTTON_CLASS}
+                              aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
+                            >
+                              {collapsedParentLabels[label] ? '▸' : '▾'} {label}
+                            </button>
+                          ))}
+                          {visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllLabelSubgraphToggles((prev) => !prev)}
+                              className={CONTROL_BUTTON_CLASS}
+                              aria-label={
+                                shouldShowAllLabelSubgraphToggles
+                                  ? 'Show fewer label subgraph toggles'
+                                  : `Show ${Math.max(visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES, 0)} more label subgraph toggles`
+                              }
+                            >
+                              {shouldShowAllLabelSubgraphToggles
+                                ? 'Show fewer'
+                                : `Show ${Math.max(visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES, 0)} more`}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Flow canvas + inspector */}
@@ -787,6 +906,9 @@ export default function FlowchartViewer({
           <div className="text-sm font-semibold mb-2">Inspector</div>
           {effectiveSearch.trim().length > 0 && (
             <div className="mb-4">
+              <div className="text-xs text-gray-700 mb-1" role="status" aria-live="polite">
+                Node matches (label/count): {nodeSearchMatchCount}
+              </div>
               <div className="text-xs font-semibold text-gray-700 mb-1">
                 Dialogue line matches ({dialogueSearchResults.length})
               </div>

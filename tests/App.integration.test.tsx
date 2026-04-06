@@ -206,6 +206,9 @@ describe('App – upload → parse → render integration', () => {
       expect(
         view.getByText(/No labels or menus were found\. Make sure the folder contains/i),
       ).toBeInTheDocument();
+      expect(container).toHaveTextContent(/Tip: try selecting the Ren'Py/i);
+      expect(container).toHaveTextContent(/game\//i);
+      expect(container).toHaveTextContent(/folder directly\./i);
     });
   });
 
@@ -285,6 +288,7 @@ describe('App – upload → parse → render integration', () => {
         view.getByText(/Ensure your \.rpy files contain valid Ren'Py syntax/i),
       ).toBeInTheDocument();
       expect(view.getByRole('button', { name: /Try again/i })).toBeInTheDocument();
+      expect(view.getByRole('button', { name: /Start over/i })).toBeInTheDocument();
     });
   });
 
@@ -430,6 +434,7 @@ describe('App – upload → parse → render integration', () => {
     );
     expect(edgeCountWithoutReturns).toBe(2);
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const toggle = view.getByRole('checkbox', { name: /Show call returns/i });
     await user.click(toggle);
 
@@ -460,7 +465,7 @@ describe('App – upload → parse → render integration', () => {
     const { container } = render(<App />);
     const view = within(container);
     expect(
-      view.getByText(/Ready to import up to 300 \.rpy files \(25 MiB total\)/i),
+      view.getByText(/Step 1 of 3.*up to 300 \.rpy files \(25 MiB total\)/i),
     ).toBeInTheDocument();
   });
 
@@ -470,7 +475,7 @@ describe('App – upload → parse → render integration', () => {
 
     expect(view.getByRole('link', { name: /Skip to flowchart/i })).toHaveAttribute('href', '#flowchart-main');
     expect(
-      view.getByText(/Upload a Ren'Py project folder to visualize its script structure/i),
+      view.getByText(/Upload a Ren'Py project folder to visualize script structure, search dialogue, and export flowcharts/i),
     ).toBeInTheDocument();
   });
 
@@ -498,6 +503,7 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.clear(searchInput);
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const chapterToggle = view.getByRole('button', { name: /Collapse chapter chapter1/i });
     await user.click(chapterToggle);
 
@@ -518,6 +524,7 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const themeSelect = view.getByRole('combobox', { name: /Color theme/i });
     await user.selectOptions(themeSelect, 'highContrast');
     expect(themeSelect).toHaveValue('highContrast');
@@ -553,6 +560,7 @@ describe('App – upload → parse → render integration', () => {
     const before = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
     expect(before).toBeGreaterThanOrEqual(3);
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(view.getByRole('checkbox', { name: /Show jump edges/i }));
 
     await waitFor(() => {
@@ -704,6 +712,7 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     const minDialogueInput = view.getByRole('spinbutton', { name: /Minimum dialogue lines/i });
     await user.clear(minDialogueInput);
     await user.type(minDialogueInput, '2');
@@ -785,6 +794,7 @@ describe('App – upload → parse → render integration', () => {
     });
 
     const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(view.getByRole('button', { name: /Collapse label start/i }));
     await waitFor(() => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
@@ -799,6 +809,7 @@ describe('App – upload → parse → render integration', () => {
       expect(count).toBe(initialCount);
     });
 
+    await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     expect(view.getByText(/0 collapsed/i)).toBeInTheDocument();
     expect(view.getByRole('button', { name: /Collapse label start/i })).toBeInTheDocument();
   });

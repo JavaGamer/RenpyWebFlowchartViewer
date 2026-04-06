@@ -7,7 +7,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, and counts dialogue lines per block.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
-- **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, collapse graph sections by chapter or parent label, filter label subgraphs by name, and use collapse-all / expand-all label actions.
+- **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
 - **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
@@ -15,7 +15,8 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
 - **Export options** — export the current chart as PNG or SVG, and optionally download the raw graph as JSON.
 - **Responsive UI** — toolbar, canvas, and inspector adapt for desktop, tablet, and mobile widths.
-- **Upload status guidance** — onboarding includes idle limits guidance, explicit read/parse status text, and a one-click retry action on failure.
+- **Upload status guidance** — onboarding includes explicit import steps, state-specific read/parse status text, and clear retry/start-over actions on failure.
+- **Progressive control hierarchy** — primary controls stay visible for common tasks, while advanced graph controls are available on demand.
 
 ## Usage
 
@@ -24,8 +25,36 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 3. Select the folder that contains your Ren'Py `.rpy` scripts (e.g. the `game/` directory of a project).
 4. The flowchart is generated automatically.
 5. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
-6. If import fails, use **Try again** in the error panel to reopen folder selection immediately.
+6. If import fails, use **Try again** in the error panel to reopen folder selection immediately (or **Start over** to reset the upload state).
 7. Label subgraph collapse state resets on each new import to avoid stale state from previous uploads.
+
+## Interaction Model
+
+- **Primary controls (always visible)**: search, minimum dialogue filter, fit view, export actions, zoom presets, and keyboard shortcut hints.
+- **Advanced controls (on demand)**: layout direction, theme, focus-label centering, large-graph mode controls, edge-kind toggles, chapter collapse, and label subgraph tools.
+- **Inspector model**:
+  - shows both node-level match count and dialogue-line results while searching
+  - supports keyboard result navigation (`↑` / `↓`) and open (`Enter`)
+  - keeps selected-node and selected-line context visible in the dialogue panel
+
+## UX Goals and Success Metrics
+
+Priorities:
+
+- Faster first-use comprehension
+- Lower interaction friction
+- Better discoverability of controls
+- Stronger accessibility
+- Clearer error recovery
+
+Track outcomes with:
+
+- upload success rate
+- time-to-first-graph
+- time-to-find-node
+- export completion rate
+- keyboard-only task completion rate
+- mobile usability pass rate
 
 ## Running Locally
 
