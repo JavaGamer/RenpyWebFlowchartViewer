@@ -18,10 +18,10 @@ import {
 import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
-import type { FlowNode, FlowEdge } from './domain/graph';
-import type { DialogueSearchMode } from './application/appState';
-import type { ParseService } from './application/parseService';
-import { workerParseService } from './application/parseService';import { STORAGE_KEYS } from './config/storageKeys';
+import type { FlowNode, FlowEdge } from './domain';
+import type { DialogueSearchMode, ParseService } from './application';
+import { workerParseService } from './application';
+import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
   INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
@@ -44,7 +44,7 @@ import {
 import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
 import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
-import type { DialogueSearchResult } from './infrastructure/workerProtocol';
+import type { DialogueSearchResult } from './infrastructure';
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
