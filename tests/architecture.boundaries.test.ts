@@ -32,6 +32,9 @@ function relativeFromSrc(file: string): string {
 const legacyTypesImportPattern = /from ['"](?:\.\.?\/)+(?:src\/)?types(?:\/index)?['"]/;
 const infraForbiddenImportPattern = /from ['"](?:\.\.?\/)+(?:ui|application)\//;
 const parserUiForbiddenImportPattern = /from ['"](?:\.\.?\/)+ui\//;
+const parserAppOrInfraImportPattern = /from ['"](?:\.\.?\/)+(?:application|infrastructure)\//;
+const domainUpwardImportPattern = /from ['"](?:\.\.?\/)+(?:parser|infrastructure|application|ui)\//;
+const applicationUiImportPattern = /from ['"](?:\.\.?\/)+ui\//;
 
 describe('architecture import boundaries', () => {
   it('disallows legacy src/types entrypoint imports', () => {
@@ -46,6 +49,32 @@ describe('architecture import boundaries', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('disallows domain importing from higher layers', () => {
+    const offenders: string[] = [];
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      if (!rel.startsWith('domain/')) continue;
+      const source = readFileSync(file, 'utf8');
+      if (domainUpwardImportPattern.test(source)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('disallows parser modules importing from application or infrastructure layers', () => {
+    const offenders: string[] = [];
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      if (!rel.startsWith('parser/')) continue;
+      const source = readFileSync(file, 'utf8');
+      if (parserAppOrInfraImportPattern.test(source)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it('disallows infrastructure importing from ui or app layers', () => {
     const offenders: string[] = [];
     for (const file of tsFiles) {
@@ -53,6 +82,19 @@ describe('architecture import boundaries', () => {
       if (!rel.startsWith('infrastructure/')) continue;
       const source = readFileSync(file, 'utf8');
       if (infraForbiddenImportPattern.test(source)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('disallows application modules importing from ui layer', () => {
+    const offenders: string[] = [];
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      if (!rel.startsWith('application/')) continue;
+      const source = readFileSync(file, 'utf8');
+      if (applicationUiImportPattern.test(source)) {
         offenders.push(rel);
       }
     }

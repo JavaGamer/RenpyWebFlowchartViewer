@@ -46,6 +46,7 @@ import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
 import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
 import type { DialogueSearchResult } from './infrastructure/workerProtocol';
+import { getStoredValue, setStoredValue } from './infrastructure/localStorage';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -64,24 +65,6 @@ const CONTROL_BUTTON_CLASS =
 const PRIMARY_BUTTON_CLASS =
   'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
 const MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES = 24;
-
-function getStoredValue(key: string): string | null {
-  try {
-    if (typeof globalThis.localStorage === 'undefined') return null;
-    return globalThis.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function setStoredValue(key: string, value: string): void {
-  try {
-    if (typeof globalThis.localStorage === 'undefined') return;
-    globalThis.localStorage.setItem(key, value);
-  } catch {
-    // Ignore storage write failures (e.g., restricted/privacy modes).
-  }
-}
 
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],

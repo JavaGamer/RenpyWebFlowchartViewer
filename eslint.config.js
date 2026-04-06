@@ -39,12 +39,51 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/domain/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          '../parser/*',
+          '../infrastructure/*',
+          '../application/*',
+          '../ui/*',
+        ],
+      }],
+    },
+  },
+  {
+    files: ['src/parser/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          '../application/*',
+          './application/*',
+          '../infrastructure/*',
+          './infrastructure/*',
+          '../ui/*',
+          './ui/*',
+        ],
+      }],
+    },
+  },
+  {
     files: ['src/infrastructure/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': ['error', {
         patterns: [
           '../application/*',
           './application/*',
+          '../ui/*',
+          './ui/*',
+        ],
+      }],
+    },
+  },
+  {
+    files: ['src/application/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
           '../ui/*',
           './ui/*',
         ],
