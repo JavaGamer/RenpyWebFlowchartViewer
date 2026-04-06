@@ -1,25 +1,16 @@
-import type { FlowEdge, FlowNode } from '../domain/graph';
-import { parseRenpyFilesInWorker, searchDialogueLinesInWorker } from '../parseInWorker';
-import type { DialogueSearchResult } from '../infrastructure/workerProtocol';
+import {
+  parseRenpyFilesInWorker,
+  searchDialogueLinesInWorker,
+  type ParseWorkerClientRequest,
+  type ParseWorkerClientResult,
+  type DialogueSearchResult,
+} from '../infrastructure';
 
-export interface ParseServiceRequest {
-  files: Array<{ name: string; content: string }>;
-  appendToActiveGraph?: boolean;
-  resetActiveGraph?: boolean;
-  isFinalChunk?: boolean;
-  captureDialogueLines?: boolean;
-  onProgress?: (progress: {
-    doneFiles: number;
-    totalFiles: number;
-    currentFile: string;
-    elapsedMs?: number;
-  }) => void;
-  onPartialResult?: (partial: { nodes: FlowNode[]; edges: FlowEdge[] }) => void;
-  signal?: AbortSignal;
-}
+export type ParseServiceRequest = ParseWorkerClientRequest;
+export type ParseServiceResult = ParseWorkerClientResult;
 
 export interface ParseService {
-  parse(request: ParseServiceRequest): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] }>;
+  parse(request: ParseServiceRequest): Promise<ParseServiceResult>;
   searchDialogueLines(request: {
     query: string;
     nodeIds?: string[];

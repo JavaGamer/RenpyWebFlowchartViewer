@@ -687,7 +687,7 @@ describe('App – upload → parse → render integration', () => {
 
   it('cancels an active parse when a new invalid upload is selected', async () => {
     const user = userEvent.setup();
-    const parseSpy = vi.spyOn(parserWorker, 'parseRenpyFilesInWorker');
+    const parseSpy = vi.spyOn(infrastructure, 'parseRenpyFilesInWorker');
     let aborted = false;
     parseSpy.mockImplementationOnce(
       ({ signal }) =>

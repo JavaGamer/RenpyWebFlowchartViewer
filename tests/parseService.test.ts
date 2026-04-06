@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/parseInWorker', () => ({
+vi.mock('../src/infrastructure', () => ({
   parseRenpyFilesInWorker: vi.fn(async (request) => ({
     nodes: [{ id: `node:${request.files.length}`, type: 'LABEL', label: 'n', dialogueCount: 0 }],
     edges: [],
@@ -17,7 +17,7 @@ vi.mock('../src/parseInWorker', () => ({
 
 describe('parseService', () => {
   it('delegates parse requests to parseRenpyFilesInWorker', async () => {
-    const parseInWorker = await import('../src/parseInWorker');
+    const parseInWorker = await import('../src/infrastructure');
     const { workerParseService } = await import('../src/application/parseService');
     const request = {
       files: [{ name: 'a.rpy', content: 'label a:' }],
@@ -34,7 +34,7 @@ describe('parseService', () => {
   });
 
   it('delegates dialogue search requests to searchDialogueLinesInWorker', async () => {
-    const parseInWorker = await import('../src/parseInWorker');
+    const parseInWorker = await import('../src/infrastructure');
     const { workerParseService } = await import('../src/application/parseService');
     const request = {
       query: 'needle',

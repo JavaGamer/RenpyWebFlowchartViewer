@@ -5,7 +5,6 @@ import {
   type CancelRequestMessage,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-} from './workerProtocol';
   type SearchRequestMessage,
   type DialogueSearchResult,
 } from './workerProtocol';
