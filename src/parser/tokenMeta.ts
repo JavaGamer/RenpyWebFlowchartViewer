@@ -17,7 +17,7 @@ function resetMetaFlags(meta: TokenMetaFlags): TokenMetaFlags {
 }
 
 export function createEmptyTokenMeta(): TokenMetaFlags {
-  return {
+  return resetMetaFlags({
     menuDepth: 0,
     hasLabelStatement: false,
     hasMenuStatement: false,
@@ -29,7 +29,7 @@ export function createEmptyTokenMeta(): TokenMetaFlags {
     hasSayNarrator: false,
     hasSayCharacter: false,
     hasSayStatement: false,
-  };
+  });
 }
 
 export function analyzeTokenMetaInto(
