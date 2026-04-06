@@ -187,6 +187,25 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByTestId('mini-map-colors')).toHaveTextContent('#8b5cf6,#f59e0b');
   });
 
+  it('does not crash when localStorage access throws', () => {
+    const localStorageMock = {
+      getItem: vi.fn(() => {
+        throw new DOMException('Blocked', 'SecurityError');
+      }),
+      setItem: vi.fn(() => {
+        throw new DOMException('Blocked', 'SecurityError');
+      }),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      key: vi.fn(),
+      length: 0,
+    } as unknown as Storage;
+    vi.stubGlobal('localStorage', localStorageMock);
+
+    expect(() => render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />)).not.toThrow();
+    expect(screen.getByTestId('react-flow')).toBeInTheDocument();
+  });
+
 
 
   it('supports focus label center action, edge-type toggles, and keyboard shortcuts', async () => {

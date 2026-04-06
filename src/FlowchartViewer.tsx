@@ -65,6 +65,24 @@ const PRIMARY_BUTTON_CLASS =
   'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
 const MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES = 24;
 
+function getStoredValue(key: string): string | null {
+  try {
+    if (typeof globalThis.localStorage === 'undefined') return null;
+    return globalThis.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredValue(key: string, value: string): void {
+  try {
+    if (typeof globalThis.localStorage === 'undefined') return;
+    globalThis.localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage write failures (e.g., restricted/privacy modes).
+  }
+}
+
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],
   collapsedParentLabels: Record<string, boolean>,
@@ -132,20 +150,20 @@ export default function FlowchartViewer({
   const [labelSubgraphSearchInput, setLabelSubgraphSearchInput] = useState('');
   const [minDialogue, setMinDialogue] = useState(0);
   const [theme, setTheme] = useState<ThemeName>(() => {
-    const raw = globalThis.localStorage?.getItem(STORAGE_KEYS.theme);
+    const raw = getStoredValue(STORAGE_KEYS.theme);
     if (raw === 'violet' || raw === 'highContrast' || raw === 'colorblind') return raw;
     return 'violet';
   });
   const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
   const [collapsedParentLabels, setCollapsedParentLabels] = useState<Record<string, boolean>>({});
   const [showCallReturns, setShowCallReturns] = useState(
-    () => globalThis.localStorage?.getItem(STORAGE_KEYS.showCallReturns) === 'true',
+    () => getStoredValue(STORAGE_KEYS.showCallReturns) === 'true',
   );
   const [visibleEdgeKinds, setVisibleEdgeKinds] = useState<Record<EdgeKindFilter, boolean>>(() => ({
-    sequence: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeSequence) !== 'false',
-    jump: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeJump) !== 'false',
-    call: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeCall) !== 'false',
-    call_return: globalThis.localStorage?.getItem(STORAGE_KEYS.edgeCallReturn) !== 'false',
+    sequence: getStoredValue(STORAGE_KEYS.edgeSequence) !== 'false',
+    jump: getStoredValue(STORAGE_KEYS.edgeJump) !== 'false',
+    call: getStoredValue(STORAGE_KEYS.edgeCall) !== 'false',
+    call_return: getStoredValue(STORAGE_KEYS.edgeCallReturn) !== 'false',
   }));
   const [focusNodeId, setFocusNodeId] = useState<string>('');
   const [largeGraphModeOverride, setLargeGraphModeOverride] = useState<boolean | null>(null);
@@ -295,18 +313,18 @@ export default function FlowchartViewer({
   }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout]);
 
   useEffect(() => {
-    globalThis.localStorage?.setItem(STORAGE_KEYS.theme, theme);
+    setStoredValue(STORAGE_KEYS.theme, theme);
   }, [theme]);
 
   useEffect(() => {
-    globalThis.localStorage?.setItem(STORAGE_KEYS.showCallReturns, String(showCallReturns));
+    setStoredValue(STORAGE_KEYS.showCallReturns, String(showCallReturns));
   }, [showCallReturns]);
 
   useEffect(() => {
-    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeSequence, String(visibleEdgeKinds.sequence));
-    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeJump, String(visibleEdgeKinds.jump));
-    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeCall, String(visibleEdgeKinds.call));
-    globalThis.localStorage?.setItem(STORAGE_KEYS.edgeCallReturn, String(visibleEdgeKinds.call_return));
+    setStoredValue(STORAGE_KEYS.edgeSequence, String(visibleEdgeKinds.sequence));
+    setStoredValue(STORAGE_KEYS.edgeJump, String(visibleEdgeKinds.jump));
+    setStoredValue(STORAGE_KEYS.edgeCall, String(visibleEdgeKinds.call));
+    setStoredValue(STORAGE_KEYS.edgeCallReturn, String(visibleEdgeKinds.call_return));
   }, [visibleEdgeKinds]);
 
   const collapsedLabelChildren = useMemo(
