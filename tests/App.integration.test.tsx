@@ -847,4 +847,44 @@ describe('App – upload → parse → render integration', () => {
       expect(consoleError).toHaveBeenCalledWith('SVG export failed:', expect.anything());
     });
   });
+
+  it('still revokes object URL when download click throws during PNG export', async () => {
+    const user = userEvent.setup();
+    const originalURL = globalThis.URL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    const createObjectURL = vi.fn().mockReturnValue('blob:png-fail');
+    const revokeObjectURL = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('URL', {
+      createObjectURL,
+      revokeObjectURL,
+    });
+    HTMLAnchorElement.prototype.click = vi.fn(() => {
+      throw new Error('download click failed');
+    });
+
+    try {
+      const { container } = render(<App />);
+      const view = within(container);
+      const input = container.querySelector('#folder-input') as HTMLInputElement;
+      await user.upload(input, makeRpyFile('click-fail.rpy', SAMPLE_RPY));
+      await waitFor(() => {
+        expect(view.getByTestId('react-flow')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
+      });
+
+      await waitFor(() => {
+        expect(createObjectURL).toHaveBeenCalledTimes(1);
+        expect(revokeObjectURL).toHaveBeenCalledWith('blob:png-fail');
+        expect(consoleError).toHaveBeenCalledWith('Export failed:', expect.anything());
+      });
+    } finally {
+      vi.stubGlobal('URL', originalURL);
+      HTMLAnchorElement.prototype.click = originalClick;
+      consoleError.mockRestore();
+    }
+  });
 });

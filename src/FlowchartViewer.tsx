@@ -545,15 +545,18 @@ export default function FlowchartViewer({
       .then((blob) => {
         if (!blob) return;
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.download = 'renpy-flowchart.png';
-        a.href = url;
-        a.click();
-        URL.revokeObjectURL(url);
-        perf.log('export_png_ms', performance.now() - startedAt, {
-          nodeCount: visibleNodeIds.size,
-          edgeCount: visibleEdges.length,
-        });
+        try {
+          const a = document.createElement('a');
+          a.download = 'renpy-flowchart.png';
+          a.href = url;
+          a.click();
+          perf.log('export_png_ms', performance.now() - startedAt, {
+            nodeCount: visibleNodeIds.size,
+            edgeCount: visibleEdges.length,
+          });
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       })
       .catch((err: unknown) => {
         console.error('Export failed:', err);
@@ -650,11 +653,14 @@ export default function FlowchartViewer({
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
     const blob = new Blob([graphJson], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.download = 'renpy-flowchart.json';
-    a.href = url;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const a = document.createElement('a');
+      a.download = 'renpy-flowchart.json';
+      a.href = url;
+      a.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }, [flowEdges, flowNodes]);
   const onFitView = useCallback(() => {
     flowInstanceRef.current?.fitView({ padding: 0.2 });
