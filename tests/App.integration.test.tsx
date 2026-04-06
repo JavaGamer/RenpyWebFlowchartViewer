@@ -682,7 +682,7 @@ describe('App – upload → parse → render integration', () => {
     expect(parseSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('supports minimum dialogue filter, layout switching, zoom controls, and collapse by label', async () => {
+  it('supports minimum dialogue filter, layout switching, zoom controls, and label subgraph controls', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     const view = within(container);
@@ -742,6 +742,65 @@ describe('App – upload → parse → render integration', () => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
       expect(count).toBeLessThan(beforeCollapse);
     });
+
+    const labelFilter = view.getByRole('searchbox', { name: /Filter label subgraphs/i });
+    await user.clear(labelFilter);
+    await user.type(labelFilter, 'start');
+    expect(view.getByRole('button', { name: /Expand label start/i })).toBeInTheDocument();
+    expect(view.queryByRole('button', { name: /Collapse label end/i })).not.toBeInTheDocument();
+
+    await user.click(view.getByRole('button', { name: /Expand all visible label subgraphs/i }));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeGreaterThanOrEqual(beforeCollapse);
+    });
+
+    await user.clear(labelFilter);
+    await user.click(view.getByRole('button', { name: /Collapse all visible label subgraphs/i }));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeLessThan(beforeCollapse);
+    });
+  });
+
+  it('resets label collapse state on each new import', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const scriptWithMenu = [
+      'label start:',
+      '    menu:',
+      '        "Go":',
+      '            jump end',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    await user.upload(input, makeRpyFile('first.rpy', scriptWithMenu));
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+    await user.click(view.getByRole('button', { name: /Collapse label start/i }));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBeLessThan(initialCount);
+    });
+
+    await user.click(view.getByRole('button', { name: /Upload a different folder/i }));
+    const secondInput = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(secondInput, makeRpyFile('second.rpy', scriptWithMenu));
+    await waitFor(() => {
+      const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
+      expect(count).toBe(initialCount);
+    });
+
+    expect(view.getByText(/0 collapsed/i)).toBeInTheDocument();
+    expect(view.getByRole('button', { name: /Collapse label start/i })).toBeInTheDocument();
   });
 
   it('handles PNG and SVG export failures without crashing', async () => {

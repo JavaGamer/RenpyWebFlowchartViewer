@@ -125,7 +125,11 @@ export default function App() {
               Upload a different folder
             </button>
           </div>
-          <FlowchartViewer flowNodes={state.flowNodes} flowEdges={state.flowEdges} />
+          <FlowchartViewer
+            key={state.importRevision}
+            flowNodes={state.flowNodes}
+            flowEdges={state.flowEdges}
+          />
         </main>
       ) : (
         /* ── Upload area ─────────────────────────────────────────────────── */

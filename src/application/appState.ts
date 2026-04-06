@@ -14,6 +14,7 @@ export interface AppState {
   errorMsg: string;
   fileCount: number;
   parseProgress: ParseProgress | null;
+  importRevision: number;
 }
 
 export type AppAction =
@@ -31,6 +32,7 @@ export const initialAppState: AppState = {
   errorMsg: '',
   fileCount: 0,
   parseProgress: null,
+  importRevision: 0,
 };
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -56,6 +58,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         flowNodes: action.nodes,
         flowEdges: action.edges,
         parseProgress: null,
+        importRevision: state.importRevision + 1,
       };
     case 'FAIL':
       return { ...state, phase: 'error', errorMsg: action.message, parseProgress: null };

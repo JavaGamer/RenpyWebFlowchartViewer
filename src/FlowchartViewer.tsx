@@ -56,6 +56,20 @@ interface DialogueSearchResult {
   lineText: string;
 }
 
+function deriveCollapsedLabelChildren(
+  nodes: FlowNode[],
+  collapsedParentLabels: Record<string, boolean>,
+): Set<string> {
+  const collapsedChildren = new Set<string>();
+  for (const node of nodes) {
+    if (node.type !== 'MENU') continue;
+    if (!node.parentLabelId) continue;
+    if (!collapsedParentLabels[node.parentLabelId]) continue;
+    collapsedChildren.add(node.id);
+  }
+  return collapsedChildren;
+}
+
 function truncateForAria(text: string, maxLength = 80): string {
   const normalized = text.trim();
   if (normalized.length <= maxLength) return normalized;
@@ -103,6 +117,7 @@ export default function FlowchartViewer({
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('TB');
   const [searchInput, setSearchInput] = useState('');
+  const [labelSubgraphSearchInput, setLabelSubgraphSearchInput] = useState('');
   const [minDialogue, setMinDialogue] = useState(0);
   const [theme, setTheme] = useState<ThemeName>(() => {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEYS.theme);
@@ -171,6 +186,18 @@ export default function FlowchartViewer({
     () => flowNodes.filter((n) => n.type === 'LABEL').map((n) => n.id).sort(),
     [flowNodes],
   );
+  const labelSubgraphSearch = labelSubgraphSearchInput.trim().toLowerCase();
+  const visibleSubgraphLabels = useMemo(
+    () =>
+      labels.filter((label) =>
+        labelSubgraphSearch.length === 0 ? true : label.toLowerCase().includes(labelSubgraphSearch),
+      ),
+    [labelSubgraphSearch, labels],
+  );
+  const collapsedLabelCount = useMemo(
+    () => labels.filter((label) => collapsedParentLabels[label]).length,
+    [collapsedParentLabels, labels],
+  );
 
   const relayout = useCallback(() => {
     const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection);
@@ -202,15 +229,21 @@ export default function FlowchartViewer({
   }, [visibleEdgeKinds]);
 
   const collapsedLabelChildren = useMemo(
-    () =>
-      new Set(
-        flowNodes
-          .filter(
-            (n) => n.type === 'MENU' && n.parentLabelId && collapsedParentLabels[n.parentLabelId],
-          )
-          .map((n) => n.id),
-      ),
+    () => deriveCollapsedLabelChildren(flowNodes, collapsedParentLabels),
     [collapsedParentLabels, flowNodes],
+  );
+
+  const setAllVisibleSubgraphLabelsCollapsed = useCallback(
+    (collapsed: boolean) => {
+      setCollapsedParentLabels((prev) => {
+        const next = { ...prev };
+        visibleSubgraphLabels.forEach((label) => {
+          next[label] = collapsed;
+        });
+        return next;
+      });
+    },
+    [visibleSubgraphLabels],
   );
 
   const visibleNodes = useMemo(
@@ -652,20 +685,63 @@ export default function FlowchartViewer({
           </div>
         )}
         {labels.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Label subgraphs:</span>
-            {labels.map((label) => (
-                <button
-                  key={label}
-                  onClick={() =>
-                    setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
-                  }
-                  className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                  aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
-                >
-                  {collapsedParentLabels[label] ? '▸' : '▾'} {label}
-                </button>
-            ))}
+          <div className="flex flex-col gap-2 min-w-[18rem]" role="group" aria-label="Label subgraphs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">Label subgraphs:</span>
+              <span className="text-[11px] text-gray-600" aria-live="polite">
+                {collapsedLabelCount} collapsed
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="label-subgraph-filter" className="sr-only">
+                Filter label subgraphs
+              </label>
+              <input
+                id="label-subgraph-filter"
+                type="search"
+                value={labelSubgraphSearchInput}
+                onChange={(e) => setLabelSubgraphSearchInput(e.target.value)}
+                placeholder="Filter labels"
+                aria-label="Filter label subgraphs"
+                className="px-2 py-1 border border-gray-300 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              />
+              <button
+                type="button"
+                onClick={() => setAllVisibleSubgraphLabelsCollapsed(true)}
+                disabled={visibleSubgraphLabels.length === 0}
+                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                aria-label="Collapse all visible label subgraphs"
+              >
+                Collapse all
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllVisibleSubgraphLabelsCollapsed(false)}
+                disabled={visibleSubgraphLabels.length === 0}
+                className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                aria-label="Expand all visible label subgraphs"
+              >
+                Expand all
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {visibleSubgraphLabels.length === 0 ? (
+                <span className="text-[11px] text-gray-500">No labels match the filter.</span>
+              ) : (
+                visibleSubgraphLabels.map((label) => (
+                  <button
+                    key={label}
+                    onClick={() =>
+                      setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
+                    }
+                    className="px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                    aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
+                  >
+                    {collapsedParentLabels[label] ? '▸' : '▾'} {label}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>
