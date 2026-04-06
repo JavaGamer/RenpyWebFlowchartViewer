@@ -25,6 +25,14 @@ const emitWorkerMessage = (data: unknown) => {
   }
 };
 
+async function waitForPostedMessages(count: number): Promise<void> {
+  for (let i = 0; i < 50; i += 1) {
+    if (postedMessages.length >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`Expected at least ${count} posted messages, got ${postedMessages.length}`);
+}
+
 describe('parseRenpyFilesInWorker', () => {
   beforeEach(() => {
     postedMessages = [];
@@ -38,6 +46,7 @@ describe('parseRenpyFilesInWorker', () => {
     const first = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
     const second = parseRenpyFilesInWorker({ files: [{ name: 'b.rpy', content: 'label b:' }] });
 
+    await waitForPostedMessages(2);
     const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
     const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
@@ -72,6 +81,7 @@ describe('parseRenpyFilesInWorker', () => {
     const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
 
     const request = parseRenpyFilesInWorker({ files: [{ name: 'a.rpy', content: 'label a:' }] });
+    await waitForPostedMessages(1);
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
 
     emitWorkerMessage({
@@ -103,6 +113,7 @@ describe('parseRenpyFilesInWorker', () => {
       signal: controller.signal,
       onProgress: () => {},
     });
+    await waitForPostedMessages(1);
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(true);
     controller.abort();
 
@@ -112,5 +123,47 @@ describe('parseRenpyFilesInWorker', () => {
     expect(cancelMessage?.type).toBe('cancel');
     expect(cancelMessage?.protocolVersion).toBe(PARSER_WORKER_PROTOCOL_VERSION);
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('forwards maxParallelFiles in parse request message', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'parallel.rpy', content: 'label parallel:' }],
+      maxParallelFiles: 4,
+    });
+    await waitForPostedMessages(1);
+    const parseMessage = postedMessages[0] as { requestId: number; maxParallelFiles?: number };
+    expect(parseMessage.maxParallelFiles).toBe(4);
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId: parseMessage.requestId,
+      nodes: [],
+      edges: [],
+    });
+    await expect(request).resolves.toEqual({ nodes: [], edges: [] });
+  });
+
+  it('includes file cache keys in parse request message', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'same.rpy', content: 'label same:' }],
+    });
+    await waitForPostedMessages(1);
+    const parseMessage = postedMessages[0] as { requestId: number; fileCacheKeys?: string[] };
+    expect(parseMessage.fileCacheKeys).toHaveLength(1);
+    expect(parseMessage.fileCacheKeys?.[0]).toMatch(/^same\.rpy:/);
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId: parseMessage.requestId,
+      nodes: [],
+      edges: [],
+    });
+    await expect(request).resolves.toEqual({ nodes: [], edges: [] });
   });
 });

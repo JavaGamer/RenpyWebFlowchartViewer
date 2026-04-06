@@ -18,6 +18,7 @@ export interface ParseWorkerClientRequest {
   files: Array<{ name: string; content: string }>;
   onProgress?: (progress: ParseProgressPayload) => void;
   signal?: AbortSignal;
+  maxParallelFiles?: number;
 }
 
 /**
@@ -39,7 +40,9 @@ export interface ParseRequestMessage {
   type: 'parse';
   requestId: number;
   files: Array<{ name: string; content: string }>;
+  fileCacheKeys?: string[];
   wantsProgress?: boolean;
+  maxParallelFiles?: number;
 }
 
 export interface CancelRequestMessage {

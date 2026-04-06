@@ -1,4 +1,6 @@
 import type { FlowNode, FlowEdge } from '../domain';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 
@@ -42,6 +44,9 @@ export interface ParseProgress {
 
 export interface ParseOptions {
   onProgress?: (progress: ParseProgress) => void;
+  maxParallelFiles?: number;
+  tokenizedCache?: Map<string, { document: TextDocument; tokenTree: TokenTree }>;
+  fileCacheKeys?: string[];
 }
 
 export interface TokenMetaFlags {

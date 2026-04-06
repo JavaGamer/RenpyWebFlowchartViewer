@@ -8,6 +8,7 @@ import {
 } from './workerProtocol';
 
 let requestCounter = 0;
+const textEncoder = new TextEncoder();
 
 let worker: Worker | null = null;
 
@@ -18,10 +19,47 @@ function getParserWorker(): Worker {
   return worker;
 }
 
+function hashToHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    out += bytes[i]!.toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
+/**
+ * Lightweight deterministic hash used only for cache keys when Web Crypto is unavailable.
+ */
+function simpleStringHash(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+async function computeFileCacheKeys(files: Array<{ name: string; content: string }>): Promise<string[]> {
+  if (!globalThis.crypto?.subtle) {
+    return files.map((file) => `${file.name}:${file.content.length}:${simpleStringHash(file.content)}`);
+  }
+
+  const digests = await Promise.all(
+    files.map(async (file) => {
+      const data = textEncoder.encode(file.content);
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+      return `${file.name}:${hashToHex(digest)}`;
+    }),
+  );
+  return digests;
+}
+
 export function parseRenpyFilesInWorker({
   files,
   onProgress,
   signal,
+  maxParallelFiles,
 }: ParseWorkerClientRequest): Promise<ParseWorkerClientResult> {
   const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
@@ -82,13 +120,28 @@ export function parseRenpyFilesInWorker({
 
     parserWorker.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, { once: true });
-    const parseMessage: ParseRequestMessage = {
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'parse',
-      requestId,
-      files,
-      wantsProgress: Boolean(onProgress),
-    };
-    parserWorker.postMessage(parseMessage);
+
+    void (async () => {
+      try {
+        const fileCacheKeys = await computeFileCacheKeys(files);
+        if (settled) return;
+        const parseMessage: ParseRequestMessage = {
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'parse',
+          requestId,
+          files,
+          fileCacheKeys,
+          wantsProgress: Boolean(onProgress),
+          maxParallelFiles,
+        };
+        parserWorker.postMessage(parseMessage);
+      } catch (error) {
+        settle(() => {
+          parserWorker.removeEventListener('message', onMessage);
+          signal?.removeEventListener('abort', onAbort);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
+      }
+    })();
   });
 }

@@ -1,4 +1,6 @@
 import { parseRenpyFiles } from './parser';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
@@ -6,8 +8,44 @@ import {
   type ProgressResponseMessage,
 } from './infrastructure/workerProtocol';
 
+type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
+
+class BoundedTokenizedCache extends Map<string, TokenizedCacheEntry> {
+  private readonly maxEntries: number;
+
+  constructor(maxEntries: number) {
+    super();
+    this.maxEntries = maxEntries;
+  }
+
+  override get(key: string): TokenizedCacheEntry | undefined {
+    const value = super.get(key);
+    if (value !== undefined) {
+      super.delete(key);
+      super.set(key, value);
+    }
+    return value;
+  }
+
+  override set(key: string, value: TokenizedCacheEntry): this {
+    if (super.has(key)) {
+      super.delete(key);
+    }
+    super.set(key, value);
+    while (this.size > this.maxEntries) {
+      const oldestKey = this.keys().next().value;
+      if (oldestKey === undefined) break;
+      super.delete(oldestKey);
+    }
+    return this;
+  }
+}
+
+const MAX_TOKENIZED_CACHE_ENTRIES = 200;
+
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
+const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
 
 function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
@@ -24,7 +62,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   if (message.type !== 'parse') return;
 
-  const { requestId, files } = message;
+  const { requestId, files, maxParallelFiles, fileCacheKeys } = message;
   activeRequestId = requestId;
   const startedAt = performance.now();
   const wantsProgress = message.wantsProgress !== false;
@@ -34,6 +72,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   try {
     const result = await parseRenpyFiles(files, {
+      maxParallelFiles,
+      tokenizedCache,
+      fileCacheKeys,
       onProgress: ({ doneFiles, totalFiles, currentFile }) => {
         if (cancelledRequests.has(requestId)) {
           throw new Error('Parsing cancelled');
