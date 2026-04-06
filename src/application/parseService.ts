@@ -1,4 +1,3 @@
-import type { FlowEdge, FlowNode } from '../domain/graph';
 import {
   parseRenpyFilesInWorker,
   searchDialogueLinesInWorker,
