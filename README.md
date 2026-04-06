@@ -7,7 +7,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, and counts dialogue lines per block.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
-- **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and collapse graph sections by chapter or parent label.
+- **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, collapse graph sections by chapter or parent label, filter label subgraphs by name, and use collapse-all / expand-all label actions.
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
 - **Layout and navigation controls** — switch auto-layout direction, re-run layout, drag nodes manually, apply zoom presets, and use the minimap.
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
@@ -25,6 +25,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 4. The flowchart is generated automatically.
 5. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
 6. If import fails, use **Try again** in the error panel to reopen folder selection immediately.
+7. Label subgraph collapse state resets on each new import to avoid stale state from previous uploads.
 
 ## Running Locally
 
