@@ -12,6 +12,17 @@ interface FlatTokenLike {
   getValue: (document: TextDocument) => string;
 }
 
+const RELEVANT_TOKEN_TYPES = new Set<number>([
+  PARSER_TOKENS.kwMenuObserved,
+  PARSER_TOKENS.kwLabel,
+  PARSER_TOKENS.entityFunctionName,
+  PARSER_TOKENS.kwJump,
+  PARSER_TOKENS.kwCall,
+  PARSER_TOKENS.kwReturn,
+  PARSER_TOKENS.literalString,
+  PARSER_TOKENS.kwConditional,
+]);
+
 export function processFlatToken(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -40,20 +51,10 @@ export function processFlatTokens(
   chapter: string,
 ): void {
   const meta = createEmptyTokenMeta();
-  const relevantTokens = new Set<number>([
-    PARSER_TOKENS.kwMenuObserved,
-    PARSER_TOKENS.kwLabel,
-    PARSER_TOKENS.entityFunctionName,
-    PARSER_TOKENS.kwJump,
-    PARSER_TOKENS.kwCall,
-    PARSER_TOKENS.kwReturn,
-    PARSER_TOKENS.literalString,
-    PARSER_TOKENS.kwConditional,
-  ]);
 
   for (const token of tokens) {
     const type = token.type as number;
-    if (!relevantTokens.has(type)) {
+    if (!RELEVANT_TOKEN_TYPES.has(type)) {
       continue;
     }
 
