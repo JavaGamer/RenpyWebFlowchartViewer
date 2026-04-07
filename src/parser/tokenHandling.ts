@@ -16,7 +16,7 @@ interface HandleTokenInput {
 type DirectConstruct = 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
 
 const QUOTED_LITERAL_PATTERN = /^(["'])([\s\S]*)\1$/;
-const PYTHON_RENPY_CALL_START_PATTERN = /renpy\.(jump|call)\s*\(/g;
+const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const SCREEN_ACTION_CALL_START_PATTERN = /\baction\s+(Jump|Call)\s*\(/g;
 
 function readParenthesizedArgument(

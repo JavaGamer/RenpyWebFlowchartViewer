@@ -720,6 +720,20 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('does not treat non-direct identifiers like myrenpy.call as direct renpy API calls', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        myrenpy.call("target")',
+      '',
+      'label target:',
+      '    "target"',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'not-direct-renpy.rpy', content: script }]);
+    expect(result.edges.find((e) => e.kind === 'call' && e.source === 'start' && e.target === 'target')).toBeUndefined();
+  });
+
   it('fixture: extracts direct screen action Jump/Call targets and warns on dynamic action targets', async () => {
     const result = await parseRenpyFiles([
       { name: 'direct-screen-actions.rpy', content: loadFixture('direct-screen-actions.rpy') },
