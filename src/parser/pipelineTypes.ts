@@ -33,6 +33,8 @@ export interface ParseGraphState {
   nodeIds: Set<string>;
   edgeIds: Set<string>;
   nodeMap: Map<string, FlowNode>;
+  edgeMap: Map<string, FlowEdge>;
+  pendingGraphEdgeIds: Set<string>;
   menuCounter: number;
   allLabelIds: Set<string>;
   incomingByLabel: Map<string, Set<EdgeKind>>;

@@ -22,10 +22,16 @@ export function addNode(state: ParseGraphState, node: FlowNode) {
   state.nodes.push(node);
   state.nodeMap.set(node.id, node);
 
-  for (const edge of state.edges) {
-    if (state.graph.hasEdge(edge.id)) continue;
+  if (state.pendingGraphEdgeIds.size === 0) return;
+  for (const edgeId of state.pendingGraphEdgeIds) {
+    const edge = state.edgeMap.get(edgeId);
+    if (!edge) {
+      state.pendingGraphEdgeIds.delete(edgeId);
+      continue;
+    }
     if (!state.graph.hasNode(edge.source) || !state.graph.hasNode(edge.target)) continue;
     state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+    state.pendingGraphEdgeIds.delete(edge.id);
   }
 }
 
@@ -35,9 +41,12 @@ export function addEdge(state: ParseGraphState, edge: FlowEdge) {
   assertInvariant(Boolean(edge.target), `edge ${edge.id} has empty target`);
   if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
     state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+  } else {
+    state.pendingGraphEdgeIds.add(edge.id);
   }
   state.edgeIds.add(edge.id);
   state.edges.push(edge);
+  state.edgeMap.set(edge.id, edge);
 }
 
 export function addIncoming(state: ParseGraphState, labelId: string, kind: EdgeKind) {

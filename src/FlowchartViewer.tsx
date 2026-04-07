@@ -226,12 +226,16 @@ export default function FlowchartViewer({
   );
   const dialogueLineSearchEnabled = effectiveDialogueSearchMode === 'full';
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
+  const debouncedSetSearch = useMemo(
+    () => debounce((value: string) => setDebouncedSearch(value), SEARCH_DEBOUNCE_MS),
+    [],
+  );
 
   useEffect(() => {
-    const updateSearch = debounce((value: string) => setDebouncedSearch(value), SEARCH_DEBOUNCE_MS);
-    updateSearch(searchInput);
-    return () => updateSearch.cancel();
-  }, [searchInput]);
+    debouncedSetSearch(searchInput);
+  }, [debouncedSetSearch, searchInput]);
+
+  useEffect(() => () => debouncedSetSearch.cancel(), [debouncedSetSearch]);
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
 
   const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;

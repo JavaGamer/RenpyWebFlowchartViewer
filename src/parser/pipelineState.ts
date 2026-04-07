@@ -10,6 +10,8 @@ export function createGraphState(): ParseGraphState {
     nodeIds: new Set<string>(),
     edgeIds: new Set<string>(),
     nodeMap: new Map<string, FlowNode>(),
+    edgeMap: new Map<string, FlowEdge>(),
+    pendingGraphEdgeIds: new Set<string>(),
     menuCounter: 0,
     allLabelIds: new Set<string>(),
     incomingByLabel: new Map<string, Set<EdgeKind>>(),
