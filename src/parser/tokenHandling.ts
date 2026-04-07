@@ -15,9 +15,9 @@ interface HandleTokenInput {
   screenActionRuleMap: Map<string, ScreenActionKind>;
 }
 
-const QUOTED_LITERAL_PATTERN = /^(?:[rRuUbB]{1,2})?(["'])([\s\S]*)\1$/;
+const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(["'])([\s\S]*)\1$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
-const SCREEN_ACTION_CALL_START_PATTERN = /\baction\b\s*(?:=\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+const SCREEN_ACTION_CALL_START_PATTERN = /\baction(?:\s+|\s*=\s*)([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 function readParenthesizedArgument(
   text: string,
