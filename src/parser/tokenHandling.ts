@@ -15,9 +15,60 @@ interface HandleTokenInput {
 
 type DirectConstruct = 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
 
-const PYTHON_RENPY_CALL_PATTERN = /renpy\.(jump|call)\s*\(([^)]*)\)/g;
-const SCREEN_ACTION_CALL_PATTERN = /\baction\s+(Jump|Call)\s*\(([^)]*)\)/g;
 const QUOTED_LITERAL_PATTERN = /^(["'])([\s\S]*)\1$/;
+const PYTHON_RENPY_CALL_START_PATTERN = /renpy\.(jump|call)\s*\(/g;
+const SCREEN_ACTION_CALL_START_PATTERN = /\baction\s+(Jump|Call)\s*\(/g;
+
+function readParenthesizedArgument(
+  text: string,
+  argumentStartIndex: number,
+): { argument: string; endIndex: number } | null {
+  let depth = 1;
+  let index = argumentStartIndex;
+  let activeQuote: '"' | '\'' | null = null;
+
+  while (index < text.length) {
+    const char = text[index];
+    if (activeQuote) {
+      if (char === '\\') {
+        index += 2;
+        continue;
+      }
+      if (char === activeQuote) {
+        activeQuote = null;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      index += 1;
+      continue;
+    }
+
+    if (char === '(') {
+      depth += 1;
+      index += 1;
+      continue;
+    }
+    if (char === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          argument: text.slice(argumentStartIndex, index),
+          endIndex: index + 1,
+        };
+      }
+      index += 1;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return null;
+}
 
 function addDynamicTargetWarning(
   state: ParseGraphState,
@@ -125,12 +176,15 @@ function processDirectRenpyBlockCalls(
   menuDepth: number,
   blockText: string,
 ) {
-  PYTHON_RENPY_CALL_PATTERN.lastIndex = 0;
+  PYTHON_RENPY_CALL_START_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = PYTHON_RENPY_CALL_PATTERN.exec(blockText)) !== null) {
+  while ((match = PYTHON_RENPY_CALL_START_PATTERN.exec(blockText)) !== null) {
     const callType = match[1] === 'jump' ? 'jump' : 'call';
     const construct: DirectConstruct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
-    const targetExpression = match[2] ?? '';
+    const parsed = readParenthesizedArgument(blockText, PYTHON_RENPY_CALL_START_PATTERN.lastIndex);
+    if (!parsed) break;
+    PYTHON_RENPY_CALL_START_PATTERN.lastIndex = parsed.endIndex;
+    const targetExpression = parsed.argument;
     const target = extractLiteralTarget(targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
 
@@ -155,12 +209,15 @@ function processDirectScreenActionCalls(
   menuDepth: number,
   blockText: string,
 ) {
-  SCREEN_ACTION_CALL_PATTERN.lastIndex = 0;
+  SCREEN_ACTION_CALL_START_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = SCREEN_ACTION_CALL_PATTERN.exec(blockText)) !== null) {
+  while ((match = SCREEN_ACTION_CALL_START_PATTERN.exec(blockText)) !== null) {
     const callType = match[1] === 'Jump' ? 'jump' : 'call';
     const construct: DirectConstruct = callType === 'jump' ? 'Jump' : 'Call';
-    const targetExpression = match[2] ?? '';
+    const parsed = readParenthesizedArgument(blockText, SCREEN_ACTION_CALL_START_PATTERN.lastIndex);
+    if (!parsed) break;
+    SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
+    const targetExpression = parsed.argument;
     const target = extractLiteralTarget(targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
 
