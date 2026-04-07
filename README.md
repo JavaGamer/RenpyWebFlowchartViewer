@@ -5,7 +5,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 ## Features
 
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
-- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, and counts dialogue lines per block.
+- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in Python blocks, direct screen `action Jump(...)`/`action Call(...)`, and counts dialogue lines per block.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
@@ -223,6 +223,7 @@ See `docs/architecture.md` for the detailed architecture and flow.
 ### Unresolved jump/call targets
 
 - Jump/call edges are emitted even when a target label is not defined in the uploaded set.
+- For direct Python/screen API forms, only literal-string targets are emitted as edges; dynamic targets are reported as parser warnings in the parse result.
 - The viewer filters out edges whose source/target nodes are missing from the final node set.
 - This preserves parser fidelity while keeping rendering stable.
 

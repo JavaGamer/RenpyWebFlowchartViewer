@@ -33,6 +33,7 @@ export interface ParseWorkerClientRequest {
 export interface ParseWorkerClientResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  warnings?: ParseWarningPayload[];
 }
 
 /** @deprecated Use ParseWorkerClientRequest. */
@@ -93,8 +94,18 @@ export interface ResultResponseMessage {
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];
+  warnings?: ParseWarningPayload[];
   elapsedMs?: number;
   partial?: boolean;
+}
+
+export interface ParseWarningPayload {
+  code: 'dynamic_target';
+  chapter: string;
+  construct: 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
+  targetExpression: string;
+  message: string;
+  sourceId?: string;
 }
 
 export interface ErrorResponseMessage {

@@ -16,6 +16,8 @@ export function createGraphState(): ParseGraphState {
     calledLabels: new Set<string>(),
     calledFromMenuOptionTargets: new Set<string>(),
     pendingCallReturns: [],
+    warnings: [],
+    warningIds: new Set<string>(),
   };
 }
 

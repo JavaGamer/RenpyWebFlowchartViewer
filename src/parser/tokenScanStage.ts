@@ -23,7 +23,9 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.kwReturn,
   PARSER_TOKENS.literalString,
   PARSER_TOKENS.kwConditional,
-]);
+  PARSER_TOKENS.metaPythonBlock,
+  PARSER_TOKENS.metaScreenBlock,
+].filter((t): t is number => typeof t === 'number'));
 
 export function processFlatToken(
   state: ParseGraphState,

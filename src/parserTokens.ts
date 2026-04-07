@@ -22,6 +22,8 @@ export interface ParserTokenMap {
   metaMenuOptionBlock: number;
   metaJumpStatement: number;
   metaCallStatement: number;
+  metaPythonBlock?: number;
+  metaScreenBlock?: number;
   metaSayNarrator: number;
   metaSayCharacter: number;
   metaSayStatement: number;
@@ -44,6 +46,10 @@ function assertEnumEntry(
     );
   }
   return value;
+}
+
+function readOptionalEnumEntry(value: unknown): number | undefined {
+  return isNumber(value) ? value : undefined;
 }
 
 function buildTokenMap(): ParserTokenMap {
@@ -92,6 +98,8 @@ function buildTokenMap(): ParserTokenMap {
       'CallStatement',
       MetaTokenType.CallStatement,
     ),
+    metaPythonBlock: readOptionalEnumEntry(MetaTokenType.PythonBlock),
+    metaScreenBlock: readOptionalEnumEntry(MetaTokenType.ScreenBlock),
     metaSayNarrator: assertEnumEntry(
       'MetaTokenType',
       'SayNarrator',

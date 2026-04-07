@@ -100,8 +100,11 @@ export function parseRenpyFilesInWorker({
         settle(() => {
           parserWorker.removeEventListener('message', onMessage);
           signal?.removeEventListener('abort', onAbort);
-          onPartialResult?.({ nodes: message.nodes, edges: message.edges });
-          resolve({ nodes: message.nodes, edges: message.edges });
+          const partialResult = message.warnings
+            ? { nodes: message.nodes, edges: message.edges, warnings: message.warnings }
+            : { nodes: message.nodes, edges: message.edges };
+          onPartialResult?.(partialResult);
+          resolve(partialResult);
         });
         return;
       }
@@ -112,7 +115,11 @@ export function parseRenpyFilesInWorker({
       });
 
       if (message.type === 'result') {
-        resolve({ nodes: message.nodes, edges: message.edges });
+        if (message.warnings) {
+          resolve({ nodes: message.nodes, edges: message.edges, warnings: message.warnings });
+        } else {
+          resolve({ nodes: message.nodes, edges: message.edges });
+        }
         return;
       }
       if (message.type === 'error') {
@@ -235,4 +242,3 @@ export function searchDialogueLinesInWorker({
     };
     parserWorker.postMessage(searchMessage);  });
 }
-

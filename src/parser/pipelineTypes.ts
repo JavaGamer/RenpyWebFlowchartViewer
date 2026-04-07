@@ -4,6 +4,15 @@ import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 
+export interface ParseWarning {
+  code: 'dynamic_target';
+  chapter: string;
+  construct: 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
+  targetExpression: string;
+  message: string;
+  sourceId?: string;
+}
+
 export interface ParseScanState {
   currentLabelId: string | null;
   menuStack: Array<{ id: string; optionText: string | null }>;
@@ -29,11 +38,14 @@ export interface ParseGraphState {
   calledLabels: Set<string>;
   calledFromMenuOptionTargets: Set<string>;
   pendingCallReturns: Array<{ callerLabelId: string; callTargetId: string }>;
+  warnings: ParseWarning[];
+  warningIds: Set<string>;
 }
 
 export interface ParseResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  warnings?: ParseWarning[];
 }
 
 export interface ParseProgress {
@@ -58,6 +70,8 @@ export interface TokenMetaFlags {
   hasMenuOptionBlock: boolean;
   hasJumpStatement: boolean;
   hasCallStatement: boolean;
+  hasPythonBlock: boolean;
+  hasScreenBlock: boolean;
   hasSayNarrator: boolean;
   hasSayCharacter: boolean;
   hasSayStatement: boolean;

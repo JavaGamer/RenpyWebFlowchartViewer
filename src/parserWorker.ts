@@ -187,7 +187,11 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       if (isFinalChunk) {
         finalizeRoles(accumulatedState);
       }
-      result = { nodes: accumulatedState.nodes, edges: accumulatedState.edges };
+      result = {
+        nodes: accumulatedState.nodes,
+        edges: accumulatedState.edges,
+        warnings: accumulatedState.warnings.length > 0 ? accumulatedState.warnings : undefined,
+      };
     } else {
       result = await parseRenpyFiles(files, {
         maxParallelFiles,
@@ -245,6 +249,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         requestId,
         nodes: result.nodes,
         edges: result.edges,
+        warnings: result.warnings,
         elapsedMs: performance.now() - startedAt,
         partial: appendToActiveGraph && !isFinalChunk,
       });

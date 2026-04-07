@@ -47,8 +47,16 @@ describe('parseRenpyFilesInWorker', () => {
     const second = parseRenpyFilesInWorker({ files: [{ name: 'b.rpy', content: 'label b:' }] });
 
     await waitForPostedMessages(2);
-    const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
-    const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
+    const requestIdByFile = new Map(
+      postedMessages.map((message) => [
+        (message as { files?: Array<{ name: string }> }).files?.[0]?.name,
+        (message as { requestId: number }).requestId,
+      ]),
+    );
+    const firstRequestId = requestIdByFile.get('a.rpy');
+    const secondRequestId = requestIdByFile.get('b.rpy');
+    expect(firstRequestId).toBeTypeOf('number');
+    expect(secondRequestId).toBeTypeOf('number');
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
     expect((postedMessages[1] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
     expect((postedMessages[0] as { protocolVersion?: number }).protocolVersion).toBe(
@@ -61,14 +69,14 @@ describe('parseRenpyFilesInWorker', () => {
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: 'result',
-      requestId: secondRequestId,
+      requestId: secondRequestId!,
       nodes: [{ id: 'b' }],
       edges: [],
     });
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: 'result',
-      requestId: firstRequestId,
+      requestId: firstRequestId!,
       nodes: [{ id: 'a' }],
       edges: [],
     });

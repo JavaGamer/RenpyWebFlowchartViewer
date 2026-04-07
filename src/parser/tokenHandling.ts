@@ -13,6 +13,170 @@ interface HandleTokenInput {
   captureDialogueLines: boolean;
 }
 
+type DirectConstruct = 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
+
+const PYTHON_RENPY_CALL_PATTERN = /renpy\.(jump|call)\s*\(([^)]*)\)/g;
+const SCREEN_ACTION_CALL_PATTERN = /\baction\s+(Jump|Call)\s*\(([^)]*)\)/g;
+const QUOTED_LITERAL_PATTERN = /^(["'])([\s\S]*)\1$/;
+
+function addDynamicTargetWarning(
+  state: ParseGraphState,
+  chapter: string,
+  construct: DirectConstruct,
+  targetExpression: string,
+  sourceId?: string,
+) {
+  const warningId = [
+    'dynamic_target',
+    chapter,
+    construct,
+    targetExpression.trim(),
+    sourceId ?? '',
+  ].join('|');
+  if (state.warningIds.has(warningId)) return;
+  state.warningIds.add(warningId);
+  state.warnings.push({
+    code: 'dynamic_target',
+    chapter,
+    construct,
+    targetExpression: targetExpression.trim(),
+    sourceId,
+    message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
+  });
+}
+
+function resolveCallContext(
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  menuDepth: number,
+): { isInOption: boolean; source: string | null; optionText: string | null } {
+  const isInOption = meta.hasMenuOptionBlock;
+  const menu = menuAtDepth(scanState.menuStack, menuDepth);
+  const source = isInOption && menu ? menu.id : scanState.currentLabelId;
+  return { isInOption, source, optionText: menu?.optionText ?? null };
+}
+
+function emitJumpEdge(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  target: string,
+  context: { isInOption: boolean; source: string | null; optionText: string | null },
+  suppressFallthrough: boolean,
+) {
+  const { isInOption, source, optionText } = context;
+  if (source) {
+    addEdge(state, {
+      id: `jump_${source}__${target}_${optionText ?? ''}`,
+      source,
+      target,
+      kind: 'jump',
+      label: isInOption ? (optionText ?? undefined) : undefined,
+    });
+  }
+  if (!isInOption && scanState.currentLabelId) {
+    addOutgoing(state, scanState.currentLabelId, 'jump');
+    addIncoming(state, target, 'jump');
+  }
+  if (suppressFallthrough && !isInOption && scanState.conditionalIndentStack.length === 0) {
+    scanState.labelHasExplicitExit = true;
+  }
+}
+
+function emitCallEdge(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  target: string,
+  context: { isInOption: boolean; source: string | null; optionText: string | null },
+) {
+  const { isInOption, source, optionText } = context;
+  if (!source) return;
+  addEdge(state, {
+    id: `call_${source}__${target}_${optionText ?? ''}`,
+    source,
+    target,
+    kind: 'call',
+    label: isInOption ? (optionText ? `call: ${optionText}` : 'call') : 'call',
+  });
+
+  state.calledLabels.add(target);
+  if (!isInOption && scanState.currentLabelId) {
+    addOutgoing(state, scanState.currentLabelId, 'call');
+    addIncoming(state, target, 'call');
+    state.pendingCallReturns.push({
+      callerLabelId: scanState.currentLabelId,
+      callTargetId: target,
+    });
+  }
+  if (isInOption) state.calledFromMenuOptionTargets.add(target);
+}
+
+function extractLiteralTarget(expression: string): string | null {
+  const trimmed = expression.trim();
+  const match = QUOTED_LITERAL_PATTERN.exec(trimmed);
+  if (!match) return null;
+  return match[2] ?? null;
+}
+
+function processDirectRenpyBlockCalls(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  chapter: string,
+  menuDepth: number,
+  blockText: string,
+) {
+  PYTHON_RENPY_CALL_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = PYTHON_RENPY_CALL_PATTERN.exec(blockText)) !== null) {
+    const callType = match[1] === 'jump' ? 'jump' : 'call';
+    const construct: DirectConstruct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
+    const targetExpression = match[2] ?? '';
+    const target = extractLiteralTarget(targetExpression);
+    const context = resolveCallContext(scanState, meta, menuDepth);
+
+    if (!target) {
+      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      continue;
+    }
+
+    if (callType === 'jump') {
+      emitJumpEdge(state, scanState, target, context, false);
+    } else {
+      emitCallEdge(state, scanState, target, context);
+    }
+  }
+}
+
+function processDirectScreenActionCalls(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  chapter: string,
+  menuDepth: number,
+  blockText: string,
+) {
+  SCREEN_ACTION_CALL_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = SCREEN_ACTION_CALL_PATTERN.exec(blockText)) !== null) {
+    const callType = match[1] === 'Jump' ? 'jump' : 'call';
+    const construct: DirectConstruct = callType === 'jump' ? 'Jump' : 'Call';
+    const targetExpression = match[2] ?? '';
+    const target = extractLiteralTarget(targetExpression);
+    const context = resolveCallContext(scanState, meta, menuDepth);
+
+    if (!target) {
+      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      continue;
+    }
+
+    if (callType === 'jump') {
+      emitJumpEdge(state, scanState, target, context, false);
+    } else {
+      emitCallEdge(state, scanState, target, context);
+    }
+  }
+}
+
 export function handleToken(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -64,6 +228,16 @@ export function handleToken(
       dialogueCount: 0,
       chapter,
     });
+    return;
+  }
+
+  if (type === PARSER_TOKENS.metaPythonBlock) {
+    processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, val());
+    return;
+  }
+
+  if (type === PARSER_TOKENS.metaScreenBlock) {
+    processDirectScreenActionCalls(state, scanState, meta, chapter, menuDepth, val());
     return;
   }
 
@@ -146,26 +320,8 @@ export function handleToken(
     meta.hasJumpStatement
   ) {
     const target = val();
-    const isInOption = meta.hasMenuOptionBlock;
-    const menu = menuAtDepth(scanState.menuStack, menuDepth);
-    const source = isInOption && menu ? menu.id : scanState.currentLabelId;
-    const optionText = menu?.optionText ?? null;
-    if (source) {
-      addEdge(state, {
-        id: `jump_${source}__${target}_${optionText ?? ''}`,
-        source,
-        target,
-        kind: 'jump',
-        label: isInOption ? (optionText ?? undefined) : undefined,
-      });
-    }
-    if (!isInOption && scanState.currentLabelId) {
-      addOutgoing(state, scanState.currentLabelId, 'jump');
-      addIncoming(state, target, 'jump');
-    }
-    if (!isInOption && scanState.conditionalIndentStack.length === 0) {
-      scanState.labelHasExplicitExit = true;
-    }
+    const context = resolveCallContext(scanState, meta, menuDepth);
+    emitJumpEdge(state, scanState, target, context, true);
     scanState.waitForJumpTarget = false;
     return;
   }
@@ -181,30 +337,8 @@ export function handleToken(
     meta.hasCallStatement
   ) {
     const target = val();
-    const isInOption = meta.hasMenuOptionBlock;
-    const menu = menuAtDepth(scanState.menuStack, menuDepth);
-    const source = isInOption && menu ? menu.id : scanState.currentLabelId;
-    const optionText = menu?.optionText ?? null;
-    if (source) {
-      addEdge(state, {
-        id: `call_${source}__${target}_${optionText ?? ''}`,
-        source,
-        target,
-        kind: 'call',
-        label: isInOption ? (optionText ? `call: ${optionText}` : 'call') : 'call',
-      });
-    }
-
-    state.calledLabels.add(target);
-    if (!isInOption && scanState.currentLabelId) {
-      addOutgoing(state, scanState.currentLabelId, 'call');
-      addIncoming(state, target, 'call');
-      state.pendingCallReturns.push({
-        callerLabelId: scanState.currentLabelId,
-        callTargetId: target,
-      });
-    }
-    if (isInOption) state.calledFromMenuOptionTargets.add(target);
+    const context = resolveCallContext(scanState, meta, menuDepth);
+    emitCallEdge(state, scanState, target, context);
 
     scanState.waitForCallTarget = false;
     return;

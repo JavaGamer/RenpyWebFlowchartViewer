@@ -10,6 +10,8 @@ function resetMetaFlags(meta: TokenMetaFlags): TokenMetaFlags {
   meta.hasMenuOptionBlock = false;
   meta.hasJumpStatement = false;
   meta.hasCallStatement = false;
+  meta.hasPythonBlock = false;
+  meta.hasScreenBlock = false;
   meta.hasSayNarrator = false;
   meta.hasSayCharacter = false;
   meta.hasSayStatement = false;
@@ -26,6 +28,8 @@ export function createEmptyTokenMeta(): TokenMetaFlags {
     hasMenuOptionBlock: false,
     hasJumpStatement: false,
     hasCallStatement: false,
+    hasPythonBlock: false,
+    hasScreenBlock: false,
     hasSayNarrator: false,
     hasSayCharacter: false,
     hasSayStatement: false,
@@ -39,6 +43,14 @@ export function analyzeTokenMetaInto(
   const meta = resetMetaFlags(outMeta);
 
   for (const m of metas) {
+    if (PARSER_TOKENS.metaPythonBlock !== undefined && m === PARSER_TOKENS.metaPythonBlock) {
+      meta.hasPythonBlock = true;
+      continue;
+    }
+    if (PARSER_TOKENS.metaScreenBlock !== undefined && m === PARSER_TOKENS.metaScreenBlock) {
+      meta.hasScreenBlock = true;
+      continue;
+    }
     switch (m) {
       case PARSER_TOKENS.metaMenuStatement:
         meta.menuDepth += 1;
