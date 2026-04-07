@@ -838,6 +838,131 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts direct renpy.jump/renpy.call targets when extra arguments are present', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump("jump_target", from_current=True)',
+      '        renpy.call("call_target", from_current=True)',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-extra-args.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.jump' }),
+        expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.call' }),
+      ]),
+    );
+  });
+
+  it('extracts direct renpy.jump/renpy.call targets when target keyword is not first argument', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump(from_current=True, label="jump_target")',
+      '        renpy.call(from_current=True, label="call_target")',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-keyword-order.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.jump' }),
+        expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.call' }),
+      ]),
+    );
+  });
+
+  it('extracts direct screen action targets with keyword and trailing arguments', async () => {
+    const script = [
+      'label start:',
+      '    show screen nav_overlay',
+      '',
+      'screen nav_overlay:',
+      '    textbutton "Jump A" action Jump("jump_target", from_current=True)',
+      '    textbutton "Call B" action Call(label="call_target")',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-extra-args.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Jump' }),
+        expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Call' }),
+      ]),
+    );
+  });
+
+  it('ignores direct call-like patterns inside comments and quoted strings', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        "renpy.call(\\"string_target\\")"',
+      '        # renpy.jump("comment_target")',
+      '    show screen fake_overlay',
+      '',
+      'screen fake_overlay:',
+      '    text "action Jump(\\"text_target\\")"',
+      '    # textbutton "Call target" action Call("comment_call_target")',
+      '',
+      'label end:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'ignored-direct-call-patterns.rpy', content: script }]);
+    const ignoredTargets = new Set(['string_target', 'comment_target', 'text_target', 'comment_call_target']);
+    expect(result.edges.some((edge) => ignoredTargets.has(edge.target))).toBe(false);
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.jump' }),
+        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.call' }),
+        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Jump' }),
+        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Call' }),
+      ]),
+    );
+  });
+
 
 
   it('handles complex conditional nested menu and mixed call/jump flow', async () => {

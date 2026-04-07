@@ -168,6 +168,163 @@ function extractLiteralTarget(expression: string): string | null {
   return match[2] ?? null;
 }
 
+function splitTopLevelArguments(argumentList: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let activeQuote: '"' | '\'' | null = null;
+  let start = 0;
+
+  for (let i = 0; i < argumentList.length; i += 1) {
+    const char = argumentList[i];
+    if (activeQuote) {
+      if (char === '\\') {
+        i += 1;
+        continue;
+      }
+      if (char === activeQuote) activeQuote = null;
+      continue;
+    }
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') {
+      depth += 1;
+      continue;
+    }
+    if (char === ')' || char === ']' || char === '}') {
+      if (depth > 0) depth -= 1;
+      continue;
+    }
+    if (depth === 0 && char === ',') {
+      const segment = argumentList.slice(start, i).trim();
+      if (segment) args.push(segment);
+      start = i + 1;
+    }
+  }
+
+  const last = argumentList.slice(start).trim();
+  if (last) args.push(last);
+  return args;
+}
+
+function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '='): number {
+  let depth = 0;
+  let activeQuote: '"' | '\'' | null = null;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (activeQuote) {
+      if (char === '\\') {
+        i += 1;
+        continue;
+      }
+      if (char === activeQuote) activeQuote = null;
+      continue;
+    }
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') {
+      depth += 1;
+      continue;
+    }
+    if (char === ')' || char === ']' || char === '}') {
+      if (depth > 0) depth -= 1;
+      continue;
+    }
+    if (depth === 0 && char === delimiter) return i;
+  }
+  return -1;
+}
+
+function extractStaticTargetFromArgumentList(argumentList: string): string | null {
+  const args = splitTopLevelArguments(argumentList);
+  if (args.length === 0) return null;
+
+  const firstArgument = args[0];
+  const directLiteral = extractLiteralTarget(firstArgument);
+  if (directLiteral) return directLiteral;
+
+  const preferredKeywordNames = new Set(['label', 'target']);
+  for (const arg of args) {
+    const equalsIndex = findTopLevelDelimiterIndex(arg, '=');
+    if (equalsIndex <= 0) continue;
+    const keyword = arg.slice(0, equalsIndex).trim().toLowerCase();
+    if (!preferredKeywordNames.has(keyword)) continue;
+    const literal = extractLiteralTarget(arg.slice(equalsIndex + 1));
+    if (literal) return literal;
+  }
+
+  const equalsIndex = findTopLevelDelimiterIndex(firstArgument, '=');
+  if (equalsIndex <= 0) return null;
+  return extractLiteralTarget(firstArgument.slice(equalsIndex + 1));
+}
+
+function buildIgnoredPositionMask(text: string): boolean[] {
+  const ignored = new Array<boolean>(text.length).fill(false);
+  let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
+  let inComment = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inComment) {
+      ignored[i] = true;
+      if (char === '\n') inComment = false;
+      continue;
+    }
+
+    if (activeQuote) {
+      ignored[i] = true;
+      if (!tripleQuoted && char === '\\') {
+        if (i + 1 < text.length) {
+          ignored[i + 1] = true;
+          i += 1;
+        }
+        continue;
+      }
+      if (tripleQuoted) {
+        if (char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+          ignored[i + 1] = true;
+          ignored[i + 2] = true;
+          i += 2;
+          activeQuote = null;
+          tripleQuoted = false;
+        }
+        continue;
+      }
+      if (char === activeQuote) activeQuote = null;
+      continue;
+    }
+
+    if (char === '#') {
+      ignored[i] = true;
+      inComment = true;
+      continue;
+    }
+
+    if ((char === '"' || char === '\'') && text[i + 1] === char && text[i + 2] === char) {
+      ignored[i] = true;
+      if (i + 1 < text.length) ignored[i + 1] = true;
+      if (i + 2 < text.length) ignored[i + 2] = true;
+      i += 2;
+      activeQuote = char;
+      tripleQuoted = true;
+      continue;
+    }
+
+    if (char === '"' || char === '\'') {
+      ignored[i] = true;
+      activeQuote = char;
+      tripleQuoted = false;
+    }
+  }
+
+  return ignored;
+}
+
 function processDirectRenpyBlockCalls(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -177,15 +334,19 @@ function processDirectRenpyBlockCalls(
   blockText: string,
 ) {
   PYTHON_RENPY_CALL_START_PATTERN.lastIndex = 0;
+  const ignoredMask = buildIgnoredPositionMask(blockText);
   let match: RegExpExecArray | null;
   while ((match = PYTHON_RENPY_CALL_START_PATTERN.exec(blockText)) !== null) {
+    if (ignoredMask[match.index]) {
+      continue;
+    }
     const callType = match[1] === 'jump' ? 'jump' : 'call';
     const construct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
     const parsed = readParenthesizedArgument(blockText, PYTHON_RENPY_CALL_START_PATTERN.lastIndex);
     if (!parsed) break;
     PYTHON_RENPY_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     const targetExpression = parsed.argument;
-    const target = extractLiteralTarget(targetExpression);
+    const target = extractStaticTargetFromArgumentList(targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
 
     if (!target) {
@@ -211,8 +372,12 @@ function processDirectScreenActionCalls(
   screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
   SCREEN_ACTION_CALL_START_PATTERN.lastIndex = 0;
+  const ignoredMask = buildIgnoredPositionMask(blockText);
   let match: RegExpExecArray | null;
   while ((match = SCREEN_ACTION_CALL_START_PATTERN.exec(blockText)) !== null) {
+    if (ignoredMask[match.index]) {
+      continue;
+    }
     const construct = match[1];
     const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) {
@@ -222,7 +387,7 @@ function processDirectScreenActionCalls(
     if (!parsed) break;
     SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     const targetExpression = parsed.argument;
-    const target = extractLiteralTarget(targetExpression);
+    const target = extractStaticTargetFromArgumentList(targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
 
     if (!target) {

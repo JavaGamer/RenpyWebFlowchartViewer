@@ -45,7 +45,10 @@ export function processFlatToken(
   const screenActionRuleMap = precomputedScreenActionRuleMap ?? toScreenActionRuleMap(parserVariant, screenActionRules);
   let tokenText: string | undefined;
   const val = (): string => {
-    if (tokenText === undefined) tokenText = token.getValue(document);
+    if (tokenText === undefined) {
+      const raw = token.getValue(document);
+      tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
+    }
     return tokenText;
   };
   const menuDepth = meta.menuDepth;
@@ -190,7 +193,10 @@ export function processFlatTokens(
     analyzeTokenMetaInto(token.metaTokens as Iterable<number>, meta);
     let tokenText: string | undefined;
     const val = (): string => {
-      if (tokenText === undefined) tokenText = token.getValue(document);
+      if (tokenText === undefined) {
+        const raw = token.getValue(document);
+        tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
+      }
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
