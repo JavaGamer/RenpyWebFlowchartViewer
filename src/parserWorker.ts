@@ -172,6 +172,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           },
             idx,
           );
+          buildDialogueSearchIndex(accumulatedState.nodes);
         if (wantsProgress) {
           const now = performance.now();
           const nextProgress: ProgressResponseMessage = {

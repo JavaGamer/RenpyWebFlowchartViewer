@@ -151,7 +151,12 @@ function dataUrlToBlob(dataUrl: string): Blob {
     }
     return new Blob([bytes], { type: mimeType });
   }
-  return new Blob([decodeURIComponent(data ?? '')], { type: mimeType });
+  const textData = data ?? '';
+  try {
+    return new Blob([decodeURIComponent(textData)], { type: mimeType });
+  } catch {
+    return new Blob([textData], { type: mimeType });
+  }
 }
 
 export default function FlowchartViewer({
@@ -756,6 +761,7 @@ export default function FlowchartViewer({
     count: shouldVirtualizeInspectorLines ? inspectorDialogueLines.length : 0,
     getScrollElement: () => inspectorLinesScrollRef.current,
     estimateSize: () => 34,
+    measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 10,
   });
   /* eslint-enable react-hooks/incompatible-library */
@@ -1267,33 +1273,46 @@ export default function FlowchartViewer({
               </div>
               <div className="text-xs font-semibold">Dialogue</div>
               <div ref={inspectorLinesScrollRef} className={shouldVirtualizeInspectorLines ? 'max-h-64 overflow-y-auto' : ''}>
-                <div
-                  className="space-y-1"
-                  style={shouldVirtualizeInspectorLines ? { height: `${inspectorLinesVirtualizer.getTotalSize()}px`, position: 'relative' } : undefined}
-                >
-                  {(shouldVirtualizeInspectorLines
-                    ? inspectorLinesVirtualizer.getVirtualItems().map((virtualItem) => ({
-                        key: virtualItem.index,
-                        index: virtualItem.index,
-                        start: virtualItem.start,
-                      }))
-                    : inspectorDialogueLines.map((_, idx) => ({ key: idx, index: idx, start: 0 }))
-                  ).map((item) => {
-                    const line = inspectorDialogueLines[item.index] ?? '';
-                    const absoluteIndex = item.index + 1;
-                    const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
-                    return (
-                      <div
-                        key={`${selectedNodeId}-${item.key}`}
-                        className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
-                        style={shouldVirtualizeInspectorLines ? { position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${item.start}px)` } : undefined}
-                      >
-                        <span className="font-medium mr-1">{absoluteIndex}.</span>
-                        {renderHighlightedText(line, effectiveSearch)}
-                      </div>
-                    );
-                  })}
-                </div>
+                {shouldVirtualizeInspectorLines ? (
+                  <div
+                    className="relative"
+                    style={{ height: `${inspectorLinesVirtualizer.getTotalSize()}px` }}
+                  >
+                    {inspectorLinesVirtualizer.getVirtualItems().map((virtualItem) => {
+                      const line = inspectorDialogueLines[virtualItem.index] ?? '';
+                      const absoluteIndex = virtualItem.index + 1;
+                      const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
+                      return (
+                        <div
+                          key={`${selectedNodeId}-${virtualItem.key}`}
+                          ref={inspectorLinesVirtualizer.measureElement}
+                          data-index={virtualItem.index}
+                          className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                          style={{ position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
+                        >
+                          <span className="font-medium mr-1">{absoluteIndex}.</span>
+                          {renderHighlightedText(line, effectiveSearch)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {inspectorDialogueLines.map((line, idx) => {
+                      const absoluteIndex = idx + 1;
+                      const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
+                      return (
+                        <div
+                          key={`${selectedNodeId}-${idx}`}
+                          className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                        >
+                          <span className="font-medium mr-1">{absoluteIndex}.</span>
+                          {renderHighlightedText(line, effectiveSearch)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
                 <button
