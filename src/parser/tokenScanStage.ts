@@ -6,7 +6,7 @@ import { maybeUpdateConditionalState } from './scanTransitions';
 import { handleToken } from './tokenHandling';
 import { PARSER_TOKENS } from '../parserTokens';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import { toScreenActionRuleMap } from '../config/parserRules';
+import { toScreenActionRuleMap, type ScreenActionKind } from '../config/parserRules';
 
 interface FlatTokenLike {
   type: number;
@@ -38,10 +38,11 @@ export function processFlatToken(
   captureDialogueLines: boolean,
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
+  precomputedScreenActionRuleMap?: Map<string, ScreenActionKind>,
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
-  const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
+  const screenActionRuleMap = precomputedScreenActionRuleMap ?? toScreenActionRuleMap(parserVariant, screenActionRules);
   let tokenText: string | undefined;
   const val = (): string => {
     if (tokenText === undefined) tokenText = token.getValue(document);

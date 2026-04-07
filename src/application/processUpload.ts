@@ -128,14 +128,6 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               parsedEdges = result.edges;
               parsedWarnings = result.warnings ?? [];
               parsedFileCount += parseChunk.length;
-              if (!isLastChunk) {
-                dispatch({
-                  type: 'PARTIAL_PARSE_SUCCESS',
-                  nodes: parsedNodes,
-                  edges: parsedEdges,
-                  warnings: parsedWarnings,
-                });
-              }
             }
           } else {
             const isFirstReadBatch = offset === 0;

@@ -194,6 +194,7 @@ describe('createProcessUpload', () => {
         type: 'PARSE_SUCCESS',
       }),
     );
+    expect(dispatch.mock.calls.filter(([action]) => action?.type === 'PARTIAL_PARSE_SUCCESS')).toHaveLength(1);
   });
 
   it('dispatches file read failures with mapped message', async () => {
