@@ -1,9 +1,11 @@
 import { parseRenpyFiles } from './parser';
+import Fuse from 'fuse.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import { createGraphState } from './parser/pipelineState';
 import { parseOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
+import { DIALOGUE_FUSE_OPTIONS, type DialogueSearchDocument } from './config/searchConfig';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
@@ -51,7 +53,24 @@ let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
 const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
 let accumulatedState = createGraphState();
-const dialogueIndex = new Map<string, Array<{ line: string; lowerLine: string; lineIndex: number }>>();
+let dialogueSearchDocs: DialogueSearchDocument[] = [];
+let dialogueSearchFuse: Fuse<DialogueSearchDocument> | null = null;
+
+function buildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLines?: string[] }[]) {
+  dialogueSearchDocs = [];
+  for (const node of nodes) {
+    if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
+    for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
+      dialogueSearchDocs.push({
+        nodeId: node.id,
+        nodeLabel: node.label,
+        lineIndex: idx + 1,
+        lineText: node.dialogueLines[idx]!,
+      });
+    }
+  }
+  dialogueSearchFuse = dialogueSearchDocs.length > 0 ? new Fuse(dialogueSearchDocs, DIALOGUE_FUSE_OPTIONS) : null;
+}
 
 function postMessageSafe(message: WorkerResponseMessage) {
   self.postMessage(message);
@@ -68,7 +87,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   if (message.type === 'search') {
     const startedAt = performance.now();
-    const query = message.query.trim().toLowerCase();
+    const query = message.query.trim();
     if (!query) {
       postMessageSafe({
         protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
@@ -81,23 +100,25 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     }
     const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, 2000));
     const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
-    const results: DialogueSearchResult[] = [];
-    for (const node of accumulatedState.nodes) {
-      if (allowedIds && !allowedIds.has(node.id)) continue;
-      const lines = dialogueIndex.get(node.id);
-      if (!lines || lines.length === 0) continue;
-      for (const line of lines) {
-        if (line.lowerLine.includes(query)) {
-          results.push({
-            nodeId: node.id,
-            nodeLabel: node.label,
-            lineIndex: line.lineIndex,
-            lineText: line.line,
-          });
-          if (results.length >= maxResults) break;
-        }
+    let results: DialogueSearchResult[] = [];
+    if (allowedIds) {
+      const scopedDocs = dialogueSearchDocs.filter((doc) => allowedIds.has(doc.nodeId));
+      if (scopedDocs.length > 0) {
+        const scopedFuse = new Fuse(scopedDocs, DIALOGUE_FUSE_OPTIONS);
+        results = scopedFuse.search(query, { limit: maxResults }).map((entry) => ({
+          nodeId: entry.item.nodeId,
+          nodeLabel: entry.item.nodeLabel,
+          lineIndex: entry.item.lineIndex,
+          lineText: entry.item.lineText,
+        }));
       }
-      if (results.length >= maxResults) break;
+    } else if (dialogueSearchFuse) {
+      results = dialogueSearchFuse.search(query, { limit: maxResults }).map((entry) => ({
+        nodeId: entry.item.nodeId,
+        nodeLabel: entry.item.nodeLabel,
+        lineIndex: entry.item.lineIndex,
+        lineText: entry.item.lineText,
+      }));
     }
     postMessageSafe({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
@@ -124,13 +145,14 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   try {
     let result;
-    if (appendToActiveGraph) {
-      if (resetActiveGraph) {
-        accumulatedState = createGraphState();
-        dialogueIndex.clear();
-      }
+      if (appendToActiveGraph) {
+        if (resetActiveGraph) {
+          accumulatedState = createGraphState();
+          dialogueSearchDocs = [];
+          dialogueSearchFuse = null;
+        }
       if (message.requestId !== activeRequestId) return;
-      for (let idx = 0; idx < files.length; idx += 1) {
+        for (let idx = 0; idx < files.length; idx += 1) {
         if (activeRequestId !== requestId) {
           return;
         }
@@ -138,10 +160,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           throw new Error('Parsing cancelled');
         }
         const file = files[idx];
-        const prevNodeCount = accumulatedState.nodes.length;
-        await parseOneFile(
-          accumulatedState,
-          file,
+          await parseOneFile(
+            accumulatedState,
+            file,
           {
             captureDialogueLines: message.captureDialogueLines !== false,
             tokenizedCache,
@@ -149,21 +170,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
             parserVariant: message.parserVariant,
             screenActionRules: message.screenActionRules,
           },
-          idx,
-        );
-        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
-          const node = accumulatedState.nodes[nodeIdx];
-          if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
-          if (dialogueIndex.has(node.id)) continue;
-          dialogueIndex.set(
-            node.id,
-            node.dialogueLines.map((line, idx) => ({
-              line,
-              lowerLine: line.toLowerCase(),
-              lineIndex: idx + 1,
-            })),
+            idx,
           );
-        }
+          buildDialogueSearchIndex(accumulatedState.nodes);
         if (wantsProgress) {
           const now = performance.now();
           const nextProgress: ProgressResponseMessage = {
@@ -189,6 +198,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       }
       if (isFinalChunk) {
         finalizeRoles(accumulatedState);
+        buildDialogueSearchIndex(accumulatedState.nodes);
       }
       result = {
         nodes: accumulatedState.nodes,
@@ -229,18 +239,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       accumulatedState = createGraphState();
       accumulatedState.nodes = result.nodes;
       accumulatedState.edges = result.edges;
-      dialogueIndex.clear();
-      for (const node of result.nodes) {
-        if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
-        dialogueIndex.set(
-          node.id,
-          node.dialogueLines.map((line, idx) => ({
-            line,
-            lowerLine: line.toLowerCase(),
-            lineIndex: idx + 1,
-          })),
-        );
-      }
+      buildDialogueSearchIndex(result.nodes);
     }
 
     if (wantsProgress && pendingProgress) {
@@ -279,7 +278,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     cancelledRequests.delete(requestId);
     if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
       accumulatedState = createGraphState();
-      dialogueIndex.clear();
+      dialogueSearchDocs = [];
+      dialogueSearchFuse = null;
     }
   }
 };

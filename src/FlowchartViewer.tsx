@@ -16,8 +16,12 @@ import {
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import Fuse from 'fuse.js';
 import { toBlob, toSvg } from 'html-to-image';
 import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
+import { saveAs } from 'file-saver';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import debounce from 'lodash.debounce';
 import type { FlowNode, FlowEdge } from './domain';
 import type { DialogueSearchMode, ParseService } from './application';
 import { workerParseService } from './application';
@@ -30,6 +34,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   ZOOM_PRESETS,
 } from './config/viewerConfig';
+import { DIALOGUE_FUSE_OPTIONS, NODE_FUSE_OPTIONS, type DialogueSearchDocument, type NodeSearchDocument } from './config/searchConfig';
 import type { ThemeName, LayoutDirection } from './ui/viewerTypes';
 import {
   type CanvasNode,
@@ -133,6 +138,27 @@ function renderHighlightedText(text: string, query: string) {
   return nodes;
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [meta, data] = dataUrl.split(',');
+  const isBase64 = meta?.includes(';base64');
+  const mimeMatch = meta?.match(/data:([^;]+)/);
+  const mimeType = mimeMatch?.[1] ?? 'application/octet-stream';
+  if (isBase64) {
+    const decoded = atob(data ?? '');
+    const bytes = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length; i += 1) {
+      bytes[i] = decoded.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
+  }
+  const textData = data ?? '';
+  try {
+    return new Blob([decodeURIComponent(textData)], { type: mimeType });
+  } catch {
+    return new Blob([textData], { type: mimeType });
+  }
+}
+
 export default function FlowchartViewer({
   flowNodes,
   flowEdges,
@@ -173,6 +199,8 @@ export default function FlowchartViewer({
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showAllLabelSubgraphToggles, setShowAllLabelSubgraphToggles] = useState(false);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const dialogueResultsScrollRef = useRef<HTMLDivElement | null>(null);
+  const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const [previousVisibleNodesById, setPreviousVisibleNodesById] = useState<Map<string, CanvasNode>>(
     new Map(),
@@ -203,13 +231,16 @@ export default function FlowchartViewer({
   );
   const dialogueLineSearchEnabled = effectiveDialogueSearchMode === 'full';
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
+  const debouncedSetSearch = useMemo(
+    () => debounce((value: string) => setDebouncedSearch(value), SEARCH_DEBOUNCE_MS),
+    [],
+  );
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedSearch(searchInput);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timeout);
-  }, [searchInput]);
+    debouncedSetSearch(searchInput);
+  }, [debouncedSetSearch, searchInput]);
+
+  useEffect(() => () => debouncedSetSearch.cancel(), [debouncedSetSearch]);
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
 
   const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
@@ -395,9 +426,9 @@ export default function FlowchartViewer({
 
   const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
     if (!dialogueLineSearchEnabled) return [];
-    const query = effectiveSearch.trim().toLowerCase();
+    const query = effectiveSearch.trim();
     if (!query) return [];
-    const results: DialogueSearchResult[] = [];
+    const searchableDocs: DialogueSearchDocument[] = [];
     for (const node of nodes) {
       const nodeData = node.data as { label: string; chapter?: string; dialogueCount?: number; dialogueLines?: string[] };
       const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
@@ -406,30 +437,58 @@ export default function FlowchartViewer({
       if ((nodeData.dialogueCount ?? 0) < minDialogue) continue;
       const lines = nodeData.dialogueLines ?? [];
       lines.forEach((line, idx) => {
-        if (line.toLowerCase().includes(query)) {
-          results.push({
-            nodeId: node.id,
-            nodeLabel: nodeData.label,
-            lineIndex: idx + 1,
-            lineText: line,
-          });
-        }
+        searchableDocs.push({
+          nodeId: node.id,
+          nodeLabel: nodeData.label,
+          lineIndex: idx + 1,
+          lineText: line,
+        });
       });
     }
-    return results;
+    if (searchableDocs.length === 0) return [];
+    const localDialogueFuse = new Fuse(searchableDocs, DIALOGUE_FUSE_OPTIONS);
+    return localDialogueFuse.search(query, { limit: 2000 }).map((entry) => ({
+      nodeId: entry.item.nodeId,
+      nodeLabel: entry.item.nodeLabel,
+      lineIndex: entry.item.lineIndex,
+      lineText: entry.item.lineText,
+    }));
   }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, effectiveSearch, minDialogue, nodes]);
 
   const activeDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
+  const dialogueMatchNodeIds = useMemo(
+    () => new Set(activeDialogueSearchResults.map((result) => result.nodeId)),
+    [activeDialogueSearchResults],
+  );
+  const nodeSearchMatchIds = useMemo(() => {
+    const query = effectiveSearch.trim();
+    if (!query) return null;
+    const nodeSearchDocs: NodeSearchDocument[] = nodes.map((node) => {
+      const nodeData = node.data as { label?: string; dialogueCount?: number };
+      return {
+        nodeId: node.id,
+        label: nodeData.label ?? '',
+        dialogueCountText: String(nodeData.dialogueCount ?? 0),
+      };
+    });
+    const nodeFuse = new Fuse(nodeSearchDocs, NODE_FUSE_OPTIONS);
+    return new Set(nodeFuse.search(query).map((entry) => entry.item.nodeId));
+  }, [effectiveSearch, nodes]);
+  const searchMatchNodeIds = useMemo(() => {
+    if (!nodeSearchMatchIds) return null;
+    const combined = new Set(nodeSearchMatchIds);
+    dialogueMatchNodeIds.forEach((nodeId) => combined.add(nodeId));
+    return combined;
+  }, [dialogueMatchNodeIds, nodeSearchMatchIds]);
 
   const visibleNodes = useMemo(
     () =>
       buildVisibleNodes({
         nodes,
         search: effectiveSearch,
-        includeDialogueLineSearch: dialogueLineSearchEnabled,
-        dialogueMatchNodeIds: dialogueLineSearchEnabled
-          ? new Set(activeDialogueSearchResults.map((result) => result.nodeId))
-          : null,
+        searchMatchNodeIds,
+        includeDialogueLineSearch: false,
+        dialogueMatchNodeIds: dialogueLineSearchEnabled ? dialogueMatchNodeIds : null,
         minDialogue,
         collapsedChapters,
         collapsedLabelChildren,
@@ -437,14 +496,15 @@ export default function FlowchartViewer({
         previousById: previousVisibleNodesById,
       }),
     [
-      activeDialogueSearchResults,
       collapsedChapters,
       collapsedLabelChildren,
+      dialogueMatchNodeIds,
       dialogueLineSearchEnabled,
       effectiveSearch,
       minDialogue,
       nodes,
       previousVisibleNodesById,
+      searchMatchNodeIds,
       theme,
     ],
   );
@@ -500,20 +560,16 @@ export default function FlowchartViewer({
   const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined;
 
   const nodeSearchMatchCount = useMemo(() => {
-    const query = effectiveSearch.trim().toLowerCase();
-    if (!query) return 0;
+    if (!nodeSearchMatchIds) return 0;
     let matches = 0;
     for (const node of visibleNodes) {
       if (node.hidden) continue;
-      const data = node.data as { label?: string; dialogueCount?: number };
-      const label = data.label ?? '';
-      const dialogueCount = data.dialogueCount ?? 0;
-      if (label.toLowerCase().includes(query) || String(dialogueCount).includes(query)) {
+      if (nodeSearchMatchIds.has(node.id)) {
         matches += 1;
       }
     }
     return matches;
-  }, [effectiveSearch, visibleNodes]);
+  }, [nodeSearchMatchIds, visibleNodes]);
 
   const resolvedActiveDialogueResultIndex = useMemo(() => {
     if (activeDialogueSearchResults.length === 0) return -1;
@@ -542,19 +598,11 @@ export default function FlowchartViewer({
     })
       .then((blob) => {
         if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        try {
-          const a = document.createElement('a');
-          a.download = 'renpy-flowchart.png';
-          a.href = url;
-          a.click();
-          perf.log('export_png_ms', performance.now() - startedAt, {
-            nodeCount: visibleNodeIds.size,
-            edgeCount: visibleEdges.length,
-          });
-        } finally {
-          URL.revokeObjectURL(url);
-        }
+        saveAs(blob, 'renpy-flowchart.png');
+        perf.log('export_png_ms', performance.now() - startedAt, {
+          nodeCount: visibleNodeIds.size,
+          edgeCount: visibleEdges.length,
+        });
       })
       .catch((err: unknown) => {
         console.error('Export failed:', err);
@@ -572,10 +620,8 @@ export default function FlowchartViewer({
       height,
     })
       .then((svgDataUrl) => {
-        const a = document.createElement('a');
-        a.download = 'renpy-flowchart.svg';
-        a.href = svgDataUrl;
-        a.click();
+        const svgBlob = dataUrlToBlob(svgDataUrl);
+        saveAs(svgBlob, 'renpy-flowchart.svg');
         perf.log('export_svg_ms', performance.now() - startedAt, {
           nodeCount: visibleNodeIds.size,
           edgeCount: visibleEdges.length,
@@ -650,15 +696,7 @@ export default function FlowchartViewer({
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
     const blob = new Blob([graphJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    try {
-      const a = document.createElement('a');
-      a.download = 'renpy-flowchart.json';
-      a.href = url;
-      a.click();
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    saveAs(blob, 'renpy-flowchart.json');
   }, [flowEdges, flowNodes]);
   const onFitView = useCallback(() => {
     flowInstanceRef.current?.fitView({ padding: 0.2 });
@@ -703,6 +741,34 @@ export default function FlowchartViewer({
     () => visibleNodes.find((n) => n.id === focusNodeId && !n.hidden),
     [focusNodeId, visibleNodes],
   );
+  const inspectorDialogueLines = useMemo(
+    () =>
+      showAllInspectorLines
+        ? selectedNodeData?.dialogueLines ?? []
+        : (selectedNodeData?.dialogueLines ?? []).slice(0, INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT),
+    [selectedNodeData?.dialogueLines, showAllInspectorLines],
+  );
+  const shouldVirtualizeInspectorResults = activeDialogueSearchResults.length > 120;
+  const shouldVirtualizeInspectorLines = inspectorDialogueLines.length > 120;
+  const measureInspectorLineElement = useCallback(
+    (element: HTMLDivElement) => element.getBoundingClientRect().height,
+    [],
+  );
+  /* eslint-disable react-hooks/incompatible-library */
+  const dialogueResultsVirtualizer = useVirtualizer({
+    count: shouldVirtualizeInspectorResults ? activeDialogueSearchResults.length : 0,
+    getScrollElement: () => dialogueResultsScrollRef.current,
+    estimateSize: () => 52,
+    overscan: 6,
+  });
+  const inspectorLinesVirtualizer = useVirtualizer({
+    count: shouldVirtualizeInspectorLines ? inspectorDialogueLines.length : 0,
+    getScrollElement: () => inspectorLinesScrollRef.current,
+    estimateSize: () => 34,
+    measureElement: measureInspectorLineElement,
+    overscan: 10,
+  });
+  /* eslint-enable react-hooks/incompatible-library */
 
   return (
     <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
@@ -1112,40 +1178,80 @@ export default function FlowchartViewer({
                 </div>
               ) : (
                 <>
-              <div className="text-xs font-semibold text-gray-700 mb-1">
-                Dialogue line matches ({activeDialogueSearchResults.length})
-              </div>
-           <ul className="space-y-1 max-h-48 overflow-y-auto" aria-label="Dialogue search results">
-                  {activeDialogueSearchResults.length === 0 ? (
-                    <li className="text-xs text-gray-500">
-                      <div role="status" aria-live="polite">
-                        No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
-                      </div>
-                    </li>
-                  ) : (
-                     activeDialogueSearchResults.map((result, resultIndex) => (
+               <div className="text-xs font-semibold text-gray-700 mb-1">
+                 Dialogue line matches ({activeDialogueSearchResults.length})
+               </div>
+               <div
+                 ref={dialogueResultsScrollRef}
+                 className="max-h-48 overflow-y-auto"
+                 aria-label="Dialogue search results"
+               >
+                 {activeDialogueSearchResults.length === 0 ? (
+                   <div className="text-xs text-gray-500">
+                     <div role="status" aria-live="polite">
+                       No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
+                     </div>
+                   </div>
+                 ) : shouldVirtualizeInspectorResults ? (
+                   <ul
+                     className="relative space-y-1"
+                     style={{ height: `${dialogueResultsVirtualizer.getTotalSize()}px` }}
+                   >
+                     {dialogueResultsVirtualizer.getVirtualItems().map((virtualItem) => {
+                       const result = activeDialogueSearchResults[virtualItem.index];
+                       return (
+                         <li
+                           key={`${result.nodeId}-${result.lineIndex}`}
+                           className="absolute left-0 top-0 w-full"
+                           style={{ transform: `translateY(${virtualItem.start}px)` }}
+                         >
+                           <button
+                             type="button"
+                             aria-current={virtualItem.index === resolvedActiveDialogueResultIndex ? 'true' : undefined}
+                             aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
+                             onClick={() => {
+                               setActiveDialogueResultIndex(virtualItem.index);
+                               onSelectDialogueSearchResult(result);
+                             }}
+                             className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
+                               virtualItem.index === resolvedActiveDialogueResultIndex
+                                 ? 'border-violet-400 bg-violet-50'
+                                 : 'border-gray-200'
+                             }`}
+                           >
+                             <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
+                             <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
+                           </button>
+                         </li>
+                       );
+                     })}
+                   </ul>
+                 ) : (
+                   <ul className="space-y-1">
+                     {activeDialogueSearchResults.map((result, resultIndex) => (
                        <li key={`${result.nodeId}-${result.lineIndex}`}>
-                        <button
-                          type="button"
-                          aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
-                          aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
-                          onClick={() => {
-                            setActiveDialogueResultIndex(resultIndex);
-                            onSelectDialogueSearchResult(result);
-                        }}
-                        className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
-                          resultIndex === resolvedActiveDialogueResultIndex
-                            ? 'border-violet-400 bg-violet-50'
-                            : 'border-gray-200'
-                        }`}
-                      >
-                        <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                        <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
+                         <button
+                           type="button"
+                           aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
+                           aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
+                           onClick={() => {
+                             setActiveDialogueResultIndex(resultIndex);
+                             onSelectDialogueSearchResult(result);
+                           }}
+                           className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
+                             resultIndex === resolvedActiveDialogueResultIndex
+                               ? 'border-violet-400 bg-violet-50'
+                               : 'border-gray-200'
+                           }`}
+                         >
+                           <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
+                           <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
+                         </button>
+                       </li>
+                     ))}
+                   </ul>
+                 )}
+               </div>
                 {activeDialogueSearchResults.length > 0 && (
                   <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
                     Tip: with search focused, use ↑/↓ to move results and Enter to open.
@@ -1170,23 +1276,48 @@ export default function FlowchartViewer({
                 <span className="font-semibold">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
               </div>
               <div className="text-xs font-semibold">Dialogue</div>
-              <div className="space-y-1">
-                {(showAllInspectorLines
-                  ? selectedNodeData.dialogueLines ?? []
-                  : (selectedNodeData.dialogueLines ?? []).slice(0, INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT)
-                ).map((line, idx) => {
-                  const absoluteIndex = idx + 1;
-                  const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
-                  return (
-                    <div
-                      key={`${selectedNodeId}-${absoluteIndex}`}
-                      className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
-                    >
-                      <span className="font-medium mr-1">{absoluteIndex}.</span>
-                      {renderHighlightedText(line, effectiveSearch)}
-                    </div>
-                  );
-                })}
+              <div ref={inspectorLinesScrollRef} className={shouldVirtualizeInspectorLines ? 'max-h-64 overflow-y-auto' : ''}>
+                {shouldVirtualizeInspectorLines ? (
+                  <div
+                    className="relative"
+                    style={{ height: `${inspectorLinesVirtualizer.getTotalSize()}px` }}
+                  >
+                    {inspectorLinesVirtualizer.getVirtualItems().map((virtualItem) => {
+                      const line = inspectorDialogueLines[virtualItem.index] ?? '';
+                      const absoluteIndex = virtualItem.index + 1;
+                      const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
+                      return (
+                        <div
+                          key={`${selectedNodeId}-${virtualItem.key}`}
+                          ref={inspectorLinesVirtualizer.measureElement}
+                          // Required so TanStack Virtual can map measured DOM height back to item index.
+                          data-index={virtualItem.index}
+                          className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                          style={{ position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
+                        >
+                          <span className="font-medium mr-1">{absoluteIndex}.</span>
+                          {renderHighlightedText(line, effectiveSearch)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {inspectorDialogueLines.map((line, idx) => {
+                      const absoluteIndex = idx + 1;
+                      const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
+                      return (
+                        <div
+                          key={`${selectedNodeId}-${idx}`}
+                          className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                        >
+                          <span className="font-medium mr-1">{absoluteIndex}.</span>
+                          {renderHighlightedText(line, effectiveSearch)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
                 <button
