@@ -47,8 +47,16 @@ describe('parseRenpyFilesInWorker', () => {
     const second = parseRenpyFilesInWorker({ files: [{ name: 'b.rpy', content: 'label b:' }] });
 
     await waitForPostedMessages(2);
-    const firstRequestId = (postedMessages[0] as { requestId: number }).requestId;
-    const secondRequestId = (postedMessages[1] as { requestId: number }).requestId;
+    const requestIdByFile = new Map(
+      postedMessages.map((message) => [
+        (message as { files?: Array<{ name: string }> }).files?.[0]?.name,
+        (message as { requestId: number }).requestId,
+      ]),
+    );
+    const firstRequestId = requestIdByFile.get('a.rpy');
+    const secondRequestId = requestIdByFile.get('b.rpy');
+    expect(firstRequestId).toBeTypeOf('number');
+    expect(secondRequestId).toBeTypeOf('number');
     expect((postedMessages[0] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
     expect((postedMessages[1] as { wantsProgress?: boolean }).wantsProgress).toBe(false);
     expect((postedMessages[0] as { protocolVersion?: number }).protocolVersion).toBe(
@@ -61,14 +69,14 @@ describe('parseRenpyFilesInWorker', () => {
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: 'result',
-      requestId: secondRequestId,
+      requestId: secondRequestId!,
       nodes: [{ id: 'b' }],
       edges: [],
     });
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: 'result',
-      requestId: firstRequestId,
+      requestId: firstRequestId!,
       nodes: [{ id: 'a' }],
       edges: [],
     });
@@ -96,6 +104,45 @@ describe('parseRenpyFilesInWorker', () => {
     expect(onPartialResult).toHaveBeenCalledWith({ nodes: [{ id: 'partial' }], edges: [] });
     await expect(request).resolves.toEqual({ nodes: [{ id: 'partial' }], edges: [] });
     expect(workerMessageHandlers.size).toBe(0);
+  });
+
+  it('propagates warnings from worker result messages to partial callback and resolve value', async () => {
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+    const onPartialResult = vi.fn();
+    const request = parseRenpyFilesInWorker({
+      files: [{ name: 'warned.rpy', content: 'label warned:' }],
+      onPartialResult,
+    });
+    await waitForPostedMessages(1);
+    const requestId = (postedMessages[0] as { requestId: number }).requestId;
+    const warnings = [{
+      code: 'dynamic_target',
+      chapter: 'warned',
+      construct: 'renpy.call',
+      targetExpression: 'dynamic_target',
+      message: 'Dynamic target',
+    }];
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'result',
+      requestId,
+      partial: true,
+      nodes: [{ id: 'warned' }],
+      edges: [],
+      warnings,
+    });
+
+    expect(onPartialResult).toHaveBeenCalledWith({
+      nodes: [{ id: 'warned' }],
+      edges: [],
+      warnings,
+    });
+    await expect(request).resolves.toEqual({
+      nodes: [{ id: 'warned' }],
+      edges: [],
+      warnings,
+    });
   });
 
   it('ignores stale responses with a different requestId for the active request', async () => {

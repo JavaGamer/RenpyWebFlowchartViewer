@@ -86,5 +86,8 @@ export async function parseRenpyFiles(
     nodes: state.nodes.length,
     edges: state.edges.length,
   });
+  if (state.warnings.length > 0) {
+    return { nodes: state.nodes, edges: state.edges, warnings: state.warnings };
+  }
   return { nodes: state.nodes, edges: state.edges };
 }

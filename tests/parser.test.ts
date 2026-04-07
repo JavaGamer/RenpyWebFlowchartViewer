@@ -695,6 +695,68 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('fixture: extracts direct renpy.jump/renpy.call from python blocks and over-approximates loop/state control flow', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'direct-renpy-api.rpy', content: loadFixture('direct-renpy-api.rpy') },
+    ]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'loop_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+        expect.objectContaining({ source: 'start', target: 'next_label', kind: 'sequence', label: 'next' }),
+      ]),
+    );
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          chapter: 'direct-renpy-api',
+          construct: 'renpy.call',
+          targetExpression: 'dynamic_target',
+        }),
+      ]),
+    );
+  });
+
+  it('does not treat non-direct identifiers like myrenpy.call as direct renpy API calls', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        myrenpy.call("target")',
+      '',
+      'label target:',
+      '    "target"',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'not-direct-renpy.rpy', content: script }]);
+    expect(result.edges.find((e) => e.kind === 'call' && e.source === 'start' && e.target === 'target')).toBeUndefined();
+  });
+
+  it('fixture: extracts direct screen action Jump/Call targets and warns on dynamic action targets', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'direct-screen-actions.rpy', content: loadFixture('direct-screen-actions.rpy') },
+    ]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          chapter: 'direct-screen-actions',
+          construct: 'Jump',
+          targetExpression: 'dynamic_target',
+        }),
+      ]),
+    );
+  });
+
 
 
   it('handles complex conditional nested menu and mixed call/jump flow', async () => {
