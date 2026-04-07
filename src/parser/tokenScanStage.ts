@@ -5,6 +5,8 @@ import { analyzeTokenMetaInto, createEmptyTokenMeta } from './tokenMeta';
 import { maybeUpdateConditionalState } from './scanTransitions';
 import { handleToken } from './tokenHandling';
 import { PARSER_TOKENS } from '../parserTokens';
+import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
+import { toScreenActionRuleMap, type ScreenActionKind } from '../config/parserRules';
 
 interface FlatTokenLike {
   type: number;
@@ -34,9 +36,13 @@ export function processFlatToken(
   document: TextDocument,
   chapter: string,
   captureDialogueLines: boolean,
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
+  precomputedScreenActionRuleMap?: Map<string, ScreenActionKind>,
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
+  const screenActionRuleMap = precomputedScreenActionRuleMap ?? toScreenActionRuleMap(parserVariant, screenActionRules);
   let tokenText: string | undefined;
   const val = (): string => {
     if (tokenText === undefined) tokenText = token.getValue(document);
@@ -45,7 +51,15 @@ export function processFlatToken(
   const menuDepth = meta.menuDepth;
 
   maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-  handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
+  handleToken(state, scanState, {
+    type,
+    meta,
+    val,
+    chapter,
+    menuDepth,
+    captureDialogueLines,
+    screenActionRuleMap,
+  });
 }
 
 function* iterateStreamTokens(
@@ -123,8 +137,11 @@ export function processTokenTreeStream(
   document: TextDocument,
   chapter: string,
   captureDialogueLines = true,
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
 ): void {
   const meta = createEmptyTokenMeta();
+  const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
   const startOffsetCache = new WeakMap<TreeNode, number>();
   for (const token of iterateStreamTokens(tokenTree.root, [], startOffsetCache)) {
     const type = token.type as number;
@@ -139,8 +156,17 @@ export function processTokenTreeStream(
     };
     const menuDepth = meta.menuDepth;
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-    handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });
-  }}
+    handleToken(state, scanState, {
+      type,
+      meta,
+      val,
+      chapter,
+      menuDepth,
+      captureDialogueLines,
+      screenActionRuleMap,
+    });
+  }
+}
 
 export function processFlatTokens(
   state: ParseGraphState,
@@ -149,8 +175,11 @@ export function processFlatTokens(
   document: TextDocument,
   chapter: string,
   captureDialogueLines: boolean,
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
 ): void {
   const meta = createEmptyTokenMeta();
+  const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
 
   for (const token of tokens) {
     const type = token.type as number;
@@ -167,5 +196,14 @@ export function processFlatTokens(
     const menuDepth = meta.menuDepth;
 
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
-    handleToken(state, scanState, { type, meta, val, chapter, menuDepth, captureDialogueLines });  }
+    handleToken(state, scanState, {
+      type,
+      meta,
+      val,
+      chapter,
+      menuDepth,
+      captureDialogueLines,
+      screenActionRuleMap,
+    });
+  }
 }

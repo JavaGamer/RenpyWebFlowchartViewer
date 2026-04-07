@@ -1,5 +1,6 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { AppPhase } from './appTypes';
+import type { ParseWarningPayload } from '../infrastructure';
 
 export type ParseProgress = {
   doneFiles: number;
@@ -13,6 +14,7 @@ export interface AppState {
   phase: AppPhase;
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
+  parseWarnings: ParseWarningPayload[];
   errorMsg: string;
   fileCount: number;
   parseProgress: ParseProgress | null;
@@ -25,8 +27,8 @@ export type AppAction =
   | { type: 'START_READING'; fileCount: number }
   | { type: 'START_PARSING' }
   | { type: 'PROGRESS'; progress: ParseProgress }
-  | { type: 'PARTIAL_PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[] }
-  | { type: 'PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[] }
+  | { type: 'PARTIAL_PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[]; warnings?: ParseWarningPayload[] }
+  | { type: 'PARSE_SUCCESS'; nodes: FlowNode[]; edges: FlowEdge[]; warnings?: ParseWarningPayload[] }
   | { type: 'SET_DIALOGUE_SEARCH_MODE'; mode: DialogueSearchMode }
   | { type: 'FAIL'; message: string };
 
@@ -34,6 +36,7 @@ export const initialAppState: AppState = {
   phase: 'idle',
   flowNodes: [],
   flowEdges: [],
+  parseWarnings: [],
   errorMsg: '',
   fileCount: 0,
   parseProgress: null,
@@ -63,6 +66,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: 'parsing',
         flowNodes: action.nodes,
         flowEdges: action.edges,
+        parseWarnings: action.warnings ?? state.parseWarnings,
       };
     case 'PARSE_SUCCESS':
       return {
@@ -70,6 +74,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: 'done',
         flowNodes: action.nodes,
         flowEdges: action.edges,
+        parseWarnings: action.warnings ?? [],
         parseProgress: null,
         importRevision: state.importRevision + 1,
       };

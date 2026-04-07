@@ -6,6 +6,8 @@ import { validateRpyUpload } from './uploadValidation';
 import type { AppAction, DialogueSearchMode } from './appState';
 import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
+import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
+import type { ParseWarningPayload } from '../infrastructure';
 
 export interface ProcessUploadDeps {
   parseService: ParseService;
@@ -16,6 +18,8 @@ export interface ProcessUploadDeps {
   onParseStarted?: () => void;
   onParseMeasured?: (data: { fileCount: number; nodeCount: number; edgeCount: number }) => void;
   dialogueSearchMode?: DialogueSearchMode;
+  parserVariant?: ParserVariant;
+  customScreenActionRules?: ScreenActionRule[];
 }
 
 const READ_BATCH_SIZE = 24;
@@ -32,6 +36,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     onParseStarted,
     onParseMeasured,
     dialogueSearchMode = 'auto',
+    parserVariant = 'renpy',
+    customScreenActionRules = [],
   } = deps;
 
   return async function processUpload(files: FileList | null): Promise<void> {
@@ -58,6 +64,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
+    let parsedWarnings: ParseWarningPayload[] = [];
     try {
       onParseStarted?.();
       dispatch({ type: 'START_PARSING' });
@@ -93,6 +100,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 resetActiveGraph: offset === 0 && parseOffset === 0,
                 isFinalChunk: isLastChunk,
                 captureDialogueLines: effectiveDialogueMode === 'full',
+                parserVariant,
+                screenActionRules: customScreenActionRules,
                 signal: controller.signal,
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
@@ -106,15 +115,19 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   if (!isActiveRun()) return;
                   parsedNodes = partial.nodes;
                   parsedEdges = partial.edges;
-                  dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
+                  parsedWarnings = partial.warnings ?? parsedWarnings;
+                  dispatch({
+                    type: 'PARTIAL_PARSE_SUCCESS',
+                    nodes: parsedNodes,
+                    edges: parsedEdges,
+                    warnings: parsedWarnings,
+                  });
                 },
               });
               parsedNodes = result.nodes;
               parsedEdges = result.edges;
+              parsedWarnings = result.warnings ?? [];
               parsedFileCount += parseChunk.length;
-              if (!isLastChunk) {
-                dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
-              }
             }
           } else {
             const isFirstReadBatch = offset === 0;
@@ -125,6 +138,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               resetActiveGraph: isFirstReadBatch,
               isFinalChunk: isLastReadBatch,
               captureDialogueLines: effectiveDialogueMode === 'full',
+              parserVariant,
+              screenActionRules: customScreenActionRules,
               signal: controller.signal,
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
@@ -137,8 +152,14 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             });
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
+            parsedWarnings = result.warnings ?? [];
             parsedFileCount += inputs.length;
-            dispatch({ type: 'PARTIAL_PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
+            dispatch({
+              type: 'PARTIAL_PARSE_SUCCESS',
+              nodes: parsedNodes,
+              edges: parsedEdges,
+              warnings: parsedWarnings,
+            });
           }
         } catch (err: unknown) {
           if (!isActiveRun()) return;
@@ -156,6 +177,6 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     }
     if (!isActiveRun()) return;
     onParseMeasured?.({ fileCount: rpyFiles.length, nodeCount: parsedNodes.length, edgeCount: parsedEdges.length });
-    dispatch({ type: 'PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges });
+    dispatch({ type: 'PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges, warnings: parsedWarnings });
   };
 }

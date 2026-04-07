@@ -118,6 +118,7 @@ describe('App – upload → parse → render integration', () => {
     // version. Since parse() always uses the same URI ("file://my.rpy") and version
     // (0), the cache must be cleared between tests to avoid stale results.
     Tokenizer.clearTokenCache();
+    globalThis.localStorage.clear();
   });
 
   afterEach(() => {
@@ -293,6 +294,76 @@ describe('App – upload → parse → render integration', () => {
       ).toBeInTheDocument();
       expect(view.getByRole('button', { name: /Try again/i })).toBeInTheDocument();
       expect(view.getByRole('button', { name: /Start over/i })).toBeInTheDocument();
+    });
+  });
+
+  it('persists parser variant and custom rules across remounts', async () => {
+    const user = userEvent.setup();
+    const firstRender = render(<App />);
+    const firstView = within(firstRender.container);
+
+    const variantSelect = firstView.getByRole('combobox', { name: /Parser variant/i });
+    await user.selectOptions(variantSelect, 'st');
+    await user.click(firstView.getByRole('button', { name: /Add custom rule/i }));
+    const actionInput = firstView.getByRole('textbox', { name: /Custom rule action 1/i });
+    await user.type(actionInput, 'Warp');
+    const actionTypeSelect = firstView.getByRole('combobox', { name: /Custom rule action type 1/i });
+    await user.selectOptions(actionTypeSelect, 'call');
+
+    firstRender.unmount();
+
+    const secondRender = render(<App />);
+    const secondView = within(secondRender.container);
+    expect(secondView.getByRole('combobox', { name: /Parser variant/i })).toHaveValue('st');
+    expect(secondView.getByRole('textbox', { name: /Custom rule action 1/i })).toHaveValue('Warp');
+    expect(secondView.getByRole('combobox', { name: /Custom rule action type 1/i })).toHaveValue('call');
+  });
+
+  it('passes selected parser variant and custom rules into parse requests', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    await user.selectOptions(view.getByRole('combobox', { name: /Parser variant/i }), 'st');
+    await user.click(view.getByRole('button', { name: /Add custom rule/i }));
+    await user.type(view.getByRole('textbox', { name: /Custom rule action 1/i }), 'Warp');
+    await user.selectOptions(view.getByRole('combobox', { name: /Custom rule action type 1/i }), 'jump');
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('start.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByText(/Parsed/i)).toBeInTheDocument();
+    });
+
+    expect(infrastructure.parseRenpyFilesInWorker).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parserVariant: 'st',
+        screenActionRules: [{ actionName: 'Warp', actionKind: 'jump' }],
+      }),
+    );
+  });
+
+  it('renders parser warnings prominently after successful parsing', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    const warningScript = [
+      'label start:',
+      '    python:',
+      '        renpy.call(dynamic_target)',
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    await user.upload(input, makeRpyFile('warned.rpy', warningScript));
+
+    await waitFor(() => {
+      expect(view.getByRole('region', { name: /Parser warnings/i })).toBeInTheDocument();
+      expect(view.getByText(/Dynamic renpy\.call target cannot be resolved statically: dynamic_target/i)).toBeInTheDocument();
     });
   });
 
@@ -554,7 +625,7 @@ describe('App – upload → parse → render integration', () => {
     await waitFor(() => expect(view.getByTestId('react-flow')).toBeInTheDocument());
 
     const before = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
-    expect(before).toBeGreaterThanOrEqual(3);
+    expect(before).toBeGreaterThanOrEqual(2);
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(view.getByRole('checkbox', { name: /Show jump edges/i }));

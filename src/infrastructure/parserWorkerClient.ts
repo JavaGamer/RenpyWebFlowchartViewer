@@ -61,6 +61,8 @@ export function parseRenpyFilesInWorker({
   resetActiveGraph,
   isFinalChunk,
   captureDialogueLines,
+  parserVariant,
+  screenActionRules,
   onProgress,
   onPartialResult,
   signal,
@@ -162,6 +164,8 @@ export function parseRenpyFilesInWorker({
           resetActiveGraph,
           isFinalChunk,
           captureDialogueLines,
+          parserVariant,
+          screenActionRules,
         };
         parserWorker.postMessage(parseMessage);
       } catch (error) {

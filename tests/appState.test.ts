@@ -14,6 +14,7 @@ describe('appReducer', () => {
     const next = appReducer(reading, { type: 'PARSE_SUCCESS', nodes: [], edges: [] });
     expect(next.phase).toBe('done');
     expect(next.parseProgress).toBeNull();
+    expect(next.parseWarnings).toEqual([]);
     expect(next.importRevision).toBe(1);
   });
 

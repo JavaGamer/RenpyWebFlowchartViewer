@@ -14,6 +14,7 @@ export {
   type ParseWorkerClientResult,
   type ParseWorkerRequest,
   type ParseWorkerResult,
+  type ParseWarningPayload,
 } from './workerProtocol';
 export { parseRenpyFilesInWorker, searchDialogueLinesInWorker } from './parserWorkerClient';
 export { FileReadError, readFileAsText } from './fileReader';

@@ -125,6 +125,7 @@ describe('createProcessUpload', () => {
       type: 'PARSE_SUCCESS',
       nodes: [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }],
       edges: [],
+      warnings: [],
     });
     expect(onParseMeasured).toHaveBeenCalledWith({ fileCount: 2, nodeCount: 1, edgeCount: 0 });
   });
@@ -186,12 +187,14 @@ describe('createProcessUpload', () => {
       type: 'PARTIAL_PARSE_SUCCESS',
       nodes: [{ id: 'partial', type: 'LABEL', label: 'partial', dialogueCount: 0 }],
       edges: [],
+      warnings: [],
     });
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'PARSE_SUCCESS',
       }),
     );
+    expect(dispatch.mock.calls.filter(([action]) => action?.type === 'PARTIAL_PARSE_SUCCESS')).toHaveLength(1);
   });
 
   it('dispatches file read failures with mapped message', async () => {

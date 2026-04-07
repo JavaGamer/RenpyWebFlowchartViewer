@@ -757,6 +757,87 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts ST variant default action rules', async () => {
+    const script = [
+      'label start:',
+      '    show screen route_picker',
+      '',
+      'screen route_picker():',
+      '    textbutton "Route" action timedchoice("route_one")',
+      '    textbutton "Title" action title("title_screen")',
+      '',
+      'label route_one:',
+      '    return',
+      '',
+      'label title_screen:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'st-defaults.rpy', content: script }], { parserVariant: 'st' });
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'route_one', kind: 'call' }),
+        expect.objectContaining({ source: 'start', target: 'title_screen', kind: 'jump' }),
+      ]),
+    );
+  });
+
+  it('applies custom screen action rules on top of defaults', async () => {
+    const script = [
+      'label start:',
+      '    show screen route_picker',
+      '',
+      'screen route_picker():',
+      '    textbutton "Route" action Warp("warp_target")',
+      '',
+      'label warp_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles(
+      [{ name: 'custom-screen-rule.rpy', content: script }],
+      {
+        parserVariant: 'renpy',
+        screenActionRules: [{ actionName: 'Warp', actionKind: 'jump' }],
+      },
+    );
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'warp_target', kind: 'jump' }),
+    );
+  });
+
+  it('warns instead of inferring dynamic ST variant action targets', async () => {
+    const script = [
+      'label start:',
+      '    show screen route_picker',
+      '',
+      'screen route_picker():',
+      '    textbutton "Route" action timedchoice(dynamic_target)',
+      '',
+      'label route_one:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'st-dynamic-target.rpy', content: script }], { parserVariant: 'st' });
+
+    expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          chapter: 'st-dynamic-target',
+          construct: 'timedchoice',
+          targetExpression: 'dynamic_target',
+        }),
+      ]),
+    );
+  });
+
 
 
   it('handles complex conditional nested menu and mixed call/jump flow', async () => {

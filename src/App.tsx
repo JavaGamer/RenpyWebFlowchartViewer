@@ -8,21 +8,41 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useCallback, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
 import { FlowchartViewer } from './ui';
 import { createPerfTracker } from './perf';
-import { appReducer, initialAppState, workerParseService, createProcessUpload } from './application';
+import {
+  appReducer,
+  initialAppState,
+  workerParseService,
+  createProcessUpload,
+  defaultParserRuleSettings,
+  loadParserRuleSettings,
+  saveParserRuleSettings,
+} from './application';
 import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
+import {
+  PARSER_VARIANTS,
+  type ParserVariant,
+  type ScreenActionKind,
+} from './config/parserRules';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function App() {
   const perf = useMemo(() => createPerfTracker('app'), []);
   const [state, dispatch] = useReducer(appReducer, initialAppState);
+  const [parserSettings, setParserSettings] = useState(loadParserRuleSettings);
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedVariant = parserSettings.selectedVariant;
+  const selectedVariantCustomRules = parserSettings.customRulesByVariant[selectedVariant];
+
+  useEffect(() => {
+    saveParserRuleSettings(parserSettings);
+  }, [parserSettings]);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFilesWithPerf = useCallback(
@@ -34,6 +54,8 @@ export default function App() {
         activeRunIdRef,
         parseAbortControllerRef,
         dialogueSearchMode: state.dialogueSearchMode,
+        parserVariant: selectedVariant,
+        customScreenActionRules: selectedVariantCustomRules,
         onReadMeasured: (fileCount) => {
           perf.measure('read', 'read_files_ms', { files: fileCount });
         },
@@ -46,8 +68,58 @@ export default function App() {
       });
       await processFiles(files);
     },
-    [dispatch, perf, state.dialogueSearchMode],
+    [dispatch, perf, selectedVariant, selectedVariantCustomRules, state.dialogueSearchMode],
   );
+
+  const setSelectedVariant = useCallback((variant: ParserVariant) => {
+    setParserSettings((prev) => ({ ...prev, selectedVariant: variant }));
+  }, []);
+
+  const updateCustomRule = useCallback((
+    idx: number,
+    patch: Partial<{ actionName: string; actionKind: ScreenActionKind }>,
+  ) => {
+    setParserSettings((prev) => {
+      const current = prev.customRulesByVariant[prev.selectedVariant];
+      const nextRules = current.map((rule, ruleIdx) => (
+        ruleIdx === idx ? { ...rule, ...patch } : rule
+      ));
+      return {
+        ...prev,
+        customRulesByVariant: {
+          ...prev.customRulesByVariant,
+          [prev.selectedVariant]: nextRules,
+        },
+      };
+    });
+  }, []);
+
+  const addCustomRule = useCallback(() => {
+    setParserSettings((prev) => ({
+      ...prev,
+      customRulesByVariant: {
+        ...prev.customRulesByVariant,
+        [prev.selectedVariant]: [
+          ...prev.customRulesByVariant[prev.selectedVariant],
+          { actionName: '', actionKind: 'jump' },
+        ],
+      },
+    }));
+  }, []);
+
+  const removeCustomRule = useCallback((idx: number) => {
+    setParserSettings((prev) => ({
+      ...prev,
+      customRulesByVariant: {
+        ...prev.customRulesByVariant,
+        [prev.selectedVariant]: prev.customRulesByVariant[prev.selectedVariant].filter((_, i) => i !== idx),
+      },
+    }));
+  }, []);
+
+  const resetParserRuleSettings = useCallback(() => {
+    setParserSettings(defaultParserRuleSettings);
+  }, []);
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────
   const onDrop = useCallback(
@@ -117,6 +189,11 @@ export default function App() {
               <strong>{state.flowNodes.length}</strong> nodes,{' '}
               <strong>{state.flowEdges.length}</strong> edges
             </span>
+            {state.parseWarnings.length > 0 && (
+              <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
+                {state.parseWarnings.length} parse warning{state.parseWarnings.length === 1 ? '' : 's'}
+              </span>
+            )}
             <button
               onClick={() => {
                 dispatch({ type: 'RESET' });
@@ -126,6 +203,21 @@ export default function App() {
               Upload a different folder
             </button>
           </div>
+          {state.parseWarnings.length > 0 && (
+            <section
+              className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
+              aria-label="Parser warnings"
+            >
+              <p className="text-sm font-semibold">Parser warnings</p>
+              <ul className="mt-1 list-disc pl-5 text-xs space-y-1">
+                {state.parseWarnings.map((warning, idx) => (
+                  <li key={`${warning.chapter}-${warning.construct}-${warning.targetExpression}-${idx}`}>
+                    <span className="font-medium">{warning.construct}</span> in <span className="font-medium">{warning.chapter}</span>: {warning.message}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <FlowchartViewer
             key={state.importRevision}
             flowNodes={state.flowNodes}
@@ -184,6 +276,74 @@ export default function App() {
                 </>
               )}
             </label>
+
+            <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-700">
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="parser-variant" className="font-semibold text-gray-900">
+                  Parser variant
+                </label>
+                <select
+                  id="parser-variant"
+                  aria-label="Parser variant"
+                  value={selectedVariant}
+                  onChange={(event) => setSelectedVariant(event.target.value as ParserVariant)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
+                >
+                  {PARSER_VARIANTS.map((variant) => (
+                    <option key={variant} value={variant}>
+                      {variant.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="ml-auto text-[11px] underline text-gray-500 hover:text-gray-700"
+                  onClick={resetParserRuleSettings}
+                >
+                  Reset variant + custom rules
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-gray-500">
+                Custom screen-action rules are stored in your browser and reused across project imports.
+              </p>
+              <div className="mt-3 space-y-2" aria-label="Custom screen action rules">
+                {selectedVariantCustomRules.map((rule, idx) => (
+                  <div key={`${selectedVariant}-rule-${idx}`} className="flex flex-wrap items-center gap-2">
+                    <input
+                      aria-label={`Custom rule action ${idx + 1}`}
+                      value={rule.actionName}
+                      onChange={(event) => updateCustomRule(idx, { actionName: event.target.value })}
+                      className="min-w-36 flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                      placeholder="action name"
+                    />
+                    <select
+                      aria-label={`Custom rule action type ${idx + 1}`}
+                      value={rule.actionKind}
+                      onChange={(event) => updateCustomRule(idx, { actionKind: event.target.value as ScreenActionKind })}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
+                    >
+                      <option value="jump">jump</option>
+                      <option value="call">call</option>
+                    </select>
+                    <button
+                      type="button"
+                      aria-label={`Remove custom rule ${idx + 1}`}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50"
+                      onClick={() => removeCustomRule(idx)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addCustomRule}
+                className="mt-3 rounded-md border border-violet-300 px-2 py-1 text-[11px] text-violet-700 hover:bg-violet-50"
+              >
+                Add custom rule
+              </button>
+            </section>
 
             {/* Hidden file input with directory support */}
             <input
