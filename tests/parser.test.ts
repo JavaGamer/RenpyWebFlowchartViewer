@@ -838,6 +838,70 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts direct renpy.jump/renpy.call targets when extra arguments are present', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump("jump_target", from_current=True)',
+      '        renpy.call("call_target", from_current=True)',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-extra-args.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.jump' }),
+        expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.call' }),
+      ]),
+    );
+  });
+
+  it('extracts direct screen action targets with keyword and trailing arguments', async () => {
+    const script = [
+      'label start:',
+      '    show screen nav_overlay',
+      '',
+      'screen nav_overlay:',
+      '    textbutton "Jump A" action Jump("jump_target", from_current=True)',
+      '    textbutton "Call B" action Call(label="call_target")',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-extra-args.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Jump' }),
+        expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Call' }),
+      ]),
+    );
+  });
+
 
 
   it('handles complex conditional nested menu and mixed call/jump flow', async () => {

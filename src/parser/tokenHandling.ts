@@ -168,6 +168,51 @@ function extractLiteralTarget(expression: string): string | null {
   return match[2] ?? null;
 }
 
+function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '='): number {
+  let depth = 0;
+  let activeQuote: '"' | '\'' | null = null;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (activeQuote) {
+      if (char === '\\') {
+        i += 1;
+        continue;
+      }
+      if (char === activeQuote) activeQuote = null;
+      continue;
+    }
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') {
+      depth += 1;
+      continue;
+    }
+    if (char === ')' || char === ']' || char === '}') {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth === 0 && char === delimiter) return i;
+  }
+  return -1;
+}
+
+function extractStaticTargetFromArgumentList(argumentList: string): string | null {
+  const firstArgumentEnd = findTopLevelDelimiterIndex(argumentList, ',');
+  const firstArgument = (firstArgumentEnd >= 0
+    ? argumentList.slice(0, firstArgumentEnd)
+    : argumentList).trim();
+  if (!firstArgument) return null;
+
+  const directLiteral = extractLiteralTarget(firstArgument);
+  if (directLiteral) return directLiteral;
+
+  const equalsIndex = findTopLevelDelimiterIndex(firstArgument, '=');
+  if (equalsIndex <= 0) return null;
+  return extractLiteralTarget(firstArgument.slice(equalsIndex + 1));
+}
+
 function processDirectRenpyBlockCalls(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -185,7 +230,7 @@ function processDirectRenpyBlockCalls(
     if (!parsed) break;
     PYTHON_RENPY_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     const targetExpression = parsed.argument;
-    const target = extractLiteralTarget(targetExpression);
+    const target = extractStaticTargetFromArgumentList(targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
 
     if (!target) {
@@ -222,7 +267,7 @@ function processDirectScreenActionCalls(
     if (!parsed) break;
     SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     const targetExpression = parsed.argument;
-    const target = extractLiteralTarget(targetExpression);
+    const target = extractStaticTargetFromArgumentList(targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
 
     if (!target) {
