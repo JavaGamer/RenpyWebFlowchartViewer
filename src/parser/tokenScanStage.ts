@@ -36,8 +36,8 @@ export function processFlatToken(
   document: TextDocument,
   chapter: string,
   captureDialogueLines: boolean,
-  parserVariant: ParserVariant | undefined = 'renpy',
-  screenActionRules: ScreenActionRule[] | undefined = [],
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
@@ -136,8 +136,8 @@ export function processTokenTreeStream(
   document: TextDocument,
   chapter: string,
   captureDialogueLines = true,
-  parserVariant: ParserVariant | undefined = 'renpy',
-  screenActionRules: ScreenActionRule[] | undefined = [],
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
@@ -174,8 +174,8 @@ export function processFlatTokens(
   document: TextDocument,
   chapter: string,
   captureDialogueLines: boolean,
-  parserVariant: ParserVariant | undefined = 'renpy',
-  screenActionRules: ScreenActionRule[] | undefined = [],
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);

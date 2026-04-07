@@ -12,18 +12,21 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
 import { FlowchartViewer } from './ui';
 import { createPerfTracker } from './perf';
-import { appReducer, initialAppState, workerParseService, createProcessUpload } from './application';
+import {
+  appReducer,
+  initialAppState,
+  workerParseService,
+  createProcessUpload,
+  defaultParserRuleSettings,
+  loadParserRuleSettings,
+  saveParserRuleSettings,
+} from './application';
 import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
 import {
   PARSER_VARIANTS,
   type ParserVariant,
   type ScreenActionKind,
 } from './config/parserRules';
-import {
-  defaultParserRuleSettings,
-  loadParserRuleSettings,
-  saveParserRuleSettings,
-} from './application/parserRuleSettings';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

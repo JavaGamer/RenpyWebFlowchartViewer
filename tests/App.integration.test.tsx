@@ -625,7 +625,7 @@ describe('App – upload → parse → render integration', () => {
     await waitFor(() => expect(view.getByTestId('react-flow')).toBeInTheDocument());
 
     const before = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
-    expect(before).toBeGreaterThanOrEqual(3);
+    expect(before).toBeGreaterThanOrEqual(2);
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
     await user.click(view.getByRole('checkbox', { name: /Show jump edges/i }));

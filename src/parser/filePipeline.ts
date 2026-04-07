@@ -23,9 +23,14 @@ export interface TokenizedFile {
   cacheKey?: string;
 }
 
+type ParseFileOptions = Pick<
+  ParseOptions,
+  'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'
+>;
+
 export async function tokenizeOneFile(
   file: { name: string; content: string },
-  options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
+  options: Pick<ParseFileOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
   fileIndex?: number,
 ): Promise<TokenizedFile> {
   const { tokenizedCache } = options;
@@ -55,7 +60,7 @@ export async function tokenizeOneFile(
 export function processTokenizedFile(
   state: ParseGraphState,
   tokenizedFile: TokenizedFile,
-  options: Pick<ParseOptions, 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'> = {},
+  options: Pick<ParseFileOptions, 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'> = {},
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
   parserPerf.mark('scan');
@@ -76,10 +81,7 @@ export function processTokenizedFile(
 export async function parseOneFile(
   state: ParseGraphState,
   file: { name: string; content: string },
-  options: Pick<
-    ParseOptions,
-    'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'
-  > = {},
+  options: ParseFileOptions = {},
   fileIndex?: number,
 ) {
   const tokenized = await tokenizeOneFile(file, options, fileIndex);

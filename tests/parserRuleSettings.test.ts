@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   defaultParserRuleSettings,
   loadParserRuleSettings,
@@ -7,8 +7,26 @@ import {
 import { STORAGE_KEYS } from '../src/config/storageKeys';
 
 describe('parserRuleSettings storage', () => {
+  const createStorage = () => {
+    const store = new Map<string, string>();
+    return {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      clear: () => {
+        store.clear();
+      },
+    };
+  };
+
   beforeEach(() => {
+    vi.stubGlobal('localStorage', createStorage());
     globalThis.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('returns defaults when storage is empty', () => {
