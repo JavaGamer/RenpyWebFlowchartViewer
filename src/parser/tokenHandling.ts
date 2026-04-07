@@ -31,7 +31,7 @@ function readParenthesizedArgument(
     const char = text[index];
     if (activeQuote) {
       if (char === '\\') {
-        index += 2;
+        index += index + 1 < text.length ? 2 : 1;
         continue;
       }
       if (char === activeQuote) {

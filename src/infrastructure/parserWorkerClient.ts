@@ -240,5 +240,6 @@ export function searchDialogueLinesInWorker({
       nodeIds,
       maxResults,
     };
-    parserWorker.postMessage(searchMessage);  });
+    parserWorker.postMessage(searchMessage);
+  });
 }
