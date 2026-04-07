@@ -1,8 +1,10 @@
-import type { FlowNode } from '../domain';
+import type { FlowEdge, FlowNode } from '../domain';
+import { MultiDirectedGraph } from 'graphology';
 import type { ParseGraphState, ParseScanState, EdgeKind } from './pipelineTypes';
 
 export function createGraphState(): ParseGraphState {
   return {
+    graph: new MultiDirectedGraph<FlowNode, FlowEdge>(),
     nodes: [],
     edges: [],
     nodeIds: new Set<string>(),

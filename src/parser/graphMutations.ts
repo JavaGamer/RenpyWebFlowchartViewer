@@ -16,16 +16,26 @@ function addLabelTraffic(
 }
 
 export function addNode(state: ParseGraphState, node: FlowNode) {
-  if (state.nodeIds.has(node.id)) return;
+  if (state.graph.hasNode(node.id)) return;
+  state.graph.addNode(node.id, node);
   state.nodeIds.add(node.id);
   state.nodes.push(node);
   state.nodeMap.set(node.id, node);
+
+  for (const edge of state.edges) {
+    if (state.graph.hasEdge(edge.id)) continue;
+    if (!state.graph.hasNode(edge.source) || !state.graph.hasNode(edge.target)) continue;
+    state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+  }
 }
 
 export function addEdge(state: ParseGraphState, edge: FlowEdge) {
-  if (state.edgeIds.has(edge.id)) return;
+  if (state.graph.hasEdge(edge.id) || state.edgeIds.has(edge.id)) return;
   assertInvariant(Boolean(edge.source), `edge ${edge.id} has empty source`);
   assertInvariant(Boolean(edge.target), `edge ${edge.id} has empty target`);
+  if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
+    state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+  }
   state.edgeIds.add(edge.id);
   state.edges.push(edge);
 }

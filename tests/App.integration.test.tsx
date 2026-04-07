@@ -14,6 +14,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 import { toBlob, toSvg } from 'html-to-image';
+import { saveAs } from 'file-saver';
 import App from '../src/App';
 import * as parser from '../src/parser';
 import * as infrastructure from '../src/infrastructure';
@@ -85,6 +86,10 @@ vi.mock('../src/infrastructure', async (importOriginal) => {
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn().mockResolvedValue(new Blob(['stub'], { type: 'image/png' })),
   toSvg: vi.fn().mockResolvedValue('data:image/svg+xml;base64,c3R1Yg=='),
+}));
+
+vi.mock('file-saver', () => ({
+  saveAs: vi.fn(),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -395,7 +400,7 @@ describe('App – upload → parse → render integration', () => {
     }
   });
 
-  it('revokes the object URL after each PNG export to prevent memory leaks', async () => {
+  it('exports PNG via file-saver for each click', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     const view = within(container);
@@ -407,28 +412,12 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
-    const originalURL = globalThis.URL;
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', {
-      createObjectURL: vi.fn().mockReturnValue('blob:stub'),
-      revokeObjectURL,
-    });
-
-    try {
-      const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
-
-      // First export
-      await user.click(exportBtn);
-      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
-
-      // Second export -- revokeObjectURL must be called again, not accumulated
-      await user.click(exportBtn);
-      expect(revokeObjectURL).toHaveBeenCalledTimes(2);
-      expect(toBlob).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.stubGlobal('URL', originalURL);
-    }
+    const exportBtn = view.getByRole('button', { name: /Export flowchart as PNG/i });
+    await user.click(exportBtn);
+    await user.click(exportBtn);
+    expect(toBlob).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(saveAs).mock.calls[0]?.[1]).toBe('renpy-flowchart.png');
   });
 
   it('exports SVG and JSON formats successfully', async () => {
@@ -443,35 +432,29 @@ describe('App – upload → parse → render integration', () => {
       expect(view.getByTestId('react-flow')).toBeInTheDocument();
     });
 
-    const originalURL = globalThis.URL;
-    const createObjectURL = vi.fn().mockReturnValue('blob:json');
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', {
-      createObjectURL,
-      revokeObjectURL,
-    });
+    const exportSvgBtn = view.getByRole('button', { name: /Export flowchart as SVG/i });
+    await user.click(exportSvgBtn);
+    expect(toSvg).toHaveBeenCalledTimes(1);
 
-    try {
-      const exportSvgBtn = view.getByRole('button', { name: /Export flowchart as SVG/i });
-      await user.click(exportSvgBtn);
-      expect(toSvg).toHaveBeenCalledTimes(1);
-      expect(createObjectURL).toHaveBeenCalledTimes(0);
+    const exportJsonBtn = view.getByRole('button', { name: /Export graph as JSON/i });
+    await user.click(exportJsonBtn);
+    expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(2);
 
-      const exportJsonBtn = view.getByRole('button', { name: /Export graph as JSON/i });
-      await user.click(exportJsonBtn);
-      expect(createObjectURL).toHaveBeenCalledTimes(1);
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:json');
-      const jsonBlob = createObjectURL.mock.calls[0]?.[0];
-      expect(jsonBlob).toBeInstanceOf(Blob);
-      const exportedJson = JSON.parse(await (jsonBlob as Blob).text()) as {
-        nodes: Array<{ role?: string }>;
-        edges: Array<{ kind?: string }>;
-      };
-      expect(exportedJson.nodes.some((n) => typeof n.role === 'string')).toBe(true);
-      expect(exportedJson.edges.some((e) => typeof e.kind === 'string')).toBe(true);
-    } finally {
-      vi.stubGlobal('URL', originalURL);
-    }
+    const svgBlob = vi.mocked(saveAs).mock.calls[0]?.[0];
+    const svgFilename = vi.mocked(saveAs).mock.calls[0]?.[1];
+    expect(svgBlob).toBeInstanceOf(Blob);
+    expect(svgFilename).toBe('renpy-flowchart.svg');
+
+    const jsonBlob = vi.mocked(saveAs).mock.calls[1]?.[0];
+    const jsonFilename = vi.mocked(saveAs).mock.calls[1]?.[1];
+    expect(jsonBlob).toBeInstanceOf(Blob);
+    expect(jsonFilename).toBe('renpy-flowchart.json');
+    const exportedJson = JSON.parse(await (jsonBlob as Blob).text()) as {
+      nodes: Array<{ role?: string }>;
+      edges: Array<{ kind?: string }>;
+    };
+    expect(exportedJson.nodes.some((n) => typeof n.role === 'string')).toBe(true);
+    expect(exportedJson.edges.some((e) => typeof e.kind === 'string')).toBe(true);
   });
 
   it('shows call-return edges only when the show call returns toggle is enabled', async () => {
@@ -945,19 +928,11 @@ describe('App – upload → parse → render integration', () => {
     });
   });
 
-  it('still revokes object URL when download click throws during PNG export', async () => {
+  it('logs PNG export failures when file-saver throws', async () => {
     const user = userEvent.setup();
-    const originalURL = globalThis.URL;
-    const originalClick = HTMLAnchorElement.prototype.click;
-    const createObjectURL = vi.fn().mockReturnValue('blob:png-fail');
-    const revokeObjectURL = vi.fn();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('URL', {
-      createObjectURL,
-      revokeObjectURL,
-    });
-    HTMLAnchorElement.prototype.click = vi.fn(() => {
-      throw new Error('download click failed');
+    vi.mocked(saveAs).mockImplementationOnce(() => {
+      throw new Error('save failed');
     });
 
     try {
@@ -972,13 +947,9 @@ describe('App – upload → parse → render integration', () => {
       await user.click(view.getByRole('button', { name: /Export flowchart as PNG/i }));
 
       await waitFor(() => {
-        expect(createObjectURL).toHaveBeenCalledTimes(1);
-        expect(revokeObjectURL).toHaveBeenCalledWith('blob:png-fail');
         expect(consoleError).toHaveBeenCalledWith('Export failed:', expect.anything());
       });
     } finally {
-      vi.stubGlobal('URL', originalURL);
-      HTMLAnchorElement.prototype.click = originalClick;
       consoleError.mockRestore();
     }
   });
