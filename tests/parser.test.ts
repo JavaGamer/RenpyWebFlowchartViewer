@@ -933,6 +933,58 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts direct screen action targets when action uses assignment syntax', async () => {
+    const script = [
+      'label start:',
+      '    show screen nav_overlay',
+      '',
+      'screen nav_overlay:',
+      '    textbutton "Jump A" action=Jump("jump_target")',
+      '    textbutton "Call B" action = Call("call_target")',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-action-assignment.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
+  it('extracts direct renpy.jump/renpy.call targets from non-f-string prefixed literals', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump(u"jump_target")',
+      '        renpy.call(r"call_target")',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-prefixed-literals.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
   it('ignores direct call-like patterns inside comments and quoted strings', async () => {
     const script = [
       'label start:',
