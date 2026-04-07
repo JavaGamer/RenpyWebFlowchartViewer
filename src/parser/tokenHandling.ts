@@ -193,7 +193,7 @@ function splitTopLevelArguments(argumentList: string): string[] {
       continue;
     }
     if (char === ')' || char === ']' || char === '}') {
-      depth = Math.max(0, depth - 1);
+      if (depth > 0) depth -= 1;
       continue;
     }
     if (depth === 0 && char === ',') {
@@ -230,7 +230,7 @@ function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '='): number 
       continue;
     }
     if (char === ')' || char === ']' || char === '}') {
-      depth = Math.max(0, depth - 1);
+      if (depth > 0) depth -= 1;
       continue;
     }
     if (depth === 0 && char === delimiter) return i;
