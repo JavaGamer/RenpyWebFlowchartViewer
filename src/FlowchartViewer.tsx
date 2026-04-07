@@ -750,6 +750,10 @@ export default function FlowchartViewer({
   );
   const shouldVirtualizeInspectorResults = activeDialogueSearchResults.length > 120;
   const shouldVirtualizeInspectorLines = inspectorDialogueLines.length > 120;
+  const measureInspectorLineElement = useCallback(
+    (element: HTMLDivElement) => element.getBoundingClientRect().height,
+    [],
+  );
   /* eslint-disable react-hooks/incompatible-library */
   const dialogueResultsVirtualizer = useVirtualizer({
     count: shouldVirtualizeInspectorResults ? activeDialogueSearchResults.length : 0,
@@ -761,7 +765,7 @@ export default function FlowchartViewer({
     count: shouldVirtualizeInspectorLines ? inspectorDialogueLines.length : 0,
     getScrollElement: () => inspectorLinesScrollRef.current,
     estimateSize: () => 34,
-    measureElement: (element) => element.getBoundingClientRect().height,
+    measureElement: measureInspectorLineElement,
     overscan: 10,
   });
   /* eslint-enable react-hooks/incompatible-library */
@@ -1286,6 +1290,7 @@ export default function FlowchartViewer({
                         <div
                           key={`${selectedNodeId}-${virtualItem.key}`}
                           ref={inspectorLinesVirtualizer.measureElement}
+                          // Required so TanStack Virtual can map measured DOM height back to item index.
                           data-index={virtualItem.index}
                           className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
                           style={{ position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
