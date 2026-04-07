@@ -1,4 +1,5 @@
 import type { FlowEdge, FlowNode } from '../domain';
+import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 1 as const;
 
@@ -20,6 +21,8 @@ export interface ParseWorkerClientRequest {
   signal?: AbortSignal;
   maxParallelFiles?: number;
   captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -48,7 +51,10 @@ export interface ParseRequestMessage {
   files: Array<{ name: string; content: string }>;
   fileCacheKeys?: string[];
   wantsProgress?: boolean;
-  maxParallelFiles?: number;  captureDialogueLines?: boolean;
+  maxParallelFiles?: number;
+  captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -102,7 +108,7 @@ export interface ResultResponseMessage {
 export interface ParseWarningPayload {
   code: 'dynamic_target';
   chapter: string;
-  construct: 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
+  construct: string;
   targetExpression: string;
   message: string;
   sourceId?: string;

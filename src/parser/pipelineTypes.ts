@@ -1,13 +1,14 @@
 import type { FlowNode, FlowEdge } from '../domain';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
+import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 
 export interface ParseWarning {
   code: 'dynamic_target';
   chapter: string;
-  construct: 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
+  construct: string;
   targetExpression: string;
   message: string;
   sourceId?: string;
@@ -58,7 +59,10 @@ export interface ParseOptions {
   onProgress?: (progress: ParseProgress) => void;
   maxParallelFiles?: number;
   tokenizedCache?: Map<string, { document: TextDocument; tokenTree: TokenTree }>;
-  fileCacheKeys?: string[];  captureDialogueLines?: boolean;
+  fileCacheKeys?: string[];
+  captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
 }
 
 export interface TokenMetaFlags {

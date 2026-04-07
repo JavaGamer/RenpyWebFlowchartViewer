@@ -3,6 +3,7 @@ import type { ParseGraphState, ParseScanState, TokenMetaFlags } from './pipeline
 import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTransitions';
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
+import type { ScreenActionKind } from '../config/parserRules';
 
 interface HandleTokenInput {
   type: number;
@@ -11,13 +12,12 @@ interface HandleTokenInput {
   chapter: string;
   menuDepth: number;
   captureDialogueLines: boolean;
+  screenActionRuleMap: Map<string, ScreenActionKind>;
 }
-
-type DirectConstruct = 'renpy.jump' | 'renpy.call' | 'Jump' | 'Call';
 
 const QUOTED_LITERAL_PATTERN = /^(["'])([\s\S]*)\1$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
-const SCREEN_ACTION_CALL_START_PATTERN = /\baction\s+(Jump|Call)\s*\(/g;
+const SCREEN_ACTION_CALL_START_PATTERN = /\baction\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 function readParenthesizedArgument(
   text: string,
@@ -73,7 +73,7 @@ function readParenthesizedArgument(
 function addDynamicTargetWarning(
   state: ParseGraphState,
   chapter: string,
-  construct: DirectConstruct,
+  construct: string,
   targetExpression: string,
   sourceId?: string,
 ) {
@@ -180,7 +180,7 @@ function processDirectRenpyBlockCalls(
   let match: RegExpExecArray | null;
   while ((match = PYTHON_RENPY_CALL_START_PATTERN.exec(blockText)) !== null) {
     const callType = match[1] === 'jump' ? 'jump' : 'call';
-    const construct: DirectConstruct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
+    const construct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
     const parsed = readParenthesizedArgument(blockText, PYTHON_RENPY_CALL_START_PATTERN.lastIndex);
     if (!parsed) break;
     PYTHON_RENPY_CALL_START_PATTERN.lastIndex = parsed.endIndex;
@@ -208,12 +208,16 @@ function processDirectScreenActionCalls(
   chapter: string,
   menuDepth: number,
   blockText: string,
+  screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
   SCREEN_ACTION_CALL_START_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = SCREEN_ACTION_CALL_START_PATTERN.exec(blockText)) !== null) {
-    const callType = match[1] === 'Jump' ? 'jump' : 'call';
-    const construct: DirectConstruct = callType === 'jump' ? 'Jump' : 'Call';
+    const construct = match[1];
+    const callType = screenActionRuleMap.get(construct.toLowerCase());
+    if (!callType) {
+      continue;
+    }
     const parsed = readParenthesizedArgument(blockText, SCREEN_ACTION_CALL_START_PATTERN.lastIndex);
     if (!parsed) break;
     SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
@@ -239,7 +243,7 @@ export function handleToken(
   scanState: ParseScanState,
   input: HandleTokenInput,
 ): void {
-  const { type, meta, val, chapter, menuDepth, captureDialogueLines } = input;
+  const { type, meta, val, chapter, menuDepth, captureDialogueLines, screenActionRuleMap } = input;
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
@@ -294,7 +298,7 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.metaScreenBlock) {
-    processDirectScreenActionCalls(state, scanState, meta, chapter, menuDepth, val());
+    processDirectScreenActionCalls(state, scanState, meta, chapter, menuDepth, val(), screenActionRuleMap);
     return;
   }
 

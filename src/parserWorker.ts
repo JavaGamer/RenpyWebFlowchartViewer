@@ -146,9 +146,12 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
             captureDialogueLines: message.captureDialogueLines !== false,
             tokenizedCache,
             fileCacheKeys,
+            parserVariant: message.parserVariant,
+            screenActionRules: message.screenActionRules,
           },
           idx,
-        );        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
+        );
+        for (let nodeIdx = prevNodeCount; nodeIdx < accumulatedState.nodes.length; nodeIdx += 1) {
           const node = accumulatedState.nodes[nodeIdx];
           if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
           if (dialogueIndex.has(node.id)) continue;
@@ -196,7 +199,10 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       result = await parseRenpyFiles(files, {
         maxParallelFiles,
         tokenizedCache,
-        fileCacheKeys,        captureDialogueLines: message.captureDialogueLines !== false,
+        fileCacheKeys,
+        captureDialogueLines: message.captureDialogueLines !== false,
+        parserVariant: message.parserVariant,
+        screenActionRules: message.screenActionRules,
         onProgress: ({ doneFiles, totalFiles, currentFile }) => {
           if (cancelledRequests.has(requestId)) {
             throw new Error('Parsing cancelled');

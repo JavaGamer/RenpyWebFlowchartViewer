@@ -55,20 +55,33 @@ export async function tokenizeOneFile(
 export function processTokenizedFile(
   state: ParseGraphState,
   tokenizedFile: TokenizedFile,
-  captureDialogueLines = true,
+  options: Pick<ParseOptions, 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'> = {},
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
   parserPerf.mark('scan');
   const scanState = createScanState();
-  processTokenTreeStream(state, scanState, tokenTree, document, chapter, captureDialogueLines);
+  processTokenTreeStream(
+    state,
+    scanState,
+    tokenTree,
+    document,
+    chapter,
+    options.captureDialogueLines !== false,
+    options.parserVariant,
+    options.screenActionRules,
+  );
   parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
 }
 
 export async function parseOneFile(
   state: ParseGraphState,
   file: { name: string; content: string },
-  options: Pick<ParseOptions, 'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines'> = {},
-  fileIndex?: number,) {
+  options: Pick<
+    ParseOptions,
+    'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'
+  > = {},
+  fileIndex?: number,
+) {
   const tokenized = await tokenizeOneFile(file, options, fileIndex);
   const { chapter, document, tokenTree } = tokenized;
   parserPerf.mark('scan');
@@ -80,5 +93,8 @@ export async function parseOneFile(
     document,
     chapter,
     options.captureDialogueLines !== false,
+    options.parserVariant,
+    options.screenActionRules,
   );
-  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });}
+  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
+}

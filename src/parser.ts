@@ -69,14 +69,19 @@ export async function parseRenpyFiles(
       }
       const file = files[idx];
       perf.mark(`file:${idx}:scan`);
-      processTokenizedFile(state, tokenized, options.captureDialogueLines !== false);
+      processTokenizedFile(state, tokenized, {
+        captureDialogueLines: options.captureDialogueLines,
+        parserVariant: options.parserVariant,
+        screenActionRules: options.screenActionRules,
+      });
       perf.measure(`file:${idx}:scan`, 'parse_file_scan_ms', { file: file.name });
       options.onProgress?.({
         doneFiles: idx + 1,
         totalFiles: files.length,
         currentFile: file.name,
       });
-    }  }
+    }
+  }
 
   perf.mark('finalize');
   finalizeRoles(state);

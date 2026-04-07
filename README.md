@@ -6,6 +6,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in Python blocks, direct screen `action Jump(...)`/`action Call(...)`, and counts dialogue lines per block.
+- **Variant-aware parser rules** — choose `Ren'Py` or `ST` parser variants, with variant defaults plus custom screen-action mappings persisted in browser storage across imports/projects.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
@@ -25,9 +26,10 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 2. Click the upload zone or drag a folder onto it.
 3. Select the folder that contains your Ren'Py `.rpy` scripts (e.g. the `game/` directory of a project).
 4. The flowchart is generated automatically.
-5. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
-6. If import fails, use **Try again** in the error panel to reopen folder selection immediately (or **Start over** to reset the upload state).
-7. Label subgraph collapse state resets on each new import to avoid stale state from previous uploads.
+5. Optional: choose a parser variant and add custom screen-action rules before import; settings persist across projects in your browser.
+6. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
+7. If import fails, use **Try again** in the error panel to reopen folder selection immediately (or **Start over** to reset the upload state).
+8. Label subgraph collapse state resets on each new import to avoid stale state from previous uploads.
 
 ## Interaction Model
 
@@ -224,6 +226,11 @@ See `docs/architecture.md` for the detailed architecture and flow.
 
 - Jump/call edges are emitted even when a target label is not defined in the uploaded set.
 - For direct Python/screen API forms, only literal-string targets are emitted as edges; dynamic targets are reported as parser warnings in the parse result.
+- Parser warnings are shown in a warning panel above the graph when present.
+- Parser variants:
+  - `renpy`: default `Jump`/`Call` screen-action extraction.
+  - `st`: includes additional default screen-action mappings (`timedchoice`, `gameover`, `title`, `placeholder`, `routename`).
+- Custom screen-action rules are persisted per variant in local storage (`rfv.parser.settings`), so creator-defined mappings persist across project imports.
 - The viewer filters out edges whose source/target nodes are missing from the final node set.
 - This preserves parser fidelity while keeping rendering stable.
 
