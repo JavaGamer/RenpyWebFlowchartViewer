@@ -546,7 +546,7 @@ describe('App – upload → parse → render integration', () => {
     };
     expect(errorBundle.app.phase).toBe('error');
     expect(errorBundle.app.errorMsg).toBeUndefined();
-    expect(errorBundle.app.errorSummary).toContain('Enable raw/script details');
+    expect(errorBundle.app.errorSummary).toContain('Include raw/script details');
 
     await user.click(view.getByRole('button', { name: /Open new GitHub issue/i }));
     expect(openSpy).toHaveBeenCalledTimes(1);

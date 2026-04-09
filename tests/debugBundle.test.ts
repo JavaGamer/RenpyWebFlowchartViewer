@@ -54,7 +54,7 @@ describe('debug bundle privacy defaults', () => {
 
     const appMetadata = bundle.app as { errorMsg?: string; errorSummary?: string; parseProgress: { currentFile?: string } | null };
     expect(appMetadata.errorMsg).toBeUndefined();
-    expect(appMetadata.errorSummary).toContain('Enable raw/script details');
+    expect(appMetadata.errorSummary).toContain('Include raw/script details');
     const progress = appMetadata.parseProgress;
     expect(progress).not.toBeNull();
     expect(progress?.currentFile).toBeUndefined();
@@ -132,7 +132,7 @@ describe('debug bundle privacy defaults', () => {
     const firstEdge = bundle.graph.edges[0] as { source: string; target: string; label?: string };
     const firstWarning = (bundle.warnings?.[0] ?? {}) as { chapter?: string; targetExpression?: string; message?: string };
     expect(appMetadata.errorMsg).toBe('specific parse failure');
-    expect(appMetadata.errorSummary).toContain('Enable raw/script details');
+    expect(appMetadata.errorSummary).toContain('Include raw/script details');
     expect(firstNode.id).toBe('start');
     expect(firstNode.label).toBe('start');
     expect(firstNode.chapter).toBe('chapter1');
