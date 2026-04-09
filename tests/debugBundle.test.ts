@@ -6,7 +6,7 @@ import {
 } from '../src/application';
 
 describe('debug bundle privacy defaults', () => {
-  it('redacts file names and raw script details by default', () => {
+  it('redacts file names, raw script details, and identifiers by default', () => {
     const bundle = buildDebugBundle({
       appVersion: 'test',
       state: {
@@ -14,7 +14,7 @@ describe('debug bundle privacy defaults', () => {
         fileCount: 1,
         importRevision: 0,
         dialogueSearchMode: 'auto',
-        errorMsg: 'failed',
+        errorMsg: 'failed at secret-file.rpy line 12',
         parseProgress: {
           doneFiles: 1,
           totalFiles: 1,
@@ -52,14 +52,27 @@ describe('debug bundle privacy defaults', () => {
       privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
     });
 
-    const progress = bundle.app.parseProgress as { currentFile?: string } | null;
+    const appMetadata = bundle.app as { errorMsg?: string; errorSummary?: string; parseProgress: { currentFile?: string } | null };
+    expect(appMetadata.errorMsg).toBeUndefined();
+    expect(appMetadata.errorSummary).toContain('Enable raw/script details');
+    const progress = appMetadata.parseProgress;
     expect(progress).not.toBeNull();
     expect(progress?.currentFile).toBeUndefined();
-    const firstNode = bundle.graph.nodes[0] as { chapter?: string; dialogueLines?: string[] };
+    const firstNode = bundle.graph.nodes[0] as {
+      id: string;
+      label: string;
+      chapter?: string;
+      dialogueLines?: string[];
+    };
     expect(firstNode.chapter).toBeUndefined();
     expect(firstNode.dialogueLines).toBeUndefined();
-    const firstEdge = bundle.graph.edges[0] as { label?: string };
+    expect(firstNode.id).toBe('n1');
+    expect(firstNode.label).toBe('n1');
+    const firstEdge = bundle.graph.edges[0] as { id: string; source: string; target: string; label?: string };
     expect(firstEdge.label).toBeUndefined();
+    expect(firstEdge.id).toBe('e1');
+    expect(firstEdge.source).toBe('n1');
+    expect(firstEdge.target).toBe('n_unmapped_2');
     expect(bundle.warnings).toBeUndefined();
   });
 
@@ -71,7 +84,7 @@ describe('debug bundle privacy defaults', () => {
         fileCount: 1,
         importRevision: 1,
         dialogueSearchMode: 'full',
-        errorMsg: '',
+        errorMsg: 'specific parse failure',
         parseProgress: null,
       },
       parser: {
@@ -109,11 +122,23 @@ describe('debug bundle privacy defaults', () => {
       },
     });
 
-    const firstNode = bundle.graph.nodes[0] as { chapter?: string; dialogueLines?: string[] };
-    const firstEdge = bundle.graph.edges[0] as { label?: string };
+    const appMetadata = bundle.app as { errorMsg?: string; errorSummary?: string };
+    const firstNode = bundle.graph.nodes[0] as {
+      id: string;
+      label: string;
+      chapter?: string;
+      dialogueLines?: string[];
+    };
+    const firstEdge = bundle.graph.edges[0] as { source: string; target: string; label?: string };
     const firstWarning = (bundle.warnings?.[0] ?? {}) as { chapter?: string; targetExpression?: string; message?: string };
+    expect(appMetadata.errorMsg).toBe('specific parse failure');
+    expect(appMetadata.errorSummary).toContain('Enable raw/script details');
+    expect(firstNode.id).toBe('start');
+    expect(firstNode.label).toBe('start');
     expect(firstNode.chapter).toBe('chapter1');
     expect(firstNode.dialogueLines).toEqual(['line 1']);
+    expect(firstEdge.source).toBe('start');
+    expect(firstEdge.target).toBe('end');
     expect(firstEdge.label).toBe('to end');
     expect(firstWarning.chapter).toBe('chapter1');
     expect(firstWarning.targetExpression).toBe('target_var');

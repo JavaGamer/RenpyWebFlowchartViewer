@@ -474,11 +474,19 @@ describe('App – upload → parse → render integration', () => {
     expect(vi.mocked(saveAs).mock.calls[0]?.[1]).toBe('renpy-flowchart-debug-bundle.json');
     const defaultBlob = vi.mocked(saveAs).mock.calls[0]?.[0] as Blob;
     const defaultBundle = JSON.parse(await defaultBlob.text()) as {
-      graph: { nodes: Array<{ chapter?: string; dialogueLines?: string[] }> };
+      app: { errorMsg?: string; errorSummary?: string };
+      graph: {
+        nodes: Array<{ id: string; label: string; chapter?: string; dialogueLines?: string[] }>;
+        edges: Array<{ id: string; source: string; target: string }>;
+      };
       warnings?: unknown[];
     };
+    expect(defaultBundle.app.errorMsg).toBeUndefined();
     expect(defaultBundle.graph.nodes[0]?.chapter).toBeUndefined();
     expect(defaultBundle.graph.nodes[0]?.dialogueLines).toBeUndefined();
+    expect(defaultBundle.graph.nodes[0]?.id).toBe('n1');
+    expect(defaultBundle.graph.nodes[0]?.label).toBe('n1');
+    expect(defaultBundle.graph.edges[0]?.id).toBe('e1');
     expect(defaultBundle.warnings).toBeUndefined();
 
     await user.click(view.getByRole('checkbox', { name: /Include file names/i }));
@@ -489,17 +497,25 @@ describe('App – upload → parse → render integration', () => {
     expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(2);
     const optedInBlob = vi.mocked(saveAs).mock.calls[1]?.[0] as Blob;
     const optedInBundle = JSON.parse(await optedInBlob.text()) as {
+      app: { errorMsg?: string };
       privacy: {
         includeFileNames: boolean;
         includeRawScriptDetails: boolean;
         includeExtraDiagnostics: boolean;
       };
-      graph: { nodes: Array<{ chapter?: string; dialogueLines?: string[] }> };
+      graph: {
+        nodes: Array<{ id: string; label: string; chapter?: string; dialogueLines?: string[] }>;
+        edges: Array<{ source: string; target: string }>;
+      };
       warnings?: unknown[];
     };
     expect(optedInBundle.privacy.includeFileNames).toBe(true);
     expect(optedInBundle.privacy.includeRawScriptDetails).toBe(true);
     expect(optedInBundle.privacy.includeExtraDiagnostics).toBe(true);
+    expect(optedInBundle.graph.nodes[0]?.id).toBe('start');
+    expect(optedInBundle.graph.nodes[0]?.label).toBe('start');
+    expect(optedInBundle.graph.edges[0]?.source).toBe('start');
+    expect(optedInBundle.graph.edges[0]?.target).toBe('second');
     expect(optedInBundle.graph.nodes[0]?.chapter).toBeTruthy();
     expect(Array.isArray(optedInBundle.graph.nodes[0]?.dialogueLines)).toBe(true);
     expect(optedInBundle.warnings).toBeDefined();
@@ -525,8 +541,12 @@ describe('App – upload → parse → render integration', () => {
     await user.click(view.getByRole('button', { name: /Export Debug Bundle/i }));
     expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(1);
     const errorBundleBlob = vi.mocked(saveAs).mock.calls[0]?.[0] as Blob;
-    const errorBundle = JSON.parse(await errorBundleBlob.text()) as { app: { phase: string } };
+    const errorBundle = JSON.parse(await errorBundleBlob.text()) as {
+      app: { phase: string; errorMsg?: string; errorSummary?: string };
+    };
     expect(errorBundle.app.phase).toBe('error');
+    expect(errorBundle.app.errorMsg).toBeUndefined();
+    expect(errorBundle.app.errorSummary).toContain('Enable raw/script details');
 
     await user.click(view.getByRole('button', { name: /Open new GitHub issue/i }));
     expect(openSpy).toHaveBeenCalledTimes(1);

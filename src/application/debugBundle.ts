@@ -47,6 +47,53 @@ interface RedactedWarning {
   sourceId?: string;
 }
 
+interface GraphAliasContext {
+  nodeAliasById: Map<string, string>;
+  edgeAliasById: Map<string, string>;
+  unmappedNodeAliasById: Map<string, string>;
+  unmappedEdgeAliasById: Map<string, string>;
+}
+
+function createGraphAliasContext(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+): GraphAliasContext {
+  const nodeAliasById = new Map<string, string>();
+  nodes.forEach((node, index) => {
+    nodeAliasById.set(node.id, `n${index + 1}`);
+  });
+  const edgeAliasById = new Map<string, string>();
+  edges.forEach((edge, index) => {
+    edgeAliasById.set(edge.id, `e${index + 1}`);
+  });
+  return {
+    nodeAliasById,
+    edgeAliasById,
+    unmappedNodeAliasById: new Map(),
+    unmappedEdgeAliasById: new Map(),
+  };
+}
+
+function getNodeAlias(context: GraphAliasContext, nodeId: string): string {
+  const mapped = context.nodeAliasById.get(nodeId);
+  if (mapped) return mapped;
+  const existingUnmapped = context.unmappedNodeAliasById.get(nodeId);
+  if (existingUnmapped) return existingUnmapped;
+  const alias = `n_unmapped_${context.nodeAliasById.size + context.unmappedNodeAliasById.size + 1}`;
+  context.unmappedNodeAliasById.set(nodeId, alias);
+  return alias;
+}
+
+function getEdgeAlias(context: GraphAliasContext, edgeId: string): string {
+  const mapped = context.edgeAliasById.get(edgeId);
+  if (mapped) return mapped;
+  const existingUnmapped = context.unmappedEdgeAliasById.get(edgeId);
+  if (existingUnmapped) return existingUnmapped;
+  const alias = `e_unmapped_${context.edgeAliasById.size + context.unmappedEdgeAliasById.size + 1}`;
+  context.unmappedEdgeAliasById.set(edgeId, alias);
+  return alias;
+}
+
 function redactWarning(
   warning: ParseWarningPayload,
   privacy: DebugBundlePrivacyOptions,
@@ -63,24 +110,39 @@ function redactWarning(
   };
 }
 
-function redactNode(node: FlowNode, privacy: DebugBundlePrivacyOptions): Record<string, unknown> {
+function redactNode(
+  node: FlowNode,
+  privacy: DebugBundlePrivacyOptions,
+  graphAliasContext: GraphAliasContext,
+): Record<string, unknown> {
+  const nodeId = privacy.includeRawScriptDetails
+    ? node.id
+    : getNodeAlias(graphAliasContext, node.id);
   return {
-    id: node.id,
+    id: nodeId,
     type: node.type,
-    label: node.label,
+    label: privacy.includeRawScriptDetails ? node.label : nodeId,
     role: node.role,
     dialogueCount: node.dialogueCount,
-    parentLabelId: node.parentLabelId,
+    parentLabelId: node.parentLabelId
+      ? (privacy.includeRawScriptDetails
+        ? node.parentLabelId
+        : getNodeAlias(graphAliasContext, node.parentLabelId))
+      : undefined,
     ...(privacy.includeFileNames && node.chapter ? { chapter: node.chapter } : {}),
     ...(privacy.includeRawScriptDetails && node.dialogueLines ? { dialogueLines: node.dialogueLines } : {}),
   };
 }
 
-function redactEdge(edge: FlowEdge, privacy: DebugBundlePrivacyOptions): Record<string, unknown> {
+function redactEdge(
+  edge: FlowEdge,
+  privacy: DebugBundlePrivacyOptions,
+  graphAliasContext: GraphAliasContext,
+): Record<string, unknown> {
   return {
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
+    id: privacy.includeRawScriptDetails ? edge.id : getEdgeAlias(graphAliasContext, edge.id),
+    source: privacy.includeRawScriptDetails ? edge.source : getNodeAlias(graphAliasContext, edge.source),
+    target: privacy.includeRawScriptDetails ? edge.target : getNodeAlias(graphAliasContext, edge.target),
     kind: edge.kind,
     ...(privacy.includeRawScriptDetails && edge.label ? { label: edge.label } : {}),
   };
@@ -88,6 +150,7 @@ function redactEdge(edge: FlowEdge, privacy: DebugBundlePrivacyOptions): Record<
 
 export function buildDebugBundle(input: BuildDebugBundleInput) {
   const warningCodes = Array.from(new Set(input.parseWarnings.map((warning) => warning.code))).sort();
+  const graphAliasContext = createGraphAliasContext(input.graph.flowNodes, input.graph.flowEdges);
   const warnings = input.privacy.includeExtraDiagnostics
     ? input.parseWarnings.map((warning) => redactWarning(warning, input.privacy))
     : undefined;
@@ -102,7 +165,12 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
       importRevision: input.state.importRevision,
       fileCount: input.state.fileCount,
       dialogueSearchMode: input.state.dialogueSearchMode,
-      errorMsg: input.state.errorMsg || undefined,
+      errorSummary: input.state.errorMsg
+        ? 'Import failed. Enable raw/script details to include the full error message.'
+        : undefined,
+      ...(input.privacy.includeRawScriptDetails && input.state.errorMsg
+        ? { errorMsg: input.state.errorMsg }
+        : {}),
       parseProgress: input.state.parseProgress
         ? {
           doneFiles: input.state.parseProgress.doneFiles,
@@ -125,8 +193,8 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
       warningCodes,
     },
     graph: {
-      nodes: input.graph.flowNodes.map((node) => redactNode(node, input.privacy)),
-      edges: input.graph.flowEdges.map((edge) => redactEdge(edge, input.privacy)),
+      nodes: input.graph.flowNodes.map((node) => redactNode(node, input.privacy, graphAliasContext)),
+      edges: input.graph.flowEdges.map((edge) => redactEdge(edge, input.privacy, graphAliasContext)),
     },
     ...(warnings ? { warnings } : {}),
   };
