@@ -546,7 +546,9 @@ describe('App – upload → parse → render integration', () => {
     };
     expect(errorBundle.app.phase).toBe('error');
     expect(errorBundle.app.errorMsg).toBeUndefined();
-    expect(errorBundle.app.errorSummary).toContain('Include raw/script details');
+    expect(errorBundle.app.errorSummary).toBe(
+      'Import failed. Enable "Include raw/script details (opt-in)" to include the full error message.',
+    );
 
     await user.click(view.getByRole('button', { name: /Open new GitHub issue/i }));
     expect(openSpy).toHaveBeenCalledTimes(1);

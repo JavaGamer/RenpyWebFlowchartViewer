@@ -506,7 +506,7 @@ export default function App() {
                           setDebugPrivacyOptions((prev) => ({ ...prev, includeRawScriptDetails: event.target.checked }));
                         }}
                       />
-                      Include raw/script details (explicit opt-in)
+                      Include raw/script details (opt-in)
                     </label>
                     <label className="flex items-center gap-1.5">
                       <input

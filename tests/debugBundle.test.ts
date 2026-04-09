@@ -5,6 +5,9 @@ import {
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
 } from '../src/application';
 
+const REDACTED_ERROR_SUMMARY =
+  'Import failed. Enable "Include raw/script details (opt-in)" to include the full error message.';
+
 describe('debug bundle privacy defaults', () => {
   it('redacts file names, raw script details, and identifiers by default', () => {
     const bundle = buildDebugBundle({
@@ -54,7 +57,7 @@ describe('debug bundle privacy defaults', () => {
 
     const appMetadata = bundle.app as { errorMsg?: string; errorSummary?: string; parseProgress: { currentFile?: string } | null };
     expect(appMetadata.errorMsg).toBeUndefined();
-    expect(appMetadata.errorSummary).toContain('Include raw/script details');
+    expect(appMetadata.errorSummary).toBe(REDACTED_ERROR_SUMMARY);
     const progress = appMetadata.parseProgress;
     expect(progress).not.toBeNull();
     expect(progress?.currentFile).toBeUndefined();
@@ -132,7 +135,7 @@ describe('debug bundle privacy defaults', () => {
     const firstEdge = bundle.graph.edges[0] as { source: string; target: string; label?: string };
     const firstWarning = (bundle.warnings?.[0] ?? {}) as { chapter?: string; targetExpression?: string; message?: string };
     expect(appMetadata.errorMsg).toBe('specific parse failure');
-    expect(appMetadata.errorSummary).toContain('Include raw/script details');
+    expect(appMetadata.errorSummary).toBe(REDACTED_ERROR_SUMMARY);
     expect(firstNode.id).toBe('start');
     expect(firstNode.label).toBe('start');
     expect(firstNode.chapter).toBe('chapter1');
