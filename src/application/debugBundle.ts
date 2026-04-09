@@ -165,9 +165,9 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
       importRevision: input.state.importRevision,
       fileCount: input.state.fileCount,
       dialogueSearchMode: input.state.dialogueSearchMode,
-      errorSummary: input.state.errorMsg
-        ? 'Import failed. Enable raw/script details to include the full error message.'
-        : undefined,
+      ...(input.state.errorMsg
+        ? { errorSummary: 'Import failed. Enable raw/script details to include the full error message.' }
+        : {}),
       ...(input.privacy.includeRawScriptDetails && input.state.errorMsg
         ? { errorMsg: input.state.errorMsg }
         : {}),
