@@ -130,6 +130,34 @@ describe('createProcessUpload', () => {
     expect(onParseMeasured).toHaveBeenCalledWith({ fileCount: 2, nodeCount: 1, edgeCount: 0 });
   });
 
+  it('captures dialogue lines in auto mode for non-large uploads', async () => {
+    vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
+    const dispatch = vi.fn();
+    const parse = vi.fn(async () => ({
+      nodes: [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }],
+      edges: [],
+    }));
+    const parseService: ParseService = {
+      parse,
+      searchDialogueLines: vi.fn(),
+    };
+    const processUpload = createProcessUpload({
+      parseService,
+      dispatch,
+      activeRunIdRef: { current: 0 },
+      parseAbortControllerRef: { current: null },
+      dialogueSearchMode: 'auto',
+    });
+
+    await processUpload(toFileList([makeRpy('a.rpy')]));
+
+    expect(parse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        captureDialogueLines: true,
+      }),
+    );
+  });
+
   it('uses chunked parse flow for large uploads and emits partial updates', async () => {
     vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
     const dispatch = vi.fn();
