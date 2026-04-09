@@ -44,6 +44,14 @@ npm run bench:perf
 - Parsing is extension-based: only `.rpy` files are considered input.
 - A flowchart may be empty if uploaded files contain no parsable `label` or `menu` nodes.
 
+## Bug Reports and Debug Bundles
+
+- Prefer opening issues with the app's **Open new GitHub issue** action so issue drafts include reproducibility prompts and metadata.
+- The app's **Export Debug Bundle** is privacy-first by default:
+  - file names are excluded unless explicitly opted in
+  - raw/script details are excluded unless explicitly opted in
+- If you include sensitive fields in a debug bundle, clearly note consent in the issue.
+
 ## Pull Request Process
 
 1. Create a branch from the latest default branch.

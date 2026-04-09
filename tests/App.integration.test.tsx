@@ -457,6 +457,87 @@ describe('App – upload → parse → render integration', () => {
     expect(exportedJson.edges.some((e) => typeof e.kind === 'string')).toBe(true);
   });
 
+  it('exports a privacy-safe debug bundle by default and includes opt-in fields when enabled', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const view = within(container);
+
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('sensitive-name.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByTestId('react-flow')).toBeInTheDocument();
+    });
+
+    await user.click(view.getByRole('button', { name: /Export debug bundle/i }));
+    expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(saveAs).mock.calls[0]?.[1]).toBe('renpy-flowchart-debug-bundle.json');
+    const defaultBlob = vi.mocked(saveAs).mock.calls[0]?.[0] as Blob;
+    const defaultBundle = JSON.parse(await defaultBlob.text()) as {
+      graph: { nodes: Array<{ chapter?: string; dialogueLines?: string[] }> };
+      warnings?: unknown[];
+    };
+    expect(defaultBundle.graph.nodes[0]?.chapter).toBeUndefined();
+    expect(defaultBundle.graph.nodes[0]?.dialogueLines).toBeUndefined();
+    expect(defaultBundle.warnings).toBeUndefined();
+
+    await user.click(view.getByRole('checkbox', { name: /Include file names/i }));
+    await user.click(view.getByRole('checkbox', { name: /Include raw\/script details/i }));
+    await user.click(view.getByRole('checkbox', { name: /Include extra diagnostics/i }));
+    await user.click(view.getByRole('button', { name: /Export debug bundle/i }));
+
+    expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(2);
+    const optedInBlob = vi.mocked(saveAs).mock.calls[1]?.[0] as Blob;
+    const optedInBundle = JSON.parse(await optedInBlob.text()) as {
+      privacy: {
+        includeFileNames: boolean;
+        includeRawScriptDetails: boolean;
+        includeExtraDiagnostics: boolean;
+      };
+      graph: { nodes: Array<{ chapter?: string; dialogueLines?: string[] }> };
+      warnings?: unknown[];
+    };
+    expect(optedInBundle.privacy.includeFileNames).toBe(true);
+    expect(optedInBundle.privacy.includeRawScriptDetails).toBe(true);
+    expect(optedInBundle.privacy.includeExtraDiagnostics).toBe(true);
+    expect(optedInBundle.graph.nodes[0]?.chapter).toBeTruthy();
+    expect(Array.isArray(optedInBundle.graph.nodes[0]?.dialogueLines)).toBe(true);
+    expect(optedInBundle.warnings).toBeDefined();
+  });
+
+  it('shows debug export and opens a prefilled GitHub issue in the error panel', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(infrastructure, 'parseRenpyFilesInWorker').mockRejectedValueOnce(
+      new Error('Unexpected token at line 3'),
+    );
+    const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => null);
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector('#folder-input') as HTMLInputElement;
+    await user.upload(input, makeRpyFile('broken.rpy', SAMPLE_RPY));
+
+    await waitFor(() => {
+      expect(view.getByRole('button', { name: /Export Debug Bundle/i })).toBeInTheDocument();
+      expect(view.getByRole('button', { name: /Open new GitHub issue/i })).toBeInTheDocument();
+    });
+
+    await user.click(view.getByRole('button', { name: /Export Debug Bundle/i }));
+    expect(vi.mocked(saveAs)).toHaveBeenCalledTimes(1);
+    const errorBundleBlob = vi.mocked(saveAs).mock.calls[0]?.[0] as Blob;
+    const errorBundle = JSON.parse(await errorBundleBlob.text()) as { app: { phase: string } };
+    expect(errorBundle.app.phase).toBe('error');
+
+    await user.click(view.getByRole('button', { name: /Open new GitHub issue/i }));
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    const issueUrl = openSpy.mock.calls[0]?.[0] as string;
+    expect(issueUrl).toContain('github.com/JavaGamer/RenpyWebFlowchartViewer/issues/new');
+    expect(issueUrl).toContain('template=bug_report.md');
+    const decoded = decodeURIComponent(issueUrl).replaceAll('+', ' ');
+    expect(decoded).toContain('App phase: error');
+    expect(decoded).toContain('Debug bundle file names included: no');
+  });
+
   it('shows call-return edges only when the show call returns toggle is enabled', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

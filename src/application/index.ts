@@ -21,3 +21,12 @@ export {
   type RulesByVariant,
 } from './parserRuleSettings';
 export { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
+export {
+  DEBUG_BUNDLE_SCHEMA_VERSION,
+  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  buildDebugBundle,
+  toDebugBundleBlob,
+  buildIssueDraftUrl,
+  type DebugBundlePrivacyOptions,
+  type BuildDebugBundleInput,
+} from './debugBundle';
