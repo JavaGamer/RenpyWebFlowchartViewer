@@ -23,7 +23,12 @@ import { saveAs } from 'file-saver';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import debounce from 'lodash.debounce';
 import type { FlowNode, FlowEdge } from './domain';
-import type { DialogueSearchMode, ParseService } from './application';
+import {
+  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  type DialogueSearchMode,
+  type ParseService,
+  type DebugBundlePrivacyOptions,
+} from './application';
 import { workerParseService } from './application';
 import { STORAGE_KEYS } from './config/storageKeys';
 import {
@@ -58,6 +63,10 @@ interface FlowchartViewerProps {
   dialogueSearchMode?: DialogueSearchMode;
   onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
   parseService?: ParseService;
+  debugPrivacyOptions?: DebugBundlePrivacyOptions;
+  onDebugPrivacyOptionsChange?: (options: DebugBundlePrivacyOptions) => void;
+  onExportDebugBundle?: (options: DebugBundlePrivacyOptions) => void;
+  onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
 }
 
 const CONTROL_INPUT_CLASS =
@@ -165,6 +174,10 @@ export default function FlowchartViewer({
   dialogueSearchMode = 'auto',
   onDialogueSearchModeChange,
   parseService = workerParseService,
+  debugPrivacyOptions = DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  onDebugPrivacyOptionsChange,
+  onExportDebugBundle,
+  onOpenIssue,
 }: FlowchartViewerProps) {
   const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
@@ -698,6 +711,13 @@ export default function FlowchartViewer({
     const blob = new Blob([graphJson], { type: 'application/json' });
     saveAs(blob, 'renpy-flowchart.json');
   }, [flowEdges, flowNodes]);
+  const onDebugOptionChange = useCallback(
+    (patch: Partial<DebugBundlePrivacyOptions>) => {
+      if (!onDebugPrivacyOptionsChange) return;
+      onDebugPrivacyOptionsChange({ ...debugPrivacyOptions, ...patch });
+    },
+    [debugPrivacyOptions, onDebugPrivacyOptionsChange],
+  );
   const onFitView = useCallback(() => {
     flowInstanceRef.current?.fitView({ padding: 0.2 });
   }, []);
@@ -878,6 +898,47 @@ export default function FlowchartViewer({
               <Download size={14} aria-hidden="true" />
               Export JSON
             </button>
+            <button
+              onClick={() => onExportDebugBundle?.(debugPrivacyOptions)}
+              aria-label="Export debug bundle"
+              className={`${PRIMARY_BUTTON_CLASS} text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100`}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export Debug Bundle
+            </button>
+            <button
+              onClick={() => onOpenIssue?.(debugPrivacyOptions)}
+              aria-label="Open new GitHub issue"
+              className={`${PRIMARY_BUTTON_CLASS} text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100`}
+            >
+              Open new GitHub issue
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-600" role="group" aria-label="Debug bundle privacy options">
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={debugPrivacyOptions.includeFileNames}
+                onChange={(event) => onDebugOptionChange({ includeFileNames: event.target.checked })}
+              />
+              Include file names (sensitive)
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={debugPrivacyOptions.includeRawScriptDetails}
+                onChange={(event) => onDebugOptionChange({ includeRawScriptDetails: event.target.checked })}
+              />
+              Include raw/script details (opt-in)
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={debugPrivacyOptions.includeExtraDiagnostics}
+                onChange={(event) => onDebugOptionChange({ includeExtraDiagnostics: event.target.checked })}
+              />
+              Include extra diagnostics
+            </label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {ZOOM_PRESETS.map((preset) => (

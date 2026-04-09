@@ -10,16 +10,22 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
+import { saveAs } from 'file-saver';
 import { FlowchartViewer } from './ui';
 import { createPerfTracker } from './perf';
 import {
   appReducer,
+  buildDebugBundle,
+  buildIssueDraftUrl,
   initialAppState,
   workerParseService,
   createProcessUpload,
+  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   defaultParserRuleSettings,
   loadParserRuleSettings,
   saveParserRuleSettings,
+  toDebugBundleBlob,
+  type DebugBundlePrivacyOptions,
 } from './application';
 import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
 import {
@@ -34,6 +40,9 @@ export default function App() {
   const perf = useMemo(() => createPerfTracker('app'), []);
   const [state, dispatch] = useReducer(appReducer, initialAppState);
   const [parserSettings, setParserSettings] = useState(loadParserRuleSettings);
+  const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<DebugBundlePrivacyOptions>(
+    DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  );
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -120,6 +129,66 @@ export default function App() {
   const resetParserRuleSettings = useCallback(() => {
     setParserSettings(defaultParserRuleSettings);
   }, []);
+  const appVersion = import.meta.env.VITE_APP_VERSION ?? '0.0.0';
+  const exportDebugBundle = useCallback((privacy: DebugBundlePrivacyOptions) => {
+    const bundle = buildDebugBundle({
+      appVersion,
+      state: {
+        phase: state.phase,
+        fileCount: state.fileCount,
+        importRevision: state.importRevision,
+        dialogueSearchMode: state.dialogueSearchMode,
+        errorMsg: state.errorMsg,
+        parseProgress: state.parseProgress,
+      },
+      parser: {
+        selectedVariant,
+        customScreenActionRules: selectedVariantCustomRules,
+      },
+      graph: {
+        flowNodes: state.flowNodes,
+        flowEdges: state.flowEdges,
+      },
+      parseWarnings: state.parseWarnings,
+      privacy,
+    });
+    saveAs(toDebugBundleBlob(bundle), 'renpy-flowchart-debug-bundle.json');
+  }, [
+    appVersion,
+    selectedVariant,
+    selectedVariantCustomRules,
+    state.dialogueSearchMode,
+    state.errorMsg,
+    state.fileCount,
+    state.flowEdges,
+    state.flowNodes,
+    state.importRevision,
+    state.parseProgress,
+    state.parseWarnings,
+    state.phase,
+  ]);
+  const openNewIssue = useCallback((privacy: DebugBundlePrivacyOptions) => {
+    const issueUrl = buildIssueDraftUrl({
+      owner: 'JavaGamer',
+      repo: 'RenpyWebFlowchartViewer',
+      privacy,
+      state: {
+        phase: state.phase,
+        dialogueSearchMode: state.dialogueSearchMode,
+        selectedVariant,
+        fileCount: state.fileCount,
+        warningCount: state.parseWarnings.length,
+      },
+    });
+    if (typeof globalThis.open !== 'function') return;
+    globalThis.open(issueUrl, '_blank', 'noopener,noreferrer');
+  }, [
+    selectedVariant,
+    state.dialogueSearchMode,
+    state.fileCount,
+    state.parseWarnings.length,
+    state.phase,
+  ]);
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────
   const onDrop = useCallback(
@@ -224,6 +293,10 @@ export default function App() {
             flowEdges={state.flowEdges}
             dialogueSearchMode={state.dialogueSearchMode}
             onDialogueSearchModeChange={(mode) => dispatch({ type: 'SET_DIALOGUE_SEARCH_MODE', mode })}
+            debugPrivacyOptions={debugPrivacyOptions}
+            onDebugPrivacyOptionsChange={setDebugPrivacyOptions}
+            onExportDebugBundle={exportDebugBundle}
+            onOpenIssue={openNewIssue}
           />
         </main>
       ) : (
@@ -385,23 +458,69 @@ export default function App() {
                   </div>
                  </div>
                  <div className="flex flex-wrap gap-2">
-                   <button
-                     type="button"
+                    <button
+                      type="button"
                      onClick={openFolderPicker}
                      className="text-xs px-2.5 py-1.5 rounded-md bg-red-700 text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                    >
                      Try again
                    </button>
-                   <button
-                     type="button"
-                     onClick={() => dispatch({ type: 'RESET' })}
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'RESET' })}
                      className="text-xs underline text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
                    >
-                     Start over
-                   </button>
+                      Start over
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => exportDebugBundle(debugPrivacyOptions)}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-red-300 bg-white text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    >
+                      Export Debug Bundle
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openNewIssue(debugPrivacyOptions)}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-red-300 bg-white text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    >
+                      Open new GitHub issue
+                    </button>
+                  </div>
+                  <div className="w-full space-y-1 text-[11px] text-red-900">
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={debugPrivacyOptions.includeFileNames}
+                        onChange={(event) => {
+                          setDebugPrivacyOptions((prev) => ({ ...prev, includeFileNames: event.target.checked }));
+                        }}
+                      />
+                      Include file names (off by default because file names are sensitive)
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={debugPrivacyOptions.includeRawScriptDetails}
+                        onChange={(event) => {
+                          setDebugPrivacyOptions((prev) => ({ ...prev, includeRawScriptDetails: event.target.checked }));
+                        }}
+                      />
+                      Include raw/script details (opt-in)
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={debugPrivacyOptions.includeExtraDiagnostics}
+                        onChange={(event) => {
+                          setDebugPrivacyOptions((prev) => ({ ...prev, includeExtraDiagnostics: event.target.checked }));
+                        }}
+                      />
+                      Include extra diagnostics
+                    </label>
+                  </div>
                  </div>
-                </div>
-              )}
+               )}
 
              {/* Empty result warning */}
               {state.phase === 'done' && state.flowNodes.length === 0 && (

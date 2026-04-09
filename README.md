@@ -16,6 +16,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Keyboard accessibility** — focus-visible controls, skip link support, and shortcut hints for common actions.
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
 - **Export options** — export the current chart as PNG or SVG, and optionally download the raw graph as JSON.
+- **Privacy-aware debugging/reporting** — export a debug bundle and open a prefilled GitHub bug report, with file names and raw/script details excluded by default unless you explicitly opt in.
 - **Responsive UI** — toolbar, canvas, and inspector adapt for desktop, tablet, and mobile widths.
 - **Upload status guidance** — onboarding includes explicit import steps, state-specific read/parse status text, and clear retry/start-over actions on failure.
 - **Progressive control hierarchy** — primary controls stay visible for common tasks, while advanced graph controls are available on demand.
@@ -28,8 +29,10 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 4. The flowchart is generated automatically.
 5. Optional: choose a parser variant and add custom screen-action rules before import; settings persist across projects in your browser.
 6. Use **Export PNG** or **Export SVG** to save the chart as an image, or **Export JSON** to download graph data.
-7. If import fails, use **Try again** in the error panel to reopen folder selection immediately (or **Start over** to reset the upload state).
-8. Label subgraph collapse state resets on each new import to avoid stale state from previous uploads.
+7. Use **Export Debug Bundle** to download a troubleshooting JSON bundle; file names and raw/script details are opt-in and off by default.
+8. Use **Open new GitHub issue** to open a prefilled bug report draft and attach your debug bundle manually if desired.
+9. If import fails, use **Try again** in the error panel to reopen folder selection immediately (or **Start over** to reset the upload state).
+10. Label subgraph collapse state resets on each new import to avoid stale state from previous uploads.
 
 ## Interaction Model
 
