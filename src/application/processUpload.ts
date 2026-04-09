@@ -71,6 +71,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
       const effectiveDialogueMode =
         dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
+      const shouldCaptureDialogueLines = effectiveDialogueMode !== 'countOnly';
       let readCount = 0;
       let parsedFileCount = 0;
       for (let offset = 0; offset < rpyFiles.length; offset += READ_BATCH_SIZE) {
@@ -99,7 +100,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 appendToActiveGraph: true,
                 resetActiveGraph: offset === 0 && parseOffset === 0,
                 isFinalChunk: isLastChunk,
-                captureDialogueLines: effectiveDialogueMode === 'full',
+                captureDialogueLines: shouldCaptureDialogueLines,
                 parserVariant,
                 screenActionRules: customScreenActionRules,
                 signal: controller.signal,
@@ -137,7 +138,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               appendToActiveGraph: true,
               resetActiveGraph: isFirstReadBatch,
               isFinalChunk: isLastReadBatch,
-              captureDialogueLines: effectiveDialogueMode === 'full',
+              captureDialogueLines: shouldCaptureDialogueLines,
               parserVariant,
               screenActionRules: customScreenActionRules,
               signal: controller.signal,
