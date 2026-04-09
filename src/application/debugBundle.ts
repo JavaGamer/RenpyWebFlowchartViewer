@@ -52,6 +52,8 @@ interface GraphAliasContext {
   edgeAliasById: Map<string, string>;
   unmappedNodeAliasById: Map<string, string>;
   unmappedEdgeAliasById: Map<string, string>;
+  nextUnmappedNodeAliasNumber: number;
+  nextUnmappedEdgeAliasNumber: number;
 }
 
 function createGraphAliasContext(
@@ -71,6 +73,8 @@ function createGraphAliasContext(
     edgeAliasById,
     unmappedNodeAliasById: new Map(),
     unmappedEdgeAliasById: new Map(),
+    nextUnmappedNodeAliasNumber: nodeAliasById.size + 1,
+    nextUnmappedEdgeAliasNumber: edgeAliasById.size + 1,
   };
 }
 
@@ -79,7 +83,8 @@ function getNodeAlias(context: GraphAliasContext, nodeId: string): string {
   if (mapped) return mapped;
   const existingUnmapped = context.unmappedNodeAliasById.get(nodeId);
   if (existingUnmapped) return existingUnmapped;
-  const alias = `n_unmapped_${context.nodeAliasById.size + context.unmappedNodeAliasById.size + 1}`;
+  const alias = `n_unmapped_${context.nextUnmappedNodeAliasNumber}`;
+  context.nextUnmappedNodeAliasNumber += 1;
   context.unmappedNodeAliasById.set(nodeId, alias);
   return alias;
 }
@@ -89,7 +94,8 @@ function getEdgeAlias(context: GraphAliasContext, edgeId: string): string {
   if (mapped) return mapped;
   const existingUnmapped = context.unmappedEdgeAliasById.get(edgeId);
   if (existingUnmapped) return existingUnmapped;
-  const alias = `e_unmapped_${context.edgeAliasById.size + context.unmappedEdgeAliasById.size + 1}`;
+  const alias = `e_unmapped_${context.nextUnmappedEdgeAliasNumber}`;
+  context.nextUnmappedEdgeAliasNumber += 1;
   context.unmappedEdgeAliasById.set(edgeId, alias);
   return alias;
 }
