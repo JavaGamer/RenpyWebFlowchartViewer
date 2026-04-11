@@ -318,6 +318,53 @@ describe('parseRenpyFiles', () => {
     expect(southEdge?.label).toBe('Go south');
   });
 
+  it('adds a menu fallthrough sequence edge when menu options do not jump/call', async () => {
+    const script = [
+      'label decide:',
+      '    menu:',
+      '        "Go north":',
+      '            "You walk north for a bit."',
+      '        "Go south":',
+      '            "You walk south for a bit."',
+      '',
+      'label after_menu:',
+      '    "after"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'menu_fallthrough.rpy', content: script }]);
+    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: menuNode?.id, target: 'after_menu', kind: 'sequence', label: 'next' }),
+    );
+  });
+
+  it('adds a menu fallthrough edge to the next menu when prior options have no explicit exit', async () => {
+    const script = [
+      'label decide:',
+      '    menu:',
+      '        "Talk":',
+      '            "You chat a bit."',
+      '',
+      '    menu:',
+      '        "Leave":',
+      '            jump end',
+      '',
+      'label end:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'menu_to_menu_fallthrough.rpy', content: script }]);
+    const menus = result.nodes.filter((n) => n.type === 'MENU');
+    expect(menus).toHaveLength(2);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: menus[0]?.id, target: menus[1]?.id, kind: 'sequence', label: 'next' }),
+    );
+  });
+
   it('keeps nested menu jumps attached to the nested menu node and option text', async () => {
     const script = [
       'label start:',

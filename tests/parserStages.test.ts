@@ -44,6 +44,7 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: 'start',
       menuStack: [{ id: 'menu_1', optionText: null as string | null }],
+      pendingMenuFallthroughIds: [],
       conditionalIndentStack: [2],
       labelHasExplicitExit: false,
       waitForLabelName: false,
@@ -145,6 +146,7 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: 'start',
       menuStack: [],
+      pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
@@ -184,6 +186,7 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: null as string | null,
       menuStack: [],
+      pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
@@ -217,6 +220,7 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: null as string | null,
       menuStack: [],
+      pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
@@ -256,6 +260,7 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: null as string | null,
       menuStack: [],
+      pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,

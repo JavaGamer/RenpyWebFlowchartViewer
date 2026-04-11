@@ -15,6 +15,10 @@ interface HandleTokenInput {
   screenActionRuleMap: Map<string, ScreenActionKind>;
 }
 
+function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
+  return state.edges.some((edge) => edge.source === sourceId);
+}
+
 const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(["'])([\s\S]*)\1$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const SCREEN_ACTION_CALL_START_PATTERN = /\baction(?:\s+|\s*=\s*)([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
@@ -412,6 +416,12 @@ export function handleToken(
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
+    scanState.pendingMenuFallthroughIds.length = 0;
+    for (const openMenu of scanState.menuStack) {
+      if (!hasOutgoingEdge(state, openMenu.id)) {
+        scanState.pendingMenuFallthroughIds.push(openMenu.id);
+      }
+    }
     scanState.menuStack.length = 0;
     scanState.conditionalIndentStack.length = 0;
     scanState.waitForJumpTarget = false;
@@ -428,8 +438,7 @@ export function handleToken(
     const newLabelId = val();
     if (
       scanState.currentLabelId !== null &&
-      !scanState.labelHasExplicitExit &&
-      scanState.menuStack.length === 0
+      !scanState.labelHasExplicitExit
     ) {
       addEdge(state, {
         id: `seq_${scanState.currentLabelId}__${newLabelId}`,
@@ -443,6 +452,18 @@ export function handleToken(
     }
 
     scanState.currentLabelId = newLabelId;
+    for (const menuId of scanState.pendingMenuFallthroughIds) {
+      addEdge(state, {
+        id: `seq_${menuId}__${newLabelId}`,
+        source: menuId,
+        target: newLabelId,
+        kind: 'sequence',
+        label: 'next',
+      });
+      addOutgoing(state, menuId, 'sequence');
+      addIncoming(state, newLabelId, 'sequence');
+    }
+    scanState.pendingMenuFallthroughIds.length = 0;
     state.allLabelIds.add(newLabelId);
     scanState.labelHasExplicitExit = false;
     scanState.waitForLabelName = false;
@@ -470,8 +491,10 @@ export function handleToken(
   if (scanState.currentLabelId === null) return;
 
   if (type === PARSER_TOKENS.kwMenuObserved && meta.hasMenuStatement) {
+    const closedMenus: Array<{ id: string; optionText: string | null }> = [];
     while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
-      scanState.menuStack.pop();
+      const closedMenu = scanState.menuStack.pop();
+      if (closedMenu) closedMenus.push(closedMenu);
     }
 
     state.menuCounter += 1;
@@ -485,6 +508,18 @@ export function handleToken(
       chapter,
       parentLabelId: scanState.currentLabelId,
     });
+    for (const closedMenu of closedMenus) {
+      if (hasOutgoingEdge(state, closedMenu.id)) continue;
+      addEdge(state, {
+        id: `seq_${closedMenu.id}__${newMenuId}`,
+        source: closedMenu.id,
+        target: newMenuId,
+        kind: 'sequence',
+        label: 'next',
+      });
+      addOutgoing(state, closedMenu.id, 'sequence');
+      addIncoming(state, newMenuId, 'sequence');
+    }
 
     const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
     const source = parentMenu ? parentMenu.id : scanState.currentLabelId;
