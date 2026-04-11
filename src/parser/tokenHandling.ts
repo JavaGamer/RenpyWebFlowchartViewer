@@ -416,7 +416,7 @@ export function handleToken(
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
-    scanState.pendingMenuFallthroughIds.length = 0;
+    scanState.pendingMenuFallthroughIds = [];
     for (const openMenu of scanState.menuStack) {
       if (!hasOutgoingEdge(state, openMenu.id)) {
         scanState.pendingMenuFallthroughIds.push(openMenu.id);
@@ -438,7 +438,8 @@ export function handleToken(
     const newLabelId = val();
     if (
       scanState.currentLabelId !== null &&
-      !scanState.labelHasExplicitExit
+      !scanState.labelHasExplicitExit &&
+      scanState.menuStack.length === 0
     ) {
       addEdge(state, {
         id: `seq_${scanState.currentLabelId}__${newLabelId}`,
@@ -463,7 +464,7 @@ export function handleToken(
       addOutgoing(state, menuId, 'sequence');
       addIncoming(state, newLabelId, 'sequence');
     }
-    scanState.pendingMenuFallthroughIds.length = 0;
+    scanState.pendingMenuFallthroughIds = [];
     state.allLabelIds.add(newLabelId);
     scanState.labelHasExplicitExit = false;
     scanState.waitForLabelName = false;
@@ -491,10 +492,10 @@ export function handleToken(
   if (scanState.currentLabelId === null) return;
 
   if (type === PARSER_TOKENS.kwMenuObserved && meta.hasMenuStatement) {
-    const closedMenus: Array<{ id: string; optionText: string | null }> = [];
+    const poppedMenus: Array<{ id: string; optionText: string | null }> = [];
     while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
       const closedMenu = scanState.menuStack.pop();
-      if (closedMenu) closedMenus.push(closedMenu);
+      if (closedMenu) poppedMenus.push(closedMenu);
     }
 
     state.menuCounter += 1;
@@ -508,7 +509,7 @@ export function handleToken(
       chapter,
       parentLabelId: scanState.currentLabelId,
     });
-    for (const closedMenu of closedMenus) {
+    for (const closedMenu of poppedMenus) {
       if (hasOutgoingEdge(state, closedMenu.id)) continue;
       addEdge(state, {
         id: `seq_${closedMenu.id}__${newMenuId}`,
