@@ -29,6 +29,7 @@ export function createScanState(): ParseScanState {
   return {
     currentLabelId: null,
     menuStack: [],
+    pendingMenuFallthroughIds: [],
     conditionalIndentStack: [],
     labelHasExplicitExit: false,
     waitForLabelName: false,

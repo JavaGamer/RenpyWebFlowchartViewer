@@ -18,6 +18,7 @@ export interface ParseWarning {
 export interface ParseScanState {
   currentLabelId: string | null;
   menuStack: Array<{ id: string; optionText: string | null }>;
+  pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
   labelHasExplicitExit: boolean;
   waitForLabelName: boolean;
