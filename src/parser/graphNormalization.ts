@@ -30,6 +30,10 @@ function addLabelTraffic(
   bucket.set(labelId, new Set([kind]));
 }
 
+function rebuildReturnTrackingSet(existing: Set<string>, validNodeIds: Set<string>): Set<string> {
+  return new Set(Array.from(existing).filter((labelId) => validNodeIds.has(labelId)));
+}
+
 export function normalizeGraphState(state: ParseGraphState): void {
   const normalizedNodes: FlowNode[] = [];
   const nodeMap = new Map<string, FlowNode>();
@@ -173,16 +177,17 @@ export function normalizeGraphState(state: ParseGraphState): void {
   state.outgoingByLabel = new Map();
   state.calledLabels = new Set();
   state.calledFromMenuOptionTargets = new Set();
-  state.hasReturnInLabel = new Set(Array.from(state.hasReturnInLabel).filter((labelId) => state.nodeIds.has(labelId)));
+  state.hasReturnInLabel = rebuildReturnTrackingSet(state.hasReturnInLabel, state.nodeIds);
 
   for (const edge of normalizedEdges) {
+    const edgeKind = edge.kind ?? 'sequence';
     if (state.nodeIds.has(edge.source)) {
-      addLabelTraffic(state.outgoingByLabel, edge.source, edge.kind);
+      addLabelTraffic(state.outgoingByLabel, edge.source, edgeKind);
     }
     if (state.nodeIds.has(edge.target)) {
-      addLabelTraffic(state.incomingByLabel, edge.target, edge.kind);
+      addLabelTraffic(state.incomingByLabel, edge.target, edgeKind);
     }
-    if (edge.kind === 'call') {
+    if (edgeKind === 'call') {
       state.calledLabels.add(edge.target);
       const sourceNode = state.nodeMap.get(edge.source);
       if (sourceNode?.type === 'MENU') {
