@@ -17,6 +17,10 @@ function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
   return `${kind}|${edge.source}|${edge.target}|${edge.label ?? ''}`;
 }
 
+function resolveNormalizedEdgeId(edge: FlowEdge, kind: EdgeKind): string {
+  return edge.id || `${kind}_${edge.source}__${edge.target}`;
+}
+
 function addLabelTraffic(
   bucket: Map<string, Set<EdgeKind>>,
   labelId: string,
@@ -108,7 +112,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
     }
 
     const normalizedKind = normalizeEdgeKind(edge);
-    const normalizedEdgeId = edge.id || `${normalizedKind}_${edge.source}__${edge.target}`;
+    const normalizedEdgeId = resolveNormalizedEdgeId(edge, normalizedKind);
     if (edge.kind !== normalizedKind) {
       addParseWarning(
         state,

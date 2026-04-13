@@ -41,7 +41,7 @@ function normalizeEdgeKind(kind: string | undefined): EdgeKindFilter {
   return 'sequence';
 }
 
-function compareStableIds(a: string, b: string): number {
+function compareIdsLocaleIndependent(a: string, b: string): number {
   if (a < b) return -1;
   if (a > b) return 1;
   return 0;
@@ -181,7 +181,9 @@ function applyProgressiveDagreLayout(
   direction: 'TB' | 'LR',
   previousPositions?: Map<string, { x: number; y: number }>,
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
-  const orderedNodes = previousPositions ? rawNodes : [...rawNodes].sort((a, b) => compareStableIds(a.id, b.id));
+  const orderedNodes = previousPositions
+    ? rawNodes
+    : [...rawNodes].sort((a, b) => compareIdsLocaleIndependent(a.id, b.id));
   const subset = orderedNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
   const subsetIds = new Set(subset.map((n) => n.id));
   const subsetEdges = rawEdges.filter((e) => subsetIds.has(e.source) && subsetIds.has(e.target));
