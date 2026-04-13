@@ -7,7 +7,9 @@ import {
   type ParseWorkerClientResult,
   type SearchRequestMessage,
   type DialogueSearchResult,
-} from './workerProtocol';let requestCounter = 0;
+} from './workerProtocol';
+
+let requestCounter = 0;
 const textEncoder = new TextEncoder();
 
 let worker: Worker | null = null;
@@ -230,6 +232,12 @@ export function searchDialogueLinesInWorker({
       settle(() => {
         parserWorker.removeEventListener('message', onMessage);
         signal?.removeEventListener('abort', onAbort);
+        const cancelMessage: CancelRequestMessage = {
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'cancel',
+          requestId,
+        };
+        parserWorker.postMessage(cancelMessage);
         reject(new DOMException('Search cancelled', 'AbortError'));
       });
     };
@@ -244,5 +252,6 @@ export function searchDialogueLinesInWorker({
       nodeIds,
       maxResults,
     };
-    parserWorker.postMessage(searchMessage); });
+    parserWorker.postMessage(searchMessage);
+  });
 }

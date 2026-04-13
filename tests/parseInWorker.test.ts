@@ -249,4 +249,22 @@ describe('parseRenpyFilesInWorker', () => {
 
     await expect(request).rejects.toThrow('search failed');
   });
+
+  it('posts cancel message and rejects with AbortError when dialogue search signal aborts', async () => {
+    const { searchDialogueLinesInWorker } = await import('../src/infrastructure');
+    const controller = new AbortController();
+    const promise = searchDialogueLinesInWorker({
+      query: 'needle',
+      signal: controller.signal,
+    });
+    expect((postedMessages[0] as { type?: string }).type).toBe('search');
+    controller.abort();
+
+    const cancelMessage = postedMessages.find(
+      (m) => (m as { type?: string }).type === 'cancel',
+    ) as { type: string; protocolVersion?: number } | undefined;
+    expect(cancelMessage?.type).toBe('cancel');
+    expect(cancelMessage?.protocolVersion).toBe(PARSER_WORKER_PROTOCOL_VERSION);
+    await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+  });
 });
