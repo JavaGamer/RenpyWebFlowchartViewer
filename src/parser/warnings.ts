@@ -9,4 +9,3 @@ export function addParseWarning(
   state.warningIds.add(warningId);
   state.warnings.push(warning);
 }
-

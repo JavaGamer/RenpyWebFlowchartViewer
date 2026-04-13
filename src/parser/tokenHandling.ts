@@ -432,6 +432,9 @@ function processDirectScreenActionCalls(
 }
 
 function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
+  // Wait flags are transient parser intents (e.g. "next function-name is a jump target").
+  // On malformed or mixed token streams, these intents can leak into later tokens and create
+  // false edges; this guard clears stale waits when token context no longer matches.
   if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) return;
   if (type === PARSER_TOKENS.kwLabel || type === PARSER_TOKENS.kwMenuObserved) {
     scanState.waitForJumpTarget = false;

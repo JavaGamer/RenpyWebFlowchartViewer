@@ -287,13 +287,15 @@ export function buildVisibleNodes(params: {
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
+    const dialogueCountMatch = String(nodeData.dialogueCount).includes(query);
     const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
     const labelCollapsed = collapsedLabelChildren.has(n.id);
     const matchesSearch =
       query.length === 0 ||
+      dialogueCountMatch ||
       (searchMatchNodeIds
         ? searchMatchNodeIds.has(n.id)
-        : nodeData.label.toLowerCase().includes(query) || String(nodeData.dialogueCount).includes(query)) ||
+        : nodeData.label.toLowerCase().includes(query)) ||
       (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
         (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query)));
