@@ -106,13 +106,52 @@ export interface ResultResponseMessage {
 }
 
 export interface ParseWarningPayload {
+  code: 'dynamic_target' | 'normalization' | 'unresolved_target';
+  message: string;
+  chapter?: string;
+  construct?: string;
+  targetExpression?: string;
+  category?:
+    | 'invalid_node'
+    | 'missing_edge_source'
+    | 'missing_edge_target'
+    | 'invalid_edge_kind'
+    | 'duplicate_semantic_edge';
+  nodeId?: string;
+  edgeId?: string;
+  sourceId?: string;
+  targetId?: string;
+  detail?: string;
+}
+
+export interface DynamicTargetParseWarningPayload extends ParseWarningPayload {
   code: 'dynamic_target';
   chapter: string;
   construct: string;
   targetExpression: string;
-  message: string;
-  sourceId?: string;
 }
+
+export interface UnresolvedTargetParseWarningPayload extends ParseWarningPayload {
+  code: 'unresolved_target';
+  edgeId: string;
+  sourceId: string;
+  targetId: string;
+}
+
+export interface NormalizationParseWarningPayload extends ParseWarningPayload {
+  code: 'normalization';
+  category:
+    | 'invalid_node'
+    | 'missing_edge_source'
+    | 'missing_edge_target'
+    | 'invalid_edge_kind'
+    | 'duplicate_semantic_edge';
+}
+
+export type StrictParseWarningPayload =
+  | DynamicTargetParseWarningPayload
+  | UnresolvedTargetParseWarningPayload
+  | NormalizationParseWarningPayload;
 
 export interface ErrorResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;

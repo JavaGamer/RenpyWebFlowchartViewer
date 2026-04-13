@@ -40,11 +40,14 @@ export interface BuildDebugBundleInput {
 
 interface RedactedWarning {
   code: ParseWarningPayload['code'];
-  construct: string;
+  construct?: string;
+  category?: ParseWarningPayload['category'];
+  edgeId?: string;
+  sourceId?: string;
+  targetId?: string;
   chapter?: string;
   targetExpression?: string;
   message?: string;
-  sourceId?: string;
 }
 
 interface GraphAliasContext {
@@ -106,13 +109,16 @@ function redactWarning(
 ): RedactedWarning {
   return {
     code: warning.code,
-    construct: warning.construct,
+    ...(warning.construct ? { construct: warning.construct } : {}),
+    ...(warning.category ? { category: warning.category } : {}),
+    ...(warning.edgeId ? { edgeId: warning.edgeId } : {}),
+    ...(warning.sourceId ? { sourceId: warning.sourceId } : {}),
+    ...(warning.targetId ? { targetId: warning.targetId } : {}),
     ...(privacy.includeFileNames && warning.chapter ? { chapter: warning.chapter } : {}),
     ...(privacy.includeRawScriptDetails && warning.targetExpression
       ? { targetExpression: warning.targetExpression }
       : {}),
     ...(privacy.includeRawScriptDetails && warning.message ? { message: warning.message } : {}),
-    ...(privacy.includeRawScriptDetails && warning.sourceId ? { sourceId: warning.sourceId } : {}),
   };
 }
 

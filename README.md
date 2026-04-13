@@ -192,10 +192,26 @@ Then open <http://localhost:8080>.
 - The parser is split into focused phases:
   - token scanning per file
   - graph assembly (nodes/edges + dedupe)
+  - graph normalization/validation (invariant repair + structured warnings)
   - strict role classification
 - Token and meta IDs come from `@renpy/ast` enums via `src/parserTokens.ts` with runtime validation guards, instead of hardcoded numeric literals.
 - Current tokenizer quirk: Ren'Py `menu` may be observed as `KeywordTokenType.Def`; this is guarded and validated at startup.
 - Worker message exchange uses a versioned protocol contract in `src/infrastructure/workerProtocol.ts`.
+
+### Parser correctness goals and failure taxonomy
+
+- **Extraction misses**: expected labels/menus/jump/call/action targets not emitted.
+- **False-positive edges**: edges emitted from comments/strings/non-action contexts.
+- **Control-flow misclassification**: incorrect fallthrough suppression around conditional/menu/return/jump/call.
+- **Unresolved-target handling**: unresolved jump/call targets remain in graph with explicit warning signals.
+- **Render-time inaccuracies**: visibility/layout drops or unstable ordering for valid parser output.
+
+Ambiguous constructs policy:
+
+- dynamic python/screen targets remain static-only: no inferred edge, emit warning
+- malformed scripts are best-effort parsed: recover parsable labels/edges without throwing
+- unresolved targets emit parser warnings and are preserved for downstream handling
+- nested/conditional menus preserve branch edges while avoiding unconditional fallthrough suppression
 
 ## Application Architecture
 

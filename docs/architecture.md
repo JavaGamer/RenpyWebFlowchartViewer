@@ -23,6 +23,11 @@ This project is organized into layered modules to keep parser correctness, UI re
 ## Parser and Worker Lifecycle
 
 - `parser.ts` remains the parser API surface (`parseRenpyFiles`) and output contract (`FlowNode[]`, `FlowEdge[]`).
+- Parser finalization includes graph normalization/validation before role classification:
+  - edge-kind normalization
+  - semantic edge deduplication
+  - unresolved-target warning emission
+  - invariant repair for malformed/missing endpoints
 - `src/infrastructure/parserWorkerClient.ts` and `parserWorker.ts` use a versioned protocol (`src/infrastructure/workerProtocol.ts`) to exchange parse/cancel/progress/result/error messages.
 - Cancellation and stale response handling are request-id scoped.
 
@@ -54,6 +59,10 @@ This project is organized into layered modules to keep parser correctness, UI re
   - **Primary controls** are always visible for high-frequency tasks (search/filter baseline, fit, zoom, export).
   - **Advanced controls** are revealed on demand for lower-frequency tasks (layout/theme/focus/edge toggles/subgraph controls).
 - `src/flowchartTransforms.ts` remains responsible for graph visibility and transformation decisions (search filtering, edge filtering, large-graph edge-label behavior).
+- `src/flowchartTransforms.ts` also enforces pre-render graph integrity policy:
+  - deterministic edge dedupe/kind normalization
+  - placeholder node materialization for unresolved edge endpoints
+  - deterministic ordering/fallback placement for large progressive layouts
 - `src/ui/viewerTheme.ts` remains the source of theme tokens, while interactive control styling is standardized at component level using shared class constants.
 
 ## UX and Accessibility Conventions

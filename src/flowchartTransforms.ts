@@ -6,6 +6,9 @@ export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
 export const NODE_HEIGHT_MENU = 80;
 export const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
+const PROGRESSIVE_FALLBACK_MAX_COLUMNS = 16;
+
+const EDGE_KIND_FILTERS: ReadonlyArray<EdgeKindFilter> = ['sequence', 'jump', 'call', 'call_return'];
 
 export interface NodeData extends Record<string, unknown> {
   label: string;
@@ -31,6 +34,62 @@ export type CanvasEdge = LabeledEdgeType;
 
 export type EdgeKindFilter = 'sequence' | 'jump' | 'call' | 'call_return';
 
+function normalizeEdgeKind(kind: string | undefined): EdgeKindFilter {
+  if (kind && EDGE_KIND_FILTERS.includes(kind as EdgeKindFilter)) {
+    return kind as EdgeKindFilter;
+  }
+  return 'sequence';
+}
+
+function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const nodeMap = new Map<string, FlowNode>();
+  const nodes: FlowNode[] = [];
+  for (const node of rawNodes) {
+    if (nodeMap.has(node.id)) continue;
+    nodeMap.set(node.id, node);
+    nodes.push(node);
+  }
+
+  const edges: FlowEdge[] = [];
+  const seenEdgeKeys = new Set<string>();
+  for (const edge of rawEdges) {
+    if (!edge.source || !edge.target) continue;
+    if (!nodeMap.has(edge.source)) {
+      const sourcePlaceholder: FlowNode = {
+        id: edge.source,
+        type: 'LABEL',
+        label: `(unresolved) ${edge.source}`,
+        dialogueCount: 0,
+        chapter: '__unresolved__',
+      };
+      nodeMap.set(edge.source, sourcePlaceholder);
+      nodes.push(sourcePlaceholder);
+    }
+    if (!nodeMap.has(edge.target)) {
+      const targetPlaceholder: FlowNode = {
+        id: edge.target,
+        type: 'LABEL',
+        label: `(unresolved) ${edge.target}`,
+        dialogueCount: 0,
+        chapter: '__unresolved__',
+      };
+      nodeMap.set(edge.target, targetPlaceholder);
+      nodes.push(targetPlaceholder);
+    }
+    const normalizedKind = normalizeEdgeKind(edge.kind);
+    const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${edge.label ?? ''}`;
+    if (seenEdgeKeys.has(semanticKey)) continue;
+    seenEdgeKeys.add(semanticKey);
+    edges.push({
+      ...edge,
+      id: edge.id || `${normalizedKind}_${edge.source}__${edge.target}`,
+      kind: normalizedKind,
+    });
+  }
+
+  return { nodes, edges };
+}
+
 export function applyDagreLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
@@ -40,10 +99,11 @@ export function applyDagreLayout(
     previousPositions?: Map<string, { x: number; y: number }>;
   },
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+  const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
   const shouldUseProgressive =
-    options?.progressive === true && rawNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+    options?.progressive === true && normalizedNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
   if (shouldUseProgressive) {
-    return applyProgressiveDagreLayout(rawNodes, rawEdges, direction, options?.previousPositions);
+    return applyProgressiveDagreLayout(normalizedNodes, normalizedEdges, direction, options?.previousPositions);
   }
 
   const g = new dagre.graphlib.Graph();
@@ -56,14 +116,14 @@ export function applyDagreLayout(
     marginy: 20,
   });
 
-  rawNodes.forEach((n) => {
+  normalizedNodes.forEach((n) => {
     g.setNode(n.id, {
       width: NODE_WIDTH,
       height: n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU,
     });
   });
 
-  rawEdges.forEach((e) => {
+  normalizedEdges.forEach((e) => {
     if (g.hasNode(e.source) && g.hasNode(e.target)) {
       g.setEdge(e.source, e.target);
     }
@@ -71,7 +131,7 @@ export function applyDagreLayout(
 
   dagre.layout(g);
 
-  const nodes: CanvasNode[] = rawNodes.map((n) => {
+  const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = g.node(n.id);
     const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
     return {
@@ -94,7 +154,7 @@ export function applyDagreLayout(
     };
   });
 
-  const edges: CanvasEdge[] = rawEdges
+  const edges: CanvasEdge[] = normalizedEdges
     .filter((e) => g.hasNode(e.source) && g.hasNode(e.target))
     .map((e) => ({
       id: e.id,
@@ -115,7 +175,8 @@ function applyProgressiveDagreLayout(
   direction: 'TB' | 'LR',
   previousPositions?: Map<string, { x: number; y: number }>,
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
-  const subset = rawNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
+  const orderedNodes = previousPositions ? rawNodes : [...rawNodes].sort((a, b) => a.id.localeCompare(b.id));
+  const subset = orderedNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
   const subsetIds = new Set(subset.map((n) => n.id));
   const subsetEdges = rawEdges.filter((e) => subsetIds.has(e.source) && subsetIds.has(e.target));
   const base = applyDagreLayout(subset, subsetEdges, direction);
@@ -134,15 +195,20 @@ function applyProgressiveDagreLayout(
   const fallbackStrideX = NODE_WIDTH + 24;
   const fallbackStrideY = NODE_HEIGHT_LABEL + 24;
   let fallbackIndex = 0;
-  for (const node of rawNodes) {
+  const fallbackColumns = Math.max(
+    4,
+    Math.min(PROGRESSIVE_FALLBACK_MAX_COLUMNS, Math.ceil(Math.sqrt(Math.max(orderedNodes.length, 1)))),
+  );
+  const orderedRemainder = [...orderedNodes].sort((a, b) => a.id.localeCompare(b.id));
+  for (const node of orderedRemainder) {
     if (positionById.has(node.id)) continue;
     const previous = previousPositions?.get(node.id);
     if (previous) {
       positionById.set(node.id, previous);
       continue;
     }
-    const col = fallbackIndex % 8;
-    const row = Math.floor(fallbackIndex / 8);
+    const col = fallbackIndex % fallbackColumns;
+    const row = Math.floor(fallbackIndex / fallbackColumns);
     positionById.set(node.id, {
       x: fallbackStartX + col * fallbackStrideX,
       y: fallbackStartY + row * fallbackStrideY,
@@ -150,7 +216,7 @@ function applyProgressiveDagreLayout(
     fallbackIndex += 1;
   }
 
-  const nodes: CanvasNode[] = rawNodes.map((n) => {
+  const nodes: CanvasNode[] = orderedNodes.map((n) => {
     const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
     return {
@@ -230,8 +296,7 @@ export function buildVisibleNodes(params: {
         : nodeData.label.toLowerCase().includes(query) || String(nodeData.dialogueCount).includes(query)) ||
       (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
-        (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query))) ||
-      String(nodeData.dialogueCount).includes(query);
+        (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query)));
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
     const hidden = Boolean(chapterCollapsed || labelCollapsed || !matchesSearch || !matchesDialogue);
     const previous = previousById?.get(n.id);
@@ -284,7 +349,7 @@ export function buildVisibleEdges(params: {
   const visible: CanvasEdge[] = [];
   for (const edge of edges) {
     const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
-    const kind = (edgeData.kind ?? 'sequence') as EdgeKindFilter;
+    const kind = normalizeEdgeKind(edgeData.kind);
     if (!visibleEdgeKinds[kind]) continue;
     if (!showCallReturns && kind === 'call_return') continue;
     if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;

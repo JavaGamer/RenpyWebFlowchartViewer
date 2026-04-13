@@ -6,7 +6,7 @@ import type { MultiDirectedGraph } from 'graphology';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 
-export interface ParseWarning {
+export interface DynamicTargetParseWarning {
   code: 'dynamic_target';
   chapter: string;
   construct: string;
@@ -14,6 +14,35 @@ export interface ParseWarning {
   message: string;
   sourceId?: string;
 }
+
+export interface NormalizationParseWarning {
+  code: 'normalization';
+  category:
+    | 'invalid_node'
+    | 'missing_edge_source'
+    | 'missing_edge_target'
+    | 'invalid_edge_kind'
+    | 'duplicate_semantic_edge';
+  message: string;
+  nodeId?: string;
+  edgeId?: string;
+  sourceId?: string;
+  targetId?: string;
+  detail?: string;
+}
+
+export interface UnresolvedTargetParseWarning {
+  code: 'unresolved_target';
+  message: string;
+  edgeId: string;
+  sourceId: string;
+  targetId: string;
+}
+
+export type ParseWarning =
+  | DynamicTargetParseWarning
+  | NormalizationParseWarning
+  | UnresolvedTargetParseWarning;
 
 export interface ParseScanState {
   currentLabelId: string | null;

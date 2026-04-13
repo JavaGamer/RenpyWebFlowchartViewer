@@ -86,6 +86,7 @@ describe('parser stage modules', () => {
   it('materializes call return edges from pending call-return pairs', () => {
     const state = createGraphState();
     state.pendingCallReturns.push({ callerLabelId: 'caller', callTargetId: 'callee' });
+    state.hasReturnInLabel.add('callee');
 
     materializeCallReturnEdges(state);
 
