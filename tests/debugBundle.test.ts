@@ -168,4 +168,65 @@ describe('debug bundle privacy defaults', () => {
     expect(decoded).toContain('Parser variant: renpy');
     expect(decoded).toContain('Debug bundle file names included: no');
   });
+
+  it('aliases warning identifiers when extra diagnostics are enabled without raw details', () => {
+    const bundle = buildDebugBundle({
+      appVersion: 'test',
+      state: {
+        phase: 'done',
+        fileCount: 1,
+        importRevision: 1,
+        dialogueSearchMode: 'auto',
+        errorMsg: '',
+        parseProgress: null,
+      },
+      parser: {
+        selectedVariant: 'renpy',
+        customScreenActionRules: [],
+      },
+      graph: {
+        flowNodes: [
+          {
+            id: 'start',
+            type: 'LABEL',
+            label: 'start',
+            chapter: 'ch',
+            dialogueCount: 0,
+          },
+        ],
+        flowEdges: [
+          {
+            id: 'jump_start__missing',
+            source: 'start',
+            target: 'missing',
+            kind: 'jump',
+            label: '',
+          },
+        ],
+      },
+      parseWarnings: [
+        {
+          code: 'unresolved_target',
+          message: 'missing',
+          edgeId: 'jump_start__missing',
+          sourceId: 'start',
+          targetId: 'missing',
+        },
+      ],
+      privacy: {
+        includeFileNames: false,
+        includeRawScriptDetails: false,
+        includeExtraDiagnostics: true,
+      },
+    });
+
+    const warning = (bundle.warnings?.[0] ?? {}) as {
+      edgeId?: string;
+      sourceId?: string;
+      targetId?: string;
+    };
+    expect(warning.edgeId).toBe('e1');
+    expect(warning.sourceId).toBe('n1');
+    expect(warning.targetId).toBe('n_unmapped_2');
+  });
 });

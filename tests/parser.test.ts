@@ -508,6 +508,25 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('does not suppress fallthrough when return is inside a conditional branch', async () => {
+    const script = [
+      'label start:',
+      '    if flag:',
+      '        return',
+      '    "continue"',
+      '',
+      'label next_label:',
+      '    "after conditional"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional_return.rpy', content: script }]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'next_label', kind: 'sequence', label: 'next' }),
+    );
+  });
+
   it('creates a call edge labeled with the option text when call is inside a menu option', async () => {
     const script = [
       'label hub:',
@@ -1007,6 +1026,32 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts multiple screen actions from action list expressions', async () => {
+    const script = [
+      'label start:',
+      '    show screen nav_overlay',
+      '',
+      'screen nav_overlay:',
+      '    textbutton "Jump A" action [Jump("jump_target"), Call("call_target")]',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-action-list.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
   it('extracts direct renpy.jump/renpy.call targets from non-f-string prefixed literals', async () => {
     const script = [
       'label start:',
@@ -1153,6 +1198,28 @@ describe('parseRenpyFiles', () => {
     );
     expect(result.edges).toContainEqual(
       expect.objectContaining({ source: 'intro', target: 'ending' }),
+    );
+  });
+
+  it('emits unresolved-target warnings for edges targeting missing labels', async () => {
+    const result = await parseRenpyFiles([
+      {
+        name: 'missing-target.rpy',
+        content: ['label intro:', '    jump missing_label', ''].join('\n'),
+      },
+    ]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'intro', target: 'missing_label', kind: 'jump' }),
+    );
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'unresolved_target',
+          sourceId: 'intro',
+          targetId: 'missing_label',
+        }),
+      ]),
     );
   });
 

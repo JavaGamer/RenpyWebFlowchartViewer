@@ -4,6 +4,7 @@ import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTran
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
+import { addParseWarning } from './warnings';
 
 interface HandleTokenInput {
   type: number;
@@ -88,16 +89,18 @@ function addDynamicTargetWarning(
     targetExpression.trim(),
     sourceId ?? '',
   ].join('|');
-  if (state.warningIds.has(warningId)) return;
-  state.warningIds.add(warningId);
-  state.warnings.push({
-    code: 'dynamic_target',
-    chapter,
-    construct,
-    targetExpression: targetExpression.trim(),
-    sourceId,
-    message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
-  });
+  addParseWarning(
+    state,
+    {
+      code: 'dynamic_target',
+      chapter,
+      construct,
+      targetExpression: targetExpression.trim(),
+      sourceId,
+      message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
+    },
+    warningId,
+  );
 }
 
 function resolveCallContext(
@@ -375,35 +378,78 @@ function processDirectScreenActionCalls(
   blockText: string,
   screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
-  SCREEN_ACTION_CALL_START_PATTERN.lastIndex = 0;
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const seenCalls = new Set<string>();
   const ignoredMask = buildIgnoredPositionMask(blockText);
+  const emitActionCall = (construct: string, targetExpression: string) => {
+    const callType = screenActionRuleMap.get(construct.toLowerCase());
+    if (!callType) return;
+    const context = resolveCallContext(scanState, meta, menuDepth);
+    const target = extractStaticTargetFromArgumentList(targetExpression);
+    if (!target) {
+      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      return;
+    }
+    const dedupeKey = `${construct.toLowerCase()}|${target}|${context.source ?? ''}`;
+    if (seenCalls.has(dedupeKey)) return;
+    seenCalls.add(dedupeKey);
+    if (callType === 'jump') {
+      emitJumpEdge(state, scanState, target, context, false);
+    } else {
+      emitCallEdge(state, scanState, target, context);
+    }
+  };
+
+  SCREEN_ACTION_CALL_START_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = SCREEN_ACTION_CALL_START_PATTERN.exec(blockText)) !== null) {
     if (ignoredMask[match.index]) {
       continue;
     }
     const construct = match[1];
-    const callType = screenActionRuleMap.get(construct.toLowerCase());
-    if (!callType) {
-      continue;
-    }
+    if (!screenActionRuleMap.has(construct.toLowerCase())) continue;
     const parsed = readParenthesizedArgument(blockText, SCREEN_ACTION_CALL_START_PATTERN.lastIndex);
     if (!parsed) break;
     SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
-    const targetExpression = parsed.argument;
-    const target = extractStaticTargetFromArgumentList(targetExpression);
-    const context = resolveCallContext(scanState, meta, menuDepth);
+    emitActionCall(construct, parsed.argument);
+  }
 
-    if (!target) {
-      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
-      continue;
+  for (const [ruleName] of screenActionRuleMap.entries()) {
+    const callPattern = new RegExp(`\\b(${escapeRegex(ruleName)})\\s*\\(`, 'gi');
+    let callMatch: RegExpExecArray | null;
+    while ((callMatch = callPattern.exec(blockText)) !== null) {
+      const callIndex = callMatch.index;
+      if (ignoredMask[callIndex]) continue;
+      const lineStart = blockText.lastIndexOf('\n', callIndex - 1) + 1;
+      const linePrefix = blockText.slice(lineStart, callIndex);
+      if (!/\baction\b/i.test(linePrefix)) continue;
+      const parsed = readParenthesizedArgument(blockText, callPattern.lastIndex);
+      if (!parsed) break;
+      callPattern.lastIndex = parsed.endIndex;
+      emitActionCall(callMatch[1] ?? ruleName, parsed.argument);
     }
+  }
+}
 
-    if (callType === 'jump') {
-      emitJumpEdge(state, scanState, target, context, false);
-    } else {
-      emitCallEdge(state, scanState, target, context);
-    }
+function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
+  // Wait flags are transient parser intents (e.g. "next function-name is a jump target").
+  // On malformed or mixed token streams, these intents can leak into later tokens and create
+  // false edges; this guard clears stale waits when token context no longer matches.
+  if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) return;
+  if (type === PARSER_TOKENS.kwLabel || type === PARSER_TOKENS.kwMenuObserved) {
+    scanState.waitForJumpTarget = false;
+    scanState.waitForCallTarget = false;
+    scanState.waitForMenuNameForId = null;
+    return;
+  }
+  if (scanState.waitForJumpTarget && type !== PARSER_TOKENS.entityFunctionName) {
+    scanState.waitForJumpTarget = false;
+  }
+  if (scanState.waitForCallTarget && type !== PARSER_TOKENS.entityFunctionName) {
+    scanState.waitForCallTarget = false;
+  }
+  if (scanState.waitForMenuNameForId && type !== PARSER_TOKENS.entityFunctionName) {
+    scanState.waitForMenuNameForId = null;
   }
 }
 
@@ -413,6 +459,7 @@ export function handleToken(
   input: HandleTokenInput,
 ): void {
   const { type, meta, val, chapter, menuDepth, captureDialogueLines, screenActionRuleMap } = input;
+  resetStaleWaitFlags(scanState, type);
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
@@ -607,7 +654,9 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.kwReturn && !meta.hasMenuOptionBlock) {
-    scanState.labelHasExplicitExit = true;
+    if (scanState.conditionalIndentStack.length === 0) {
+      scanState.labelHasExplicitExit = true;
+    }
     state.hasReturnInLabel.add(scanState.currentLabelId);
     return;
   }

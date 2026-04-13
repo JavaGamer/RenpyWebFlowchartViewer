@@ -98,4 +98,18 @@ describe('flowchartTransforms', () => {
     expect(edges).toHaveLength(1);
     expect((edges[0].data as { label: string }).label).toBe('');
   });
+
+  it('creates placeholder nodes for unresolved edge endpoints before layout', () => {
+    const result = applyDagreLayout(
+      [{ id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 }],
+      [{ id: 'jump_start__missing', source: 'start', target: 'missing_label', kind: 'jump' }],
+      'TB',
+    );
+    expect(result.nodes.some((node) => node.id === 'missing_label')).toBe(true);
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'missing_label' }),
+      ]),
+    );
+  });
 });

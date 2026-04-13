@@ -7,6 +7,7 @@ import { addNode, addOutgoing, addIncoming } from '../src/parser/graphMutations'
 import { handleToken } from '../src/parser/tokenHandling';
 import { materializeCallReturnEdges } from '../src/parser/callReturnFinalization';
 import { classifyNodeRole } from '../src/parser/roleClassification';
+import { normalizeGraphState } from '../src/parser/graphNormalization';
 import { processFlatToken, processFlatTokens, processTokenTreeStream } from '../src/parser/tokenScanStage';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
@@ -86,6 +87,7 @@ describe('parser stage modules', () => {
   it('materializes call return edges from pending call-return pairs', () => {
     const state = createGraphState();
     state.pendingCallReturns.push({ callerLabelId: 'caller', callTargetId: 'callee' });
+    state.hasReturnInLabel.add('callee');
 
     materializeCallReturnEdges(state);
 
@@ -279,5 +281,43 @@ describe('parser stage modules', () => {
     expect(state.edges).toEqual(
       expect.arrayContaining([expect.objectContaining({ source: 'next', target: 'start', kind: 'jump' })]),
     );
+  });
+
+  it('normalization rebuilds derived state after dropping duplicate edges', () => {
+    const state = createGraphState();
+    addNode(state, {
+      id: 'start',
+      type: 'LABEL',
+      label: 'start',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    addNode(state, {
+      id: 'next',
+      type: 'LABEL',
+      label: 'next',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    state.edges.push(
+      { id: 'jump_a', source: 'start', target: 'next', kind: 'jump' },
+      { id: 'jump_b', source: 'start', target: 'next', kind: 'jump' },
+    );
+    state.edgeIds.add('jump_a');
+    state.edgeIds.add('jump_b');
+    state.edgeMap.set('jump_a', state.edges[0]!);
+    state.edgeMap.set('jump_b', state.edges[1]!);
+    state.outgoingByLabel.set('start', new Set(['jump']));
+    state.incomingByLabel.set('next', new Set(['jump']));
+
+    normalizeGraphState(state);
+
+    expect(state.edges).toHaveLength(1);
+    expect(state.outgoingByLabel.get('start')?.has('jump')).toBe(true);
+    expect(state.incomingByLabel.get('next')?.has('jump')).toBe(true);
+    expect(state.graph.hasNode('start')).toBe(true);
+    expect(state.graph.hasNode('next')).toBe(true);
+    expect(state.graph.hasEdge(state.edges[0]!.id)).toBe(true);
+    expect(state.pendingGraphEdgeIds.size).toBe(0);
   });
 });
