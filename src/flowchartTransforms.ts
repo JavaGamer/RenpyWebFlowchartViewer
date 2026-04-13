@@ -199,8 +199,7 @@ function applyProgressiveDagreLayout(
     4,
     Math.min(PROGRESSIVE_FALLBACK_MAX_COLUMNS, Math.ceil(Math.sqrt(Math.max(orderedNodes.length, 1)))),
   );
-  const orderedRemainder = [...orderedNodes].sort((a, b) => a.id.localeCompare(b.id));
-  for (const node of orderedRemainder) {
+  for (const node of orderedNodes) {
     if (positionById.has(node.id)) continue;
     const previous = previousPositions?.get(node.id);
     if (previous) {
