@@ -1,6 +1,7 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { ParseGraphState, EdgeKind } from './pipelineTypes';
 import { addParseWarning } from './warnings';
+import { MultiDirectedGraph } from 'graphology';
 
 const VALID_EDGE_KINDS = new Set<EdgeKind>(['sequence', 'jump', 'call', 'call_return']);
 
@@ -14,6 +15,19 @@ function normalizeEdgeKind(edge: FlowEdge): EdgeKind {
 
 function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
   return `${kind}|${edge.source}|${edge.target}|${edge.label ?? ''}`;
+}
+
+function addLabelTraffic(
+  bucket: Map<string, Set<EdgeKind>>,
+  labelId: string,
+  kind: EdgeKind,
+): void {
+  const existing = bucket.get(labelId);
+  if (existing) {
+    existing.add(kind);
+    return;
+  }
+  bucket.set(labelId, new Set([kind]));
 }
 
 export function normalizeGraphState(state: ParseGraphState): void {
@@ -90,19 +104,20 @@ export function normalizeGraphState(state: ParseGraphState): void {
     }
 
     const normalizedKind = normalizeEdgeKind(edge);
+    const normalizedEdgeId = edge.id || `${normalizedKind}_${edge.source}__${edge.target}`;
     if (edge.kind !== normalizedKind) {
       addParseWarning(
         state,
         {
           code: 'normalization',
           category: 'invalid_edge_kind',
-          message: `Normalized edge kind for "${edge.id}" to "${normalizedKind}".`,
-          edgeId: edge.id,
+          message: `Normalized edge kind for "${normalizedEdgeId}" to "${normalizedKind}".`,
+          edgeId: normalizedEdgeId,
           sourceId: edge.source,
           targetId: edge.target,
           detail: String(edge.kind ?? 'undefined'),
         },
-        `normalization|invalid_edge_kind|${edge.id}|${normalizedKind}|${edge.kind ?? 'undefined'}`,
+        `normalization|invalid_edge_kind|${normalizedEdgeId}|${normalizedKind}|${edge.kind ?? 'undefined'}`,
       );
     }
 
@@ -111,19 +126,19 @@ export function normalizeGraphState(state: ParseGraphState): void {
         state,
         {
           code: 'unresolved_target',
-          message: `Edge "${edge.id}" targets unresolved label "${edge.target}".`,
-          edgeId: edge.id,
+          message: `Edge "${normalizedEdgeId}" targets unresolved label "${edge.target}".`,
+          edgeId: normalizedEdgeId,
           sourceId: edge.source,
           targetId: edge.target,
         },
-        `unresolved_target|${edge.id}|${edge.source}|${edge.target}`,
+        `unresolved_target|${normalizedEdgeId}|${edge.source}|${edge.target}`,
       );
     }
 
     const normalizedEdge: FlowEdge = {
       ...edge,
       kind: normalizedKind,
-      id: edge.id || `${normalizedKind}_${edge.source}__${edge.target}`,
+      id: normalizedEdgeId,
     };
     const semanticKey = stableSemanticEdgeId(normalizedEdge, normalizedKind);
     if (semanticEdgeKeys.has(semanticKey)) {
@@ -152,4 +167,40 @@ export function normalizeGraphState(state: ParseGraphState): void {
   state.edgeMap = new Map(normalizedEdges.map((edge) => [edge.id, edge]));
   state.nodeIds = new Set(normalizedNodes.map((node) => node.id));
   state.edgeIds = new Set(normalizedEdges.map((edge) => edge.id));
+  state.allLabelIds = new Set(normalizedNodes.filter((node) => node.type === 'LABEL').map((node) => node.id));
+
+  state.incomingByLabel = new Map();
+  state.outgoingByLabel = new Map();
+  state.calledLabels = new Set();
+  state.calledFromMenuOptionTargets = new Set();
+  state.hasReturnInLabel = new Set(Array.from(state.hasReturnInLabel).filter((labelId) => state.nodeIds.has(labelId)));
+
+  for (const edge of normalizedEdges) {
+    if (state.nodeIds.has(edge.source)) {
+      addLabelTraffic(state.outgoingByLabel, edge.source, edge.kind);
+    }
+    if (state.nodeIds.has(edge.target)) {
+      addLabelTraffic(state.incomingByLabel, edge.target, edge.kind);
+    }
+    if (edge.kind === 'call') {
+      state.calledLabels.add(edge.target);
+      const sourceNode = state.nodeMap.get(edge.source);
+      if (sourceNode?.type === 'MENU') {
+        state.calledFromMenuOptionTargets.add(edge.target);
+      }
+    }
+  }
+
+  state.graph = new MultiDirectedGraph<FlowNode, FlowEdge>();
+  state.pendingGraphEdgeIds = new Set();
+  for (const node of normalizedNodes) {
+    state.graph.addNode(node.id, node);
+  }
+  for (const edge of normalizedEdges) {
+    if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
+      state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+      continue;
+    }
+    state.pendingGraphEdgeIds.add(edge.id);
+  }
 }
