@@ -47,7 +47,7 @@ describe('parseRenpyFiles coverage gaps', () => {
 
     await expect(
       parseRenpyFiles([{ name: 'a.rpy', content: 'label a:\n    return\n' }], {
-        maxParallelFiles: Number.NaN,
+        maxParallelFiles: NaN,
       }),
     ).resolves.toEqual({ nodes: [], edges: [] });
 
