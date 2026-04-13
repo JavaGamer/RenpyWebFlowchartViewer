@@ -87,15 +87,23 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   if (message.type === 'search') {
     const startedAt = performance.now();
+    const requestId = message.requestId;
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      return;
+    }
     const query = message.query.trim();
     if (!query) {
-      postMessageSafe({
-        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-        type: 'search_result',
-        requestId: message.requestId,
-        results: [],
-        elapsedMs: performance.now() - startedAt,
-      });
+      if (!cancelledRequests.has(requestId)) {
+        postMessageSafe({
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'search_result',
+          requestId,
+          results: [],
+          elapsedMs: performance.now() - startedAt,
+        });
+      }
+      cancelledRequests.delete(requestId);
       return;
     }
     const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, 2000));
@@ -120,13 +128,16 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         lineText: entry.item.lineText,
       }));
     }
-    postMessageSafe({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'search_result',
-      requestId: message.requestId,
-      results,
-      elapsedMs: performance.now() - startedAt,
-    });
+    if (!cancelledRequests.has(requestId)) {
+      postMessageSafe({
+        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+        type: 'search_result',
+        requestId,
+        results,
+        elapsedMs: performance.now() - startedAt,
+      });
+    }
+    cancelledRequests.delete(requestId);
     return;
   }
 
