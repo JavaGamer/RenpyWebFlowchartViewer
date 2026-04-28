@@ -123,12 +123,9 @@ function getNodeStartOffset(node: TreeNode, cache: WeakMap<TreeNode, number>): n
 }
 
 function normalizeLiteralString(raw: string): string {
-  if (raw.length >= 2) {
-    const first = raw[0];
-    const last = raw[raw.length - 1];
-    if ((first === '"' && last === '"') || (first === '\'' && last === '\'')) {
-      return raw.slice(1, -1);
-    }
+  const match = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/.exec(raw);
+  if (match) {
+    return match[2] ?? '';
   }
   return raw;
 }

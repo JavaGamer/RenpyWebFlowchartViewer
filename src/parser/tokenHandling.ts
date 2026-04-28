@@ -17,10 +17,10 @@ interface HandleTokenInput {
 }
 
 function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
-  return state.edges.some((edge) => edge.source === sourceId);
+  return state.outgoingByLabel.has(sourceId);
 }
 
-const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(["'])([\s\S]*)\1$/;
+const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const SCREEN_ACTION_CALL_START_PATTERN = /\baction(?:\s+|\s*=\s*)([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
@@ -350,7 +350,7 @@ function processDirectRenpyBlockCalls(
     const callType = match[1] === 'jump' ? 'jump' : 'call';
     const construct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
     const parsed = readParenthesizedArgument(blockText, PYTHON_RENPY_CALL_START_PATTERN.lastIndex);
-    if (!parsed) break;
+    if (!parsed) continue;
     PYTHON_RENPY_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     const targetExpression = parsed.argument;
     const target = extractStaticTargetFromArgumentList(targetExpression);
@@ -409,7 +409,7 @@ function processDirectScreenActionCalls(
     const construct = match[1];
     if (!screenActionRuleMap.has(construct.toLowerCase())) continue;
     const parsed = readParenthesizedArgument(blockText, SCREEN_ACTION_CALL_START_PATTERN.lastIndex);
-    if (!parsed) break;
+    if (!parsed) continue;
     SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     emitActionCall(construct, parsed.argument);
   }
@@ -420,11 +420,8 @@ function processDirectScreenActionCalls(
     while ((callMatch = callPattern.exec(blockText)) !== null) {
       const callIndex = callMatch.index;
       if (ignoredMask[callIndex]) continue;
-      const lineStart = blockText.lastIndexOf('\n', callIndex - 1) + 1;
-      const linePrefix = blockText.slice(lineStart, callIndex);
-      if (!/\baction\b/i.test(linePrefix)) continue;
       const parsed = readParenthesizedArgument(blockText, callPattern.lastIndex);
-      if (!parsed) break;
+      if (!parsed) continue;
       callPattern.lastIndex = parsed.endIndex;
       emitActionCall(callMatch[1] ?? ruleName, parsed.argument);
     }

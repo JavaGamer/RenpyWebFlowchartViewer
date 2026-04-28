@@ -5,8 +5,7 @@ export function materializeCallReturnEdges(state: ParseGraphState): void {
   for (const { callerLabelId, callTargetId } of state.pendingCallReturns) {
     const hasExplicitReturn = state.hasReturnInLabel.has(callTargetId);
     const calleeOutgoing = state.outgoingByLabel.get(callTargetId);
-    const hasHardExitJump = calleeOutgoing?.has('jump') ?? false;
-    if (!hasExplicitReturn || hasHardExitJump) {
+    if (!hasExplicitReturn) {
       continue;
     }
     addEdge(state, {

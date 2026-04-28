@@ -35,7 +35,7 @@ export function maybeUpdateConditionalState(
 
   if (type !== PARSER_TOKENS.kwConditional) return;
   const tokenText = getTokenText();
-  if (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else') {
+  if (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else' || tokenText === 'while') {
     scanState.conditionalIndentStack.push(indent);
   }
 }
