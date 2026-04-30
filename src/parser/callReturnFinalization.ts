@@ -4,7 +4,6 @@ import { addEdge } from './graphMutations';
 export function materializeCallReturnEdges(state: ParseGraphState): void {
   for (const { callerLabelId, callTargetId } of state.pendingCallReturns) {
     const hasExplicitReturn = state.hasReturnInLabel.has(callTargetId);
-    const calleeOutgoing = state.outgoingByLabel.get(callTargetId);
     if (!hasExplicitReturn) {
       continue;
     }

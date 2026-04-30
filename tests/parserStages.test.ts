@@ -74,6 +74,8 @@ describe('parser stage modules', () => {
       val: () => '',
       chapter: 'ch',
       menuDepth: 0,
+      captureDialogueLines: true,
+      screenActionRuleMap: new Map(),
     });
 
     expect(scanState.waitForLabelName).toBe(true);
@@ -177,6 +179,8 @@ describe('parser stage modules', () => {
       val: () => 'menu',
       chapter: 'ch',
       menuDepth: 1,
+      captureDialogueLines: true,
+      screenActionRuleMap: new Map(),
     });
 
     expect(state.outgoingByLabel.get('start')?.has('sequence')).toBe(true);

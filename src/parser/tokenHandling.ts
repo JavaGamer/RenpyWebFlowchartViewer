@@ -31,10 +31,21 @@ function readParenthesizedArgument(
   let depth = 1;
   let index = argumentStartIndex;
   let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
 
   while (index < text.length) {
     const char = text[index];
     if (activeQuote) {
+      if (tripleQuoted) {
+        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+          index += 3;
+          activeQuote = null;
+          tripleQuoted = false;
+        } else {
+          index += 1;
+        }
+        continue;
+      }
       if (char === '\\') {
         index += (index + 1 < text.length) ? 2 : 1;
         continue;
@@ -46,6 +57,12 @@ function readParenthesizedArgument(
       continue;
     }
 
+    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
+      activeQuote = char;
+      tripleQuoted = true;
+      index += 3;
+      continue;
+    }
     if (char === '"' || char === '\'') {
       activeQuote = char;
       index += 1;
@@ -172,23 +189,40 @@ function extractLiteralTarget(expression: string): string | null {
   const trimmed = expression.trim();
   const match = QUOTED_LITERAL_PATTERN.exec(trimmed);
   if (!match) return null;
-  return match[2] ?? null;
+  const value = match[2] ?? null;
+  if (value !== null && value.trim().length === 0) return null;
+  return value;
 }
 
 function splitTopLevelArguments(argumentList: string): string[] {
   const args: string[] = [];
   let depth = 0;
   let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
   let start = 0;
 
   for (let i = 0; i < argumentList.length; i += 1) {
     const char = argumentList[i];
     if (activeQuote) {
+      if (tripleQuoted) {
+        if (char === activeQuote && argumentList[i + 1] === activeQuote && argumentList[i + 2] === activeQuote) {
+          i += 2;
+          activeQuote = null;
+          tripleQuoted = false;
+        }
+        continue;
+      }
       if (char === '\\') {
         i += 1;
         continue;
       }
       if (char === activeQuote) activeQuote = null;
+      continue;
+    }
+    if ((char === '"' || char === '\'') && argumentList[i + 1] === char && argumentList[i + 2] === char) {
+      activeQuote = char;
+      tripleQuoted = true;
+      i += 2;
       continue;
     }
     if (char === '"' || char === '\'') {
@@ -218,14 +252,29 @@ function splitTopLevelArguments(argumentList: string): string[] {
 function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '='): number {
   let depth = 0;
   let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
     if (activeQuote) {
+      if (tripleQuoted) {
+        if (char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+          i += 2;
+          activeQuote = null;
+          tripleQuoted = false;
+        }
+        continue;
+      }
       if (char === '\\') {
         i += 1;
         continue;
       }
       if (char === activeQuote) activeQuote = null;
+      continue;
+    }
+    if ((char === '"' || char === '\'') && text[i + 1] === char && text[i + 2] === char) {
+      activeQuote = char;
+      tripleQuoted = true;
+      i += 2;
       continue;
     }
     if (char === '"' || char === '\'') {

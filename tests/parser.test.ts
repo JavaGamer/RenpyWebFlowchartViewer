@@ -1244,4 +1244,140 @@ describe('parseRenpyFiles', () => {
 
     expect(parallel).toEqual(sequential);
   });
+
+  // ── Triple-quoted string handling regression tests ─────────────────────────────
+
+  it('extracts renpy.call target from triple-quoted string argument', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.call("""call_target""")',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'triple-q-call.rpy', content: script }]);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+    );
+  });
+
+  it('extracts renpy.jump target from triple-quoted string with inner parens', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump("""target_with_(parens)""")',
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'triple-q-parens.rpy', content: script }]);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'target_with_(parens)', kind: 'jump' }),
+    );
+  });
+
+  it('splits arguments correctly when triple-quoted string contains a comma', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.call("""a,b""", from_current=True)',
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'triple-q-comma.rpy', content: script }]);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'a,b', kind: 'call' }),
+    );
+  });
+
+  it('resolves keyword arg with triple-quoted value containing equals sign', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      "        renpy.jump(label='''x=y''')",
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'triple-q-eq.rpy', content: script }]);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'x=y', kind: 'jump' }),
+    );
+  });
+
+  it('handles triple-quoted string with inner quotes and parens in renpy.call', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.call("""label("x")""")',
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'triple-q-inner-quotes.rpy', content: script }]);
+    const callEdge = result.edges.find(
+      (e) => e.kind === 'call' && e.source === 'start',
+    );
+    expect(callEdge).toBeDefined();
+    expect(callEdge?.target).toBe('label("x")');
+  });
+
+  // ── Whitespace-only target regression tests ────────────────────────────────────
+
+  it('treats whitespace-only renpy.jump target as dynamic and emits a warning', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump(" ")',
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'whitespace-target.rpy', content: script }]);
+    const jumpEdge = result.edges.find(
+      (e) => e.kind === 'jump' && e.source === 'start' && e.target === ' ',
+    );
+    expect(jumpEdge).toBeUndefined();
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          construct: 'renpy.jump',
+        }),
+      ]),
+    );
+  });
+
+  it('treats empty-string renpy.call target as dynamic and emits a warning', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.call("")',
+      '',
+      'label next:',
+      '    return',
+      '',
+    ].join('\n');
+    const result = await parseRenpyFiles([{ name: 'empty-target.rpy', content: script }]);
+    const callEdge = result.edges.find(
+      (e) => e.kind === 'call' && e.source === 'start' && e.target === '',
+    );
+    expect(callEdge).toBeUndefined();
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          construct: 'renpy.call',
+        }),
+      ]),
+    );
+  });
 });
