@@ -18,6 +18,8 @@ import { saveAs } from 'file-saver';
 import App from '../src/App';
 import * as parser from '../src/parser';
 import * as infrastructure from '../src/infrastructure';
+import { useAppStore } from '../src/application/appStore';
+import { useParserRuleSettingsStore, defaultParserRuleSettings } from '../src/application/parserRuleSettingsStore';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +126,9 @@ describe('App – upload → parse → render integration', () => {
     // (0), the cache must be cleared between tests to avoid stale results.
     Tokenizer.clearTokenCache();
     globalThis.localStorage.clear();
+    // Reset Zustand stores to initial state between tests.
+    useAppStore.setState(useAppStore.getInitialState());
+    useParserRuleSettingsStore.setState(defaultParserRuleSettings);
   });
 
   afterEach(() => {

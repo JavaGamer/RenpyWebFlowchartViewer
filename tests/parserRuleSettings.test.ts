@@ -1,57 +1,69 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  defaultParserRuleSettings,
-  loadParserRuleSettings,
-  saveParserRuleSettings,
-} from '../src/application/parserRuleSettings';
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it } from 'vitest';
+import { useParserRuleSettingsStore, defaultParserRuleSettings } from '../src/application/parserRuleSettingsStore';
 import { STORAGE_KEYS } from '../src/config/storageKeys';
 
-describe('parserRuleSettings storage', () => {
-  const createStorage = () => {
-    const store = new Map<string, string>();
-    return {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        store.set(key, value);
-      },
-      clear: () => {
-        store.clear();
-      },
-    };
-  };
-
+describe('useParserRuleSettingsStore persistence', () => {
   beforeEach(() => {
-    vi.stubGlobal('localStorage', createStorage());
     globalThis.localStorage.clear();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
+    useParserRuleSettingsStore.setState(defaultParserRuleSettings);
   });
 
   it('returns defaults when storage is empty', () => {
-    expect(loadParserRuleSettings()).toEqual(defaultParserRuleSettings);
+    const state = useParserRuleSettingsStore.getState();
+    expect(state.selectedVariant).toBe(defaultParserRuleSettings.selectedVariant);
+    expect(state.customRulesByVariant).toEqual(defaultParserRuleSettings.customRulesByVariant);
   });
 
-  it('persists and restores selected variant with per-variant custom rules', () => {
-    saveParserRuleSettings({
-      selectedVariant: 'st',
-      customRulesByVariant: {
-        renpy: [{ actionName: 'Warp', actionKind: 'jump' }],
-        st: [{ actionName: 'Title', actionKind: 'call' }],
-      },
-    });
-    expect(loadParserRuleSettings()).toEqual({
-      selectedVariant: 'st',
-      customRulesByVariant: {
-        renpy: [{ actionName: 'Warp', actionKind: 'jump' }],
-        st: [{ actionName: 'Title', actionKind: 'call' }],
-      },
-    });
+  it('persists settings to localStorage when variant is changed', () => {
+    useParserRuleSettingsStore.getState().setSelectedVariant('st');
+    const raw = globalThis.localStorage.getItem(STORAGE_KEYS.parserSettings);
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw as string) as { state?: { selectedVariant?: string } };
+    expect(parsed.state?.selectedVariant).toBe('st');
   });
 
-  it('falls back to defaults when storage payload is invalid', () => {
-    globalThis.localStorage.setItem(STORAGE_KEYS.parserSettings, '{"selectedVariant":"unknown"}');
-    expect(loadParserRuleSettings()).toEqual(defaultParserRuleSettings);
+  it('adds and removes custom rules for the active variant', () => {
+    useParserRuleSettingsStore.getState().addCustomRule();
+    useParserRuleSettingsStore.getState().updateCustomRule(0, { actionName: 'Warp', actionKind: 'call' });
+    let state = useParserRuleSettingsStore.getState();
+    expect(state.customRulesByVariant.renpy).toEqual([{ actionName: 'Warp', actionKind: 'call' }]);
+
+    useParserRuleSettingsStore.getState().removeCustomRule(0);
+    state = useParserRuleSettingsStore.getState();
+    expect(state.customRulesByVariant.renpy).toEqual([]);
+  });
+
+  it('resets to defaults', () => {
+    useParserRuleSettingsStore.getState().setSelectedVariant('st');
+    useParserRuleSettingsStore.getState().addCustomRule();
+    useParserRuleSettingsStore.getState().resetSettings();
+    const state = useParserRuleSettingsStore.getState();
+    expect(state.selectedVariant).toBe('renpy');
+    expect(state.customRulesByVariant).toEqual(defaultParserRuleSettings.customRulesByVariant);
+  });
+
+  it('validates and normalizes data rehydrated from localStorage', async () => {
+    // Write a payload with an invalid variant and a malformed rule directly to the
+    // store's underlying localStorage (the same storage instance the persist middleware uses).
+    const raw = JSON.stringify({
+      state: {
+        selectedVariant: 'unknown',
+        customRulesByVariant: {
+          renpy: [{ actionName: 'Warp', actionKind: 'jump' }, { actionName: '', actionKind: 'jump' }],
+          st: [],
+        },
+      },
+      version: 0,
+    });
+    globalThis.localStorage.setItem(STORAGE_KEYS.parserSettings, raw);
+
+    // Trigger rehydration so the store reads and validates the stored data.
+    await useParserRuleSettingsStore.persist.rehydrate();
+    const state = useParserRuleSettingsStore.getState();
+    // Invalid variant falls back to default.
+    expect(state.selectedVariant).toBe('renpy');
+    // Valid rule is kept, empty actionName rule is filtered.
+    expect(state.customRulesByVariant.renpy).toEqual([{ actionName: 'Warp', actionKind: 'jump' }]);
   });
 });

@@ -15,7 +15,6 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@renpy/ast": "^0.1.0",
-    "vscode-languageserver-textdocument": "^1.0.12",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-virtual": "^3.13.23",
     "@xyflow/react": "^12.10.2",
@@ -23,11 +22,14 @@
     "fuse.js": "^7.3.0",
     "graphology": "^0.26.0",
     "html-to-image": "^1.11.13",
+    "immer": "^11.1.4",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "tailwindcss": "^4.2.2"
+    "tailwindcss": "^4.2.2",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
