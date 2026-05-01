@@ -375,7 +375,7 @@ export default function App() {
                       type="button"
                       aria-label={`Remove custom rule ${idx + 1}`}
                       className="rounded-md border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50"
-                      onClick={() => removeCustomRuleCb(idx)}
+                      onClick={() => removeCustomRule(idx)}
                     >
                       Remove
                     </button>
@@ -384,7 +384,7 @@ export default function App() {
               </div>
               <button
                 type="button"
-                onClick={addCustomRuleCb}
+                onClick={addCustomRule}
                 className="mt-3 rounded-md border border-violet-300 px-2 py-1 text-[11px] text-violet-700 hover:bg-violet-50"
               >
                 Add custom rule
