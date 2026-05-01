@@ -1,30 +1,40 @@
-import { describe, expect, it } from 'vitest';
-import { appReducer, initialAppState } from '../src/application/appState';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { useAppStore } from '../src/application/appStore';
 
-describe('appReducer', () => {
+describe('useAppStore', () => {
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState());
+  });
+
   it('transitions to reading with initialized progress', () => {
-    const next = appReducer(initialAppState, { type: 'START_READING', fileCount: 2 });
-    expect(next.phase).toBe('reading');
-    expect(next.parseProgress).toEqual({ doneFiles: 0, totalFiles: 2, currentFile: '' });
-    expect(next.importRevision).toBe(0);
+    useAppStore.getState().startReading(2);
+    const state = useAppStore.getState();
+    expect(state.phase).toBe('reading');
+    expect(state.parseProgress).toEqual({ doneFiles: 0, totalFiles: 2, currentFile: '' });
+    expect(state.importRevision).toBe(0);
   });
 
   it('transitions to success and clears progress', () => {
-    const reading = appReducer(initialAppState, { type: 'START_READING', fileCount: 1 });
-    const next = appReducer(reading, { type: 'PARSE_SUCCESS', nodes: [], edges: [] });
-    expect(next.phase).toBe('done');
-    expect(next.parseProgress).toBeNull();
-    expect(next.parseWarnings).toEqual([]);
-    expect(next.importRevision).toBe(1);
+    useAppStore.getState().startReading(1);
+    useAppStore.getState().parseSuccess([], []);
+    const state = useAppStore.getState();
+    expect(state.phase).toBe('done');
+    expect(state.parseProgress).toBeNull();
+    expect(state.parseWarnings).toEqual([]);
+    expect(state.importRevision).toBe(1);
   });
 
   it('updates dialogue search mode', () => {
-    const next = appReducer(initialAppState, { type: 'SET_DIALOGUE_SEARCH_MODE', mode: 'countOnly' });
-    expect(next.dialogueSearchMode).toBe('countOnly');
+    useAppStore.getState().setDialogueSearchMode('countOnly');
+    expect(useAppStore.getState().dialogueSearchMode).toBe('countOnly');
   });
 
-  it('returns previous state for unknown actions', () => {
-    const next = appReducer(initialAppState, { type: 'UNKNOWN_ACTION' } as never);
-    expect(next).toBe(initialAppState);
+  it('resets to initial state', () => {
+    useAppStore.getState().startReading(5);
+    useAppStore.getState().reset();
+    const state = useAppStore.getState();
+    expect(state.phase).toBe('idle');
+    expect(state.fileCount).toBe(0);
+    expect(state.parseProgress).toBeNull();
   });
 });

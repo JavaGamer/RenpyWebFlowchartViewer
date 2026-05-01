@@ -8,22 +8,20 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Upload, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { FlowchartViewer } from './ui';
 import { createPerfTracker } from './perf';
 import {
-  appReducer,
+  useAppStore,
+  useParserRuleSettingsStore,
   buildDebugBundle,
   buildIssueDraftUrl,
-  initialAppState,
   workerParseService,
   createProcessUpload,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
-  defaultParserRuleSettings,
-  loadParserRuleSettings,
-  saveParserRuleSettings,
   toDebugBundleBlob,
   type DebugBundlePrivacyOptions,
 } from './application';
@@ -38,20 +36,44 @@ import {
 
 export default function App() {
   const perf = useMemo(() => createPerfTracker('app'), []);
-  const [state, dispatch] = useReducer(appReducer, initialAppState);
-  const [parserSettings, setParserSettings] = useState(loadParserRuleSettings);
+
+  // ── App state (Zustand store) ───────────────────────────────────────────────
+  const phase = useAppStore((s) => s.phase);
+  const flowNodes = useAppStore((s) => s.flowNodes);
+  const flowEdges = useAppStore((s) => s.flowEdges);
+  const parseWarnings = useAppStore((s) => s.parseWarnings);
+  const errorMsg = useAppStore((s) => s.errorMsg);
+  const fileCount = useAppStore((s) => s.fileCount);
+  const parseProgress = useAppStore((s) => s.parseProgress);
+  const importRevision = useAppStore((s) => s.importRevision);
+  const dialogueSearchMode = useAppStore((s) => s.dialogueSearchMode);
+  const appActions = useAppStore(useShallow((s) => ({
+    reset: s.reset,
+    startReading: s.startReading,
+    startParsing: s.startParsing,
+    setProgress: s.setProgress,
+    partialParseSuccess: s.partialParseSuccess,
+    parseSuccess: s.parseSuccess,
+    setDialogueSearchMode: s.setDialogueSearchMode,
+    fail: s.fail,
+  })));
+
+  // ── Parser settings (Zustand persist store) ─────────────────────────────────
+  const selectedVariant = useParserRuleSettingsStore((s) => s.selectedVariant);
+  const customRulesByVariant = useParserRuleSettingsStore((s) => s.customRulesByVariant);
+  const setSelectedVariant = useParserRuleSettingsStore((s) => s.setSelectedVariant);
+  const addCustomRule = useParserRuleSettingsStore((s) => s.addCustomRule);
+  const updateCustomRule = useParserRuleSettingsStore((s) => s.updateCustomRule);
+  const removeCustomRule = useParserRuleSettingsStore((s) => s.removeCustomRule);
+  const resetParserRuleSettings = useParserRuleSettingsStore((s) => s.resetSettings);
+  const selectedVariantCustomRules = customRulesByVariant[selectedVariant];
+
   const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<DebugBundlePrivacyOptions>(
     DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   );
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const selectedVariant = parserSettings.selectedVariant;
-  const selectedVariantCustomRules = parserSettings.customRulesByVariant[selectedVariant];
-
-  useEffect(() => {
-    saveParserRuleSettings(parserSettings);
-  }, [parserSettings]);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFilesWithPerf = useCallback(
@@ -59,10 +81,10 @@ export default function App() {
       perf.mark('read');
       const processFiles = createProcessUpload({
         parseService: workerParseService,
-        dispatch,
+        actions: appActions,
         activeRunIdRef,
         parseAbortControllerRef,
-        dialogueSearchMode: state.dialogueSearchMode,
+        dialogueSearchMode,
         parserVariant: selectedVariant,
         customScreenActionRules: selectedVariantCustomRules,
         onReadMeasured: (fileCount) => {
@@ -77,79 +99,52 @@ export default function App() {
       });
       await processFiles(files);
     },
-    [dispatch, perf, selectedVariant, selectedVariantCustomRules, state.dialogueSearchMode],
+    [appActions, perf, selectedVariant, selectedVariantCustomRules, dialogueSearchMode],
   );
 
-  const setSelectedVariant = useCallback((variant: ParserVariant) => {
-    setParserSettings((prev) => ({ ...prev, selectedVariant: variant }));
-  }, []);
+  const setSelectedVariantCb = useCallback((variant: ParserVariant) => {
+    setSelectedVariant(variant);
+  }, [setSelectedVariant]);
 
-  const updateCustomRule = useCallback((
+  const updateCustomRuleCb = useCallback((
     idx: number,
     patch: Partial<{ actionName: string; actionKind: ScreenActionKind }>,
   ) => {
-    setParserSettings((prev) => {
-      const current = prev.customRulesByVariant[prev.selectedVariant];
-      const nextRules = current.map((rule, ruleIdx) => (
-        ruleIdx === idx ? { ...rule, ...patch } : rule
-      ));
-      return {
-        ...prev,
-        customRulesByVariant: {
-          ...prev.customRulesByVariant,
-          [prev.selectedVariant]: nextRules,
-        },
-      };
-    });
-  }, []);
+    updateCustomRule(idx, patch);
+  }, [updateCustomRule]);
 
-  const addCustomRule = useCallback(() => {
-    setParserSettings((prev) => ({
-      ...prev,
-      customRulesByVariant: {
-        ...prev.customRulesByVariant,
-        [prev.selectedVariant]: [
-          ...prev.customRulesByVariant[prev.selectedVariant],
-          { actionName: '', actionKind: 'jump' },
-        ],
-      },
-    }));
-  }, []);
+  const addCustomRuleCb = useCallback(() => {
+    addCustomRule();
+  }, [addCustomRule]);
 
-  const removeCustomRule = useCallback((idx: number) => {
-    setParserSettings((prev) => ({
-      ...prev,
-      customRulesByVariant: {
-        ...prev.customRulesByVariant,
-        [prev.selectedVariant]: prev.customRulesByVariant[prev.selectedVariant].filter((_, i) => i !== idx),
-      },
-    }));
-  }, []);
+  const removeCustomRuleCb = useCallback((idx: number) => {
+    removeCustomRule(idx);
+  }, [removeCustomRule]);
 
-  const resetParserRuleSettings = useCallback(() => {
-    setParserSettings(defaultParserRuleSettings);
-  }, []);
+  const resetParserRuleSettingsCb = useCallback(() => {
+    resetParserRuleSettings();
+  }, [resetParserRuleSettings]);
   const appVersion = import.meta.env.VITE_APP_VERSION ?? '0.0.0';
   const exportDebugBundle = useCallback((privacy: DebugBundlePrivacyOptions) => {
     const bundle = buildDebugBundle({
       appVersion,
       state: {
-        phase: state.phase,
-        fileCount: state.fileCount,
-        importRevision: state.importRevision,
-        dialogueSearchMode: state.dialogueSearchMode,
-        errorMsg: state.errorMsg,
-        parseProgress: state.parseProgress,
+        phase,
+        fileCount,
+        importRevision,
+        dialogueSearchMode,
+        errorMsg,
+        parseProgress,
       },
       parser: {
         selectedVariant,
         customScreenActionRules: selectedVariantCustomRules,
       },
       graph: {
-        flowNodes: state.flowNodes,
-        flowEdges: state.flowEdges,
+        flowNodes,
+        flowEdges,
       },
-      parseWarnings: state.parseWarnings,
+      parseWarnings,
       privacy,
     });
     saveAs(toDebugBundleBlob(bundle), 'renpy-flowchart-debug-bundle.json');
@@ -157,15 +152,15 @@ export default function App() {
     appVersion,
     selectedVariant,
     selectedVariantCustomRules,
-    state.dialogueSearchMode,
-    state.errorMsg,
-    state.fileCount,
-    state.flowEdges,
-    state.flowNodes,
-    state.importRevision,
-    state.parseProgress,
-    state.parseWarnings,
-    state.phase,
+    dialogueSearchMode,
+    errorMsg,
+    fileCount,
+    flowEdges,
+    flowNodes,
+    importRevision,
+    parseProgress,
+    parseWarnings,
+    phase,
   ]);
   const openNewIssue = useCallback((privacy: DebugBundlePrivacyOptions) => {
     const issueUrl = buildIssueDraftUrl({
@@ -173,21 +168,21 @@ export default function App() {
       repo: 'RenpyWebFlowchartViewer',
       privacy,
       state: {
-        phase: state.phase,
-        dialogueSearchMode: state.dialogueSearchMode,
+        phase,
+        dialogueSearchMode,
         selectedVariant,
-        fileCount: state.fileCount,
-        warningCount: state.parseWarnings.length,
+        fileCount,
+        warningCount: parseWarnings.length,
       },
     });
     if (typeof globalThis.open !== 'function') return;
     globalThis.open(issueUrl, '_blank', 'noopener,noreferrer');
   }, [
     selectedVariant,
-    state.dialogueSearchMode,
-    state.fileCount,
-    state.parseWarnings.length,
-    state.phase,
+    dialogueSearchMode,
+    fileCount,
+    parseWarnings.length,
+    phase,
   ]);
 
   // ── Drag-and-drop support ──────────────────────────────────────────────────
@@ -208,17 +203,17 @@ export default function App() {
   }, []);
   const totalSizeMiB = Math.round(MAX_TOTAL_RPY_SIZE_BYTES / (1024 * 1024));
   const statusMessage =
-    state.phase === 'idle'
+    phase === 'idle'
       ? `Step 1 of 3 — Select a project folder with up to ${MAX_RPY_FILE_COUNT} .rpy files (${totalSizeMiB} MiB total).`
-      : state.phase === 'reading'
+      : phase === 'reading'
         ? 'Step 2 of 3 — Reading selected files locally in your browser.'
-        : state.phase === 'parsing'
+        : phase === 'parsing'
           ? 'Step 3 of 3 — Parsing scripts and building graph nodes and edges.'
-          : state.phase === 'error'
+          : phase === 'error'
             ? 'Import failed. Review the guidance below, then choose a folder again.'
-            : state.phase === 'done' && state.flowNodes.length === 0
+            : phase === 'done' && flowNodes.length === 0
               ? 'Import completed, but no labels or menus were found.'
-              : state.phase === 'done'
+              : phase === 'done'
                 ? 'Import complete. You can now explore, filter, and export the graph.'
                 : '';
 
@@ -247,39 +242,39 @@ export default function App() {
         </header>
 
       {/* Main content */}
-      {state.phase === 'done' && state.flowNodes.length > 0 ? (
+      {phase === 'done' && flowNodes.length > 0 ? (
         /* ── Flowchart view ─────────────────────────────────────────────── */
         <main id="flowchart-main" className="flex-1 flex flex-col overflow-hidden" aria-label="Flowchart viewer">
           {/* Re-upload button */}
           <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-violet-700">
             <span>
-              Parsed <strong>{state.fileCount}</strong> .rpy file
-              {state.fileCount !== 1 ? 's' : ''} →{' '}
-              <strong>{state.flowNodes.length}</strong> nodes,{' '}
-              <strong>{state.flowEdges.length}</strong> edges
+              Parsed <strong>{fileCount}</strong> .rpy file
+              {fileCount !== 1 ? 's' : ''} →{' '}
+              <strong>{flowNodes.length}</strong> nodes,{' '}
+              <strong>{flowEdges.length}</strong> edges
             </span>
-            {state.parseWarnings.length > 0 && (
+            {parseWarnings.length > 0 && (
               <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                {state.parseWarnings.length} parse warning{state.parseWarnings.length === 1 ? '' : 's'}
+                {parseWarnings.length} parse warning{parseWarnings.length === 1 ? '' : 's'}
               </span>
             )}
             <button
               onClick={() => {
-                dispatch({ type: 'RESET' });
+                appActions.reset();
               }}
               className="sm:ml-auto text-xs underline text-violet-600 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
             >
               Upload a different folder
             </button>
           </div>
-          {state.parseWarnings.length > 0 && (
+          {parseWarnings.length > 0 && (
             <section
               className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
               aria-label="Parser warnings"
             >
               <p className="text-sm font-semibold">Parser warnings</p>
               <ul className="mt-1 list-disc pl-5 text-xs space-y-1">
-                {state.parseWarnings.map((warning, idx) => (
+                {parseWarnings.map((warning, idx) => (
                   <li key={`${warning.chapter}-${warning.construct}-${warning.targetExpression}-${idx}`}>
                     <span className="font-medium">{warning.construct}</span> in <span className="font-medium">{warning.chapter}</span>: {warning.message}
                   </li>
@@ -288,11 +283,11 @@ export default function App() {
             </section>
           )}
           <FlowchartViewer
-            key={state.importRevision}
-            flowNodes={state.flowNodes}
-            flowEdges={state.flowEdges}
-            dialogueSearchMode={state.dialogueSearchMode}
-            onDialogueSearchModeChange={(mode) => dispatch({ type: 'SET_DIALOGUE_SEARCH_MODE', mode })}
+            key={importRevision}
+            flowNodes={flowNodes}
+            flowEdges={flowEdges}
+            dialogueSearchMode={dialogueSearchMode}
+            onDialogueSearchModeChange={(mode) => appActions.setDialogueSearchMode(mode)}
             debugPrivacyOptions={debugPrivacyOptions}
             onDebugPrivacyOptionsChange={setDebugPrivacyOptions}
             onExportDebugBundle={exportDebugBundle}
@@ -307,7 +302,7 @@ export default function App() {
               className="mb-3 text-xs text-gray-600 bg-white border border-gray-200 rounded-xl px-3 py-2"
               role="status"
               aria-live="polite"
-              aria-busy={state.phase === 'reading' || state.phase === 'parsing'}
+              aria-busy={phase === 'reading' || phase === 'parsing'}
               aria-atomic="true"
             >
               {statusMessage}
@@ -320,16 +315,16 @@ export default function App() {
               onDragOver={onDragOver}
               className="flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed border-violet-300 bg-white hover:bg-violet-50 hover:border-violet-400 transition-colors cursor-pointer p-5 sm:p-6"
             >
-               {state.phase === 'reading' || state.phase === 'parsing' ? (
+               {phase === 'reading' || phase === 'parsing' ? (
                  <>
                    <Loader2 size={40} className="text-violet-500 animate-spin" aria-hidden="true" />
                    <p className="text-gray-600 font-medium">
-                     {state.phase === 'reading'
-                       ? `Reading ${state.fileCount} .rpy file${state.fileCount !== 1 ? 's' : ''}…`
-                       : `Parsing ${state.parseProgress?.doneFiles ?? 0} / ${state.parseProgress?.totalFiles ?? state.fileCount} .rpy file${(state.parseProgress?.totalFiles ?? state.fileCount) !== 1 ? 's' : ''}…`}
+                     {phase === 'reading'
+                       ? `Reading ${fileCount} .rpy file${fileCount !== 1 ? 's' : ''}…`
+                       : `Parsing ${parseProgress?.doneFiles ?? 0} / ${parseProgress?.totalFiles ?? fileCount} .rpy file${(parseProgress?.totalFiles ?? fileCount) !== 1 ? 's' : ''}…`}
                    </p>
-                   {state.parseProgress?.currentFile && (
-                     <p className="text-xs text-gray-500">Current: {state.parseProgress.currentFile}</p>
+                   {parseProgress?.currentFile && (
+                     <p className="text-xs text-gray-500">Current: {parseProgress.currentFile}</p>
                    )}
                  </>
               ) : (
@@ -359,7 +354,7 @@ export default function App() {
                   id="parser-variant"
                   aria-label="Parser variant"
                   value={selectedVariant}
-                  onChange={(event) => setSelectedVariant(event.target.value as ParserVariant)}
+                  onChange={(event) => setSelectedVariantCb(event.target.value as ParserVariant)}
                   className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
                 >
                   {PARSER_VARIANTS.map((variant) => (
@@ -371,7 +366,7 @@ export default function App() {
                 <button
                   type="button"
                   className="ml-auto text-[11px] underline text-gray-500 hover:text-gray-700"
-                  onClick={resetParserRuleSettings}
+                  onClick={resetParserRuleSettingsCb}
                 >
                   Reset variant + custom rules
                 </button>
@@ -385,14 +380,14 @@ export default function App() {
                     <input
                       aria-label={`Custom rule action ${idx + 1}`}
                       value={rule.actionName}
-                      onChange={(event) => updateCustomRule(idx, { actionName: event.target.value })}
+                      onChange={(event) => updateCustomRuleCb(idx, { actionName: event.target.value })}
                       className="min-w-36 flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
                       placeholder="action name"
                     />
                     <select
                       aria-label={`Custom rule action type ${idx + 1}`}
                       value={rule.actionKind}
-                      onChange={(event) => updateCustomRule(idx, { actionKind: event.target.value as ScreenActionKind })}
+                      onChange={(event) => updateCustomRuleCb(idx, { actionKind: event.target.value as ScreenActionKind })}
                       className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
                     >
                       <option value="jump">jump</option>
@@ -402,7 +397,7 @@ export default function App() {
                       type="button"
                       aria-label={`Remove custom rule ${idx + 1}`}
                       className="rounded-md border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50"
-                      onClick={() => removeCustomRule(idx)}
+                      onClick={() => removeCustomRuleCb(idx)}
                     >
                       Remove
                     </button>
@@ -411,7 +406,7 @@ export default function App() {
               </div>
               <button
                 type="button"
-                onClick={addCustomRule}
+                onClick={addCustomRuleCb}
                 className="mt-3 rounded-md border border-violet-300 px-2 py-1 text-[11px] text-violet-700 hover:bg-violet-50"
               >
                 Add custom rule
@@ -432,7 +427,7 @@ export default function App() {
               onChange={(e) => void processFilesWithPerf(e.target.files)}
             />
 
-             {state.phase === 'parsing' && (
+             {phase === 'parsing' && (
                <div className="mt-4 flex justify-center">
                  <button
                   type="button"
@@ -446,12 +441,12 @@ export default function App() {
               )}
 
              {/* Error message */}
-               {state.phase === 'error' && (
+               {phase === 'error' && (
                 <div className="mt-4 flex flex-col items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
                   <div className="flex flex-col sm:flex-row items-start gap-2">
                   <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
                   <div className="text-sm space-y-1">
-                    <p>{state.errorMsg}</p>
+                    <p>{errorMsg}</p>
                     <p className="text-xs text-red-800">
                       Next steps: confirm the folder contains valid <code className="px-1 rounded bg-red-100">.rpy</code> scripts, then retry.
                     </p>
@@ -467,7 +462,7 @@ export default function App() {
                    </button>
                     <button
                       type="button"
-                      onClick={() => dispatch({ type: 'RESET' })}
+                      onClick={() => appActions.reset()}
                      className="text-xs underline text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
                    >
                       Start over
@@ -523,7 +518,7 @@ export default function App() {
                )}
 
              {/* Empty result warning */}
-              {state.phase === 'done' && state.flowNodes.length === 0 && (
+              {phase === 'done' && flowNodes.length === 0 && (
                <div className="mt-4 flex flex-col sm:flex-row items-start gap-2 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
                  <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
                  <div className="text-sm space-y-1">

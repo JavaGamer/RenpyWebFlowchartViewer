@@ -1,9 +1,9 @@
-import type { Dispatch, RefObject } from 'react';
+import type { RefObject } from 'react';
 import type { FlowEdge, FlowNode } from '../domain';
 import { readFileAsText } from '../infrastructure';
 
 import { validateRpyUpload } from './uploadValidation';
-import type { AppAction, DialogueSearchMode } from './appState';
+import type { AppActions, DialogueSearchMode } from './appStore';
 import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
@@ -11,7 +11,7 @@ import type { ParseWarningPayload } from '../infrastructure';
 
 export interface ProcessUploadDeps {
   parseService: ParseService;
-  dispatch: Dispatch<AppAction>;
+  actions: Pick<AppActions, 'startReading' | 'startParsing' | 'setProgress' | 'partialParseSuccess' | 'parseSuccess' | 'fail'>;
   activeRunIdRef: RefObject<number>;
   parseAbortControllerRef: RefObject<AbortController | null>;
   onReadMeasured?: (fileCount: number) => void;
@@ -29,7 +29,7 @@ const LARGE_PROJECT_THRESHOLD = 200;
 export function createProcessUpload(deps: ProcessUploadDeps) {
   const {
     parseService,
-    dispatch,
+    actions,
     activeRunIdRef,
     parseAbortControllerRef,
     onReadMeasured,
@@ -54,20 +54,20 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     const { rpyFiles, errorMessage } = validateRpyUpload(files);
     if (errorMessage) {
-      dispatch({ type: 'FAIL', message: errorMessage });
+      actions.fail(errorMessage);
       return;
     }
     const controller = new AbortController();
     parseAbortControllerRef.current = controller;
 
-    dispatch({ type: 'START_READING', fileCount: rpyFiles.length });
+    actions.startReading(rpyFiles.length);
 
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
     let parsedWarnings: ParseWarningPayload[] = [];
     try {
       onParseStarted?.();
-      dispatch({ type: 'START_PARSING' });
+      actions.startParsing();
       const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
       const effectiveDialogueMode =
         dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
@@ -106,23 +106,18 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 signal: controller.signal,
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
-                  dispatch({ type: 'PROGRESS', progress: {
+                  actions.setProgress({
                     doneFiles: Math.min(parsedFileCount + progress.doneFiles, rpyFiles.length),
                     totalFiles: rpyFiles.length,
                     currentFile: progress.currentFile,
-                  } });
+                  });
                 },
                 onPartialResult: (partial) => {
                   if (!isActiveRun()) return;
                   parsedNodes = partial.nodes;
                   parsedEdges = partial.edges;
                   parsedWarnings = partial.warnings ?? parsedWarnings;
-                  dispatch({
-                    type: 'PARTIAL_PARSE_SUCCESS',
-                    nodes: parsedNodes,
-                    edges: parsedEdges,
-                    warnings: parsedWarnings,
-                  });
+                  actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
                 },
               });
               parsedNodes = result.nodes;
@@ -144,40 +139,32 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               signal: controller.signal,
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
-                dispatch({ type: 'PROGRESS', progress: {
+                actions.setProgress({
                   doneFiles: Math.min(parsedFileCount + progress.doneFiles, rpyFiles.length),
                   totalFiles: rpyFiles.length,
                   currentFile: progress.currentFile,
-                } });
+                });
               },
             });
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
             parsedWarnings = result.warnings ?? [];
             parsedFileCount += inputs.length;
-            dispatch({
-              type: 'PARTIAL_PARSE_SUCCESS',
-              nodes: parsedNodes,
-              edges: parsedEdges,
-              warnings: parsedWarnings,
-            });
+            actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
           }
         } catch (err: unknown) {
           if (!isActiveRun()) return;
-          dispatch({
-            type: 'FAIL',
-            message: toParseErrorMessage(err),
-          });
+          actions.fail(toParseErrorMessage(err));
           return;
         }
       }
     } catch (err: unknown) {
       if (!isActiveRun()) return;
-      dispatch({ type: 'FAIL', message: toFileReadErrorMessage(err) });
+      actions.fail(toFileReadErrorMessage(err));
       return;
     }
     if (!isActiveRun()) return;
     onParseMeasured?.({ fileCount: rpyFiles.length, nodeCount: parsedNodes.length, edgeCount: parsedEdges.length });
-    dispatch({ type: 'PARSE_SUCCESS', nodes: parsedNodes, edges: parsedEdges, warnings: parsedWarnings });
+    actions.parseSuccess(parsedNodes, parsedEdges, parsedWarnings);
   };
 }
