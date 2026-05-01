@@ -102,28 +102,6 @@ export default function App() {
     [appActions, perf, selectedVariant, selectedVariantCustomRules, dialogueSearchMode],
   );
 
-  const setSelectedVariantCb = useCallback((variant: ParserVariant) => {
-    setSelectedVariant(variant);
-  }, [setSelectedVariant]);
-
-  const updateCustomRuleCb = useCallback((
-    idx: number,
-    patch: Partial<{ actionName: string; actionKind: ScreenActionKind }>,
-  ) => {
-    updateCustomRule(idx, patch);
-  }, [updateCustomRule]);
-
-  const addCustomRuleCb = useCallback(() => {
-    addCustomRule();
-  }, [addCustomRule]);
-
-  const removeCustomRuleCb = useCallback((idx: number) => {
-    removeCustomRule(idx);
-  }, [removeCustomRule]);
-
-  const resetParserRuleSettingsCb = useCallback(() => {
-    resetParserRuleSettings();
-  }, [resetParserRuleSettings]);
   const appVersion = import.meta.env.VITE_APP_VERSION ?? '0.0.0';
   const exportDebugBundle = useCallback((privacy: DebugBundlePrivacyOptions) => {
     const bundle = buildDebugBundle({
@@ -354,7 +332,7 @@ export default function App() {
                   id="parser-variant"
                   aria-label="Parser variant"
                   value={selectedVariant}
-                  onChange={(event) => setSelectedVariantCb(event.target.value as ParserVariant)}
+                  onChange={(event) => setSelectedVariant(event.target.value as ParserVariant)}
                   className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
                 >
                   {PARSER_VARIANTS.map((variant) => (
@@ -366,7 +344,7 @@ export default function App() {
                 <button
                   type="button"
                   className="ml-auto text-[11px] underline text-gray-500 hover:text-gray-700"
-                  onClick={resetParserRuleSettingsCb}
+                  onClick={resetParserRuleSettings}
                 >
                   Reset variant + custom rules
                 </button>
@@ -380,14 +358,14 @@ export default function App() {
                     <input
                       aria-label={`Custom rule action ${idx + 1}`}
                       value={rule.actionName}
-                      onChange={(event) => updateCustomRuleCb(idx, { actionName: event.target.value })}
+                      onChange={(event) => updateCustomRule(idx, { actionName: event.target.value })}
                       className="min-w-36 flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
                       placeholder="action name"
                     />
                     <select
                       aria-label={`Custom rule action type ${idx + 1}`}
                       value={rule.actionKind}
-                      onChange={(event) => updateCustomRuleCb(idx, { actionKind: event.target.value as ScreenActionKind })}
+                      onChange={(event) => updateCustomRule(idx, { actionKind: event.target.value as ScreenActionKind })}
                       className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
                     >
                       <option value="jump">jump</option>
