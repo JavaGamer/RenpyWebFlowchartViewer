@@ -38,15 +38,27 @@ export default function App() {
   const perf = useMemo(() => createPerfTracker('app'), []);
 
   // ── App state (Zustand store) ───────────────────────────────────────────────
-  const phase = useAppStore((s) => s.phase);
-  const flowNodes = useAppStore((s) => s.flowNodes);
-  const flowEdges = useAppStore((s) => s.flowEdges);
-  const parseWarnings = useAppStore((s) => s.parseWarnings);
-  const errorMsg = useAppStore((s) => s.errorMsg);
-  const fileCount = useAppStore((s) => s.fileCount);
-  const parseProgress = useAppStore((s) => s.parseProgress);
-  const importRevision = useAppStore((s) => s.importRevision);
-  const dialogueSearchMode = useAppStore((s) => s.dialogueSearchMode);
+  const {
+    phase,
+    flowNodes,
+    flowEdges,
+    parseWarnings,
+    errorMsg,
+    fileCount,
+    parseProgress,
+    importRevision,
+    dialogueSearchMode,
+  } = useAppStore(useShallow((s) => ({
+    phase: s.phase,
+    flowNodes: s.flowNodes,
+    flowEdges: s.flowEdges,
+    parseWarnings: s.parseWarnings,
+    errorMsg: s.errorMsg,
+    fileCount: s.fileCount,
+    parseProgress: s.parseProgress,
+    importRevision: s.importRevision,
+    dialogueSearchMode: s.dialogueSearchMode,
+  })));
   const appActions = useAppStore(useShallow((s) => ({
     reset: s.reset,
     startReading: s.startReading,

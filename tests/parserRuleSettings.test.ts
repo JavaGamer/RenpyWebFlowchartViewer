@@ -43,7 +43,7 @@ describe('useParserRuleSettingsStore persistence', () => {
     expect(state.customRulesByVariant).toEqual(defaultParserRuleSettings.customRulesByVariant);
   });
 
-  it('validates and normalizes data rehydrated from localStorage', () => {
+  it('validates and normalizes data rehydrated from localStorage', async () => {
     // Write a payload with an invalid variant and a malformed rule directly to the
     // store's underlying localStorage (the same storage instance the persist middleware uses).
     const raw = JSON.stringify({
@@ -59,7 +59,7 @@ describe('useParserRuleSettingsStore persistence', () => {
     globalThis.localStorage.setItem(STORAGE_KEYS.parserSettings, raw);
 
     // Trigger rehydration so the store reads and validates the stored data.
-    useParserRuleSettingsStore.persist.rehydrate();
+    await useParserRuleSettingsStore.persist.rehydrate();
     const state = useParserRuleSettingsStore.getState();
     // Invalid variant falls back to default.
     expect(state.selectedVariant).toBe('renpy');

@@ -107,17 +107,29 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
     })),
     {
       name: STORAGE_KEYS.parserSettings,
-      storage: createJSONStorage(() => {
-        try {
-          return globalThis.localStorage;
-        } catch {
-          return {
-            getItem: () => null,
-            setItem: () => undefined,
-            removeItem: () => undefined,
-          };
-        }
-      }),
+      storage: createJSONStorage(() => ({
+        getItem: (key: string) => {
+          try {
+            return globalThis.localStorage.getItem(key);
+          } catch {
+            return null;
+          }
+        },
+        setItem: (key: string, value: string) => {
+          try {
+            globalThis.localStorage.setItem(key, value);
+          } catch {
+            // ignore write failures (e.g. quota exceeded, restricted browsing mode)
+          }
+        },
+        removeItem: (key: string) => {
+          try {
+            globalThis.localStorage.removeItem(key);
+          } catch {
+            // ignore
+          }
+        },
+      })),
       merge: (persisted, current) => mergePersistedState(persisted, current),
       partialize: (state): ParserRuleSettings => ({
         selectedVariant: state.selectedVariant,
