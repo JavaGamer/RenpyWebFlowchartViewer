@@ -183,7 +183,6 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           },
             idx,
           );
-          buildDialogueSearchIndex(accumulatedState.nodes);
         if (wantsProgress) {
           const now = performance.now();
           const nextProgress: ProgressResponseMessage = {
@@ -289,6 +288,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     cancelledRequests.delete(requestId);
     if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
       accumulatedState = createGraphState();
+    }
+    if (wasCancelled) {
       dialogueSearchDocs = [];
       dialogueSearchFuse = null;
     }

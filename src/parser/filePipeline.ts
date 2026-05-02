@@ -85,18 +85,5 @@ export async function parseOneFile(
   fileIndex?: number,
 ) {
   const tokenized = await tokenizeOneFile(file, options, fileIndex);
-  const { chapter, document, tokenTree } = tokenized;
-  parserPerf.mark('scan');
-  const scanState = createScanState();
-  processTokenTreeStream(
-    state,
-    scanState,
-    tokenTree,
-    document,
-    chapter,
-    options.captureDialogueLines !== false,
-    options.parserVariant,
-    options.screenActionRules,
-  );
-  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
+  processTokenizedFile(state, tokenized, options);
 }
