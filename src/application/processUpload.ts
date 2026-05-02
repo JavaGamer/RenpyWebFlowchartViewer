@@ -126,7 +126,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               });
               parsedNodes = result.nodes;
               parsedEdges = result.edges;
-              parsedWarnings = result.warnings ?? [];
+              parsedWarnings = result.warnings ?? parsedWarnings;
               parsedFileCount += parseChunk.length;
             }
           } else {
@@ -157,7 +157,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             });
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
-            parsedWarnings = result.warnings ?? [];
+            parsedWarnings = result.warnings ?? parsedWarnings;
             parsedFileCount += inputs.length;
             actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
           }
