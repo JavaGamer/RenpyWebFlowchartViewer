@@ -156,14 +156,13 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
 
   try {
     let result;
-      if (appendToActiveGraph) {
-        if (resetActiveGraph) {
-          accumulatedState = createGraphState();
-          dialogueSearchDocs = [];
-          dialogueSearchFuse = null;
-        }
-      if (message.requestId !== activeRequestId) return;
-        for (let idx = 0; idx < files.length; idx += 1) {
+    if (appendToActiveGraph) {
+      if (resetActiveGraph) {
+        accumulatedState = createGraphState();
+        dialogueSearchDocs = [];
+        dialogueSearchFuse = null;
+      }
+      for (let idx = 0; idx < files.length; idx += 1) {
         if (activeRequestId !== requestId) {
           return;
         }
@@ -171,9 +170,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           throw new Error('Parsing cancelled');
         }
         const file = files[idx];
-          await parseOneFile(
-            accumulatedState,
-            file,
+        await parseOneFile(
+          accumulatedState,
+          file,
           {
             captureDialogueLines: message.captureDialogueLines !== false,
             tokenizedCache,
@@ -181,8 +180,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
             parserVariant: message.parserVariant,
             screenActionRules: message.screenActionRules,
           },
-            idx,
-          );
+          idx,
+        );
         if (wantsProgress) {
           const now = performance.now();
           const nextProgress: ProgressResponseMessage = {
