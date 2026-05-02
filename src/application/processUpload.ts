@@ -65,9 +65,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
     let parsedWarnings: ParseWarningPayload[] = [];
+    let hasStartedParsing = false;
     try {
-      onParseStarted?.();
-      actions.startParsing();
       const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
       const effectiveDialogueMode =
         dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
@@ -92,6 +91,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             const isLastReadBatch = offset + batch.length >= rpyFiles.length;
             for (let parseOffset = 0; parseOffset < inputs.length; parseOffset += PARSE_BATCH_SIZE) {
               if (!isActiveRun()) return;
+              if (!hasStartedParsing) {
+                hasStartedParsing = true;
+                onParseStarted?.();
+                actions.startParsing();
+              }
               const parseChunk = inputs.slice(parseOffset, parseOffset + PARSE_BATCH_SIZE);
               const isLastParseChunkInBatch = parseOffset + parseChunk.length >= inputs.length;
               const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
@@ -128,6 +132,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
           } else {
             const isFirstReadBatch = offset === 0;
             const isLastReadBatch = offset + batch.length >= rpyFiles.length;
+            if (!hasStartedParsing) {
+              hasStartedParsing = true;
+              onParseStarted?.();
+              actions.startParsing();
+            }
             const result = await parseService.parse({
               files: inputs,
               appendToActiveGraph: true,
