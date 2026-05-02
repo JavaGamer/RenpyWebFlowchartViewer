@@ -148,23 +148,24 @@ function renderHighlightedText(text: string, query: string) {
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
-  const [meta, data] = dataUrl.split(',');
-  const isBase64 = meta?.includes(';base64');
-  const mimeMatch = meta?.match(/data:([^;]+)/);
+  const commaIdx = dataUrl.indexOf(',');
+  const meta = commaIdx >= 0 ? dataUrl.slice(0, commaIdx) : dataUrl;
+  const data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : '';
+  const isBase64 = meta.includes(';base64');
+  const mimeMatch = meta.match(/data:([^;]+)/);
   const mimeType = mimeMatch?.[1] ?? 'application/octet-stream';
   if (isBase64) {
-    const decoded = atob(data ?? '');
+    const decoded = atob(data);
     const bytes = new Uint8Array(decoded.length);
     for (let i = 0; i < decoded.length; i += 1) {
       bytes[i] = decoded.charCodeAt(i);
     }
     return new Blob([bytes], { type: mimeType });
   }
-  const textData = data ?? '';
   try {
-    return new Blob([decodeURIComponent(textData)], { type: mimeType });
+    return new Blob([decodeURIComponent(data)], { type: mimeType });
   } catch {
-    return new Blob([textData], { type: mimeType });
+    return new Blob([data], { type: mimeType });
   }
 }
 
