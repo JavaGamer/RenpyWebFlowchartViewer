@@ -222,6 +222,17 @@ export default function FlowchartViewer({
     ? dialogueSearchMode
     : standaloneDialogueSearchMode;
 
+  const handleDialogueModeChange = useCallback(
+    (mode: DialogueSearchMode) => {
+      if (onDialogueSearchModeChange) {
+        onDialogueSearchModeChange(mode);
+      } else {
+        setStandaloneDialogueSearchMode(mode);
+      }
+    },
+    [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
+  );
+
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
     [flowEdges.length, flowNodes.length],
@@ -629,8 +640,7 @@ export default function FlowchartViewer({
         minDialogue={minDialogue}
         setMinDialogue={setMinDialogue}
         selectedDialogueSearchMode={selectedDialogueSearchMode}
-        onDialogueSearchModeChange={onDialogueSearchModeChange}
-        setStandaloneDialogueSearchMode={setStandaloneDialogueSearchMode}
+        onDialogueSearchModeChange={handleDialogueModeChange}
         isLargeExportTarget={isLargeExportTarget}
         onExport={onExport}
         onExportSvg={onExportSvg}

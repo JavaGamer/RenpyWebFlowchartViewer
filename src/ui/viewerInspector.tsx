@@ -27,7 +27,7 @@ export interface ViewerInspectorProps {
   onSelectDialogueSearchResult: (result: DialogueSearchResult) => void;
 }
 
-/* eslint-disable react-hooks/incompatible-library */
+/* eslint-disable react-hooks/incompatible-library -- @tanstack/react-virtual uses React's own hooks; the rule fires a false-positive because it cannot detect the compatible peer-dependency declaration */
 export function ViewerInspector({
   effectiveSearch,
   nodeSearchMatchCount,

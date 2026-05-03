@@ -26,8 +26,7 @@ export interface ViewerToolbarProps {
   minDialogue: number;
   setMinDialogue: (v: number) => void;
   selectedDialogueSearchMode: DialogueSearchMode;
-  onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
-  setStandaloneDialogueSearchMode: (mode: DialogueSearchMode) => void;
+  onDialogueSearchModeChange: (mode: DialogueSearchMode) => void;
 
   isLargeExportTarget: boolean;
   onExport: () => void;
@@ -60,7 +59,6 @@ export function ViewerToolbar({
   setMinDialogue,
   selectedDialogueSearchMode,
   onDialogueSearchModeChange,
-  setStandaloneDialogueSearchMode,
   isLargeExportTarget,
   onExport,
   onExportSvg,
@@ -119,14 +117,7 @@ export function ViewerToolbar({
               <select
                 id="dialogue-search-mode-input"
                 value={selectedDialogueSearchMode}
-                onChange={(e) => {
-                  const mode = e.target.value as DialogueSearchMode;
-                  if (onDialogueSearchModeChange) {
-                    onDialogueSearchModeChange(mode);
-                    return;
-                  }
-                  setStandaloneDialogueSearchMode(mode);
-                }}
+                onChange={(e) => onDialogueSearchModeChange(e.target.value as DialogueSearchMode)}
                 aria-label="Dialogue search mode"
                 className={CONTROL_INPUT_CLASS}
               >
