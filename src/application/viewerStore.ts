@@ -15,7 +15,7 @@ import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { DialogueSearchResult } from '../infrastructure';
 import type { EdgeKindFilter } from '../flowchartTransforms';
-import type { ThemeName, LayoutDirection } from '../ui/viewerTypes';
+import type { ThemeName, LayoutDirection } from '../ui';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import type { DialogueSearchMode } from './appStore';
 
