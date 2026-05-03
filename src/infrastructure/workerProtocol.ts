@@ -39,11 +39,6 @@ export interface ParseWorkerClientResult {
   warnings?: ParseWarningPayload[];
 }
 
-/** @deprecated Use ParseWorkerClientRequest. */
-export type ParseWorkerRequest = ParseWorkerClientRequest;
-/** @deprecated Use ParseWorkerClientResult. */
-export type ParseWorkerResult = ParseWorkerClientResult;
-
 export interface ParseRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
   type: 'parse';

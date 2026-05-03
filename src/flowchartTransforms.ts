@@ -1,6 +1,7 @@
 import dagre from '@dagrejs/dagre';
 import type { Edge, Node } from '@xyflow/react';
-import type { FlowNode, FlowEdge } from './domain';
+import type { FlowNode, FlowEdge, EdgeKind } from './domain';
+import type { ThemeName } from './ui/viewerTypes';
 
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
@@ -32,7 +33,7 @@ export type CanvasNode = LabelNodeType | MenuNodeType;
 export type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
 export type CanvasEdge = LabeledEdgeType;
 
-export type EdgeKindFilter = 'sequence' | 'jump' | 'call' | 'call_return';
+export type EdgeKindFilter = EdgeKind;
 
 function normalizeEdgeKind(kind: string | undefined): EdgeKindFilter {
   if (kind && EDGE_KIND_FILTERS.includes(kind as EdgeKindFilter)) {
@@ -103,13 +104,14 @@ export function applyDagreLayout(
   options?: {
     progressive?: boolean;
     previousPositions?: Map<string, { x: number; y: number }>;
+    theme?: ThemeName;
   },
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
   const shouldUseProgressive =
     options?.progressive === true && normalizedNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
   if (shouldUseProgressive) {
-    return applyProgressiveDagreLayout(normalizedNodes, normalizedEdges, direction, options?.previousPositions);
+    return applyProgressiveDagreLayout(normalizedNodes, normalizedEdges, direction, options?.previousPositions, options?.theme);
   }
 
   const g = new dagre.graphlib.Graph();
@@ -137,6 +139,7 @@ export function applyDagreLayout(
 
   dagre.layout(g);
 
+  const resolvedTheme: ThemeName = options?.theme ?? 'violet';
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = g.node(n.id);
     const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
@@ -154,7 +157,7 @@ export function applyDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
-        theme: 'violet',
+        theme: resolvedTheme,
       },
       draggable: true,
     };
@@ -180,6 +183,7 @@ function applyProgressiveDagreLayout(
   rawEdges: FlowEdge[],
   direction: 'TB' | 'LR',
   previousPositions?: Map<string, { x: number; y: number }>,
+  theme?: ThemeName,
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const orderedNodes = previousPositions
     ? rawNodes
@@ -187,7 +191,7 @@ function applyProgressiveDagreLayout(
   const subset = orderedNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
   const subsetIds = new Set(subset.map((n) => n.id));
   const subsetEdges = rawEdges.filter((e) => subsetIds.has(e.source) && subsetIds.has(e.target));
-  const base = applyDagreLayout(subset, subsetEdges, direction);
+  const base = applyDagreLayout(subset, subsetEdges, direction, { theme });
   const positionById = new Map<string, { x: number; y: number }>(
     base.nodes.map((n) => [n.id, n.position]),
   );
@@ -223,6 +227,7 @@ function applyProgressiveDagreLayout(
     fallbackIndex += 1;
   }
 
+  const resolvedTheme: ThemeName = theme ?? 'violet';
   const nodes: CanvasNode[] = orderedNodes.map((n) => {
     const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
@@ -237,7 +242,7 @@ function applyProgressiveDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
-        theme: 'violet',
+        theme: resolvedTheme,
       },
       draggable: true,
       measured: { width: NODE_WIDTH, height: h },

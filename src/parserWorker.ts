@@ -109,19 +109,12 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, 2000));
     const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
-    if (allowedIds) {
-      const scopedDocs = dialogueSearchDocs.filter((doc) => allowedIds.has(doc.nodeId));
-      if (scopedDocs.length > 0) {
-        const scopedFuse = new Fuse(scopedDocs, DIALOGUE_FUSE_OPTIONS);
-        results = scopedFuse.search(query, { limit: maxResults }).map((entry) => ({
-          nodeId: entry.item.nodeId,
-          nodeLabel: entry.item.nodeLabel,
-          lineIndex: entry.item.lineIndex,
-          lineText: entry.item.lineText,
-        }));
-      }
-    } else if (dialogueSearchFuse) {
-      results = dialogueSearchFuse.search(query, { limit: maxResults }).map((entry) => ({
+    if (dialogueSearchFuse) {
+      const rawResults = dialogueSearchFuse.search(query, { limit: allowedIds ? 2000 : maxResults });
+      const filtered = allowedIds
+        ? rawResults.filter((entry) => allowedIds.has(entry.item.nodeId))
+        : rawResults;
+      results = filtered.slice(0, maxResults).map((entry) => ({
         nodeId: entry.item.nodeId,
         nodeLabel: entry.item.nodeLabel,
         lineIndex: entry.item.lineIndex,

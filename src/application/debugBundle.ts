@@ -1,6 +1,6 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { ParseWarningPayload } from '../infrastructure';
-import type { DialogueSearchMode, ParseProgress } from './appState';
+import type { DialogueSearchMode, ParseProgress } from './appStore';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 
 export const DEBUG_BUNDLE_SCHEMA_VERSION = 1 as const;
