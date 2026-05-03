@@ -22,6 +22,13 @@ export {
 } from './parserRuleSettingsStore';
 export { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 export {
+  useViewerStore,
+  type ViewerPersistedState,
+  type ViewerSessionState,
+  type ViewerActions,
+  type ViewerStore,
+} from './viewerStore';
+export {
   DEBUG_BUNDLE_SCHEMA_VERSION,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   buildDebugBundle,

@@ -7,4 +7,5 @@ export const STORAGE_KEYS = {
   edgeCallReturn: 'rfv.edge.call_return',
   debugPerf: 'rfv.debugPerf',
   parserSettings: 'rfv.parser.settings',
+  viewer: 'rfv.viewer',
 } as const;
