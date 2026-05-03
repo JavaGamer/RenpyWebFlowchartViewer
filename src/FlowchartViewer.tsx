@@ -22,15 +22,16 @@ import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'luci
 import { saveAs } from 'file-saver';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import debounce from 'lodash.debounce';
+import { useShallow } from 'zustand/react/shallow';
 import type { FlowNode, FlowEdge } from './domain';
 import {
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   type DialogueSearchMode,
   type ParseService,
   type DebugBundlePrivacyOptions,
+  useViewerStore,
 } from './application';
 import { workerParseService } from './application';
-import { STORAGE_KEYS } from './config/storageKeys';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
   INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
@@ -44,7 +45,6 @@ import type { ThemeName, LayoutDirection } from './ui/viewerTypes';
 import {
   type CanvasNode,
   type CanvasEdge,
-  type EdgeKindFilter,
   applyDagreLayout,
   buildVisibleEdges,
   buildVisibleNodes,
@@ -76,24 +76,6 @@ const CONTROL_BUTTON_CLASS =
 const PRIMARY_BUTTON_CLASS =
   'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
 const MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES = 24;
-
-function getStoredValue(key: string): string | null {
-  try {
-    if (typeof globalThis.localStorage === 'undefined') return null;
-    return globalThis.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function setStoredValue(key: string, value: string): void {
-  try {
-    if (typeof globalThis.localStorage === 'undefined') return;
-    globalThis.localStorage.setItem(key, value);
-  } catch {
-    // Ignore storage write failures (e.g., restricted/privacy modes).
-  }
-}
 
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],
@@ -183,35 +165,100 @@ export default function FlowchartViewer({
   const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
-  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('TB');
-  const [searchInput, setSearchInput] = useState('');
-  const [labelSubgraphSearchInput, setLabelSubgraphSearchInput] = useState('');
-  const [minDialogue, setMinDialogue] = useState(0);
-  const [theme, setTheme] = useState<ThemeName>(() => {
-    const raw = getStoredValue(STORAGE_KEYS.theme);
-    if (raw === 'violet' || raw === 'highContrast' || raw === 'colorblind') return raw;
-    return 'violet';
-  });
-  const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
-  const [collapsedParentLabels, setCollapsedParentLabels] = useState<Record<string, boolean>>({});
-  const [showCallReturns, setShowCallReturns] = useState(
-    () => getStoredValue(STORAGE_KEYS.showCallReturns) === 'true',
-  );
-  const [visibleEdgeKinds, setVisibleEdgeKinds] = useState<Record<EdgeKindFilter, boolean>>(() => ({
-    sequence: getStoredValue(STORAGE_KEYS.edgeSequence) !== 'false',
-    jump: getStoredValue(STORAGE_KEYS.edgeJump) !== 'false',
-    call: getStoredValue(STORAGE_KEYS.edgeCall) !== 'false',
-    call_return: getStoredValue(STORAGE_KEYS.edgeCallReturn) !== 'false',
-  }));
-  const [focusNodeId, setFocusNodeId] = useState<string>('');
-  const [largeGraphModeOverride, setLargeGraphModeOverride] = useState<boolean | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
-  const [selectedDialogueLineIndex, setSelectedDialogueLineIndex] = useState<number | null>(null);
-  const [showAllInspectorLines, setShowAllInspectorLines] = useState(false);
-  const [activeDialogueResultIndex, setActiveDialogueResultIndex] = useState(-1);
-  const [dialogueSearchResults, setDialogueSearchResults] = useState<DialogueSearchResult[]>([]);
-  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
-  const [showAllLabelSubgraphToggles, setShowAllLabelSubgraphToggles] = useState(false);
+
+  // ── Viewer store ─────────────────────────────────────────────────────────────
+  const {
+    layoutDirection,
+    searchInput,
+    labelSubgraphSearchInput,
+    minDialogue,
+    theme,
+    collapsedChapters,
+    collapsedParentLabels,
+    showCallReturns,
+    visibleEdgeKinds,
+    focusNodeId,
+    largeGraphModeOverride,
+    selectedNodeId,
+    selectedDialogueLineIndex,
+    showAllInspectorLines,
+    activeDialogueResultIndex,
+    dialogueSearchResults,
+    showAdvancedControls,
+    showAllLabelSubgraphToggles,
+    standaloneDialogueSearchMode,
+  } = useViewerStore(useShallow((s) => ({
+    layoutDirection: s.layoutDirection,
+    searchInput: s.searchInput,
+    labelSubgraphSearchInput: s.labelSubgraphSearchInput,
+    minDialogue: s.minDialogue,
+    theme: s.theme,
+    collapsedChapters: s.collapsedChapters,
+    collapsedParentLabels: s.collapsedParentLabels,
+    showCallReturns: s.showCallReturns,
+    visibleEdgeKinds: s.visibleEdgeKinds,
+    focusNodeId: s.focusNodeId,
+    largeGraphModeOverride: s.largeGraphModeOverride,
+    selectedNodeId: s.selectedNodeId,
+    selectedDialogueLineIndex: s.selectedDialogueLineIndex,
+    showAllInspectorLines: s.showAllInspectorLines,
+    activeDialogueResultIndex: s.activeDialogueResultIndex,
+    dialogueSearchResults: s.dialogueSearchResults,
+    showAdvancedControls: s.showAdvancedControls,
+    showAllLabelSubgraphToggles: s.showAllLabelSubgraphToggles,
+    standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
+  })));
+  const {
+    setLayoutDirection,
+    setSearchInput,
+    setLabelSubgraphSearchInput,
+    setMinDialogue,
+    setTheme,
+    toggleChapter,
+    toggleParentLabel,
+    setAllParentLabelsCollapsed,
+    setShowCallReturns,
+    setEdgeKindVisible,
+    setFocusNodeId,
+    setLargeGraphModeOverride,
+    setSelectedNodeId,
+    setSelectedDialogueLineIndex,
+    toggleShowAllInspectorLines,
+    setShowAllInspectorLines,
+    setActiveDialogueResultIndex,
+    setDialogueSearchResults,
+    toggleShowAdvancedControls,
+    toggleShowAllLabelSubgraphToggles,
+    setStandaloneDialogueSearchMode,
+    resetSession,
+  } = useViewerStore(useShallow((s) => ({
+    setLayoutDirection: s.setLayoutDirection,
+    setSearchInput: s.setSearchInput,
+    setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
+    setMinDialogue: s.setMinDialogue,
+    setTheme: s.setTheme,
+    toggleChapter: s.toggleChapter,
+    toggleParentLabel: s.toggleParentLabel,
+    setAllParentLabelsCollapsed: s.setAllParentLabelsCollapsed,
+    setShowCallReturns: s.setShowCallReturns,
+    setEdgeKindVisible: s.setEdgeKindVisible,
+    setFocusNodeId: s.setFocusNodeId,
+    setLargeGraphModeOverride: s.setLargeGraphModeOverride,
+    setSelectedNodeId: s.setSelectedNodeId,
+    setSelectedDialogueLineIndex: s.setSelectedDialogueLineIndex,
+    toggleShowAllInspectorLines: s.toggleShowAllInspectorLines,
+    setShowAllInspectorLines: s.setShowAllInspectorLines,
+    setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
+    setDialogueSearchResults: s.setDialogueSearchResults,
+    toggleShowAdvancedControls: s.toggleShowAdvancedControls,
+    toggleShowAllLabelSubgraphToggles: s.toggleShowAllLabelSubgraphToggles,
+    setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
+    resetSession: s.resetSession,
+  })));
+
+  // Reset session state when this component unmounts (e.g. on new import).
+  useEffect(() => () => resetSession(), [resetSession]);
+
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const dialogueResultsScrollRef = useRef<HTMLDivElement | null>(null);
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -228,11 +275,9 @@ export default function FlowchartViewer({
     [flowEdges.length, flowNodes.length],
   );
   const largeGraphMode = largeGraphModeOverride ?? autoLargeGraphMode;
-  const [standaloneDialogueSearchMode, setStandaloneDialogueSearchMode] =
-    useState<DialogueSearchMode>(dialogueSearchMode);
   useEffect(() => {
     setStandaloneDialogueSearchMode(dialogueSearchMode);
-  }, [dialogueSearchMode]);
+  }, [dialogueSearchMode, setStandaloneDialogueSearchMode]);
   const selectedDialogueSearchMode = onDialogueSearchModeChange
     ? dialogueSearchMode
     : standaloneDialogueSearchMode;
@@ -355,21 +400,6 @@ export default function FlowchartViewer({
     return () => window.clearTimeout(refineId);
   }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout]);
 
-  useEffect(() => {
-    setStoredValue(STORAGE_KEYS.theme, theme);
-  }, [theme]);
-
-  useEffect(() => {
-    setStoredValue(STORAGE_KEYS.showCallReturns, String(showCallReturns));
-  }, [showCallReturns]);
-
-  useEffect(() => {
-    setStoredValue(STORAGE_KEYS.edgeSequence, String(visibleEdgeKinds.sequence));
-    setStoredValue(STORAGE_KEYS.edgeJump, String(visibleEdgeKinds.jump));
-    setStoredValue(STORAGE_KEYS.edgeCall, String(visibleEdgeKinds.call));
-    setStoredValue(STORAGE_KEYS.edgeCallReturn, String(visibleEdgeKinds.call_return));
-  }, [visibleEdgeKinds]);
-
   const collapsedLabelChildren = useMemo(
     () => deriveCollapsedLabelChildren(flowNodes, collapsedParentLabels),
     [collapsedParentLabels, flowNodes],
@@ -377,15 +407,9 @@ export default function FlowchartViewer({
 
   const setAllVisibleSubgraphLabelsCollapsed = useCallback(
     (collapsed: boolean) => {
-      setCollapsedParentLabels((prev) => {
-        const next = { ...prev };
-        visibleSubgraphLabels.forEach((label) => {
-          next[label] = collapsed;
-        });
-        return next;
-      });
+      setAllParentLabelsCollapsed(visibleSubgraphLabels, collapsed);
     },
-    [visibleSubgraphLabels],
+    [setAllParentLabelsCollapsed, visibleSubgraphLabels],
   );
 
   const dialogueSearchCandidateNodeIds = useMemo(() => {
@@ -684,18 +708,14 @@ export default function FlowchartViewer({
     if (activeDialogueSearchResults.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveDialogueResultIndex((prev) => {
-        const base = prev < 0 ? 0 : prev;
-        return (base + 1 + activeDialogueSearchResults.length) % activeDialogueSearchResults.length;
-      });
+      const base = activeDialogueResultIndex < 0 ? 0 : activeDialogueResultIndex;
+      setActiveDialogueResultIndex((base + 1 + activeDialogueSearchResults.length) % activeDialogueSearchResults.length);
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setActiveDialogueResultIndex((prev) => {
-        const base = prev < 0 ? 0 : prev;
-        return (base - 1 + activeDialogueSearchResults.length) % activeDialogueSearchResults.length;
-      });
+      const base = activeDialogueResultIndex < 0 ? 0 : activeDialogueResultIndex;
+      setActiveDialogueResultIndex((base - 1 + activeDialogueSearchResults.length) % activeDialogueSearchResults.length);
       return;
     }
     if (event.key === 'Enter') {
@@ -705,7 +725,7 @@ export default function FlowchartViewer({
       setActiveDialogueResultIndex(resolvedActiveDialogueResultIndex);
       onSelectDialogueSearchResult(selected);
     }
-  }, [activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex]);
+  }, [activeDialogueResultIndex, activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex, setActiveDialogueResultIndex]);
 
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
@@ -958,7 +978,7 @@ export default function FlowchartViewer({
             </span>
             <button
               type="button"
-              onClick={() => setShowAdvancedControls((prev) => !prev)}
+              onClick={toggleShowAdvancedControls}
               className={CONTROL_BUTTON_CLASS}
               aria-expanded={showAdvancedControls}
               aria-controls="viewer-advanced-controls"
@@ -1079,7 +1099,7 @@ export default function FlowchartViewer({
                         type="checkbox"
                         checked={visibleEdgeKinds[kind]}
                         onChange={(e) =>
-                          setVisibleEdgeKinds((prev) => ({ ...prev, [kind]: e.target.checked }))
+                          setEdgeKindVisible(kind, e.target.checked)
                         }
                         aria-label={`Show ${kind.replace('_', ' ')} edges`}
                       />
@@ -1095,9 +1115,7 @@ export default function FlowchartViewer({
                     {chapters.map((chapter) => (
                       <button
                         key={chapter}
-                        onClick={() =>
-                          setCollapsedChapters((prev) => ({ ...prev, [chapter]: !prev[chapter] }))
-                        }
+                        onClick={() => toggleChapter(chapter)}
                         className={CONTROL_BUTTON_CLASS}
                         aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
                       >
@@ -1154,9 +1172,7 @@ export default function FlowchartViewer({
                           {visibleLabelSubgraphToggles.map((label) => (
                             <button
                               key={label}
-                              onClick={() =>
-                                setCollapsedParentLabels((prev) => ({ ...prev, [label]: !prev[label] }))
-                              }
+                              onClick={() => toggleParentLabel(label)}
                               className={CONTROL_BUTTON_CLASS}
                               aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
                             >
@@ -1166,7 +1182,7 @@ export default function FlowchartViewer({
                           {visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES && (
                             <button
                               type="button"
-                              onClick={() => setShowAllLabelSubgraphToggles((prev) => !prev)}
+                              onClick={toggleShowAllLabelSubgraphToggles}
                               className={CONTROL_BUTTON_CLASS}
                               aria-label={
                                 shouldShowAllLabelSubgraphToggles
@@ -1384,7 +1400,7 @@ export default function FlowchartViewer({
               {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
                 <button
                   type="button"
-                  onClick={() => setShowAllInspectorLines((prev) => !prev)}
+                  onClick={toggleShowAllInspectorLines}
                   className="text-xs text-violet-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
                 >
                   {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
