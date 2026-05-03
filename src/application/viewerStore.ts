@@ -155,6 +155,58 @@ function mergePersistedState(persisted: unknown, current: ViewerStore): ViewerSt
   return { ...current, theme, showCallReturns, visibleEdgeKinds };
 }
 
+// ─── Legacy key migration ─────────────────────────────────────────────────────
+//
+// The previous implementation stored each setting under its own key
+// (rfv.theme, rfv.showCallReturns, rfv.edge.*). On the first load after the
+// migration to the consolidated key (rfv.viewer) those keys are still present
+// but rfv.viewer is absent. We read the legacy values, build a Zustand persist
+// payload, and delete the old keys so this only runs once.
+
+const LEGACY_KEYS = [
+  STORAGE_KEYS.theme,
+  STORAGE_KEYS.showCallReturns,
+  STORAGE_KEYS.edgeSequence,
+  STORAGE_KEYS.edgeJump,
+  STORAGE_KEYS.edgeCall,
+  STORAGE_KEYS.edgeCallReturn,
+] as const;
+
+function migrateLegacyKeys(): string | null {
+  try {
+    const rawTheme = globalThis.localStorage.getItem(STORAGE_KEYS.theme);
+    const rawCallReturns = globalThis.localStorage.getItem(STORAGE_KEYS.showCallReturns);
+    const rawSeq = globalThis.localStorage.getItem(STORAGE_KEYS.edgeSequence);
+    const rawJump = globalThis.localStorage.getItem(STORAGE_KEYS.edgeJump);
+    const rawCall = globalThis.localStorage.getItem(STORAGE_KEYS.edgeCall);
+    const rawCallReturn = globalThis.localStorage.getItem(STORAGE_KEYS.edgeCallReturn);
+
+    const hasLegacy = [rawTheme, rawCallReturns, rawSeq, rawJump, rawCall, rawCallReturn].some(
+      (v) => v !== null,
+    );
+    if (!hasLegacy) return null;
+
+    const migratedState: ViewerPersistedState = {
+      theme: isThemeName(rawTheme) ? rawTheme : defaultPersistedState.theme,
+      showCallReturns: rawCallReturns === 'true',
+      visibleEdgeKinds: {
+        sequence: rawSeq !== 'false',
+        jump: rawJump !== 'false',
+        call: rawCall !== 'false',
+        call_return: rawCallReturn !== 'false',
+      },
+    };
+
+    for (const key of LEGACY_KEYS) {
+      globalThis.localStorage.removeItem(key);
+    }
+
+    return JSON.stringify({ state: migratedState, version: 0 });
+  } catch {
+    return null;
+  }
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 export const useViewerStore = create<ViewerStore>()(
@@ -283,7 +335,10 @@ export const useViewerStore = create<ViewerStore>()(
       storage: createJSONStorage(() => ({
         getItem: (key: string) => {
           try {
-            return globalThis.localStorage.getItem(key);
+            const stored = globalThis.localStorage.getItem(key);
+            if (stored !== null) return stored;
+            // One-time migration from pre-consolidation per-setting keys.
+            return migrateLegacyKeys();
           } catch {
             return null;
           }
