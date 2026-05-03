@@ -1400,7 +1400,7 @@ export default function FlowchartViewer({
               {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
                 <button
                   type="button"
-                  onClick={() => toggleShowAllInspectorLines()}
+                  onClick={toggleShowAllInspectorLines}
                   className="text-xs text-violet-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
                 >
                   {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
