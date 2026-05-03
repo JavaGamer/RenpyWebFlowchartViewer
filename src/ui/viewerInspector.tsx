@@ -105,7 +105,7 @@ export function ViewerInspector({
                 {activeDialogueSearchResults.length === 0 ? (
                   <div className="text-xs text-gray-500">
                     <div role="status" aria-live="polite">
-                      No dialogue lines matched &quot;{effectiveSearch.trim()}&quot;. Label or dialogue-count matches may still appear elsewhere.
+                      No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
                     </div>
                   </div>
                 ) : shouldVirtualizeInspectorResults ? (

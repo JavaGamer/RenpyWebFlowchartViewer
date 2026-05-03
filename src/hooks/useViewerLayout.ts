@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNodesState, useEdgesState } from '@xyflow/react';
 import type { FlowNode, FlowEdge } from '../domain';
-import type { LayoutDirection, ThemeName } from '../ui/viewerTypes';
+import type { LayoutDirection, ThemeName } from '../ui';
 import {
   type CanvasNode,
   type CanvasEdge,

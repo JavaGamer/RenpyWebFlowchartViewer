@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre';
 import type { Edge, Node } from '@xyflow/react';
 import type { FlowNode, FlowEdge, EdgeKind } from './domain';
-import type { ThemeName } from './ui/viewerTypes';
+import type { ThemeName } from './ui';
 
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
