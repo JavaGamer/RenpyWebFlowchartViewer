@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDebugBundle,
   buildIssueDraftUrl,
+  toDebugBundleBlob,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
 } from '../src/application';
 
@@ -228,5 +229,154 @@ describe('debug bundle privacy defaults', () => {
     expect(warning.edgeId).toBe('e1');
     expect(warning.sourceId).toBe('n1');
     expect(warning.targetId).toBe('n_unmapped_2');
+  });
+});
+
+describe('debug bundle edge cases', () => {
+  it('toDebugBundleBlob returns a JSON Blob containing the serialized bundle', () => {
+    const bundle = { schemaVersion: 1, foo: 'bar' };
+    const blob = toDebugBundleBlob(bundle);
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('application/json');
+    // Verify the blob encodes the expected JSON.
+    return blob.text().then((text) => {
+      const parsed = JSON.parse(text) as typeof bundle;
+      expect(parsed.schemaVersion).toBe(1);
+      expect(parsed.foo).toBe('bar');
+    });
+  });
+
+  it('buildDebugBundle with empty graph and no error produces no errorSummary', () => {
+    const bundle = buildDebugBundle({
+      appVersion: '1.0',
+      state: {
+        phase: 'done',
+        fileCount: 0,
+        importRevision: 0,
+        dialogueSearchMode: 'auto',
+        errorMsg: '',
+        parseProgress: null,
+      },
+      parser: { selectedVariant: 'renpy', customScreenActionRules: [] },
+      graph: { flowNodes: [], flowEdges: [] },
+      parseWarnings: [],
+      privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+    });
+
+    const app = bundle.app as { errorSummary?: string };
+    expect(app.errorSummary).toBeUndefined();
+    expect(bundle.graph.nodes).toHaveLength(0);
+    expect(bundle.graph.edges).toHaveLength(0);
+    expect(bundle.graphSummary.nodeCount).toBe(0);
+    expect(bundle.graphSummary.edgeCount).toBe(0);
+  });
+
+  it('buildDebugBundle includes schemaVersion and generatedAt in every bundle', () => {
+    const before = Date.now();
+    const bundle = buildDebugBundle({
+      appVersion: '1.0',
+      state: {
+        phase: 'idle',
+        fileCount: 0,
+        importRevision: 0,
+        dialogueSearchMode: 'auto',
+        errorMsg: '',
+        parseProgress: null,
+      },
+      parser: { selectedVariant: 'renpy', customScreenActionRules: [] },
+      graph: { flowNodes: [], flowEdges: [] },
+      parseWarnings: [],
+      privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+    });
+    const after = Date.now();
+    expect(bundle.schemaVersion).toBe(1);
+    const generatedAt = new Date(bundle.generatedAt as string).getTime();
+    expect(generatedAt).toBeGreaterThanOrEqual(before);
+    expect(generatedAt).toBeLessThanOrEqual(after);
+  });
+
+  it('buildDebugBundle aliases parentLabelId in nodes when privacy is off', () => {
+    const bundle = buildDebugBundle({
+      appVersion: 'test',
+      state: {
+        phase: 'done',
+        fileCount: 1,
+        importRevision: 1,
+        dialogueSearchMode: 'auto',
+        errorMsg: '',
+        parseProgress: null,
+      },
+      parser: { selectedVariant: 'renpy', customScreenActionRules: [] },
+      graph: {
+        flowNodes: [
+          { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 },
+          { id: 'menu_1', type: 'MENU', label: 'menu_1', dialogueCount: 0, parentLabelId: 'start' },
+        ],
+        flowEdges: [],
+      },
+      parseWarnings: [],
+      privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+    });
+
+    const menuNode = bundle.graph.nodes.find((n) => (n as { id: string }).id === 'n2') as
+      | { id: string; parentLabelId?: string }
+      | undefined;
+    expect(menuNode?.parentLabelId).toBe('n1');
+  });
+
+  it('buildDebugBundle includes parentLabelId verbatim when raw details are opted in', () => {
+    const bundle = buildDebugBundle({
+      appVersion: 'test',
+      state: {
+        phase: 'done',
+        fileCount: 1,
+        importRevision: 1,
+        dialogueSearchMode: 'auto',
+        errorMsg: '',
+        parseProgress: null,
+      },
+      parser: { selectedVariant: 'renpy', customScreenActionRules: [] },
+      graph: {
+        flowNodes: [
+          { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 },
+          { id: 'menu_1', type: 'MENU', label: 'menu_1', dialogueCount: 0, parentLabelId: 'start' },
+        ],
+        flowEdges: [],
+      },
+      parseWarnings: [],
+      privacy: { includeFileNames: true, includeRawScriptDetails: true, includeExtraDiagnostics: true },
+    });
+
+    const menuNode = bundle.graph.nodes.find((n) => (n as { id: string }).id === 'menu_1') as
+      | { id: string; parentLabelId?: string }
+      | undefined;
+    expect(menuNode?.parentLabelId).toBe('start');
+  });
+
+  it('buildIssueDraftUrl reflects all opted-in privacy settings in the metadata body', () => {
+    const url = buildIssueDraftUrl({
+      owner: 'JavaGamer',
+      repo: 'RenpyWebFlowchartViewer',
+      privacy: {
+        includeFileNames: true,
+        includeRawScriptDetails: true,
+        includeExtraDiagnostics: true,
+      },
+      state: {
+        phase: 'done',
+        dialogueSearchMode: 'full',
+        selectedVariant: 'st',
+        fileCount: 5,
+        warningCount: 2,
+      },
+    });
+
+    const decoded = decodeURIComponent(url).replaceAll('+', ' ');
+    expect(decoded).toContain('Parser variant: st');
+    expect(decoded).toContain('Debug bundle file names included: yes');
+    expect(decoded).toContain('Debug bundle raw/script details included: yes');
+    expect(decoded).toContain('Debug bundle extra diagnostics included: yes');
+    expect(decoded).toContain('Imported .rpy file count: 5');
+    expect(decoded).toContain('Parser warning count: 2');
   });
 });
