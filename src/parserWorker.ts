@@ -111,7 +111,15 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
     if (dialogueSearchFuse) {
-      const rawResults = dialogueSearchFuse.search(query, { limit: allowedIds ? DIALOGUE_SEARCH_MAX_RESULTS : maxResults });
+      // When allowedIds is provided, search without a global top-N limit first so
+      // that the best matches within the scoped node set are never cut off before
+      // the per-node filter is applied.  Use a heuristic bound (50 dialogue lines
+      // per allowed node, at least DIALOGUE_SEARCH_MAX_RESULTS) to keep memory
+      // use bounded on very large indices while still covering the scoped set.
+      const scopedLimit = allowedIds
+        ? Math.max(allowedIds.size * 50, DIALOGUE_SEARCH_MAX_RESULTS)
+        : maxResults;
+      const rawResults = dialogueSearchFuse.search(query, { limit: scopedLimit });
       const filtered = allowedIds
         ? rawResults.filter((entry) => allowedIds.has(entry.item.nodeId))
         : rawResults;

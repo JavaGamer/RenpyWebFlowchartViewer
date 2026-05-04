@@ -116,9 +116,13 @@ export function useViewerSearch({
     setDialogueSearchResults,
   ]);
 
-  // ── Local dialogue Fuse index (split from query execution per Issue 7a) ──
+  // ── Local dialogue Fuse index (lazy: only built when there is an active query
+  // and we are in small-graph mode; gated via hasActiveQuery to avoid rebuilding
+  // on every keystroke) ─────────────────────────────────────────────────────────
   const searchableDocs = useMemo<DialogueSearchDocument[]>(() => {
-    if (!dialogueLineSearchEnabled) return [];
+    // Skip entirely in large-graph mode (worker handles search there) and when
+    // dialogue-line search is disabled.
+    if (!dialogueLineSearchEnabled || largeGraphMode) return [];
     const docs: DialogueSearchDocument[] = [];
     for (const node of nodes) {
       const nodeData = node.data as { label: string; chapter?: string; dialogueCount?: number; dialogueLines?: string[] };
@@ -137,11 +141,16 @@ export function useViewerSearch({
       });
     }
     return docs;
-  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, minDialogue, nodes]);
+  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, largeGraphMode, minDialogue, nodes]);
+
+  // A boolean that transitions only when the user starts/stops searching.
+  // Using this (rather than the raw string) as a Fuse dep avoids rebuilding
+  // the index on every keystroke while the query is non-empty.
+  const hasActiveQuery = Boolean(effectiveSearch.trim());
 
   const localDialogueFuse = useMemo(
-    () => (searchableDocs.length > 0 ? new Fuse(searchableDocs, DIALOGUE_FUSE_OPTIONS) : null),
-    [searchableDocs],
+    () => (searchableDocs.length > 0 && hasActiveQuery ? new Fuse(searchableDocs, DIALOGUE_FUSE_OPTIONS) : null),
+    [hasActiveQuery, searchableDocs],
   );
 
   const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
@@ -163,7 +172,7 @@ export function useViewerSearch({
     [activeDialogueSearchResults],
   );
 
-  // ── Node Fuse index (split from query execution per Issue 7b) ─────────────
+  // ── Node Fuse index (lazy: only built when there is an active query) ─────────
   const nodeSearchDocs = useMemo<NodeSearchDocument[]>(
     () =>
       nodes.map((node) => {
@@ -177,11 +186,16 @@ export function useViewerSearch({
     [nodes],
   );
 
-  const nodeFuse = useMemo(() => new Fuse(nodeSearchDocs, NODE_FUSE_OPTIONS), [nodeSearchDocs]);
+  // Same hasActiveQuery boolean gates construction so the index is built once
+  // on the first keystroke and reused until the query is cleared.
+  const nodeFuse = useMemo(
+    () => (hasActiveQuery ? new Fuse(nodeSearchDocs, NODE_FUSE_OPTIONS) : null),
+    [hasActiveQuery, nodeSearchDocs],
+  );
 
   const nodeSearchMatchIds = useMemo(() => {
     const query = effectiveSearch.trim();
-    if (!query) return null;
+    if (!query || !nodeFuse) return null;
     return new Set(nodeFuse.search(query).map((entry) => entry.item.nodeId));
   }, [effectiveSearch, nodeFuse]);
 
