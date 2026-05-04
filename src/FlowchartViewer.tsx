@@ -32,7 +32,7 @@ import {
   LARGE_GRAPH_EDGE_THRESHOLD,
   LARGE_GRAPH_NODE_THRESHOLD,
 } from './config/viewerConfig';
-import type { ThemeName, LayoutDirection } from './ui/viewerTypes';
+
 import {
   type CanvasNode,
   type CanvasEdge,
@@ -49,6 +49,7 @@ import { useViewerSearch } from './hooks/useViewerSearch';
 import { ViewerToolbar } from './ui/ViewerToolbar';
 import { ViewerAdvancedControls } from './ui/ViewerAdvancedControls';
 import { ViewerInspector } from './ui/viewerInspector';
+import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './ui/viewerConstants';
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
@@ -62,8 +63,6 @@ interface FlowchartViewerProps {
   onExportDebugBundle?: (options: DebugBundlePrivacyOptions) => void;
   onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
 }
-
-const MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES = 24;
 
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],
@@ -369,6 +368,7 @@ export default function FlowchartViewer({
         collapsedChapters,
         collapsedLabelChildren,
         theme,
+        // eslint-disable-next-line react-hooks/refs -- intentional: ref holds an identity-preserving cache map updated in useEffect; reading it here avoids an extra render cycle (Issue 10)
         previousById: previousVisibleNodesByIdRef.current,
       }),
     [
@@ -398,6 +398,7 @@ export default function FlowchartViewer({
         visibleNodeIds,
         edgeColor: THEMES[theme].edge,
         largeGraphMode,
+        // eslint-disable-next-line react-hooks/refs -- intentional: ref holds an identity-preserving cache map updated in useEffect; reading it here avoids an extra render cycle (Issue 10)
         previousById: previousVisibleEdgesByIdRef.current,
       }),
     [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],

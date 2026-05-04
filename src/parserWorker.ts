@@ -6,6 +6,7 @@ import { createGraphState } from './parser/pipelineState';
 import { parseOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import { DIALOGUE_FUSE_OPTIONS, type DialogueSearchDocument } from './config/searchConfig';
+import { DIALOGUE_SEARCH_MAX_RESULTS } from './config/viewerConfig';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
@@ -106,11 +107,11 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       cancelledRequests.delete(requestId);
       return;
     }
-    const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, 2000));
+    const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
     const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
     if (dialogueSearchFuse) {
-      const rawResults = dialogueSearchFuse.search(query, { limit: allowedIds ? 2000 : maxResults });
+      const rawResults = dialogueSearchFuse.search(query, { limit: allowedIds ? DIALOGUE_SEARCH_MAX_RESULTS : maxResults });
       const filtered = allowedIds
         ? rawResults.filter((entry) => allowedIds.has(entry.item.nodeId))
         : rawResults;

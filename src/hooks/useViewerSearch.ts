@@ -10,7 +10,7 @@ import {
   type DialogueSearchDocument,
   type NodeSearchDocument,
 } from '../config/searchConfig';
-import { SEARCH_DEBOUNCE_MS } from '../config/viewerConfig';
+import { SEARCH_DEBOUNCE_MS, DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
 
 interface UseViewerSearchParams {
   nodes: CanvasNode[];
@@ -148,7 +148,7 @@ export function useViewerSearch({
     if (!localDialogueFuse) return [];
     const query = effectiveSearch.trim();
     if (!query) return [];
-    return localDialogueFuse.search(query, { limit: 2000 }).map((entry) => ({
+    return localDialogueFuse.search(query, { limit: DIALOGUE_SEARCH_MAX_RESULTS }).map((entry) => ({
       nodeId: entry.item.nodeId,
       nodeLabel: entry.item.nodeLabel,
       lineIndex: entry.item.lineIndex,
