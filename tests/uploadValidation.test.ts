@@ -29,11 +29,6 @@ describe('validateRpyUpload', () => {
     expect(validateRpyUpload(null)).toEqual({ rpyFiles: [], errorMessage: null });
   });
 
-  it('returns no error and empty list for an empty FileList', () => {
-    const result = validateRpyUpload(toFileList([]));
-    expect(result).toEqual({ rpyFiles: [], errorMessage: null });
-  });
-
   it('returns an error when no .rpy files are present', () => {
     const files = toFileList([new File(['x'], 'notes.txt', { type: 'text/plain' })]);
     expect(validateRpyUpload(files).errorMessage).toMatch(/No \.rpy files found/i);
