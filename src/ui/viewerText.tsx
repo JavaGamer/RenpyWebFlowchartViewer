@@ -1,19 +1,12 @@
 import type { ReactNode } from 'react';
 
-export interface DialogueSearchResult {
-  nodeId: string;
-  nodeLabel: string;
-  lineIndex: number;
-  lineText: string;
-}
-
 export function truncateForAria(text: string, maxLength = 80): string {
   const normalized = text.trim();
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, maxLength - 1)}…`;
 }
 
-export function renderHighlightedText(text: string, query: string) {
+export function renderHighlightedText(text: string, query: string): ReactNode {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return text;
   const lowerText = text.toLowerCase();

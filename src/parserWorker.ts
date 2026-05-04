@@ -6,6 +6,7 @@ import { createGraphState } from './parser/pipelineState';
 import { parseOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import { DIALOGUE_FUSE_OPTIONS, type DialogueSearchDocument } from './config/searchConfig';
+import { DIALOGUE_SEARCH_MAX_RESULTS } from './config/viewerConfig';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
@@ -106,22 +107,23 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       cancelledRequests.delete(requestId);
       return;
     }
-    const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, 2000));
+    const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
     const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
-    if (allowedIds) {
-      const scopedDocs = dialogueSearchDocs.filter((doc) => allowedIds.has(doc.nodeId));
-      if (scopedDocs.length > 0) {
-        const scopedFuse = new Fuse(scopedDocs, DIALOGUE_FUSE_OPTIONS);
-        results = scopedFuse.search(query, { limit: maxResults }).map((entry) => ({
-          nodeId: entry.item.nodeId,
-          nodeLabel: entry.item.nodeLabel,
-          lineIndex: entry.item.lineIndex,
-          lineText: entry.item.lineText,
-        }));
-      }
-    } else if (dialogueSearchFuse) {
-      results = dialogueSearchFuse.search(query, { limit: maxResults }).map((entry) => ({
+    if (dialogueSearchFuse) {
+      // When allowedIds is provided, search without a global top-N limit first so
+      // that the best matches within the scoped node set are never cut off before
+      // the per-node filter is applied.  Use a heuristic bound (50 dialogue lines
+      // per allowed node, at least DIALOGUE_SEARCH_MAX_RESULTS) to keep memory
+      // use bounded on very large indices while still covering the scoped set.
+      const scopedLimit = allowedIds
+        ? Math.max(allowedIds.size * 50, DIALOGUE_SEARCH_MAX_RESULTS)
+        : maxResults;
+      const rawResults = dialogueSearchFuse.search(query, { limit: scopedLimit });
+      const filtered = allowedIds
+        ? rawResults.filter((entry) => allowedIds.has(entry.item.nodeId))
+        : rawResults;
+      results = filtered.slice(0, maxResults).map((entry) => ({
         nodeId: entry.item.nodeId,
         nodeLabel: entry.item.nodeLabel,
         lineIndex: entry.item.lineIndex,

@@ -5,23 +5,17 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
   type ReactFlowInstance,
-  useNodesState,
-  useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import Fuse from 'fuse.js';
 import { toBlob, toSvg } from 'html-to-image';
-import { Download, Search, ZoomIn, LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import { saveAs } from 'file-saver';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import debounce from 'lodash.debounce';
 import { useShallow } from 'zustand/react/shallow';
 import type { FlowNode, FlowEdge } from './domain';
 import {
@@ -30,31 +24,32 @@ import {
   type ParseService,
   type DebugBundlePrivacyOptions,
   useViewerStore,
+  workerParseService,
 } from './application';
-import { workerParseService } from './application';
 import {
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
   INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
   LARGE_GRAPH_EDGE_THRESHOLD,
   LARGE_GRAPH_NODE_THRESHOLD,
-  SEARCH_DEBOUNCE_MS,
-  ZOOM_PRESETS,
 } from './config/viewerConfig';
-import { DIALOGUE_FUSE_OPTIONS, NODE_FUSE_OPTIONS, type DialogueSearchDocument, type NodeSearchDocument } from './config/searchConfig';
-import type { ThemeName, LayoutDirection } from './ui/viewerTypes';
+
 import {
   type CanvasNode,
   type CanvasEdge,
-  applyDagreLayout,
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
-  PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from './flowchartTransforms';
 import { createPerfTracker } from './perf';
 import { THEMES } from './ui/viewerTheme';
 import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
 import type { DialogueSearchResult } from './infrastructure';
+import { useViewerLayout } from './hooks/useViewerLayout';
+import { useViewerSearch } from './hooks/useViewerSearch';
+import { ViewerToolbar } from './ui/ViewerToolbar';
+import { ViewerAdvancedControls } from './ui/ViewerAdvancedControls';
+import { ViewerInspector } from './ui/viewerInspector';
+import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './ui/viewerConstants';
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
@@ -69,14 +64,6 @@ interface FlowchartViewerProps {
   onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
 }
 
-const CONTROL_INPUT_CLASS =
-  'px-2 py-1.5 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
-const CONTROL_BUTTON_CLASS =
-  'px-2 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-50 disabled:cursor-not-allowed';
-const PRIMARY_BUTTON_CLASS =
-  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500';
-const MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES = 24;
-
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],
   collapsedParentLabels: Record<string, boolean>,
@@ -89,44 +76,6 @@ function deriveCollapsedLabelChildren(
     collapsedChildren.add(node.id);
   }
   return collapsedChildren;
-}
-
-function truncateForAria(text: string, maxLength = 80): string {
-  const normalized = text.trim();
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength - 1)}…`;
-}
-
-function renderHighlightedText(text: string, query: string) {
-  const normalizedQuery = query.trim();
-  if (!normalizedQuery) return text;
-  const lowerText = text.toLowerCase();
-  const lowerQuery = normalizedQuery.toLowerCase();
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-  let key = 0;
-
-  while (cursor < text.length) {
-    const matchIndex = lowerText.indexOf(lowerQuery, cursor);
-    if (matchIndex === -1) {
-      nodes.push(text.slice(cursor));
-      break;
-    }
-    if (matchIndex > cursor) {
-      nodes.push(text.slice(cursor, matchIndex));
-    }
-    const matched = text.slice(matchIndex, matchIndex + normalizedQuery.length);
-    const markKey = `hl-${key}`;
-    key += 1;
-    nodes.push(
-      <mark key={markKey} className="bg-yellow-200 text-inherit rounded px-0.5">
-        {matched}
-      </mark>,
-    );
-    cursor = matchIndex + normalizedQuery.length;
-  }
-
-  return nodes;
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -165,6 +114,11 @@ export default function FlowchartViewer({
   const perf = useMemo(() => createPerfTracker('viewer'), []);
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Issue 10: useRef instead of useState for identity-preserving cache maps
+  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(new Map());
+  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(new Map());
 
   // ── Viewer store ─────────────────────────────────────────────────────────────
   const {
@@ -259,28 +213,31 @@ export default function FlowchartViewer({
   // Reset session state when this component unmounts (e.g. on new import).
   useEffect(() => () => resetSession(), [resetSession]);
 
-  const searchAbortControllerRef = useRef<AbortController | null>(null);
-  const dialogueResultsScrollRef = useRef<HTMLDivElement | null>(null);
-  const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
-  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
-  const [previousVisibleNodesById, setPreviousVisibleNodesById] = useState<Map<string, CanvasNode>>(
-    new Map(),
+  useEffect(() => {
+    setStandaloneDialogueSearchMode(dialogueSearchMode);
+  }, [dialogueSearchMode, setStandaloneDialogueSearchMode]);
+
+  const selectedDialogueSearchMode = onDialogueSearchModeChange
+    ? dialogueSearchMode
+    : standaloneDialogueSearchMode;
+
+  const handleDialogueModeChange = useCallback(
+    (mode: DialogueSearchMode) => {
+      if (onDialogueSearchModeChange) {
+        onDialogueSearchModeChange(mode);
+      } else {
+        setStandaloneDialogueSearchMode(mode);
+      }
+    },
+    [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
   );
-  const [previousVisibleEdgesById, setPreviousVisibleEdgesById] = useState<Map<string, CanvasEdge>>(
-    new Map(),
-  );
-  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
     [flowEdges.length, flowNodes.length],
   );
   const largeGraphMode = largeGraphModeOverride ?? autoLargeGraphMode;
-  useEffect(() => {
-    setStandaloneDialogueSearchMode(dialogueSearchMode);
-  }, [dialogueSearchMode, setStandaloneDialogueSearchMode]);
-  const selectedDialogueSearchMode = onDialogueSearchModeChange
-    ? dialogueSearchMode
-    : standaloneDialogueSearchMode;
+
   const effectiveDialogueSearchMode = useMemo<DialogueSearchMode>(
     () =>
       selectedDialogueSearchMode === 'auto'
@@ -289,36 +246,28 @@ export default function FlowchartViewer({
     [autoLargeGraphMode, selectedDialogueSearchMode],
   );
   const dialogueLineSearchEnabled = effectiveDialogueSearchMode === 'full';
-  const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
-  const debouncedSetSearch = useMemo(
-    () => debounce((value: string) => setDebouncedSearch(value), SEARCH_DEBOUNCE_MS),
-    [],
-  );
 
-  useEffect(() => {
-    debouncedSetSearch(searchInput);
-  }, [debouncedSetSearch, searchInput]);
+  // ── Layout hook ──────────────────────────────────────────────────────────────
+  const onRelayoutComplete = useCallback(() => {
+    flowInstanceRef.current?.fitView({ padding: 0.2 });
+  }, []);
 
-  useEffect(() => () => debouncedSetSearch.cancel(), [debouncedSetSearch]);
-  const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    relayout,
+  } = useViewerLayout({
+    flowNodes,
+    flowEdges,
+    layoutDirection,
+    theme,
+    perf,
+    onRelayoutComplete,
+  });
 
-  const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
-
-  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
-    perf.mark('layout');
-    const progressive = shouldProgressiveLayout;
-    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive });
-    perf.measure('layout', 'layout_ms', {
-      nodes: flowNodes.length,
-      edges: flowEdges.length,
-      direction: layoutDirection,
-      progressive,
-    });
-    return laidOut;
-  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
-
+  // ── Derived graph metadata ───────────────────────────────────────────────────
   const chapters = useMemo(
     () =>
       Array.from(
@@ -335,6 +284,7 @@ export default function FlowchartViewer({
     () => flowNodes.filter((n) => n.type === 'LABEL').map((n) => n.id).sort(),
     [flowNodes],
   );
+
   const labelSubgraphSearch = labelSubgraphSearchInput.trim().toLowerCase();
   const visibleSubgraphLabels = useMemo(
     () =>
@@ -343,12 +293,15 @@ export default function FlowchartViewer({
       ),
     [labelSubgraphSearch, labels],
   );
+
   const collapsedLabelCount = useMemo(
     () => labels.filter((label) => collapsedParentLabels[label]).length,
     [collapsedParentLabels, labels],
   );
+
   const shouldShowAllLabelSubgraphToggles =
     showAllLabelSubgraphToggles && visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES;
+
   const visibleLabelSubgraphToggles = useMemo(
     () =>
       shouldShowAllLabelSubgraphToggles
@@ -356,6 +309,7 @@ export default function FlowchartViewer({
         : visibleSubgraphLabels.slice(0, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES),
     [shouldShowAllLabelSubgraphToggles, visibleSubgraphLabels],
   );
+
   const largeGraphModeStatusText = useMemo(() => {
     if (autoLargeGraphMode && largeGraphModeOverride === null) {
       return 'Auto-enabled from graph size.';
@@ -369,37 +323,6 @@ export default function FlowchartViewer({
     return 'Off.';
   }, [autoLargeGraphMode, largeGraphModeOverride]);
 
-  const relayout = useCallback(() => {
-    const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
-      progressive: false,
-      previousPositions: nodePositionsRef.current,
-    });
-    nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
-    setNodes(next.nodes);
-    setEdges(next.edges);
-    requestAnimationFrame(() => {
-      flowInstanceRef.current?.fitView({ padding: 0.2 });
-    });
-  }, [flowEdges, flowNodes, layoutDirection, setEdges, setNodes]);
-
-  useEffect(() => {
-    setNodes(layoutNodes);
-    setEdges(layoutEdges);
-    nodePositionsRef.current = new Map(layoutNodes.map((n) => [n.id, n.position]));
-    const progressive = shouldProgressiveLayout;
-    if (!progressive) return;
-    const refineId = window.setTimeout(() => {
-      const refined = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
-        progressive: false,
-        previousPositions: nodePositionsRef.current,
-      });
-      nodePositionsRef.current = new Map(refined.nodes.map((n) => [n.id, n.position]));
-      setNodes(refined.nodes);
-      setEdges(refined.edges);
-    }, 0);
-    return () => window.clearTimeout(refineId);
-  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout]);
-
   const collapsedLabelChildren = useMemo(
     () => deriveCollapsedLabelChildren(flowNodes, collapsedParentLabels),
     [collapsedParentLabels, flowNodes],
@@ -412,113 +335,27 @@ export default function FlowchartViewer({
     [setAllParentLabelsCollapsed, visibleSubgraphLabels],
   );
 
-  const dialogueSearchCandidateNodeIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const node of nodes) {
-      const nodeData = node.data as { chapter?: string; dialogueCount?: number } | undefined;
-      const chapterCollapsed = nodeData?.chapter ? collapsedChapters[nodeData.chapter] : false;
-      const labelCollapsed = collapsedLabelChildren.has(node.id);
-      const dialogueCount = nodeData?.dialogueCount ?? 0;
-      if (chapterCollapsed || labelCollapsed) continue;
-      if (dialogueCount < minDialogue) continue;
-      ids.push(node.id);
-    }
-    return ids;
-  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes]);
-
-  useEffect(() => {
-    if (!largeGraphMode) return;
-    const query = effectiveSearch.trim();
-    if (!dialogueLineSearchEnabled || !query) {
-      searchAbortControllerRef.current?.abort();
-      searchAbortControllerRef.current = null;
-      setDialogueSearchResults([]);
-      return;
-    }
-    searchAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    searchAbortControllerRef.current = controller;
-    void parseService
-      .searchDialogueLines({
-        query,
-        nodeIds: dialogueSearchCandidateNodeIds,
-        maxResults: largeGraphMode ? 500 : 2000,
-        signal: controller.signal,
-      })
-      .then((results) => {
-        if (controller.signal.aborted) return;
-        setDialogueSearchResults(results);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setDialogueSearchResults([]);
-      });
-    return () => controller.abort();
-  }, [
-    dialogueLineSearchEnabled,
-    dialogueSearchCandidateNodeIds,
+  // ── Search hook ──────────────────────────────────────────────────────────────
+  const {
     effectiveSearch,
+    searchMatchNodeIds,
+    dialogueMatchNodeIds,
+    activeDialogueSearchResults,
+    nodeSearchMatchIds,
+  } = useViewerSearch({
+    nodes,
+    searchInput,
     largeGraphMode,
+    dialogueLineSearchEnabled,
+    collapsedChapters,
+    collapsedLabelChildren,
+    minDialogue,
     parseService,
-  ]);
+    dialogueSearchResults,
+    setDialogueSearchResults,
+  });
 
-  const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
-    if (!dialogueLineSearchEnabled) return [];
-    const query = effectiveSearch.trim();
-    if (!query) return [];
-    const searchableDocs: DialogueSearchDocument[] = [];
-    for (const node of nodes) {
-      const nodeData = node.data as { label: string; chapter?: string; dialogueCount?: number; dialogueLines?: string[] };
-      const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
-      const labelCollapsed = collapsedLabelChildren.has(node.id);
-      if (chapterCollapsed || labelCollapsed) continue;
-      if ((nodeData.dialogueCount ?? 0) < minDialogue) continue;
-      const lines = nodeData.dialogueLines ?? [];
-      lines.forEach((line, idx) => {
-        searchableDocs.push({
-          nodeId: node.id,
-          nodeLabel: nodeData.label,
-          lineIndex: idx + 1,
-          lineText: line,
-        });
-      });
-    }
-    if (searchableDocs.length === 0) return [];
-    const localDialogueFuse = new Fuse(searchableDocs, DIALOGUE_FUSE_OPTIONS);
-    return localDialogueFuse.search(query, { limit: 2000 }).map((entry) => ({
-      nodeId: entry.item.nodeId,
-      nodeLabel: entry.item.nodeLabel,
-      lineIndex: entry.item.lineIndex,
-      lineText: entry.item.lineText,
-    }));
-  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, effectiveSearch, minDialogue, nodes]);
-
-  const activeDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
-  const dialogueMatchNodeIds = useMemo(
-    () => new Set(activeDialogueSearchResults.map((result) => result.nodeId)),
-    [activeDialogueSearchResults],
-  );
-  const nodeSearchMatchIds = useMemo(() => {
-    const query = effectiveSearch.trim();
-    if (!query) return null;
-    const nodeSearchDocs: NodeSearchDocument[] = nodes.map((node) => {
-      const nodeData = node.data as { label?: string; dialogueCount?: number };
-      return {
-        nodeId: node.id,
-        label: nodeData.label ?? '',
-        dialogueCountText: String(nodeData.dialogueCount ?? 0),
-      };
-    });
-    const nodeFuse = new Fuse(nodeSearchDocs, NODE_FUSE_OPTIONS);
-    return new Set(nodeFuse.search(query).map((entry) => entry.item.nodeId));
-  }, [effectiveSearch, nodes]);
-  const searchMatchNodeIds = useMemo(() => {
-    if (!nodeSearchMatchIds) return null;
-    const combined = new Set(nodeSearchMatchIds);
-    dialogueMatchNodeIds.forEach((nodeId) => combined.add(nodeId));
-    return combined;
-  }, [dialogueMatchNodeIds, nodeSearchMatchIds]);
-
+  // ── Visible nodes/edges ──────────────────────────────────────────────────────
   const visibleNodes = useMemo(
     () =>
       buildVisibleNodes({
@@ -531,7 +368,8 @@ export default function FlowchartViewer({
         collapsedChapters,
         collapsedLabelChildren,
         theme,
-        previousById: previousVisibleNodesById,
+        // eslint-disable-next-line react-hooks/refs -- intentional: ref holds an identity-preserving cache map updated in useEffect; reading it here avoids an extra render cycle (Issue 10)
+        previousById: previousVisibleNodesByIdRef.current,
       }),
     [
       collapsedChapters,
@@ -541,7 +379,6 @@ export default function FlowchartViewer({
       effectiveSearch,
       minDialogue,
       nodes,
-      previousVisibleNodesById,
       searchMatchNodeIds,
       theme,
     ],
@@ -561,33 +398,33 @@ export default function FlowchartViewer({
         visibleNodeIds,
         edgeColor: THEMES[theme].edge,
         largeGraphMode,
-        previousById: previousVisibleEdgesById,
+        // eslint-disable-next-line react-hooks/refs -- intentional: ref holds an identity-preserving cache map updated in useEffect; reading it here avoids an extra render cycle (Issue 10)
+        previousById: previousVisibleEdgesByIdRef.current,
       }),
-    [edges, largeGraphMode, previousVisibleEdgesById, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
+    [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
 
+  // Issue 10: update ref caches without triggering re-renders
   useEffect(() => {
-    setPreviousVisibleNodesById((previous) => {
-      if (
-        previous.size === visibleNodes.length &&
-        visibleNodes.every((node) => previous.get(node.id) === node)
-      ) {
-        return previous;
-      }
-      return new Map(visibleNodes.map((node) => [node.id, node]));
-    });
+    const current = previousVisibleNodesByIdRef.current;
+    if (
+      current.size === visibleNodes.length &&
+      visibleNodes.every((node) => current.get(node.id) === node)
+    ) {
+      return;
+    }
+    previousVisibleNodesByIdRef.current = new Map(visibleNodes.map((node) => [node.id, node]));
   }, [visibleNodes]);
 
   useEffect(() => {
-    setPreviousVisibleEdgesById((previous) => {
-      if (
-        previous.size === visibleEdges.length &&
-        visibleEdges.every((edge) => previous.get(edge.id) === edge)
-      ) {
-        return previous;
-      }
-      return new Map(visibleEdges.map((edge) => [edge.id, edge]));
-    });
+    const current = previousVisibleEdgesByIdRef.current;
+    if (
+      current.size === visibleEdges.length &&
+      visibleEdges.every((edge) => current.get(edge.id) === edge)
+    ) {
+      return;
+    }
+    previousVisibleEdgesByIdRef.current = new Map(visibleEdges.map((edge) => [edge.id, edge]));
   }, [visibleEdges]);
 
   const selectedNode = useMemo(
@@ -622,6 +459,12 @@ export default function FlowchartViewer({
     [visibleEdges.length, visibleNodeIds.size],
   );
 
+  const focusTargetNode = useMemo(
+    () => visibleNodes.find((n) => n.id === focusNodeId && !n.hidden),
+    [focusNodeId, visibleNodes],
+  );
+
+  // ── Callbacks ────────────────────────────────────────────────────────────────
   const onExport = useCallback(() => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
@@ -670,6 +513,23 @@ export default function FlowchartViewer({
       });
   }, [perf, theme, visibleEdges.length, visibleNodeIds.size]);
 
+  const onExportJson = useCallback(() => {
+    const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
+    const blob = new Blob([graphJson], { type: 'application/json' });
+    saveAs(blob, 'renpy-flowchart.json');
+  }, [flowEdges, flowNodes]);
+
+  const onDebugOptionChange = useCallback(
+    (patch: Partial<DebugBundlePrivacyOptions>) => {
+      if (!onDebugPrivacyOptionsChange) return;
+      onDebugPrivacyOptionsChange({ ...debugPrivacyOptions, ...patch });
+    },
+    [debugPrivacyOptions, onDebugPrivacyOptionsChange],
+  );
+
+  const onFitView = useCallback(() => {
+    flowInstanceRef.current?.fitView({ padding: 0.2 });
+  }, []);
 
   const onFocusSelectedNode = useCallback(() => {
     if (!focusNodeId || !flowInstanceRef.current) return;
@@ -702,7 +562,7 @@ export default function FlowchartViewer({
     setSelectedDialogueLineIndex(result.lineIndex);
     setShowAllInspectorLines(hasTruncation && selectedLineOutsidePreview);
     focusVisibleNode(result.nodeId);
-  }, [focusVisibleNode, visibleNodes]);
+  }, [focusVisibleNode, setSelectedNodeId, setSelectedDialogueLineIndex, setShowAllInspectorLines, visibleNodes]);
 
   const onSearchInputKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (activeDialogueSearchResults.length === 0) return;
@@ -727,22 +587,7 @@ export default function FlowchartViewer({
     }
   }, [activeDialogueResultIndex, activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex, setActiveDialogueResultIndex]);
 
-  const onExportJson = useCallback(() => {
-    const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
-    const blob = new Blob([graphJson], { type: 'application/json' });
-    saveAs(blob, 'renpy-flowchart.json');
-  }, [flowEdges, flowNodes]);
-  const onDebugOptionChange = useCallback(
-    (patch: Partial<DebugBundlePrivacyOptions>) => {
-      if (!onDebugPrivacyOptionsChange) return;
-      onDebugPrivacyOptionsChange({ ...debugPrivacyOptions, ...patch });
-    },
-    [debugPrivacyOptions, onDebugPrivacyOptionsChange],
-  );
-  const onFitView = useCallback(() => {
-    flowInstanceRef.current?.fitView({ padding: 0.2 });
-  }, []);
-
+  // ── Global keyboard shortcuts ─────────────────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
@@ -761,11 +606,11 @@ export default function FlowchartViewer({
         flowInstanceRef.current?.fitView({ padding: 0.2 });
       }
     };
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onExport]);
 
+  // ── Performance tracking ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!perf.enabled) return;
     const startedAt = performance.now();
@@ -778,433 +623,77 @@ export default function FlowchartViewer({
     return () => cancelAnimationFrame(id);
   }, [perf, visibleEdges.length, visibleNodeIds.size]);
 
-  const focusTargetNode = useMemo(
-    () => visibleNodes.find((n) => n.id === focusNodeId && !n.hidden),
-    [focusNodeId, visibleNodes],
-  );
-  const inspectorDialogueLines = useMemo(
-    () =>
-      showAllInspectorLines
-        ? selectedNodeData?.dialogueLines ?? []
-        : (selectedNodeData?.dialogueLines ?? []).slice(0, INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT),
-    [selectedNodeData?.dialogueLines, showAllInspectorLines],
-  );
-  const shouldVirtualizeInspectorResults = activeDialogueSearchResults.length > 120;
-  const shouldVirtualizeInspectorLines = inspectorDialogueLines.length > 120;
-  const measureInspectorLineElement = useCallback(
-    (element: HTMLDivElement) => element.getBoundingClientRect().height,
-    [],
-  );
-  /* eslint-disable react-hooks/incompatible-library */
-  const dialogueResultsVirtualizer = useVirtualizer({
-    count: shouldVirtualizeInspectorResults ? activeDialogueSearchResults.length : 0,
-    getScrollElement: () => dialogueResultsScrollRef.current,
-    estimateSize: () => 52,
-    overscan: 6,
-  });
-  const inspectorLinesVirtualizer = useVirtualizer({
-    count: shouldVirtualizeInspectorLines ? inspectorDialogueLines.length : 0,
-    getScrollElement: () => inspectorLinesScrollRef.current,
-    estimateSize: () => 34,
-    measureElement: measureInspectorLineElement,
-    overscan: 10,
-  });
-  /* eslint-enable react-hooks/incompatible-library */
-
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
       {/* Toolbar */}
-      <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0" role="toolbar" aria-label="Viewer controls">
-        <div className="flex flex-col gap-3">
-          <div className="text-sm" style={{ color: THEMES[theme].subtleText }} aria-live="off">
-            {visibleNodeIds.size} / {flowNodes.length} node{flowNodes.length !== 1 ? 's' : ''} ·{' '}
-            {visibleEdges.length} / {flowEdges.length} edge{flowEdges.length !== 1 ? 's' : ''}
-          </div>
-          <div className="flex flex-wrap items-start gap-2 md:gap-3" role="group" aria-label="Primary controls">
-            <div className="flex flex-wrap items-center gap-2 grow" role="group" aria-label="Search and filters">
-              <label htmlFor="viewer-search-input" className="text-xs font-medium text-gray-700">Search</label>
-              <div className="relative flex items-center min-w-[12rem] grow sm:grow-0">
-                <Search size={14} className="absolute left-2 text-gray-400" aria-hidden="true" />
-                <input
-                  id="viewer-search-input"
-                  ref={searchInputRef}
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={onSearchInputKeyDown}
-                  placeholder="Search labels, dialogue lines, or dialogue count"
-                  aria-describedby="viewer-search-help"
-                  className={`pl-7 pr-2 w-full sm:w-[16rem] max-w-[90vw] ${CONTROL_INPUT_CLASS}`}
-                />
-              </div>
-              <span id="viewer-search-help" className="sr-only">
-                {dialogueLineSearchEnabled
-                  ? 'Search labels, dialogue lines, or dialogue count.'
-                  : 'Search labels or dialogue count.'}
-              </span>
-              <label className="text-xs flex items-center gap-1" htmlFor="min-dialogue-input">
-                Minimum dialogue lines
-                <input
-                  id="min-dialogue-input"
-                  type="number"
-                  min={0}
-                  value={minDialogue}
-                  onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
-                  aria-label="Minimum dialogue lines"
-                  className={`w-16 ${CONTROL_INPUT_CLASS}`}
-                />
-              </label>
-              <label className="text-xs flex items-center gap-1" htmlFor="dialogue-search-mode-input">
-                Dialogue search mode
-                <select
-                  id="dialogue-search-mode-input"
-                  value={selectedDialogueSearchMode}
-                  onChange={(e) => {
-                    const mode = e.target.value as DialogueSearchMode;
-                    if (onDialogueSearchModeChange) {
-                      onDialogueSearchModeChange(mode);
-                      return;
-                    }
-                    setStandaloneDialogueSearchMode(mode);
-                  }}
-                  aria-label="Dialogue search mode"
-                  className={CONTROL_INPUT_CLASS}
-                >
-                  <option value="auto">Auto (faster on large imports)</option>
-                  <option value="full">Full dialogue line search</option>
-                  <option value="countOnly">Performance mode (label/count only)</option>
-                </select>
-              </label>
-              {!dialogueLineSearchEnabled && (
-                <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                  Dialogue line search is disabled in performance mode.
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onFitView}
-              className={CONTROL_BUTTON_CLASS}
-              aria-label="Fit graph to view"
-            >
-              Fit view
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Export controls">
-            {isLargeExportTarget && (
-              <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                Large graph export: PNG quality reduced for responsiveness
-              </span>
-            )}
-            <button
-              onClick={onExport}
-              aria-label="Export flowchart as PNG"
-              className={`${PRIMARY_BUTTON_CLASS} text-white bg-violet-600 hover:bg-violet-700`}
-            >
-              <Download size={14} aria-hidden="true" />
-              Export PNG
-            </button>
-            <button
-              onClick={onExportSvg}
-              aria-label="Export flowchart as SVG"
-              className={`${PRIMARY_BUTTON_CLASS} text-violet-700 border border-violet-300 bg-white hover:bg-violet-50`}
-            >
-              <Download size={14} aria-hidden="true" />
-              Export SVG
-            </button>
-            <button
-              onClick={onExportJson}
-              aria-label="Export graph as JSON"
-              className={`${PRIMARY_BUTTON_CLASS} text-gray-700 border border-gray-300 bg-white hover:bg-gray-50`}
-            >
-              <Download size={14} aria-hidden="true" />
-              Export JSON
-            </button>
-            <button
-              onClick={() => onExportDebugBundle?.(debugPrivacyOptions)}
-              aria-label="Export debug bundle"
-              className={`${PRIMARY_BUTTON_CLASS} text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100`}
-            >
-              <Download size={14} aria-hidden="true" />
-              Export Debug Bundle
-            </button>
-            <button
-              onClick={() => onOpenIssue?.(debugPrivacyOptions)}
-              aria-label="Open new GitHub issue"
-              className={`${PRIMARY_BUTTON_CLASS} text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100`}
-            >
-              Open new GitHub issue
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-600" role="group" aria-label="Debug bundle privacy options">
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={debugPrivacyOptions.includeFileNames}
-                onChange={(event) => onDebugOptionChange({ includeFileNames: event.target.checked })}
-              />
-              Include file names (sensitive)
-            </label>
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={debugPrivacyOptions.includeRawScriptDetails}
-                onChange={(event) => onDebugOptionChange({ includeRawScriptDetails: event.target.checked })}
-              />
-              Include raw/script details (opt-in)
-            </label>
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={debugPrivacyOptions.includeExtraDiagnostics}
-                onChange={(event) => onDebugOptionChange({ includeExtraDiagnostics: event.target.checked })}
-              />
-              Include extra diagnostics
-            </label>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {ZOOM_PRESETS.map((preset) => (
-              <button
-                key={preset}
-                onClick={() => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
-                className={CONTROL_BUTTON_CLASS}
-                aria-label={`Zoom to ${Math.round(preset * 100)} percent`}
-              >
-                <ZoomIn size={12} className="inline mr-1" aria-hidden="true" />
-                {Math.round(preset * 100)}%
-              </button>
-            ))}
-            <span className="text-[11px] text-gray-500">
-              Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG
-            </span>
-            <button
-              type="button"
-              onClick={toggleShowAdvancedControls}
-              className={CONTROL_BUTTON_CLASS}
-              aria-expanded={showAdvancedControls}
-              aria-controls="viewer-advanced-controls"
-              aria-label={showAdvancedControls ? 'Hide advanced controls' : 'Show advanced controls'}
-            >
-              {showAdvancedControls ? 'Hide advanced controls' : 'Show advanced controls'}
-            </button>
-          </div>
-          {showAdvancedControls && (
-            <div id="viewer-advanced-controls" className="border border-gray-200 rounded-lg p-3 flex flex-col gap-3" role="group" aria-label="Advanced controls">
-              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Layout and focus controls">
-                <label className="text-xs flex items-center gap-1">
-                  <LayoutGrid size={14} aria-hidden="true" />
-                  Layout
-                  <select
-                    value={layoutDirection}
-                    onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
-                    aria-label="Auto layout direction"
-                    className={CONTROL_INPUT_CLASS}
-                  >
-                    <option value="TB">Top to bottom</option>
-                    <option value="LR">Left to right</option>
-                  </select>
-                </label>
-                <button
-                  onClick={relayout}
-                  className={CONTROL_BUTTON_CLASS}
-                  aria-label="Re-run auto layout"
-                >
-                  Auto-layout
-                </button>
-                <label className="text-xs flex items-center gap-1 flex-wrap">
-                  <Palette size={14} aria-hidden="true" />
-                  Theme
-                  <select
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value as ThemeName)}
-                    aria-label="Color theme"
-                    className={CONTROL_INPUT_CLASS}
-                  >
-                    <option value="violet">Default</option>
-                    <option value="highContrast">High contrast</option>
-                    <option value="colorblind">Colorblind-safe</option>
-                  </select>
-                </label>
+      <ViewerToolbar
+        theme={theme}
+        visibleNodeCount={visibleNodeIds.size}
+        totalNodeCount={flowNodes.length}
+        visibleEdgeCount={visibleEdges.length}
+        totalEdgeCount={flowEdges.length}
+        searchInput={searchInput}
+        setSearchInput={setSearchInput}
+        searchInputRef={searchInputRef}
+        onSearchInputKeyDown={onSearchInputKeyDown}
+        dialogueLineSearchEnabled={dialogueLineSearchEnabled}
+        minDialogue={minDialogue}
+        setMinDialogue={setMinDialogue}
+        selectedDialogueSearchMode={selectedDialogueSearchMode}
+        onDialogueSearchModeChange={handleDialogueModeChange}
+        isLargeExportTarget={isLargeExportTarget}
+        onExport={onExport}
+        onExportSvg={onExportSvg}
+        onExportJson={onExportJson}
+        onExportDebugBundle={onExportDebugBundle}
+        onOpenIssue={onOpenIssue}
+        debugPrivacyOptions={debugPrivacyOptions}
+        onDebugOptionChange={onDebugOptionChange}
+        onFitView={onFitView}
+        onZoomTo={(preset) => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
+        showAdvancedControls={showAdvancedControls}
+        toggleShowAdvancedControls={toggleShowAdvancedControls}
+      />
 
-                <label className="text-xs flex items-center gap-1 flex-wrap">
-                  Focus label
-                  <select
-                    value={focusNodeId}
-                    onChange={(e) => setFocusNodeId(e.target.value)}
-                    aria-label="Focus label"
-                    className={CONTROL_INPUT_CLASS}
-                  >
-                    <option value="">Select label</option>
-                    {labels.map((label) => (
-                      <option key={label} value={label}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={onFocusSelectedNode}
-                  disabled={!focusNodeId}
-                  className={CONTROL_BUTTON_CLASS}
-                  aria-label="Center selected label"
-                >
-                  <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
-                  Center
-                </button>
-                <span className="text-[11px] text-gray-600" aria-live="off">
-                  {!focusNodeId
-                    ? 'Select a label, then center it in view.'
-                    : focusTargetNode
-                      ? `Ready to center: ${focusNodeId}`
-                      : `${focusNodeId} is hidden by current filters.`}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs" role="group" aria-label="Advanced graph filters">
-                <label className="inline-flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={showCallReturns}
-                    onChange={(e) => setShowCallReturns(e.target.checked)}
-                    aria-label="Show call returns"
-                  />
-                  Show call returns
-                </label>
-                <label className="inline-flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={largeGraphMode}
-                    onChange={(e) => setLargeGraphModeOverride(e.target.checked)}
-                    aria-label="Enable large graph mode"
-                  />
-                  Large graph mode
-                </label>
-                {largeGraphModeOverride !== null && (
-                  <button
-                    type="button"
-                    className={CONTROL_BUTTON_CLASS}
-                    onClick={() => setLargeGraphModeOverride(null)}
-                    aria-label="Use automatic large graph mode"
-                  >
-                    Use auto
-                  </button>
-                )}
-                <span className="text-[11px] text-gray-600" role="status" aria-live="polite">
-                  {largeGraphModeStatusText}
-                </span>
-                <div className="flex flex-wrap items-center gap-1 text-xs">
-                  <span>Edges</span>
-                  {(['sequence', 'jump', 'call', 'call_return'] as const).map((kind) => (
-                    <label key={kind} className="inline-flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={visibleEdgeKinds[kind]}
-                        onChange={(e) =>
-                          setEdgeKindVisible(kind, e.target.checked)
-                        }
-                        aria-label={`Show ${kind.replace('_', ' ')} edges`}
-                      />
-                      {kind.replace('_', ' ')}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="border-t border-gray-200 pt-3 flex flex-col gap-3" role="group" aria-label="Chapter and label subgraph filters">
-                {chapters.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-xs">Chapter subgraphs:</span>
-                    {chapters.map((chapter) => (
-                      <button
-                        key={chapter}
-                        onClick={() => toggleChapter(chapter)}
-                        className={CONTROL_BUTTON_CLASS}
-                        aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
-                      >
-                        {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {labels.length > 0 && (
-                  <div className="flex flex-col gap-2 min-w-[18rem]" role="group" aria-label="Label subgraphs">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-xs">Label subgraphs:</span>
-                      <span className="text-[11px] text-gray-600" aria-live="polite">
-                        {collapsedLabelCount} collapsed
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label htmlFor="label-subgraph-filter" className="sr-only">
-                        Filter label subgraphs
-                      </label>
-                      <input
-                        id="label-subgraph-filter"
-                        type="search"
-                        value={labelSubgraphSearchInput}
-                        onChange={(e) => setLabelSubgraphSearchInput(e.target.value)}
-                        placeholder="Filter labels"
-                        aria-label="Filter label subgraphs"
-                        className={CONTROL_INPUT_CLASS}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setAllVisibleSubgraphLabelsCollapsed(true)}
-                        disabled={visibleSubgraphLabels.length === 0}
-                        className={CONTROL_BUTTON_CLASS}
-                        aria-label="Collapse all visible label subgraphs"
-                      >
-                        Collapse all
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAllVisibleSubgraphLabelsCollapsed(false)}
-                        disabled={visibleSubgraphLabels.length === 0}
-                        className={CONTROL_BUTTON_CLASS}
-                        aria-label="Expand all visible label subgraphs"
-                      >
-                        Expand all
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {visibleSubgraphLabels.length === 0 ? (
-                        <span className="text-[11px] text-gray-500">No labels match the filter.</span>
-                      ) : (
-                        <>
-                          {visibleLabelSubgraphToggles.map((label) => (
-                            <button
-                              key={label}
-                              onClick={() => toggleParentLabel(label)}
-                              className={CONTROL_BUTTON_CLASS}
-                              aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
-                            >
-                              {collapsedParentLabels[label] ? '▸' : '▾'} {label}
-                            </button>
-                          ))}
-                          {visibleSubgraphLabels.length > MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES && (
-                            <button
-                              type="button"
-                              onClick={toggleShowAllLabelSubgraphToggles}
-                              className={CONTROL_BUTTON_CLASS}
-                              aria-label={
-                                shouldShowAllLabelSubgraphToggles
-                                  ? 'Show fewer label subgraph toggles'
-                                  : `Show ${Math.max(visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES, 0)} more label subgraph toggles`
-                              }
-                            >
-                              {shouldShowAllLabelSubgraphToggles
-                                ? 'Show fewer'
-                                : `Show ${Math.max(visibleSubgraphLabels.length - MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES, 0)} more`}
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+      {/* Advanced controls */}
+      {showAdvancedControls && (
+        <div className="px-3 sm:px-4 pb-3 bg-white border-b border-gray-200 shrink-0">
+          <ViewerAdvancedControls
+            layoutDirection={layoutDirection}
+            setLayoutDirection={setLayoutDirection}
+            onRelayout={relayout}
+            theme={theme}
+            setTheme={setTheme}
+            focusNodeId={focusNodeId}
+            setFocusNodeId={setFocusNodeId}
+            labels={labels}
+            onFocusSelectedNode={onFocusSelectedNode}
+            focusTargetNode={focusTargetNode}
+            showCallReturns={showCallReturns}
+            setShowCallReturns={setShowCallReturns}
+            largeGraphMode={largeGraphMode}
+            largeGraphModeOverride={largeGraphModeOverride}
+            setLargeGraphModeOverride={setLargeGraphModeOverride}
+            largeGraphModeStatusText={largeGraphModeStatusText}
+            visibleEdgeKinds={visibleEdgeKinds}
+            setEdgeKindVisible={setEdgeKindVisible}
+            chapters={chapters}
+            collapsedChapters={collapsedChapters}
+            toggleChapter={toggleChapter}
+            collapsedLabelCount={collapsedLabelCount}
+            labelSubgraphSearchInput={labelSubgraphSearchInput}
+            setLabelSubgraphSearchInput={setLabelSubgraphSearchInput}
+            visibleSubgraphLabels={visibleSubgraphLabels}
+            visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
+            shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
+            collapsedParentLabels={collapsedParentLabels}
+            toggleParentLabel={toggleParentLabel}
+            setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
+            toggleShowAllLabelSubgraphToggles={toggleShowAllLabelSubgraphToggles}
+          />
         </div>
-      </div>
+      )}
 
       {/* Flow canvas + inspector */}
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
@@ -1240,175 +729,21 @@ export default function FlowchartViewer({
             />
           </ReactFlow>
         </div>
-        <aside
-          className="w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l border-gray-200 bg-white p-3 overflow-y-auto max-h-[45vh] xl:max-h-none"
-          aria-label="Inspector panel"
-        >
-          <div className="text-sm font-semibold mb-2">Inspector</div>
-          {effectiveSearch.trim().length > 0 && (
-            <div className="mb-4">
-              <div className="text-xs text-gray-700 mb-1" role="status" aria-live="polite">
-                Node matches (label/count): {nodeSearchMatchCount}
-              </div>
-              {!dialogueLineSearchEnabled ? (
-                <div className="text-xs text-gray-600" role="status" aria-live="polite">
-                  Dialogue line matching is unavailable in performance mode.
-                </div>
-              ) : (
-                <>
-               <div className="text-xs font-semibold text-gray-700 mb-1">
-                 Dialogue line matches ({activeDialogueSearchResults.length})
-               </div>
-               <div
-                 ref={dialogueResultsScrollRef}
-                 className="max-h-48 overflow-y-auto"
-                 aria-label="Dialogue search results"
-               >
-                 {activeDialogueSearchResults.length === 0 ? (
-                   <div className="text-xs text-gray-500">
-                     <div role="status" aria-live="polite">
-                       No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
-                     </div>
-                   </div>
-                 ) : shouldVirtualizeInspectorResults ? (
-                   <ul
-                     className="relative space-y-1"
-                     style={{ height: `${dialogueResultsVirtualizer.getTotalSize()}px` }}
-                   >
-                     {dialogueResultsVirtualizer.getVirtualItems().map((virtualItem) => {
-                       const result = activeDialogueSearchResults[virtualItem.index];
-                       return (
-                         <li
-                           key={`${result.nodeId}-${result.lineIndex}`}
-                           className="absolute left-0 top-0 w-full"
-                           style={{ transform: `translateY(${virtualItem.start}px)` }}
-                         >
-                           <button
-                             type="button"
-                             aria-current={virtualItem.index === resolvedActiveDialogueResultIndex ? 'true' : undefined}
-                             aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
-                             onClick={() => {
-                               setActiveDialogueResultIndex(virtualItem.index);
-                               onSelectDialogueSearchResult(result);
-                             }}
-                             className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
-                               virtualItem.index === resolvedActiveDialogueResultIndex
-                                 ? 'border-violet-400 bg-violet-50'
-                                 : 'border-gray-200'
-                             }`}
-                           >
-                             <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                             <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
-                           </button>
-                         </li>
-                       );
-                     })}
-                   </ul>
-                 ) : (
-                   <ul className="space-y-1">
-                     {activeDialogueSearchResults.map((result, resultIndex) => (
-                       <li key={`${result.nodeId}-${result.lineIndex}`}>
-                         <button
-                           type="button"
-                           aria-current={resultIndex === resolvedActiveDialogueResultIndex ? 'true' : undefined}
-                           aria-label={`${result.nodeLabel} line ${result.lineIndex}: ${truncateForAria(result.lineText)}`}
-                           onClick={() => {
-                             setActiveDialogueResultIndex(resultIndex);
-                             onSelectDialogueSearchResult(result);
-                           }}
-                           className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
-                             resultIndex === resolvedActiveDialogueResultIndex
-                               ? 'border-violet-400 bg-violet-50'
-                               : 'border-gray-200'
-                           }`}
-                         >
-                           <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                           <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
-                         </button>
-                       </li>
-                     ))}
-                   </ul>
-                 )}
-               </div>
-                {activeDialogueSearchResults.length > 0 && (
-                  <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
-                    Tip: with search focused, use ↑/↓ to move results and Enter to open.
-                  </div>
-                )}
-                </>
-              )}
-            </div>
-          )}
-          {!selectedNode || !selectedNodeData ? (
-            <div className="text-xs text-gray-500">
-              {effectiveSearch.trim().length > 0
-                ? 'Choose a search result or click a visible node to inspect dialogue lines.'
-                : 'Select a node to inspect dialogue lines, or search to jump to matching dialogue.'}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="text-xs">
-                <span className="font-semibold">Node:</span> {selectedNodeData.label}
-              </div>
-              <div className="text-xs">
-                <span className="font-semibold">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
-              </div>
-              <div className="text-xs font-semibold">Dialogue</div>
-              <div ref={inspectorLinesScrollRef} className={shouldVirtualizeInspectorLines ? 'max-h-64 overflow-y-auto' : ''}>
-                {shouldVirtualizeInspectorLines ? (
-                  <div
-                    className="relative"
-                    style={{ height: `${inspectorLinesVirtualizer.getTotalSize()}px` }}
-                  >
-                    {inspectorLinesVirtualizer.getVirtualItems().map((virtualItem) => {
-                      const line = inspectorDialogueLines[virtualItem.index] ?? '';
-                      const absoluteIndex = virtualItem.index + 1;
-                      const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
-                      return (
-                        <div
-                          key={`${selectedNodeId}-${virtualItem.key}`}
-                          ref={inspectorLinesVirtualizer.measureElement}
-                          // Required so TanStack Virtual can map measured DOM height back to item index.
-                          data-index={virtualItem.index}
-                          className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
-                          style={{ position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
-                        >
-                          <span className="font-medium mr-1">{absoluteIndex}.</span>
-                          {renderHighlightedText(line, effectiveSearch)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {inspectorDialogueLines.map((line, idx) => {
-                      const absoluteIndex = idx + 1;
-                      const isSelectedLine = selectedDialogueLineIndex === absoluteIndex;
-                      return (
-                        <div
-                          key={`${selectedNodeId}-${idx}`}
-                          className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
-                        >
-                          <span className="font-medium mr-1">{absoluteIndex}.</span>
-                          {renderHighlightedText(line, effectiveSearch)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              {(selectedNodeData.dialogueLines?.length ?? 0) > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT && (
-                <button
-                  type="button"
-                  onClick={toggleShowAllInspectorLines}
-                  className="text-xs text-violet-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
-                >
-                  {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
-                </button>
-              )}
-            </div>
-          )}
-        </aside>
+        <ViewerInspector
+          effectiveSearch={effectiveSearch}
+          nodeSearchMatchCount={nodeSearchMatchCount}
+          dialogueLineSearchEnabled={dialogueLineSearchEnabled}
+          activeDialogueSearchResults={activeDialogueSearchResults}
+          resolvedActiveDialogueResultIndex={resolvedActiveDialogueResultIndex}
+          selectedNode={selectedNode}
+          selectedNodeData={selectedNodeData}
+          selectedNodeId={selectedNodeId}
+          selectedDialogueLineIndex={selectedDialogueLineIndex}
+          showAllInspectorLines={showAllInspectorLines}
+          onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
+          onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
+          onSelectDialogueSearchResult={onSelectDialogueSearchResult}
+        />
       </div>
     </div>
   );

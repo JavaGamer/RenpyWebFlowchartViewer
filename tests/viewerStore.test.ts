@@ -2,12 +2,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   useViewerStore,
-  defaultPersistedState as _defaultPersisted,
 } from '../src/application/viewerStore';
 import { STORAGE_KEYS } from '../src/config/storageKeys';
 
-// Re-export private defaults via a white-box approach: we rely on the store's
-// initial state rather than re-importing private symbols.
+// Tests rely on the store's initial state rather than re-importing private symbols.
 const DEFAULTS = {
   theme: 'violet' as const,
   showCallReturns: false,
