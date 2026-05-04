@@ -84,4 +84,46 @@ describe('parseRenpyFiles coverage gaps', () => {
     expect(tokenizeOneFile).toHaveBeenCalledTimes(2);
     expect(processTokenizedFile).toHaveBeenCalledTimes(1);
   });
+
+  it('uses sequential path when maxParallelFiles is exactly 1', async () => {
+    const parseOneFile = vi.fn(async () => undefined);
+    const processTokenizedFile = vi.fn();
+    const tokenizeOneFile = vi.fn(async () => ({ file: { name: 'a.rpy' }, tokenState: {} }));
+
+    const { parseRenpyFiles } = await loadParserWithMocks({
+      parseOneFile,
+      processTokenizedFile,
+      tokenizeOneFile,
+    });
+
+    await expect(
+      parseRenpyFiles([{ name: 'a.rpy', content: 'label a:\n    return\n' }], {
+        maxParallelFiles: 1,
+      }),
+    ).resolves.toEqual({ nodes: [], edges: [] });
+
+    expect(parseOneFile).toHaveBeenCalledTimes(1);
+    expect(tokenizeOneFile).not.toHaveBeenCalled();
+  });
+
+  it('uses sequential path when maxParallelFiles is 0 (treated as <= 1)', async () => {
+    const parseOneFile = vi.fn(async () => undefined);
+    const processTokenizedFile = vi.fn();
+    const tokenizeOneFile = vi.fn(async () => ({ file: { name: 'a.rpy' }, tokenState: {} }));
+
+    const { parseRenpyFiles } = await loadParserWithMocks({
+      parseOneFile,
+      processTokenizedFile,
+      tokenizeOneFile,
+    });
+
+    await expect(
+      parseRenpyFiles([{ name: 'a.rpy', content: 'label a:\n' }], {
+        maxParallelFiles: 0,
+      }),
+    ).resolves.toEqual({ nodes: [], edges: [] });
+
+    expect(parseOneFile).toHaveBeenCalledTimes(1);
+    expect(tokenizeOneFile).not.toHaveBeenCalled();
+  });
 });

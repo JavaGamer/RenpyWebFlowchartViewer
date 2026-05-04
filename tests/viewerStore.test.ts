@@ -17,28 +17,32 @@ const DEFAULTS = {
   },
 };
 
+const DEFAULT_SESSION = {
+  layoutDirection: 'TB' as const,
+  searchInput: '',
+  labelSubgraphSearchInput: '',
+  minDialogue: 0,
+  collapsedChapters: {},
+  collapsedParentLabels: {},
+  focusNodeId: '',
+  largeGraphModeOverride: null,
+  selectedNodeId: '',
+  selectedDialogueLineIndex: null,
+  showAllInspectorLines: false,
+  activeDialogueResultIndex: -1,
+  dialogueSearchResults: [],
+  showAdvancedControls: false,
+  showAllLabelSubgraphToggles: false,
+  standaloneDialogueSearchMode: 'auto' as const,
+};
+
 describe('useViewerStore persistence', () => {
   beforeEach(() => {
     globalThis.localStorage.clear();
     // Reset the store to its initial default state between tests.
     useViewerStore.setState({
       ...DEFAULTS,
-      layoutDirection: 'TB',
-      searchInput: '',
-      labelSubgraphSearchInput: '',
-      minDialogue: 0,
-      collapsedChapters: {},
-      collapsedParentLabels: {},
-      focusNodeId: '',
-      largeGraphModeOverride: null,
-      selectedNodeId: '',
-      selectedDialogueLineIndex: null,
-      showAllInspectorLines: false,
-      activeDialogueResultIndex: -1,
-      dialogueSearchResults: [],
-      showAdvancedControls: false,
-      showAllLabelSubgraphToggles: false,
-      standaloneDialogueSearchMode: 'auto',
+      ...DEFAULT_SESSION,
     });
   });
 
@@ -179,3 +183,159 @@ describe('useViewerStore persistence', () => {
     expect(s.visibleEdgeKinds).toEqual(DEFAULTS.visibleEdgeKinds);
   });
 });
+
+describe('useViewerStore session state actions', () => {
+  beforeEach(() => {
+    globalThis.localStorage.clear();
+    useViewerStore.setState({
+      ...DEFAULTS,
+      ...DEFAULT_SESSION,
+    });
+  });
+
+  it('setLayoutDirection updates layoutDirection', () => {
+    useViewerStore.getState().setLayoutDirection('LR');
+    expect(useViewerStore.getState().layoutDirection).toBe('LR');
+  });
+
+  it('setSearchInput updates searchInput', () => {
+    useViewerStore.getState().setSearchInput('hello');
+    expect(useViewerStore.getState().searchInput).toBe('hello');
+  });
+
+  it('setLabelSubgraphSearchInput updates labelSubgraphSearchInput', () => {
+    useViewerStore.getState().setLabelSubgraphSearchInput('chapter1');
+    expect(useViewerStore.getState().labelSubgraphSearchInput).toBe('chapter1');
+  });
+
+  it('setMinDialogue updates minDialogue', () => {
+    useViewerStore.getState().setMinDialogue(5);
+    expect(useViewerStore.getState().minDialogue).toBe(5);
+  });
+
+  it('toggleChapter toggles a chapter collapsed state', () => {
+    useViewerStore.getState().toggleChapter('ch1');
+    expect(useViewerStore.getState().collapsedChapters['ch1']).toBe(true);
+    useViewerStore.getState().toggleChapter('ch1');
+    expect(useViewerStore.getState().collapsedChapters['ch1']).toBe(false);
+  });
+
+  it('toggleParentLabel toggles a label collapsed state', () => {
+    useViewerStore.getState().toggleParentLabel('label_a');
+    expect(useViewerStore.getState().collapsedParentLabels['label_a']).toBe(true);
+    useViewerStore.getState().toggleParentLabel('label_a');
+    expect(useViewerStore.getState().collapsedParentLabels['label_a']).toBe(false);
+  });
+
+  it('setAllParentLabelsCollapsed collapses all provided labels', () => {
+    useViewerStore.getState().setAllParentLabelsCollapsed(['a', 'b', 'c'], true);
+    const { collapsedParentLabels } = useViewerStore.getState();
+    expect(collapsedParentLabels['a']).toBe(true);
+    expect(collapsedParentLabels['b']).toBe(true);
+    expect(collapsedParentLabels['c']).toBe(true);
+  });
+
+  it('setAllParentLabelsCollapsed expands all provided labels', () => {
+    useViewerStore.getState().setAllParentLabelsCollapsed(['a', 'b'], true);
+    useViewerStore.getState().setAllParentLabelsCollapsed(['a', 'b'], false);
+    const { collapsedParentLabels } = useViewerStore.getState();
+    expect(collapsedParentLabels['a']).toBe(false);
+    expect(collapsedParentLabels['b']).toBe(false);
+  });
+
+  it('setFocusNodeId updates focusNodeId', () => {
+    useViewerStore.getState().setFocusNodeId('node_42');
+    expect(useViewerStore.getState().focusNodeId).toBe('node_42');
+  });
+
+  it('setLargeGraphModeOverride updates largeGraphModeOverride', () => {
+    useViewerStore.getState().setLargeGraphModeOverride(true);
+    expect(useViewerStore.getState().largeGraphModeOverride).toBe(true);
+    useViewerStore.getState().setLargeGraphModeOverride(null);
+    expect(useViewerStore.getState().largeGraphModeOverride).toBeNull();
+  });
+
+  it('setSelectedNodeId updates selectedNodeId', () => {
+    useViewerStore.getState().setSelectedNodeId('node_1');
+    expect(useViewerStore.getState().selectedNodeId).toBe('node_1');
+  });
+
+  it('setSelectedDialogueLineIndex updates selectedDialogueLineIndex', () => {
+    useViewerStore.getState().setSelectedDialogueLineIndex(3);
+    expect(useViewerStore.getState().selectedDialogueLineIndex).toBe(3);
+    useViewerStore.getState().setSelectedDialogueLineIndex(null);
+    expect(useViewerStore.getState().selectedDialogueLineIndex).toBeNull();
+  });
+
+  it('toggleShowAllInspectorLines flips showAllInspectorLines', () => {
+    expect(useViewerStore.getState().showAllInspectorLines).toBe(false);
+    useViewerStore.getState().toggleShowAllInspectorLines();
+    expect(useViewerStore.getState().showAllInspectorLines).toBe(true);
+    useViewerStore.getState().toggleShowAllInspectorLines();
+    expect(useViewerStore.getState().showAllInspectorLines).toBe(false);
+  });
+
+  it('setShowAllInspectorLines sets showAllInspectorLines directly', () => {
+    useViewerStore.getState().setShowAllInspectorLines(true);
+    expect(useViewerStore.getState().showAllInspectorLines).toBe(true);
+    useViewerStore.getState().setShowAllInspectorLines(false);
+    expect(useViewerStore.getState().showAllInspectorLines).toBe(false);
+  });
+
+  it('setActiveDialogueResultIndex updates activeDialogueResultIndex', () => {
+    useViewerStore.getState().setActiveDialogueResultIndex(2);
+    expect(useViewerStore.getState().activeDialogueResultIndex).toBe(2);
+  });
+
+  it('setDialogueSearchResults updates dialogueSearchResults', () => {
+    const results = [{ nodeId: 'n1', nodeLabel: 'start', lineIndex: 0, lineText: 'hello' }];
+    useViewerStore.getState().setDialogueSearchResults(results);
+    expect(useViewerStore.getState().dialogueSearchResults).toEqual(results);
+  });
+
+  it('toggleShowAdvancedControls flips showAdvancedControls', () => {
+    expect(useViewerStore.getState().showAdvancedControls).toBe(false);
+    useViewerStore.getState().toggleShowAdvancedControls();
+    expect(useViewerStore.getState().showAdvancedControls).toBe(true);
+    useViewerStore.getState().toggleShowAdvancedControls();
+    expect(useViewerStore.getState().showAdvancedControls).toBe(false);
+  });
+
+  it('toggleShowAllLabelSubgraphToggles flips showAllLabelSubgraphToggles', () => {
+    expect(useViewerStore.getState().showAllLabelSubgraphToggles).toBe(false);
+    useViewerStore.getState().toggleShowAllLabelSubgraphToggles();
+    expect(useViewerStore.getState().showAllLabelSubgraphToggles).toBe(true);
+  });
+
+  it('setStandaloneDialogueSearchMode updates standaloneDialogueSearchMode', () => {
+    useViewerStore.getState().setStandaloneDialogueSearchMode('full');
+    expect(useViewerStore.getState().standaloneDialogueSearchMode).toBe('full');
+  });
+
+  it('resetSession resets all session state to defaults without touching persisted state', () => {
+    // Mutate persisted state.
+    useViewerStore.getState().setTheme('highContrast');
+    useViewerStore.getState().setShowCallReturns(true);
+    // Mutate session state.
+    useViewerStore.getState().setSearchInput('foo');
+    useViewerStore.getState().setMinDialogue(10);
+    useViewerStore.getState().toggleChapter('ch1');
+    useViewerStore.getState().setFocusNodeId('n1');
+    useViewerStore.getState().setSelectedNodeId('n2');
+
+    useViewerStore.getState().resetSession();
+
+    const s = useViewerStore.getState();
+    // Persisted state should survive.
+    expect(s.theme).toBe('highContrast');
+    expect(s.showCallReturns).toBe(true);
+    // Session state should be reset.
+    expect(s.searchInput).toBe('');
+    expect(s.minDialogue).toBe(0);
+    expect(s.collapsedChapters).toEqual({});
+    expect(s.focusNodeId).toBe('');
+    expect(s.selectedNodeId).toBe('');
+    expect(s.layoutDirection).toBe('TB');
+  });
+});
+

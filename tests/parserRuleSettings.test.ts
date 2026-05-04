@@ -66,4 +66,47 @@ describe('useParserRuleSettingsStore persistence', () => {
     // Valid rule is kept, empty actionName rule is filtered.
     expect(state.customRulesByVariant.renpy).toEqual([{ actionName: 'Warp', actionKind: 'jump' }]);
   });
+
+  it('updateCustomRule with an out-of-bounds index is a no-op', () => {
+    useParserRuleSettingsStore.getState().addCustomRule();
+    const before = useParserRuleSettingsStore.getState().customRulesByVariant.renpy[0];
+    useParserRuleSettingsStore.getState().updateCustomRule(99, { actionName: 'Ghost' });
+    // The existing rule should be unchanged.
+    expect(useParserRuleSettingsStore.getState().customRulesByVariant.renpy[0]).toEqual(before);
+  });
+
+  it('addCustomRule appends a new empty rule for the currently selected variant', () => {
+    useParserRuleSettingsStore.getState().setSelectedVariant('st');
+    useParserRuleSettingsStore.getState().addCustomRule();
+    const state = useParserRuleSettingsStore.getState();
+    expect(state.customRulesByVariant.st).toHaveLength(1);
+    expect(state.customRulesByVariant.st[0]).toEqual({ actionName: '', actionKind: 'jump' });
+    // Rules for the other variant should be unaffected.
+    expect(state.customRulesByVariant.renpy).toHaveLength(0);
+  });
+
+  it('updateCustomRule only patches the provided fields', () => {
+    useParserRuleSettingsStore.getState().addCustomRule();
+    useParserRuleSettingsStore.getState().updateCustomRule(0, { actionName: 'Teleport' });
+    const rule = useParserRuleSettingsStore.getState().customRulesByVariant.renpy[0];
+    expect(rule?.actionName).toBe('Teleport');
+    expect(rule?.actionKind).toBe('jump'); // default, unchanged
+  });
+
+  it('rehydrated state with invalid actionKind is filtered out', async () => {
+    const raw = JSON.stringify({
+      state: {
+        selectedVariant: 'renpy',
+        customRulesByVariant: {
+          renpy: [{ actionName: 'Warp', actionKind: 'teleport' }],
+          st: [],
+        },
+      },
+      version: 0,
+    });
+    globalThis.localStorage.setItem(STORAGE_KEYS.parserSettings, raw);
+    await useParserRuleSettingsStore.persist.rehydrate();
+    // 'teleport' is not a valid actionKind so the rule should be filtered.
+    expect(useParserRuleSettingsStore.getState().customRulesByVariant.renpy).toHaveLength(0);
+  });
 });
