@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { z } from 'zod';
 import { PARSER_VARIANTS, type ParserVariant, type ScreenActionRule } from '../config/parserRules';
 import { STORAGE_KEYS } from '../config/storageKeys';
 
@@ -33,42 +34,39 @@ function isParserVariant(value: unknown): value is ParserVariant {
   return typeof value === 'string' && PARSER_VARIANTS.includes(value as ParserVariant);
 }
 
-function normalizeRule(value: unknown): ScreenActionRule | null {
-  if (!value || typeof value !== 'object') return null;
-  const actionName =
-    'actionName' in value && typeof value.actionName === 'string' ? value.actionName.trim() : '';
-  const actionKind =
-    'actionKind' in value && (value.actionKind === 'jump' || value.actionKind === 'call')
-      ? value.actionKind
-      : null;
-  if (!actionName || !actionKind) return null;
-  return { actionName, actionKind };
-}
+const screenActionRuleSchema = z.object({
+  actionName: z.string().transform((s) => s.trim()).pipe(z.string().min(1)),
+  actionKind: z.enum(['jump', 'call']),
+});
+
+const rulesArraySchema = z
+  .array(z.unknown())
+  .transform((arr) =>
+    arr.flatMap((item) => {
+      const result = screenActionRuleSchema.safeParse(item);
+      return result.success ? [result.data as ScreenActionRule] : [];
+    }),
+  )
+  .catch([]);
+
+const parserRuleSettingsSchema = z.object({
+  selectedVariant: z
+    .string()
+    .refine(isParserVariant)
+    .catch(defaultParserRuleSettings.selectedVariant),
+  customRulesByVariant: z
+    .object({ renpy: rulesArraySchema, st: rulesArraySchema })
+    .catch(defaultParserRuleSettings.customRulesByVariant),
+});
 
 function mergePersistedState(
   persisted: unknown,
   current: ParserRuleSettingsStore,
 ): ParserRuleSettingsStore {
-  if (!persisted || typeof persisted !== 'object') return current;
-  const p = persisted as Partial<ParserRuleSettings>;
-
-  const selectedVariant = isParserVariant(p.selectedVariant)
-    ? p.selectedVariant
-    : defaultParserRuleSettings.selectedVariant;
-
-  const renpyRules = (p.customRulesByVariant?.renpy ?? [])
-    .map(normalizeRule)
-    .filter((rule): rule is ScreenActionRule => rule !== null);
-
-  const stRules = (p.customRulesByVariant?.st ?? [])
-    .map(normalizeRule)
-    .filter((rule): rule is ScreenActionRule => rule !== null);
-
-  return {
-    ...current,
-    selectedVariant,
-    customRulesByVariant: { renpy: renpyRules, st: stRules },
-  };
+  const parsed = parserRuleSettingsSchema.parse(
+    persisted && typeof persisted === 'object' ? persisted : {},
+  );
+  return { ...current, ...parsed };
 }
 
 export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
