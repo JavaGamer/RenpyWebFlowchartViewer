@@ -558,10 +558,10 @@ function FlowchartCanvas({
   }, [activeDialogueResultIndex, activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex, setActiveDialogueResultIndex]);
 
   // Keep the registry ref current so the outer stable wrapper always calls
-  // the latest version after every commit, without causing extra renders.
+  // the latest version. Runs only when the callback identity changes.
   useLayoutEffect(() => {
     canvasCallbacksRef.current.onSearchInputKeyDown = onSearchInputKeyDown;
-  });
+  }, [canvasCallbacksRef, onSearchInputKeyDown]);
 
   // -- Report metrics to outer toolbar ----------------------------------------
   useEffect(() => {
