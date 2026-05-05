@@ -171,6 +171,10 @@ describe('FlowchartViewer behavior coverage', () => {
     },
   ];
 
+  // Helper to access the shouldThrow flag inside the @xyflow/react mock.
+  const getTestFlowApi = () =>
+    (ReactFlowLib as unknown as { __test: { flowApi: { shouldThrow: boolean } } }).__test.flowApi;
+
   const flowEdges: FlowEdge[] = [
     {
       id: 'seq_start__menu_1',
@@ -217,7 +221,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Make the mocked ReactFlow component throw to simulate a canvas crash
-    const testApi = (ReactFlowLib as unknown as { __test: { flowApi: { shouldThrow: boolean } } }).__test.flowApi;
+    const testApi = getTestFlowApi();
     testApi.shouldThrow = true;
 
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
@@ -239,7 +243,7 @@ describe('FlowchartViewer behavior coverage', () => {
     const user = userEvent.setup();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const testApi = (ReactFlowLib as unknown as { __test: { flowApi: { shouldThrow: boolean } } }).__test.flowApi;
+    const testApi = getTestFlowApi();
     testApi.shouldThrow = true;
 
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
