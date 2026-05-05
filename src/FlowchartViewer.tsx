@@ -5,7 +5,7 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -52,7 +52,7 @@ import { ViewerAdvancedControls } from './ui/ViewerAdvancedControls';
 import { ViewerInspector } from './ui/viewerInspector';
 import { CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './ui/viewerConstants';
 
-// ─── Canvas error fallback ────────────────────────────────────────────────────
+// --- Canvas error fallback ---------------------------------------------------
 
 function CanvasErrorFallback({
   error,
@@ -79,7 +79,7 @@ function CanvasErrorFallback({
   );
 }
 
-// ─── Shared types for outer↔inner communication ───────────────────────────────
+// --- Shared types ------------------------------------------------------------
 
 interface CanvasMetrics {
   visibleNodeCount: number;
@@ -88,23 +88,13 @@ interface CanvasMetrics {
   isLargeExportTarget: boolean;
 }
 
-// The inner component writes to this registry during render so the outer's
-// stable wrapper callbacks always invoke the latest version.
+// The inner component writes its current onSearchInputKeyDown to this registry
+// on each render so the outer stable wrapper always calls the latest version.
 interface CanvasCallbacksRegistry {
   onSearchInputKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>) => void;
 }
 
-interface FlowchartViewerProps {
-  flowNodes: FlowNode[];
-  flowEdges: FlowEdge[];
-  dialogueSearchMode?: DialogueSearchMode;
-  onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
-  parseService?: ParseService;
-  debugPrivacyOptions?: DebugBundlePrivacyOptions;
-  onDebugPrivacyOptionsChange?: (options: DebugBundlePrivacyOptions) => void;
-  onExportDebugBundle?: (options: DebugBundlePrivacyOptions) => void;
-  onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
-}
+// --- Helpers -----------------------------------------------------------------
 
 function deriveCollapsedLabelChildren(
   nodes: FlowNode[],
@@ -142,27 +132,23 @@ function dataUrlToBlob(dataUrl: string): Blob {
   }
 }
 
-// ─── Inner canvas component ───────────────────────────────────────────────────
-// Wrapping this component in ErrorBoundary ensures that errors thrown by layout
-// hooks, graph-derivation, or ReactFlow rendering are all caught.  The outer
-// toolbar component lives outside the boundary and survives any such failure.
+// --- Inner canvas component --------------------------------------------------
+// This component is wrapped in ErrorBoundary by FlowchartViewer, so any error
+// thrown by layout hooks, graph-derivation, or ReactFlow rendering is contained
+// here. The outer toolbar survives any such failure.
 
 interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
-  flowRef: { current: HTMLDivElement | null };
-  flowInstanceRef: { current: ReactFlowInstance<CanvasNode, CanvasEdge> | null };
-  searchInputRef: { current: HTMLInputElement | null };
-  previousVisibleNodesByIdRef: { current: Map<string, CanvasNode> };
-  previousVisibleEdgesByIdRef: { current: Map<string, CanvasEdge> };
-  canvasCallbacksRef: { current: CanvasCallbacksRegistry };
+  flowRef: React.RefObject<HTMLDivElement | null>;
+  flowInstanceRef: React.MutableRefObject<ReactFlowInstance<CanvasNode, CanvasEdge> | null>;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  previousVisibleNodesByIdRef: React.MutableRefObject<Map<string, CanvasNode>>;
+  previousVisibleEdgesByIdRef: React.MutableRefObject<Map<string, CanvasEdge>>;
+  canvasCallbacksRef: React.MutableRefObject<CanvasCallbacksRegistry>;
   parseService: ParseService;
   dialogueSearchMode: DialogueSearchMode;
   onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
-  debugPrivacyOptions: DebugBundlePrivacyOptions;
-  onDebugPrivacyOptionsChange?: (options: DebugBundlePrivacyOptions) => void;
-  onExportDebugBundle?: (options: DebugBundlePrivacyOptions) => void;
-  onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
   perf: ReturnType<typeof createPerfTracker>;
   onMetrics: (metrics: CanvasMetrics) => void;
 }
@@ -172,21 +158,16 @@ function FlowchartCanvas({
   flowEdges,
   flowRef,
   flowInstanceRef,
-  searchInputRef,
   previousVisibleNodesByIdRef,
   previousVisibleEdgesByIdRef,
   canvasCallbacksRef,
   parseService,
   dialogueSearchMode,
   onDialogueSearchModeChange,
-  debugPrivacyOptions,
-  onDebugPrivacyOptionsChange,
-  onExportDebugBundle,
-  onOpenIssue,
   perf,
   onMetrics,
 }: FlowchartCanvasProps) {
-  // ── Viewer store ─────────────────────────────────────────────────────────────
+  // -- Viewer store -----------------------------------------------------------
   const {
     layoutDirection,
     searchInput,
@@ -230,6 +211,7 @@ function FlowchartCanvas({
   })));
   const {
     setLayoutDirection,
+    setLabelSubgraphSearchInput,
     setTheme,
     toggleChapter,
     toggleParentLabel,
@@ -244,12 +226,12 @@ function FlowchartCanvas({
     setShowAllInspectorLines,
     setActiveDialogueResultIndex,
     setDialogueSearchResults,
-    toggleShowAdvancedControls,
     toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode,
     resetSession,
   } = useViewerStore(useShallow((s) => ({
     setLayoutDirection: s.setLayoutDirection,
+    setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
     setTheme: s.setTheme,
     toggleChapter: s.toggleChapter,
     toggleParentLabel: s.toggleParentLabel,
@@ -264,7 +246,6 @@ function FlowchartCanvas({
     setShowAllInspectorLines: s.setShowAllInspectorLines,
     setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
     setDialogueSearchResults: s.setDialogueSearchResults,
-    toggleShowAdvancedControls: s.toggleShowAdvancedControls,
     toggleShowAllLabelSubgraphToggles: s.toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
     resetSession: s.resetSession,
@@ -307,7 +288,7 @@ function FlowchartCanvas({
   );
   const dialogueLineSearchEnabled = effectiveDialogueSearchMode === 'full';
 
-  // ── Layout hook ──────────────────────────────────────────────────────────────
+  // -- Layout hook ------------------------------------------------------------
   const onRelayoutComplete = useCallback(() => {
     flowInstanceRef.current?.fitView({ padding: 0.2 });
   }, [flowInstanceRef]);
@@ -327,7 +308,7 @@ function FlowchartCanvas({
     onRelayoutComplete,
   });
 
-  // ── Derived graph metadata ───────────────────────────────────────────────────
+  // -- Derived graph metadata -------------------------------------------------
   const chapters = useMemo(
     () =>
       Array.from(
@@ -395,7 +376,7 @@ function FlowchartCanvas({
     [setAllParentLabelsCollapsed, visibleSubgraphLabels],
   );
 
-  // ── Search hook ──────────────────────────────────────────────────────────────
+  // -- Search hook ------------------------------------------------------------
   const {
     effectiveSearch,
     searchMatchNodeIds,
@@ -415,7 +396,7 @@ function FlowchartCanvas({
     setDialogueSearchResults,
   });
 
-  // ── Visible nodes/edges ──────────────────────────────────────────────────────
+  // -- Visible nodes/edges ----------------------------------------------------
   const visibleNodes = useMemo(
     () =>
       buildVisibleNodes({
@@ -524,15 +505,7 @@ function FlowchartCanvas({
     [focusNodeId, visibleNodes],
   );
 
-  // ── Callbacks ────────────────────────────────────────────────────────────────
-  const onDebugOptionChange = useCallback(
-    (patch: Partial<DebugBundlePrivacyOptions>) => {
-      if (!onDebugPrivacyOptionsChange) return;
-      onDebugPrivacyOptionsChange({ ...debugPrivacyOptions, ...patch });
-    },
-    [debugPrivacyOptions, onDebugPrivacyOptionsChange],
-  );
-
+  // -- Callbacks --------------------------------------------------------------
   const onFocusSelectedNode = useCallback(() => {
     if (!focusNodeId || !flowInstanceRef.current) return;
     const target = visibleNodes.find((n) => n.id === focusNodeId && !n.hidden);
@@ -589,12 +562,12 @@ function FlowchartCanvas({
     }
   }, [activeDialogueResultIndex, activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex, setActiveDialogueResultIndex]);
 
-  // Keep the registry ref up-to-date so the outer's stable wrapper always
-  // calls the current version (safe: mutating a ref during render doesn't
-  // affect reconciliation).
+  // Keep the registry ref current so the outer stable wrapper always calls
+  // the latest version. Mutating a ref during render is safe and does not
+  // affect reconciliation.
   canvasCallbacksRef.current.onSearchInputKeyDown = onSearchInputKeyDown;
 
-  // ── Report metrics to outer toolbar ──────────────────────────────────────────
+  // -- Report metrics to outer toolbar ----------------------------------------
   useEffect(() => {
     onMetrics({
       visibleNodeCount: visibleNodeIds.size,
@@ -604,7 +577,7 @@ function FlowchartCanvas({
     });
   }, [dialogueLineSearchEnabled, isLargeExportTarget, onMetrics, visibleEdges.length, visibleNodeIds.size]);
 
-  // ── Performance tracking ──────────────────────────────────────────────────────
+  // -- Performance tracking ---------------------------------------------------
   useEffect(() => {
     if (!perf.enabled) return;
     const startedAt = performance.now();
@@ -617,10 +590,9 @@ function FlowchartCanvas({
     return () => cancelAnimationFrame(id);
   }, [perf, visibleEdges.length, visibleNodeIds.size]);
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // -- Render -----------------------------------------------------------------
   return (
     <>
-      {/* Advanced controls */}
       {showAdvancedControls && (
         <div className="px-3 sm:px-4 pb-3 bg-white border-b border-gray-200 shrink-0">
           <ViewerAdvancedControls
@@ -647,7 +619,7 @@ function FlowchartCanvas({
             toggleChapter={toggleChapter}
             collapsedLabelCount={collapsedLabelCount}
             labelSubgraphSearchInput={labelSubgraphSearchInput}
-            setLabelSubgraphSearchInput={useViewerStore.getState().setLabelSubgraphSearchInput}
+            setLabelSubgraphSearchInput={setLabelSubgraphSearchInput}
             visibleSubgraphLabels={visibleSubgraphLabels}
             visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
             shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
@@ -659,9 +631,8 @@ function FlowchartCanvas({
         </div>
       )}
 
-      {/* Flow canvas + inspector */}
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
-        <div ref={flowRef as { current: HTMLDivElement | null } & { bivarianceHack: never } extends never ? never : React.RefObject<HTMLDivElement>} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
+        <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
           <ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}
@@ -707,17 +678,15 @@ function FlowchartCanvas({
           onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
           onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
           onSelectDialogueSearchResult={onSelectDialogueSearchResult}
-          onExportDebugBundle={onExportDebugBundle}
-          onOpenIssue={onOpenIssue}
-          onDebugOptionChange={onDebugOptionChange}
-          debugPrivacyOptions={debugPrivacyOptions}
         />
       </div>
     </>
   );
 }
 
-// ─── Outer shell – toolbar always survives canvas errors ──────────────────────
+// --- Outer shell -------------------------------------------------------------
+// The toolbar lives outside the ErrorBoundary so it continues to function
+// even when FlowchartCanvas (layout, derivation, rendering) crashes.
 
 interface FlowchartViewerProps {
   flowNodes: FlowNode[];
@@ -746,11 +715,13 @@ export default function FlowchartViewer({
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Issue 10: useRef instead of useState for identity-preserving cache maps
   const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(new Map());
   const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(new Map());
 
-  // Registry ref: the inner component writes the current onSearchInputKeyDown
-  // here on each render; the outer provides a stable wrapper that calls it.
+  // Registry ref: inner component writes current onSearchInputKeyDown here;
+  // outer provides a stable wrapper that calls it.
   const canvasCallbacksRef = useRef<CanvasCallbacksRegistry>({
     onSearchInputKeyDown: () => {},
   });
@@ -759,30 +730,34 @@ export default function FlowchartViewer({
     [],
   );
 
-  // ── Minimal store reads for toolbar ──────────────────────────────────────────
+  // -- Minimal store reads for toolbar ----------------------------------------
   const {
     searchInput,
-    setSearchInput,
     minDialogue,
-    setMinDialogue,
     theme,
     showAdvancedControls,
-    toggleShowAdvancedControls,
     standaloneDialogueSearchMode,
-    setStandaloneDialogueSearchMode,
   } = useViewerStore(useShallow((s) => ({
     searchInput: s.searchInput,
-    setSearchInput: s.setSearchInput,
     minDialogue: s.minDialogue,
-    setMinDialogue: s.setMinDialogue,
     theme: s.theme,
     showAdvancedControls: s.showAdvancedControls,
-    toggleShowAdvancedControls: s.toggleShowAdvancedControls,
     standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
+  })));
+  const {
+    setSearchInput,
+    setMinDialogue,
+    toggleShowAdvancedControls,
+    setStandaloneDialogueSearchMode,
+  } = useViewerStore(useShallow((s) => ({
+    setSearchInput: s.setSearchInput,
+    setMinDialogue: s.setMinDialogue,
+    toggleShowAdvancedControls: s.toggleShowAdvancedControls,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
   })));
 
-  // ── Canvas metrics (default to total counts; updated when canvas renders) ────
+  // -- Canvas metrics ---------------------------------------------------------
+  // Seeded with totals; refined once FlowchartCanvas reports its first render.
   const [canvasMetrics, setCanvasMetrics] = useState<CanvasMetrics>({
     visibleNodeCount: flowNodes.length,
     visibleEdgeCount: flowEdges.length,
@@ -790,7 +765,6 @@ export default function FlowchartViewer({
     isLargeExportTarget: false,
   });
 
-  // Reset display defaults when a new set of nodes/edges arrives (new import).
   useEffect(() => {
     setCanvasMetrics((prev) => ({
       ...prev,
@@ -799,7 +773,7 @@ export default function FlowchartViewer({
     }));
   }, [flowNodes.length, flowEdges.length]);
 
-  // ── Dialogue mode ─────────────────────────────────────────────────────────────
+  // -- Dialogue mode ----------------------------------------------------------
   const selectedDialogueSearchMode = onDialogueSearchModeChange
     ? dialogueSearchMode
     : standaloneDialogueSearchMode;
@@ -815,7 +789,7 @@ export default function FlowchartViewer({
     [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
   );
 
-  // ── Toolbar callbacks ─────────────────────────────────────────────────────────
+  // -- Toolbar callbacks ------------------------------------------------------
   const onExportJson = useCallback(() => {
     const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
     const blob = new Blob([graphJson], { type: 'application/json' });
@@ -880,7 +854,7 @@ export default function FlowchartViewer({
     [debugPrivacyOptions, onDebugPrivacyOptionsChange],
   );
 
-  // ── Global keyboard shortcuts ─────────────────────────────────────────────────
+  // -- Global keyboard shortcuts ----------------------------------------------
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
@@ -903,10 +877,10 @@ export default function FlowchartViewer({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onExport]);
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // -- Render -----------------------------------------------------------------
   return (
     <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
-      {/* Toolbar – always rendered, even when the canvas has errored */}
+      {/* Toolbar - always rendered, even when the canvas has errored */}
       <ViewerToolbar
         theme={theme}
         visibleNodeCount={canvasMetrics.visibleNodeCount}
@@ -936,9 +910,9 @@ export default function FlowchartViewer({
         toggleShowAdvancedControls={toggleShowAdvancedControls}
       />
 
-      {/* ErrorBoundary wraps FlowchartCanvas so that errors from layout hooks,
-          graph-derivation, or ReactFlow rendering are contained here.  The
-          toolbar above continues to function after any such error. */}
+      {/* ErrorBoundary wraps FlowchartCanvas so errors from layout hooks,
+          graph-derivation, or ReactFlow rendering are all contained here.
+          The toolbar above continues to function after any such error. */}
       <ErrorBoundary FallbackComponent={CanvasErrorFallback}>
         <FlowchartCanvas
           flowNodes={flowNodes}
@@ -952,10 +926,6 @@ export default function FlowchartViewer({
           parseService={parseService}
           dialogueSearchMode={dialogueSearchMode}
           onDialogueSearchModeChange={onDialogueSearchModeChange}
-          debugPrivacyOptions={debugPrivacyOptions}
-          onDebugPrivacyOptionsChange={onDebugPrivacyOptionsChange}
-          onExportDebugBundle={onExportDebugBundle}
-          onOpenIssue={onOpenIssue}
           perf={perf}
           onMetrics={setCanvasMetrics}
         />

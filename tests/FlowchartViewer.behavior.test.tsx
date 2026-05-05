@@ -10,7 +10,12 @@ import * as ReactFlowLib from '@xyflow/react';
 import type { ParseService } from '../src/application/parseService';
 
 vi.mock('@xyflow/react', () => {
-  const flowApi = { zoomTo: vi.fn(), fitView: vi.fn(), setCenter: vi.fn() };
+  const flowApi: {
+    zoomTo: ReturnType<typeof vi.fn>;
+    fitView: ReturnType<typeof vi.fn>;
+    setCenter: ReturnType<typeof vi.fn>;
+    shouldThrow: boolean;
+  } = { zoomTo: vi.fn(), fitView: vi.fn(), setCenter: vi.fn(), shouldThrow: false };
 
   const ReactFlow = ({
     nodes,
@@ -40,6 +45,7 @@ vi.mock('@xyflow/react', () => {
     onNodeClick?: (event: unknown, node: { id: string }) => void;
     children?: React.ReactNode;
   }) => {
+    if (flowApi.shouldThrow) throw new Error('canvas render error');
     React.useEffect(() => {
       onInit?.(flowApi);
     }, [onInit]);
@@ -206,7 +212,51 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByTestId('react-flow')).toBeInTheDocument();
   });
 
+  it('shows error fallback and keeps toolbar functional when canvas layout hook throws', async () => {
+    // Suppress expected React error boundary console noise
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
+    // Make the mocked ReactFlow component throw to simulate a canvas crash
+    const testApi = (ReactFlowLib as unknown as { __test: { flowApi: { shouldThrow: boolean } } }).__test.flowApi;
+    testApi.shouldThrow = true;
+
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    // Fallback UI is shown
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText(/chart view encountered an error/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Try again/i })).toBeInTheDocument();
+
+    // Toolbar outside the boundary is still functional
+    expect(screen.getByRole('textbox', { name: /Search/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Show advanced controls/i })).toBeInTheDocument();
+
+    testApi.shouldThrow = false;
+    consoleError.mockRestore();
+  });
+
+  it('recovers when Try again is clicked after a canvas error', async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const testApi = (ReactFlowLib as unknown as { __test: { flowApi: { shouldThrow: boolean } } }).__test.flowApi;
+    testApi.shouldThrow = true;
+
+    render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    // Allow subsequent renders to succeed before clicking Try again
+    testApi.shouldThrow = false;
+    await user.click(screen.getByRole('button', { name: /Try again/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('react-flow')).toBeInTheDocument();
+
+    consoleError.mockRestore();
+  });
 
   it('supports focus label center action, edge-type toggles, and keyboard shortcuts', async () => {
     const user = userEvent.setup();
