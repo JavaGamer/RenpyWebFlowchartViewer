@@ -21,7 +21,7 @@ function getMaxParallelFiles(requested: number | undefined, fileCount: number): 
   if (!Number.isFinite(requested) || requested === undefined) return 1;
   const normalized = Math.floor(requested);
   if (normalized <= 1) return 1;
-  return Math.min(normalized, fileCount);
+  return Math.max(1, Math.min(normalized, fileCount));
 }
 
 export async function parseRenpyFiles(
