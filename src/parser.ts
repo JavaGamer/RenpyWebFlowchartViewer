@@ -4,9 +4,10 @@
  * Client-side Ren'Py script parser.
  */
 
+import pLimit from 'p-limit';
 import { createPerfTracker } from './perf';
 import { createGraphState } from './parser/pipelineState';
-import { parseOneFile, processTokenizedFile, tokenizeOneFile, type TokenizedFile } from './parser/filePipeline';
+import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import type {
   ParseResult,
@@ -45,22 +46,17 @@ export async function parseRenpyFiles(
       });
     }
   } else {
-    const tokenizedFiles = new Array<TokenizedFile>(files.length);
-    let nextIndex = 0;
-
-    const tokenizerWorker = async () => {
-      while (nextIndex < files.length) {
-        const idx = nextIndex;
-        nextIndex += 1;
-        const file = files[idx];
-        perf.mark(`file:${idx}:tokenize`);
-        const tokenized = await tokenizeOneFile(file, options, idx);
-        perf.measure(`file:${idx}:tokenize`, 'parse_file_tokenize_ms', { file: file.name });
-        tokenizedFiles[idx] = tokenized;
-      }
-    };
-
-    await Promise.all(Array.from({ length: maxParallelFiles }, () => tokenizerWorker()));
+    const limit = pLimit(maxParallelFiles);
+    const tokenizedFiles = await Promise.all(
+      files.map((file, idx) =>
+        limit(async () => {
+          perf.mark(`file:${idx}:tokenize`);
+          const tokenized = await tokenizeOneFile(file, options, idx);
+          perf.measure(`file:${idx}:tokenize`, 'parse_file_tokenize_ms', { file: file.name });
+          return tokenized;
+        }),
+      ),
+    );
 
     for (let idx = 0; idx < files.length; idx += 1) {
       const tokenized = tokenizedFiles[idx];

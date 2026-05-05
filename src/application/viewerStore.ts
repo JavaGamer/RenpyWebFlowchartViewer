@@ -13,6 +13,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { z } from 'zod';
 import type { DialogueSearchResult } from '../infrastructure';
 import type { EdgeKindFilter } from '../flowchartTransforms';
 import type { ThemeName, LayoutDirection } from '../ui';
@@ -118,41 +119,24 @@ const defaultSessionState: ViewerSessionState = {
 
 // ─── Persist merge/validation helpers ────────────────────────────────────────
 
-function isThemeName(v: unknown): v is ThemeName {
-  return v === 'violet' || v === 'highContrast' || v === 'colorblind';
-}
+const viewerPersistedStateSchema = z.object({
+  theme: z.enum(['violet', 'highContrast', 'colorblind']).catch(defaultPersistedState.theme),
+  showCallReturns: z.boolean().catch(defaultPersistedState.showCallReturns),
+  visibleEdgeKinds: z
+    .object({
+      sequence: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.sequence),
+      jump: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.jump),
+      call: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.call),
+      call_return: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.call_return),
+    })
+    .catch(defaultPersistedState.visibleEdgeKinds),
+});
 
 function mergePersistedState(persisted: unknown, current: ViewerStore): ViewerStore {
-  if (!persisted || typeof persisted !== 'object') return current;
-  const p = persisted as Partial<ViewerPersistedState>;
-
-  const theme = isThemeName(p.theme) ? p.theme : defaultPersistedState.theme;
-  const showCallReturns =
-    typeof p.showCallReturns === 'boolean'
-      ? p.showCallReturns
-      : defaultPersistedState.showCallReturns;
-
-  const persisted_kinds = p.visibleEdgeKinds;
-  const visibleEdgeKinds: Record<EdgeKindFilter, boolean> = {
-    sequence:
-      typeof persisted_kinds?.sequence === 'boolean'
-        ? persisted_kinds.sequence
-        : defaultPersistedState.visibleEdgeKinds.sequence,
-    jump:
-      typeof persisted_kinds?.jump === 'boolean'
-        ? persisted_kinds.jump
-        : defaultPersistedState.visibleEdgeKinds.jump,
-    call:
-      typeof persisted_kinds?.call === 'boolean'
-        ? persisted_kinds.call
-        : defaultPersistedState.visibleEdgeKinds.call,
-    call_return:
-      typeof persisted_kinds?.call_return === 'boolean'
-        ? persisted_kinds.call_return
-        : defaultPersistedState.visibleEdgeKinds.call_return,
-  };
-
-  return { ...current, theme, showCallReturns, visibleEdgeKinds };
+  const parsed = viewerPersistedStateSchema.parse(
+    persisted && typeof persisted === 'object' ? persisted : {},
+  );
+  return { ...current, ...parsed };
 }
 
 // ─── Legacy key migration ─────────────────────────────────────────────────────
@@ -187,7 +171,7 @@ function migrateLegacyKeys(): string | null {
     if (!hasLegacy) return null;
 
     const migratedState: ViewerPersistedState = {
-      theme: isThemeName(rawTheme) ? rawTheme : defaultPersistedState.theme,
+      theme: viewerPersistedStateSchema.shape.theme.parse(rawTheme),
       showCallReturns: rawCallReturns === 'true',
       visibleEdgeKinds: {
         sequence: rawSeq !== 'false',

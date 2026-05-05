@@ -16,6 +16,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { saveAs } from 'file-saver';
+import { ErrorBoundary } from 'react-error-boundary';
 import { useShallow } from 'zustand/react/shallow';
 import type { FlowNode, FlowEdge } from './domain';
 import {
@@ -49,7 +50,35 @@ import { useViewerSearch } from './hooks/useViewerSearch';
 import { ViewerToolbar } from './ui/ViewerToolbar';
 import { ViewerAdvancedControls } from './ui/ViewerAdvancedControls';
 import { ViewerInspector } from './ui/viewerInspector';
-import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './ui/viewerConstants';
+import { CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './ui/viewerConstants';
+
+// ─── Canvas error fallback ────────────────────────────────────────────────────
+
+function CanvasErrorFallback({
+  error,
+  resetErrorBoundary,
+}: {
+  error: unknown;
+  resetErrorBoundary: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center min-h-[320px]"
+    >
+      <p className="text-sm font-medium text-red-700">The chart canvas encountered an error.</p>
+      {error instanceof Error && (
+        <pre className="text-xs text-left bg-gray-100 rounded p-3 max-w-md overflow-auto">
+          {error.message}
+        </pre>
+      )}
+      <button type="button" className={CONTROL_BUTTON_CLASS} onClick={resetErrorBoundary}>
+        Try again
+      </button>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface FlowchartViewerProps {
@@ -697,38 +726,40 @@ export default function FlowchartViewer({
 
       {/* Flow canvas + inspector */}
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
-        <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
-          <ReactFlow
-            nodes={visibleNodes}
-            edges={visibleEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={(_, node) => {
-              setSelectedNodeId(node.id);
-              setSelectedDialogueLineIndex(null);
-              setShowAllInspectorLines(false);
-            }}
-            onInit={(instance) => {
-              flowInstanceRef.current = instance as ReactFlowInstance<CanvasNode, CanvasEdge>;
-            }}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.1}
-            maxZoom={2.5}
-            nodesDraggable
-            proOptions={{ hideAttribution: false }}
-          >
-            <Background color={THEMES[theme].grid} gap={20} />
-            <Controls />
-            <MiniMap
-              nodeColor={(n) =>
-                n.type === 'labelNode' ? THEMES[theme].minimapLabel : THEMES[theme].minimapMenu
-              }
-            />
-          </ReactFlow>
-        </div>
+        <ErrorBoundary FallbackComponent={CanvasErrorFallback}>
+          <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
+            <ReactFlow
+              nodes={visibleNodes}
+              edges={visibleEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={(_, node) => {
+                setSelectedNodeId(node.id);
+                setSelectedDialogueLineIndex(null);
+                setShowAllInspectorLines(false);
+              }}
+              onInit={(instance) => {
+                flowInstanceRef.current = instance as ReactFlowInstance<CanvasNode, CanvasEdge>;
+              }}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              minZoom={0.1}
+              maxZoom={2.5}
+              nodesDraggable
+              proOptions={{ hideAttribution: false }}
+            >
+              <Background color={THEMES[theme].grid} gap={20} />
+              <Controls />
+              <MiniMap
+                nodeColor={(n) =>
+                  n.type === 'labelNode' ? THEMES[theme].minimapLabel : THEMES[theme].minimapMenu
+                }
+              />
+            </ReactFlow>
+          </div>
+        </ErrorBoundary>
         <ViewerInspector
           effectiveSearch={effectiveSearch}
           nodeSearchMatchCount={nodeSearchMatchCount}
