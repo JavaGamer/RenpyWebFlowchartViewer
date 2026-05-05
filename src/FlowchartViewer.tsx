@@ -5,7 +5,7 @@
  * Exports a high-resolution PNG via html-to-image.
  */
 
-import React, { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -262,17 +262,6 @@ function FlowchartCanvas({
     ? dialogueSearchMode
     : standaloneDialogueSearchMode;
 
-  const handleDialogueModeChange = useCallback(
-    (mode: DialogueSearchMode) => {
-      if (onDialogueSearchModeChange) {
-        onDialogueSearchModeChange(mode);
-      } else {
-        setStandaloneDialogueSearchMode(mode);
-      }
-    },
-    [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
-  );
-
   const autoLargeGraphMode = useMemo(
     () => flowNodes.length > LARGE_GRAPH_NODE_THRESHOLD || flowEdges.length > LARGE_GRAPH_EDGE_THRESHOLD,
     [flowEdges.length, flowNodes.length],
@@ -409,9 +398,12 @@ function FlowchartCanvas({
         collapsedChapters,
         collapsedLabelChildren,
         theme,
-        // eslint-disable-next-line react-hooks/refs -- intentional: ref holds an identity-preserving cache map updated in useEffect; reading it here avoids an extra render cycle (Issue 10)
+        // eslint-disable-next-line react-hooks/refs -- intentional: reads ref.current inside memo to get the identity-preserving cache map; the cache is updated in a useEffect after each render so stale reads can't occur (Issue 10)
         previousById: previousVisibleNodesByIdRef.current,
       }),
+    // previousVisibleNodesByIdRef is a stable ref — including it here does not cause extra
+    // renders but satisfies exhaustive-deps. .current is read intentionally inside the memo
+    // so the identity-preserving cache is consulted on each recompute (Issue 10).
     [
       collapsedChapters,
       collapsedLabelChildren,
@@ -420,6 +412,7 @@ function FlowchartCanvas({
       effectiveSearch,
       minDialogue,
       nodes,
+      previousVisibleNodesByIdRef,
       searchMatchNodeIds,
       theme,
     ],
@@ -439,10 +432,12 @@ function FlowchartCanvas({
         visibleNodeIds,
         edgeColor: THEMES[theme].edge,
         largeGraphMode,
-        // eslint-disable-next-line react-hooks/refs -- intentional: ref holds an identity-preserving cache map updated in useEffect; reading it here avoids an extra render cycle (Issue 10)
+        // eslint-disable-next-line react-hooks/refs -- intentional: same pattern as above (Issue 10)
         previousById: previousVisibleEdgesByIdRef.current,
       }),
-    [edges, largeGraphMode, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
+    // previousVisibleEdgesByIdRef is a stable ref — including it here does not cause extra
+    // renders but satisfies exhaustive-deps (Issue 10).
+    [edges, largeGraphMode, previousVisibleEdgesByIdRef, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
   );
 
   // Issue 10: update ref caches without triggering re-renders
@@ -563,9 +558,10 @@ function FlowchartCanvas({
   }, [activeDialogueResultIndex, activeDialogueSearchResults, onSelectDialogueSearchResult, resolvedActiveDialogueResultIndex, setActiveDialogueResultIndex]);
 
   // Keep the registry ref current so the outer stable wrapper always calls
-  // the latest version. Mutating a ref during render is safe and does not
-  // affect reconciliation.
-  canvasCallbacksRef.current.onSearchInputKeyDown = onSearchInputKeyDown;
+  // the latest version after every commit, without causing extra renders.
+  useLayoutEffect(() => {
+    canvasCallbacksRef.current.onSearchInputKeyDown = onSearchInputKeyDown;
+  });
 
   // -- Report metrics to outer toolbar ----------------------------------------
   useEffect(() => {
@@ -764,14 +760,6 @@ export default function FlowchartViewer({
     dialogueLineSearchEnabled: false,
     isLargeExportTarget: false,
   });
-
-  useEffect(() => {
-    setCanvasMetrics((prev) => ({
-      ...prev,
-      visibleNodeCount: flowNodes.length,
-      visibleEdgeCount: flowEdges.length,
-    }));
-  }, [flowNodes.length, flowEdges.length]);
 
   // -- Dialogue mode ----------------------------------------------------------
   const selectedDialogueSearchMode = onDialogueSearchModeChange
