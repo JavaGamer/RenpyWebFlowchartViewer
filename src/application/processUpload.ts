@@ -64,7 +64,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
-    let parsedWarnings: ParseDiagnosticPayload[] = [];
+    let parsedDiagnostics: ParseDiagnosticPayload[] = [];
     let hasStartedParsing = false;
     try {
       const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
@@ -120,13 +120,13 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   if (!isActiveRun()) return;
                   parsedNodes = partial.nodes;
                   parsedEdges = partial.edges;
-                  parsedWarnings = partial.diagnostics ?? parsedWarnings;
-                  actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
+                  parsedDiagnostics = partial.diagnostics ?? parsedDiagnostics;
+                  actions.partialParseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
                 },
               });
               parsedNodes = result.nodes;
               parsedEdges = result.edges;
-              parsedWarnings = result.diagnostics ?? parsedWarnings;
+              parsedDiagnostics = result.diagnostics ?? parsedDiagnostics;
               parsedFileCount += parseChunk.length;
             }
           } else {
@@ -157,9 +157,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             });
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
-            parsedWarnings = result.diagnostics ?? parsedWarnings;
+            parsedDiagnostics = result.diagnostics ?? parsedDiagnostics;
             parsedFileCount += inputs.length;
-            actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
+            actions.partialParseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
           }
         } catch (err: unknown) {
           if (!isActiveRun()) return;
@@ -174,6 +174,6 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     }
     if (!isActiveRun()) return;
     onParseMeasured?.({ fileCount: rpyFiles.length, nodeCount: parsedNodes.length, edgeCount: parsedEdges.length });
-    actions.parseSuccess(parsedNodes, parsedEdges, parsedWarnings);
+    actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
   };
 }

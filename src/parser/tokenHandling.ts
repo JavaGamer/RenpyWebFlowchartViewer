@@ -118,7 +118,7 @@ function addDynamicTargetWarning(
         sourceId,
       },
       message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
-      recoveryAction: 'Use a static string target or add explicit parser rules when possible.',
+      recoveryAction: 'Use a static string target or configure explicit parser rules.',
     },
     warningId,
   );

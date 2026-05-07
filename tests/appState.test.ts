@@ -11,7 +11,7 @@ describe('useAppStore', () => {
     expect(state.phase).toBe('idle');
     expect(state.flowNodes).toEqual([]);
     expect(state.flowEdges).toEqual([]);
-    expect(state.parseWarnings).toEqual([]);
+    expect(state.parseDiagnostics).toEqual([]);
     expect(state.errorMsg).toBe('');
     expect(state.fileCount).toBe(0);
     expect(state.parseProgress).toBeNull();
@@ -57,14 +57,14 @@ describe('useAppStore', () => {
     expect(state.phase).toBe('parsing');
     expect(state.flowNodes).toEqual(nodes);
     expect(state.flowEdges).toEqual(edges);
-    expect(state.parseWarnings).toEqual(warnings);
+    expect(state.parseDiagnostics).toEqual(warnings);
   });
 
   it('partialParseSuccess without warnings does not overwrite existing warnings', () => {
     const warnings = [{ code: 'dynamic_target' as const, chapter: 'ch', construct: 'jump', targetExpression: 'x', message: 'dynamic' }];
     useAppStore.getState().partialParseSuccess([], [], warnings);
     useAppStore.getState().partialParseSuccess([], []);
-    expect(useAppStore.getState().parseWarnings).toEqual(warnings);
+    expect(useAppStore.getState().parseDiagnostics).toEqual(warnings);
   });
 
   it('transitions to success and clears progress', () => {
@@ -73,14 +73,14 @@ describe('useAppStore', () => {
     const state = useAppStore.getState();
     expect(state.phase).toBe('done');
     expect(state.parseProgress).toBeNull();
-    expect(state.parseWarnings).toEqual([]);
+    expect(state.parseDiagnostics).toEqual([]);
     expect(state.importRevision).toBe(1);
   });
 
   it('parseSuccess stores warnings from arguments', () => {
     const warnings = [{ code: 'dynamic_target' as const, chapter: 'ch', construct: 'call', targetExpression: 'y', message: 'dynamic call' }];
     useAppStore.getState().parseSuccess([], [], warnings);
-    expect(useAppStore.getState().parseWarnings).toEqual(warnings);
+    expect(useAppStore.getState().parseDiagnostics).toEqual(warnings);
   });
 
   it('parseSuccess increments importRevision on each call', () => {

@@ -16,7 +16,7 @@ export interface AppState {
   phase: AppPhase;
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
-  parseWarnings: ParseDiagnosticPayload[];
+  parseDiagnostics: ParseDiagnosticPayload[];
   errorMsg: string;
   fileCount: number;
   parseProgress: ParseProgress | null;
@@ -29,8 +29,8 @@ export interface AppActions {
   startReading: (fileCount: number) => void;
   startParsing: () => void;
   setProgress: (progress: ParseProgress) => void;
-  partialParseSuccess: (nodes: FlowNode[], edges: FlowEdge[], warnings?: ParseDiagnosticPayload[]) => void;
-  parseSuccess: (nodes: FlowNode[], edges: FlowEdge[], warnings?: ParseDiagnosticPayload[]) => void;
+  partialParseSuccess: (nodes: FlowNode[], edges: FlowEdge[], diagnostics?: ParseDiagnosticPayload[]) => void;
+  parseSuccess: (nodes: FlowNode[], edges: FlowEdge[], diagnostics?: ParseDiagnosticPayload[]) => void;
   setDialogueSearchMode: (mode: DialogueSearchMode) => void;
   fail: (message: string) => void;
 }
@@ -41,7 +41,7 @@ const initialState: AppState = {
   phase: 'idle',
   flowNodes: [],
   flowEdges: [],
-  parseWarnings: [],
+  parseDiagnostics: [],
   errorMsg: '',
   fileCount: 0,
   parseProgress: null,
@@ -73,22 +73,22 @@ export const useAppStore = create<AppStore>()(
         draft.parseProgress = progress;
       }),
 
-    partialParseSuccess: (nodes, edges, warnings) =>
+    partialParseSuccess: (nodes, edges, diagnostics) =>
       set((draft) => {
         draft.phase = 'parsing';
         draft.flowNodes = nodes;
         draft.flowEdges = edges;
-        if (warnings !== undefined) {
-          draft.parseWarnings = warnings;
+        if (diagnostics !== undefined) {
+          draft.parseDiagnostics = diagnostics;
         }
       }),
 
-    parseSuccess: (nodes, edges, warnings) =>
+    parseSuccess: (nodes, edges, diagnostics) =>
       set((draft) => {
         draft.phase = 'done';
         draft.flowNodes = nodes;
         draft.flowEdges = edges;
-        draft.parseWarnings = warnings ?? [];
+        draft.parseDiagnostics = diagnostics ?? [];
         draft.parseProgress = null;
         draft.importRevision += 1;
       }),

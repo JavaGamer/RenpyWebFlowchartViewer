@@ -34,7 +34,7 @@ export interface BuildDebugBundleInput {
     flowNodes: FlowNode[];
     flowEdges: FlowEdge[];
   };
-  parseWarnings: ParseDiagnosticPayload[];
+  parseDiagnostics: ParseDiagnosticPayload[];
   privacy: DebugBundlePrivacyOptions;
 }
 
@@ -131,6 +131,7 @@ function redactWarning(
   };
   return {
     code: warning.code,
+    // Backward-compatible fallback for legacy bundles/tests that still provide warning-like payloads.
     severity: warning.severity ?? 'warning',
     ...(location.construct ? { construct: location.construct } : {}),
     ...(context.category ? { category: context.category } : {}),
@@ -190,10 +191,10 @@ function redactEdge(
 }
 
 export function buildDebugBundle(input: BuildDebugBundleInput) {
-  const warningCodes = Array.from(new Set(input.parseWarnings.map((warning) => warning.code))).sort();
+  const warningCodes = Array.from(new Set(input.parseDiagnostics.map((warning) => warning.code))).sort();
   const graphAliasContext = createGraphAliasContext(input.graph.flowNodes, input.graph.flowEdges);
   const warnings = input.privacy.includeExtraDiagnostics
-    ? input.parseWarnings.map((warning) => redactWarning(warning, input.privacy, graphAliasContext))
+    ? input.parseDiagnostics.map((warning) => redactWarning(warning, input.privacy, graphAliasContext))
     : undefined;
 
   return {
@@ -230,7 +231,7 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
     graphSummary: {
       nodeCount: input.graph.flowNodes.length,
       edgeCount: input.graph.flowEdges.length,
-      warningCount: input.parseWarnings.length,
+      warningCount: input.parseDiagnostics.length,
       warningCodes,
     },
     graph: {

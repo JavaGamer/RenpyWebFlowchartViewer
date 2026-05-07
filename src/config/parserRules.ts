@@ -50,8 +50,6 @@ export function getParserVariants(): string[] {
   return getParserVariantPlugins().map((plugin) => plugin.id);
 }
 
-export const PARSER_VARIANTS = getParserVariants();
-
 export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
   const normalizedId = plugin.id.trim();
   if (!normalizedId) {
@@ -72,7 +70,13 @@ export function normalizeScreenActionRule(rule: ScreenActionRule): ScreenActionR
 }
 
 export function getParserVariantPlugin(variant: ParserVariant | undefined): ParserVariantPlugin {
-  return parserVariantPluginMap.get(variant ?? '') ?? parserVariantPluginMap.get(DEFAULT_PARSER_VARIANT)!;
+  const selected = parserVariantPluginMap.get(variant ?? '');
+  if (selected) return selected;
+  const defaultPlugin = parserVariantPluginMap.get(DEFAULT_PARSER_VARIANT);
+  if (!defaultPlugin) {
+    throw new Error(`Default parser variant "${DEFAULT_PARSER_VARIANT}" is not registered.`);
+  }
+  return defaultPlugin;
 }
 
 export function isParserVariant(value: unknown): value is ParserVariant {

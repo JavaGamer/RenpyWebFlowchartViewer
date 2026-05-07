@@ -46,9 +46,7 @@ export function loadParserRuleSettings(): ParserRuleSettings {
       ? parsed.selectedVariant
       : defaultParserRuleSettings.selectedVariant;
     const customRulesByVariant = createEmptyRulesByVariant();
-    const entries = parsed.customRulesByVariant && typeof parsed.customRulesByVariant === 'object'
-      ? Object.entries(parsed.customRulesByVariant)
-      : [];
+    const entries = Object.entries(parsed.customRulesByVariant ?? {});
     for (const [variant, rules] of entries) {
       if (!isParserVariant(variant) || !Array.isArray(rules)) continue;
       customRulesByVariant[variant] = rules
