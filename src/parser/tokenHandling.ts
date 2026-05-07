@@ -4,7 +4,7 @@ import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTran
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
-import { addParseWarning } from './warnings';
+import { addParseDiagnostic } from './warnings';
 
 interface HandleTokenInput {
   type: number;
@@ -106,15 +106,19 @@ function addDynamicTargetWarning(
     targetExpression.trim(),
     sourceId ?? '',
   ].join('|');
-  addParseWarning(
+  addParseDiagnostic(
     state,
     {
       code: 'dynamic_target',
-      chapter,
-      construct,
-      targetExpression: targetExpression.trim(),
-      sourceId,
+      severity: 'warning',
+      location: {
+        chapter,
+        construct,
+        targetExpression: targetExpression.trim(),
+        sourceId,
+      },
       message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
+      recoveryAction: 'Use a static string target or add explicit parser rules when possible.',
     },
     warningId,
   );

@@ -265,8 +265,11 @@ export default function App() {
               <p className="text-sm font-semibold">Parser warnings</p>
               <ul className="mt-1 list-disc pl-5 text-xs space-y-1">
                 {parseWarnings.map((warning, idx) => (
-                  <li key={`${warning.chapter}-${warning.construct}-${warning.targetExpression}-${idx}`}>
-                    <span className="font-medium">{warning.construct}</span> in <span className="font-medium">{warning.chapter}</span>: {warning.message}
+                  <li key={`${warning.code}-${warning.message}-${idx}`}>
+                    <span className="font-medium uppercase">{warning.code}</span>
+                    {warning.location?.construct ? <> · <span className="font-medium">{warning.location.construct}</span></> : null}
+                    {warning.location?.chapter ? <> in <span className="font-medium">{warning.location.chapter}</span></> : null}
+                    : {warning.message}
                   </li>
                 ))}
               </ul>

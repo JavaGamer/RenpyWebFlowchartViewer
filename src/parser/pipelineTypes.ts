@@ -6,43 +6,49 @@ import type { MultiDirectedGraph } from 'graphology';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 
-export interface DynamicTargetParseWarning {
-  code: 'dynamic_target';
-  chapter: string;
-  construct: string;
-  targetExpression: string;
-  message: string;
+export interface ParseDiagnosticLocation {
+  chapter?: string;
+  construct?: string;
   sourceId?: string;
+  targetId?: string;
+  edgeId?: string;
+  targetExpression?: string;
 }
 
-export interface NormalizationParseWarning {
-  code: 'normalization';
-  category:
+export interface ParseDiagnosticContext {
+  category?:
     | 'invalid_node'
     | 'missing_edge_source'
     | 'missing_edge_target'
     | 'invalid_edge_kind'
     | 'duplicate_semantic_edge';
-  message: string;
-  nodeId?: string;
-  edgeId?: string;
-  sourceId?: string;
-  targetId?: string;
   detail?: string;
 }
 
-export interface UnresolvedTargetParseWarning {
-  code: 'unresolved_target';
+interface ParseDiagnosticBase {
+  severity: 'warning' | 'error';
   message: string;
-  edgeId: string;
-  sourceId: string;
-  targetId: string;
+  location?: ParseDiagnosticLocation;
+  context?: ParseDiagnosticContext;
+  recoveryAction?: string;
 }
 
-export type ParseWarning =
-  | DynamicTargetParseWarning
-  | NormalizationParseWarning
-  | UnresolvedTargetParseWarning;
+export interface DynamicTargetParseDiagnostic extends ParseDiagnosticBase {
+  code: 'dynamic_target';
+}
+
+export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
+  code: 'normalization';
+}
+
+export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
+  code: 'unresolved_target';
+}
+
+export type ParseDiagnostic =
+  | DynamicTargetParseDiagnostic
+  | NormalizationParseDiagnostic
+  | UnresolvedTargetParseDiagnostic;
 
 export interface ParseScanState {
   currentLabelId: string | null;
@@ -73,14 +79,14 @@ export interface ParseGraphState {
   calledLabels: Set<string>;
   calledFromMenuOptionTargets: Set<string>;
   pendingCallReturns: Array<{ callerLabelId: string; callTargetId: string }>;
-  warnings: ParseWarning[];
-  warningIds: Set<string>;
+  diagnostics: ParseDiagnostic[];
+  diagnosticIds: Set<string>;
 }
 
 export interface ParseResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
-  warnings?: ParseWarning[];
+  diagnostics?: ParseDiagnostic[];
 }
 
 export interface ParseProgress {

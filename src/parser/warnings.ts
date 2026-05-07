@@ -1,11 +1,11 @@
-import type { ParseGraphState, ParseWarning } from './pipelineTypes';
+import type { ParseDiagnostic, ParseGraphState } from './pipelineTypes';
 
-export function addParseWarning(
+export function addParseDiagnostic(
   state: ParseGraphState,
-  warning: ParseWarning,
-  warningId: string,
+  diagnostic: ParseDiagnostic,
+  diagnosticId: string,
 ): void {
-  if (state.warningIds.has(warningId)) return;
-  state.warningIds.add(warningId);
-  state.warnings.push(warning);
+  if (state.diagnosticIds.has(diagnosticId)) return;
+  state.diagnosticIds.add(diagnosticId);
+  state.diagnostics.push(diagnostic);
 }

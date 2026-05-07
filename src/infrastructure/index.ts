@@ -12,7 +12,7 @@ export {
   type WorkerResponseMessage,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-  type ParseWarningPayload,
+  type ParseDiagnosticPayload,
 } from './workerProtocol';
 export { parseRenpyFilesInWorker, searchDialogueLinesInWorker } from './parserWorkerClient';
 export { FileReadError, readFileAsText } from './fileReader';

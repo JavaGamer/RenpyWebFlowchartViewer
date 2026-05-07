@@ -214,7 +214,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       result = {
         nodes: accumulatedState.nodes,
         edges: accumulatedState.edges,
-        warnings: accumulatedState.warnings.length > 0 ? accumulatedState.warnings : undefined,
+        diagnostics: accumulatedState.diagnostics.length > 0 ? accumulatedState.diagnostics : undefined,
       };
     } else {
       result = await parseRenpyFiles(files, {
@@ -265,7 +265,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         requestId,
         nodes: result.nodes,
         edges: result.edges,
-        warnings: result.warnings,
+        diagnostics: result.diagnostics,
         elapsedMs: performance.now() - startedAt,
         partial: appendToActiveGraph && !isFinalChunk,
       });

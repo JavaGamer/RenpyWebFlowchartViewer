@@ -1,5 +1,5 @@
 import type { FlowEdge, FlowNode } from '../domain';
-import type { ParseWarningPayload } from '../infrastructure';
+import type { ParseDiagnosticPayload } from '../infrastructure';
 import type { DialogueSearchMode, ParseProgress } from './appStore';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 
@@ -34,14 +34,15 @@ export interface BuildDebugBundleInput {
     flowNodes: FlowNode[];
     flowEdges: FlowEdge[];
   };
-  parseWarnings: ParseWarningPayload[];
+  parseWarnings: ParseDiagnosticPayload[];
   privacy: DebugBundlePrivacyOptions;
 }
 
 interface RedactedWarning {
-  code: ParseWarningPayload['code'];
+  code: ParseDiagnosticPayload['code'];
+  severity: ParseDiagnosticPayload['severity'];
   construct?: string;
-  category?: ParseWarningPayload['category'];
+  category?: ParseDiagnosticPayload['context'] extends { category?: infer C } ? C : never;
   edgeId?: string;
   sourceId?: string;
   targetId?: string;
@@ -104,26 +105,29 @@ function getEdgeAlias(context: GraphAliasContext, edgeId: string): string {
 }
 
 function redactWarning(
-  warning: ParseWarningPayload,
+  warning: ParseDiagnosticPayload,
   privacy: DebugBundlePrivacyOptions,
   graphAliasContext: GraphAliasContext,
 ): RedactedWarning {
+  const location = warning.location ?? {};
+  const context = warning.context ?? {};
   return {
     code: warning.code,
-    ...(warning.construct ? { construct: warning.construct } : {}),
-    ...(warning.category ? { category: warning.category } : {}),
-    ...(warning.edgeId
-      ? { edgeId: privacy.includeRawScriptDetails ? warning.edgeId : getEdgeAlias(graphAliasContext, warning.edgeId) }
+    severity: warning.severity,
+    ...(location.construct ? { construct: location.construct } : {}),
+    ...(context.category ? { category: context.category } : {}),
+    ...(location.edgeId
+      ? { edgeId: privacy.includeRawScriptDetails ? location.edgeId : getEdgeAlias(graphAliasContext, location.edgeId) }
       : {}),
-    ...(warning.sourceId
-      ? { sourceId: privacy.includeRawScriptDetails ? warning.sourceId : getNodeAlias(graphAliasContext, warning.sourceId) }
+    ...(location.sourceId
+      ? { sourceId: privacy.includeRawScriptDetails ? location.sourceId : getNodeAlias(graphAliasContext, location.sourceId) }
       : {}),
-    ...(warning.targetId
-      ? { targetId: privacy.includeRawScriptDetails ? warning.targetId : getNodeAlias(graphAliasContext, warning.targetId) }
+    ...(location.targetId
+      ? { targetId: privacy.includeRawScriptDetails ? location.targetId : getNodeAlias(graphAliasContext, location.targetId) }
       : {}),
-    ...(privacy.includeFileNames && warning.chapter ? { chapter: warning.chapter } : {}),
-    ...(privacy.includeRawScriptDetails && warning.targetExpression
-      ? { targetExpression: warning.targetExpression }
+    ...(privacy.includeFileNames && location.chapter ? { chapter: location.chapter } : {}),
+    ...(privacy.includeRawScriptDetails && location.targetExpression
+      ? { targetExpression: location.targetExpression }
       : {}),
     ...(privacy.includeRawScriptDetails && warning.message ? { message: warning.message } : {}),
   };

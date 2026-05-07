@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { FlowEdge, FlowNode } from '../domain';
 import type { AppPhase } from './appTypes';
-import type { ParseWarningPayload } from '../infrastructure';
+import type { ParseDiagnosticPayload } from '../infrastructure';
 
 export type ParseProgress = {
   doneFiles: number;
@@ -16,7 +16,7 @@ export interface AppState {
   phase: AppPhase;
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
-  parseWarnings: ParseWarningPayload[];
+  parseWarnings: ParseDiagnosticPayload[];
   errorMsg: string;
   fileCount: number;
   parseProgress: ParseProgress | null;
@@ -29,8 +29,8 @@ export interface AppActions {
   startReading: (fileCount: number) => void;
   startParsing: () => void;
   setProgress: (progress: ParseProgress) => void;
-  partialParseSuccess: (nodes: FlowNode[], edges: FlowEdge[], warnings?: ParseWarningPayload[]) => void;
-  parseSuccess: (nodes: FlowNode[], edges: FlowEdge[], warnings?: ParseWarningPayload[]) => void;
+  partialParseSuccess: (nodes: FlowNode[], edges: FlowEdge[], warnings?: ParseDiagnosticPayload[]) => void;
+  parseSuccess: (nodes: FlowNode[], edges: FlowEdge[], warnings?: ParseDiagnosticPayload[]) => void;
   setDialogueSearchMode: (mode: DialogueSearchMode) => void;
   fail: (message: string) => void;
 }

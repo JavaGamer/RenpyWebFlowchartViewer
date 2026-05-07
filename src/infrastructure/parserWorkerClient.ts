@@ -104,8 +104,8 @@ export function parseRenpyFilesInWorker({
         settle(() => {
           parserWorker.removeEventListener('message', onMessage);
           signal?.removeEventListener('abort', onAbort);
-          const partialResult = message.warnings
-            ? { nodes: message.nodes, edges: message.edges, warnings: message.warnings }
+          const partialResult = message.diagnostics
+            ? { nodes: message.nodes, edges: message.edges, diagnostics: message.diagnostics }
             : { nodes: message.nodes, edges: message.edges };
           onPartialResult?.(partialResult);
           resolve(partialResult);
@@ -119,8 +119,8 @@ export function parseRenpyFilesInWorker({
       });
 
       if (message.type === 'result') {
-        if (message.warnings) {
-          resolve({ nodes: message.nodes, edges: message.edges, warnings: message.warnings });
+        if (message.diagnostics) {
+          resolve({ nodes: message.nodes, edges: message.edges, diagnostics: message.diagnostics });
         } else {
           resolve({ nodes: message.nodes, edges: message.edges });
         }

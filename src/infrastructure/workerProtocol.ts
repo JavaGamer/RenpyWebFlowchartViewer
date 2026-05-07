@@ -1,7 +1,7 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 
-export const PARSER_WORKER_PROTOCOL_VERSION = 1 as const;
+export const PARSER_WORKER_PROTOCOL_VERSION = 2 as const;
 
 export interface ParseProgressPayload {
   doneFiles: number;
@@ -36,7 +36,7 @@ export interface ParseWorkerClientRequest {
 export interface ParseWorkerClientResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
-  warnings?: ParseWarningPayload[];
+  diagnostics?: ParseDiagnosticPayload[];
 }
 
 export interface ParseRequestMessage {
@@ -95,58 +95,71 @@ export interface ResultResponseMessage {
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];
-  warnings?: ParseWarningPayload[];
+  diagnostics?: ParseDiagnosticPayload[];
   elapsedMs?: number;
   partial?: boolean;
 }
 
-export interface ParseWarningPayload {
+export interface ParseDiagnosticPayload {
   code: 'dynamic_target' | 'normalization' | 'unresolved_target';
+  severity: 'warning' | 'error';
   message: string;
-  chapter?: string;
-  construct?: string;
-  targetExpression?: string;
-  category?:
-    | 'invalid_node'
-    | 'missing_edge_source'
-    | 'missing_edge_target'
-    | 'invalid_edge_kind'
-    | 'duplicate_semantic_edge';
-  nodeId?: string;
-  edgeId?: string;
-  sourceId?: string;
-  targetId?: string;
-  detail?: string;
+  location?: {
+    chapter?: string;
+    construct?: string;
+    targetExpression?: string;
+    edgeId?: string;
+    sourceId?: string;
+    targetId?: string;
+  };
+  context?: {
+    category?:
+      | 'invalid_node'
+      | 'missing_edge_source'
+      | 'missing_edge_target'
+      | 'invalid_edge_kind'
+      | 'duplicate_semantic_edge';
+    detail?: string;
+  };
+  recoveryAction?: string;
 }
 
-export interface DynamicTargetParseWarningPayload extends ParseWarningPayload {
+export interface DynamicTargetParseDiagnosticPayload extends ParseDiagnosticPayload {
   code: 'dynamic_target';
-  chapter: string;
-  construct: string;
-  targetExpression: string;
+  location: {
+    chapter: string;
+    construct: string;
+    targetExpression: string;
+    sourceId?: string;
+  };
 }
 
-export interface UnresolvedTargetParseWarningPayload extends ParseWarningPayload {
+export interface UnresolvedTargetParseDiagnosticPayload extends ParseDiagnosticPayload {
   code: 'unresolved_target';
-  edgeId: string;
-  sourceId: string;
-  targetId: string;
+  location: {
+    edgeId: string;
+    sourceId: string;
+    targetId: string;
+  };
 }
 
-export interface NormalizationParseWarningPayload extends ParseWarningPayload {
+export interface NormalizationParseDiagnosticPayload extends ParseDiagnosticPayload {
   code: 'normalization';
-  category:
-    | 'invalid_node'
-    | 'missing_edge_source'
-    | 'missing_edge_target'
-    | 'invalid_edge_kind'
-    | 'duplicate_semantic_edge';
+  context: {
+    category:
+      | 'invalid_node'
+      | 'missing_edge_source'
+      | 'missing_edge_target'
+      | 'invalid_edge_kind'
+      | 'duplicate_semantic_edge';
+    detail?: string;
+  };
 }
 
-export type StrictParseWarningPayload =
-  | DynamicTargetParseWarningPayload
-  | UnresolvedTargetParseWarningPayload
-  | NormalizationParseWarningPayload;
+export type StrictParseDiagnosticPayload =
+  | DynamicTargetParseDiagnosticPayload
+  | UnresolvedTargetParseDiagnosticPayload
+  | NormalizationParseDiagnosticPayload;
 
 export interface ErrorResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;

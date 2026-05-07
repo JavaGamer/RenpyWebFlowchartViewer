@@ -7,7 +7,7 @@ import type { AppActions, DialogueSearchMode } from './appStore';
 import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import type { ParseWarningPayload } from '../infrastructure';
+import type { ParseDiagnosticPayload } from '../infrastructure';
 
 export interface ProcessUploadDeps {
   parseService: ParseService;
@@ -64,7 +64,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
-    let parsedWarnings: ParseWarningPayload[] = [];
+    let parsedWarnings: ParseDiagnosticPayload[] = [];
     let hasStartedParsing = false;
     try {
       const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
@@ -120,13 +120,13 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   if (!isActiveRun()) return;
                   parsedNodes = partial.nodes;
                   parsedEdges = partial.edges;
-                  parsedWarnings = partial.warnings ?? parsedWarnings;
+                  parsedWarnings = partial.diagnostics ?? parsedWarnings;
                   actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
                 },
               });
               parsedNodes = result.nodes;
               parsedEdges = result.edges;
-              parsedWarnings = result.warnings ?? parsedWarnings;
+              parsedWarnings = result.diagnostics ?? parsedWarnings;
               parsedFileCount += parseChunk.length;
             }
           } else {
@@ -157,7 +157,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             });
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
-            parsedWarnings = result.warnings ?? parsedWarnings;
+            parsedWarnings = result.diagnostics ?? parsedWarnings;
             parsedFileCount += inputs.length;
             actions.partialParseSuccess(parsedNodes, parsedEdges, parsedWarnings);
           }
