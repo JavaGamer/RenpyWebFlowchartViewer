@@ -111,12 +111,6 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "label": "Option B"
     },
     {
-      "id": "seq_menu_1__end_a",
-      "source": "menu_1",
-      "target": "end_a",
-      "label": "next"
-    },
-    {
       "id": "seq_end_a__end_b",
       "source": "end_a",
       "target": "end_b",

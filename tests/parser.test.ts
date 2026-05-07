@@ -1380,4 +1380,58 @@ describe('parseRenpyFiles', () => {
       ]),
     );
   });
+
+  // ── Menu fallthrough regression tests ──────────────────────────────────────────
+
+  it('does not add a spurious fallthrough sequence edge from a menu whose options all jump', async () => {
+    const script = [
+      'label choice:',
+      '    menu:',
+      '        "Option A":',
+      '            jump end_a',
+      '        "Option B":',
+      '            jump end_b',
+      '',
+      'label end_a:',
+      '    "done a"',
+      '',
+      'label end_b:',
+      '    "done b"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'menu-no-fallthrough.rpy', content: script }]);
+
+    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    expect(menuNode).toBeDefined();
+
+    // Jump edges from menu options must be present.
+    const menuJumps = result.edges.filter((e) => e.source === menuNode?.id && e.kind === 'jump');
+    expect(menuJumps).toHaveLength(2);
+
+    // No spurious sequence (fallthrough) edge should be added from the menu
+    // to end_a just because it is the label that follows in source order.
+    const menuSequences = result.edges.filter(
+      (e) => e.source === menuNode?.id && e.kind === 'sequence',
+    );
+    expect(menuSequences).toHaveLength(0);
+  });
+
+  // ── f-string literal normalisation regression tests ────────────────────────────
+
+  it('strips f-string prefix and quotes from say-statement dialogue lines', async () => {
+    const script = [
+      'label start:',
+      '    f"Hello {name}!"',
+      '    F"Another line"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'fstring-dialogue.rpy', content: script }]);
+
+    const node = result.nodes.find((n) => n.id === 'start');
+    expect(node).toBeDefined();
+    expect(node?.dialogueCount).toBe(2);
+    expect(node?.dialogueLines).toEqual(['Hello {name}!', 'Another line']);
+  });
 });

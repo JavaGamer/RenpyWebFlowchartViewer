@@ -151,6 +151,12 @@ function emitJumpEdge(
   if (!isInOption && scanState.currentLabelId) {
     addOutgoing(state, scanState.currentLabelId, 'jump');
     addIncoming(state, target, 'jump');
+  } else if (isInOption && source) {
+    // Register the menu node's outgoing jump traffic so that fallthrough
+    // detection (hasOutgoingEdge) correctly skips menus whose options all
+    // explicitly jump to another label.
+    addOutgoing(state, source, 'jump');
+    addIncoming(state, target, 'jump');
   }
   if (suppressFallthrough && !isInOption && scanState.conditionalIndentStack.length === 0) {
     scanState.labelHasExplicitExit = true;
