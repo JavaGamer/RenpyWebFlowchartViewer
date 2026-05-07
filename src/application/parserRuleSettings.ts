@@ -1,24 +1,28 @@
-import { PARSER_VARIANTS, type ParserVariant, type ScreenActionRule } from '../config/parserRules';
+import {
+  DEFAULT_PARSER_VARIANT,
+  getParserVariants,
+  isParserVariant,
+  normalizeScreenActionRule,
+  type ParserVariant,
+  type ScreenActionRule,
+} from '../config/parserRules';
 import { STORAGE_KEYS } from '../config/storageKeys';
 
-export type RulesByVariant = Record<ParserVariant, ScreenActionRule[]>;
+export type RulesByVariant = Record<string, ScreenActionRule[]>;
 
 export interface ParserRuleSettings {
   selectedVariant: ParserVariant;
   customRulesByVariant: RulesByVariant;
 }
 
-export const defaultParserRuleSettings: ParserRuleSettings = {
-  selectedVariant: 'renpy',
-  customRulesByVariant: {
-    renpy: [],
-    st: [],
-  },
-};
-
-function isParserVariant(value: unknown): value is ParserVariant {
-  return typeof value === 'string' && PARSER_VARIANTS.includes(value as ParserVariant);
+function createEmptyRulesByVariant(): RulesByVariant {
+  return Object.fromEntries(getParserVariants().map((variant) => [variant, []] as const));
 }
+
+export const defaultParserRuleSettings: ParserRuleSettings = {
+  selectedVariant: DEFAULT_PARSER_VARIANT,
+  customRulesByVariant: createEmptyRulesByVariant(),
+};
 
 function normalizeRule(value: unknown): ScreenActionRule | null {
   if (!value || typeof value !== 'object') return null;
@@ -29,7 +33,7 @@ function normalizeRule(value: unknown): ScreenActionRule | null {
     ? value.actionKind
     : null;
   if (!actionName || !actionKind) return null;
-  return { actionName, actionKind };
+  return normalizeScreenActionRule({ actionName, actionKind });
 }
 
 export function loadParserRuleSettings(): ParserRuleSettings {
@@ -41,18 +45,17 @@ export function loadParserRuleSettings(): ParserRuleSettings {
     const selectedVariant = isParserVariant(parsed.selectedVariant)
       ? parsed.selectedVariant
       : defaultParserRuleSettings.selectedVariant;
-    const renpyRules = (parsed.customRulesByVariant?.renpy ?? [])
-      .map(normalizeRule)
-      .filter((rule): rule is ScreenActionRule => rule !== null);
-    const stRules = (parsed.customRulesByVariant?.st ?? [])
-      .map(normalizeRule)
-      .filter((rule): rule is ScreenActionRule => rule !== null);
+    const customRulesByVariant = createEmptyRulesByVariant();
+    const entries = Object.entries(parsed.customRulesByVariant ?? {});
+    for (const [variant, rules] of entries) {
+      if (!isParserVariant(variant) || !Array.isArray(rules)) continue;
+      customRulesByVariant[variant] = rules
+        .map(normalizeRule)
+        .filter((rule): rule is ScreenActionRule => rule !== null);
+    }
     return {
       selectedVariant,
-      customRulesByVariant: {
-        renpy: renpyRules,
-        st: stRules,
-      },
+      customRulesByVariant,
     };
   } catch {
     return defaultParserRuleSettings;

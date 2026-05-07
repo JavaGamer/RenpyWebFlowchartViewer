@@ -87,7 +87,20 @@ export function parseRenpyFilesInWorker({
 
     const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
       const message = event.data;
-      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
+      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) {
+        const raw = event.data as { requestId?: unknown; protocolVersion?: unknown };
+        if (raw.requestId === requestId) {
+          settle(() => {
+            parserWorker.removeEventListener('message', onMessage);
+            signal?.removeEventListener('abort', onAbort);
+            reject(new Error(
+              `Worker protocol version mismatch: expected ${PARSER_WORKER_PROTOCOL_VERSION}, received ${String(raw.protocolVersion)}. ` +
+              'Please reload the page to use the latest worker version.',
+            ));
+          });
+        }
+        return;
+      }
       if (message.requestId !== requestId) return;
 
       if (message.type === 'progress') {
@@ -104,8 +117,8 @@ export function parseRenpyFilesInWorker({
         settle(() => {
           parserWorker.removeEventListener('message', onMessage);
           signal?.removeEventListener('abort', onAbort);
-          const partialResult = message.warnings
-            ? { nodes: message.nodes, edges: message.edges, warnings: message.warnings }
+          const partialResult = message.diagnostics
+            ? { nodes: message.nodes, edges: message.edges, diagnostics: message.diagnostics }
             : { nodes: message.nodes, edges: message.edges };
           onPartialResult?.(partialResult);
           resolve(partialResult);
@@ -119,8 +132,8 @@ export function parseRenpyFilesInWorker({
       });
 
       if (message.type === 'result') {
-        if (message.warnings) {
-          resolve({ nodes: message.nodes, edges: message.edges, warnings: message.warnings });
+        if (message.diagnostics) {
+          resolve({ nodes: message.nodes, edges: message.edges, diagnostics: message.diagnostics });
         } else {
           resolve({ nodes: message.nodes, edges: message.edges });
         }
@@ -210,7 +223,20 @@ export function searchDialogueLinesInWorker({
 
     const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
       const message = event.data;
-      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
+      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) {
+        const raw = event.data as { requestId?: unknown; protocolVersion?: unknown };
+        if (raw.requestId === requestId) {
+          settle(() => {
+            parserWorker.removeEventListener('message', onMessage);
+            signal?.removeEventListener('abort', onAbort);
+            reject(new Error(
+              `Worker protocol version mismatch: expected ${PARSER_WORKER_PROTOCOL_VERSION}, received ${String(raw.protocolVersion)}. ` +
+              'Please reload the page to use the latest worker version.',
+            ));
+          });
+        }
+        return;
+      }
       if (message.requestId !== requestId) return;
       if (message.type === 'error') {
         settle(() => {

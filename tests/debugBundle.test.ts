@@ -46,11 +46,14 @@ describe('debug bundle privacy defaults', () => {
           label: 'sensitive edge',
         }],
       },
-      parseWarnings: [{
+      parseDiagnostics: [{
         code: 'dynamic_target',
-        chapter: 'secret-file',
-        construct: 'renpy.call',
-        targetExpression: 'secret_target',
+        severity: 'warning',
+        location: {
+          chapter: 'secret-file',
+          construct: 'renpy.call',
+          targetExpression: 'secret_target',
+        },
         message: 'Dynamic renpy.call target cannot be resolved statically: secret_target',
       }],
       privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -112,11 +115,14 @@ describe('debug bundle privacy defaults', () => {
           label: 'to end',
         }],
       },
-      parseWarnings: [{
+      parseDiagnostics: [{
         code: 'dynamic_target',
-        chapter: 'chapter1',
-        construct: 'renpy.jump',
-        targetExpression: 'target_var',
+        severity: 'warning',
+        location: {
+          chapter: 'chapter1',
+          construct: 'renpy.jump',
+          targetExpression: 'target_var',
+        },
         message: 'Dynamic renpy.jump target cannot be resolved statically: target_var',
       }],
       privacy: {
@@ -205,13 +211,16 @@ describe('debug bundle privacy defaults', () => {
           },
         ],
       },
-      parseWarnings: [
+      parseDiagnostics: [
         {
           code: 'unresolved_target',
+          severity: 'warning',
+          location: {
+            edgeId: 'jump_start__missing',
+            sourceId: 'start',
+            targetId: 'missing',
+          },
           message: 'missing',
-          edgeId: 'jump_start__missing',
-          sourceId: 'start',
-          targetId: 'missing',
         },
       ],
       privacy: {
@@ -259,7 +268,7 @@ describe('debug bundle edge cases', () => {
       },
       parser: { selectedVariant: 'renpy', customScreenActionRules: [] },
       graph: { flowNodes: [], flowEdges: [] },
-      parseWarnings: [],
+      parseDiagnostics: [],
       privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
     });
 
@@ -285,7 +294,7 @@ describe('debug bundle edge cases', () => {
       },
       parser: { selectedVariant: 'renpy', customScreenActionRules: [] },
       graph: { flowNodes: [], flowEdges: [] },
-      parseWarnings: [],
+      parseDiagnostics: [],
       privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
     });
     const after = Date.now();
@@ -314,7 +323,7 @@ describe('debug bundle edge cases', () => {
         ],
         flowEdges: [],
       },
-      parseWarnings: [],
+      parseDiagnostics: [],
       privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
     });
 
@@ -343,7 +352,7 @@ describe('debug bundle edge cases', () => {
         ],
         flowEdges: [],
       },
-      parseWarnings: [],
+      parseDiagnostics: [],
       privacy: { includeFileNames: true, includeRawScriptDetails: true, includeExtraDiagnostics: true },
     });
 

@@ -27,7 +27,7 @@ import {
 } from './application';
 import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
 import {
-  PARSER_VARIANTS,
+  getParserVariantPlugins,
   type ParserVariant,
   type ScreenActionKind,
 } from './config/parserRules';
@@ -42,7 +42,7 @@ export default function App() {
     phase,
     flowNodes,
     flowEdges,
-    parseWarnings,
+    parseDiagnostics,
     errorMsg,
     fileCount,
     parseProgress,
@@ -52,7 +52,7 @@ export default function App() {
     phase: s.phase,
     flowNodes: s.flowNodes,
     flowEdges: s.flowEdges,
-    parseWarnings: s.parseWarnings,
+    parseDiagnostics: s.parseDiagnostics,
     errorMsg: s.errorMsg,
     fileCount: s.fileCount,
     parseProgress: s.parseProgress,
@@ -78,7 +78,11 @@ export default function App() {
   const updateCustomRule = useParserRuleSettingsStore((s) => s.updateCustomRule);
   const removeCustomRule = useParserRuleSettingsStore((s) => s.removeCustomRule);
   const resetParserRuleSettings = useParserRuleSettingsStore((s) => s.resetSettings);
-  const selectedVariantCustomRules = customRulesByVariant[selectedVariant];
+  const selectedVariantCustomRules = useMemo(
+    () => customRulesByVariant[selectedVariant] ?? [],
+    [customRulesByVariant, selectedVariant],
+  );
+  const parserVariantPlugins = useMemo(() => getParserVariantPlugins(), []);
 
   const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<DebugBundlePrivacyOptions>(
     DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -134,7 +138,7 @@ export default function App() {
         flowNodes,
         flowEdges,
       },
-      parseWarnings,
+      parseDiagnostics,
       privacy,
     });
     saveAs(toDebugBundleBlob(bundle), 'renpy-flowchart-debug-bundle.json');
@@ -149,7 +153,7 @@ export default function App() {
     flowNodes,
     importRevision,
     parseProgress,
-    parseWarnings,
+    parseDiagnostics,
     phase,
   ]);
   const openNewIssue = useCallback((privacy: DebugBundlePrivacyOptions) => {
@@ -162,7 +166,7 @@ export default function App() {
         dialogueSearchMode,
         selectedVariant,
         fileCount,
-        warningCount: parseWarnings.length,
+        warningCount: parseDiagnostics.length,
       },
     });
     if (typeof globalThis.open !== 'function') return;
@@ -171,7 +175,7 @@ export default function App() {
     selectedVariant,
     dialogueSearchMode,
     fileCount,
-    parseWarnings.length,
+    parseDiagnostics.length,
     phase,
   ]);
 
@@ -243,9 +247,9 @@ export default function App() {
               <strong>{flowNodes.length}</strong> nodes,{' '}
               <strong>{flowEdges.length}</strong> edges
             </span>
-            {parseWarnings.length > 0 && (
+            {parseDiagnostics.length > 0 && (
               <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                {parseWarnings.length} parse warning{parseWarnings.length === 1 ? '' : 's'}
+                {parseDiagnostics.length} parse warning{parseDiagnostics.length === 1 ? '' : 's'}
               </span>
             )}
             <button
@@ -257,16 +261,19 @@ export default function App() {
               Upload a different folder
             </button>
           </div>
-          {parseWarnings.length > 0 && (
+          {parseDiagnostics.length > 0 && (
             <section
               className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
               aria-label="Parser warnings"
             >
               <p className="text-sm font-semibold">Parser warnings</p>
               <ul className="mt-1 list-disc pl-5 text-xs space-y-1">
-                {parseWarnings.map((warning, idx) => (
-                  <li key={`${warning.chapter}-${warning.construct}-${warning.targetExpression}-${idx}`}>
-                    <span className="font-medium">{warning.construct}</span> in <span className="font-medium">{warning.chapter}</span>: {warning.message}
+                {parseDiagnostics.map((warning, idx) => (
+                  <li key={`${warning.code}-${warning.message}-${idx}`}>
+                    <span className="font-medium uppercase">{warning.code}</span>
+                    {warning.location?.construct ? <> · <span className="font-medium">{warning.location.construct}</span></> : null}
+                    {warning.location?.chapter ? <> in <span className="font-medium">{warning.location.chapter}</span></> : null}
+                    : {warning.message}
                   </li>
                 ))}
               </ul>
@@ -347,9 +354,9 @@ export default function App() {
                   onChange={(event) => setSelectedVariant(event.target.value as ParserVariant)}
                   className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
                 >
-                  {PARSER_VARIANTS.map((variant) => (
-                    <option key={variant} value={variant}>
-                      {variant.toUpperCase()}
+                  {parserVariantPlugins.map((variantPlugin) => (
+                    <option key={variantPlugin.id} value={variantPlugin.id}>
+                      {variantPlugin.label}
                     </option>
                   ))}
                 </select>

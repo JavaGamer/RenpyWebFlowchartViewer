@@ -1,5 +1,5 @@
 import type { FlowEdge, FlowNode } from '../domain';
-import type { ParseWarningPayload } from '../infrastructure';
+import type { ParseDiagnosticPayload } from '../infrastructure';
 import type { DialogueSearchMode, ParseProgress } from './appStore';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 
@@ -34,14 +34,15 @@ export interface BuildDebugBundleInput {
     flowNodes: FlowNode[];
     flowEdges: FlowEdge[];
   };
-  parseWarnings: ParseWarningPayload[];
+  parseDiagnostics: ParseDiagnosticPayload[];
   privacy: DebugBundlePrivacyOptions;
 }
 
 interface RedactedWarning {
-  code: ParseWarningPayload['code'];
+  code: ParseDiagnosticPayload['code'];
+  severity: ParseDiagnosticPayload['severity'];
   construct?: string;
-  category?: ParseWarningPayload['category'];
+  category?: 'invalid_node' | 'missing_edge_source' | 'missing_edge_target' | 'invalid_edge_kind' | 'duplicate_semantic_edge';
   edgeId?: string;
   sourceId?: string;
   targetId?: string;
@@ -104,26 +105,48 @@ function getEdgeAlias(context: GraphAliasContext, edgeId: string): string {
 }
 
 function redactWarning(
-  warning: ParseWarningPayload,
+  warning: ParseDiagnosticPayload,
   privacy: DebugBundlePrivacyOptions,
   graphAliasContext: GraphAliasContext,
 ): RedactedWarning {
+  const legacyWarning = warning as ParseDiagnosticPayload & {
+    chapter?: string;
+    construct?: string;
+    targetExpression?: string;
+    edgeId?: string;
+    sourceId?: string;
+    targetId?: string;
+    category?: RedactedWarning['category'];
+  };
+  const location = warning.location ?? {
+    chapter: legacyWarning.chapter,
+    construct: legacyWarning.construct,
+    targetExpression: legacyWarning.targetExpression,
+    edgeId: legacyWarning.edgeId,
+    sourceId: legacyWarning.sourceId,
+    targetId: legacyWarning.targetId,
+  };
+  const context = warning.context ?? {
+    category: legacyWarning.category,
+  };
   return {
     code: warning.code,
-    ...(warning.construct ? { construct: warning.construct } : {}),
-    ...(warning.category ? { category: warning.category } : {}),
-    ...(warning.edgeId
-      ? { edgeId: privacy.includeRawScriptDetails ? warning.edgeId : getEdgeAlias(graphAliasContext, warning.edgeId) }
+    // Backward-compatible fallback for legacy bundles/tests that still provide warning-like payloads.
+    severity: warning.severity ?? 'warning',
+    ...(location.construct ? { construct: location.construct } : {}),
+    ...(context.category ? { category: context.category } : {}),
+    ...(location.edgeId
+      ? { edgeId: privacy.includeRawScriptDetails ? location.edgeId : getEdgeAlias(graphAliasContext, location.edgeId) }
       : {}),
-    ...(warning.sourceId
-      ? { sourceId: privacy.includeRawScriptDetails ? warning.sourceId : getNodeAlias(graphAliasContext, warning.sourceId) }
+    ...(location.sourceId
+      ? { sourceId: privacy.includeRawScriptDetails ? location.sourceId : getNodeAlias(graphAliasContext, location.sourceId) }
       : {}),
-    ...(warning.targetId
-      ? { targetId: privacy.includeRawScriptDetails ? warning.targetId : getNodeAlias(graphAliasContext, warning.targetId) }
+    ...(location.targetId
+      ? { targetId: privacy.includeRawScriptDetails ? location.targetId : getNodeAlias(graphAliasContext, location.targetId) }
       : {}),
-    ...(privacy.includeFileNames && warning.chapter ? { chapter: warning.chapter } : {}),
-    ...(privacy.includeRawScriptDetails && warning.targetExpression
-      ? { targetExpression: warning.targetExpression }
+    ...(privacy.includeFileNames && location.chapter ? { chapter: location.chapter } : {}),
+    ...(privacy.includeRawScriptDetails && location.targetExpression
+      ? { targetExpression: location.targetExpression }
       : {}),
     ...(privacy.includeRawScriptDetails && warning.message ? { message: warning.message } : {}),
   };
@@ -168,10 +191,10 @@ function redactEdge(
 }
 
 export function buildDebugBundle(input: BuildDebugBundleInput) {
-  const warningCodes = Array.from(new Set(input.parseWarnings.map((warning) => warning.code))).sort();
+  const warningCodes = Array.from(new Set(input.parseDiagnostics.map((warning) => warning.code))).sort();
   const graphAliasContext = createGraphAliasContext(input.graph.flowNodes, input.graph.flowEdges);
   const warnings = input.privacy.includeExtraDiagnostics
-    ? input.parseWarnings.map((warning) => redactWarning(warning, input.privacy, graphAliasContext))
+    ? input.parseDiagnostics.map((warning) => redactWarning(warning, input.privacy, graphAliasContext))
     : undefined;
 
   return {
@@ -208,7 +231,7 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
     graphSummary: {
       nodeCount: input.graph.flowNodes.length,
       edgeCount: input.graph.flowEdges.length,
-      warningCount: input.parseWarnings.length,
+      warningCount: input.parseDiagnostics.length,
       warningCodes,
     },
     graph: {

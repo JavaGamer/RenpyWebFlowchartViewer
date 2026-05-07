@@ -4,7 +4,7 @@ import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTran
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
-import { addParseWarning } from './warnings';
+import { addParseDiagnostic } from './diagnostics';
 
 interface HandleTokenInput {
   type: number;
@@ -92,31 +92,35 @@ function readParenthesizedArgument(
   return null;
 }
 
-function addDynamicTargetWarning(
+function addDynamicTargetDiagnostic(
   state: ParseGraphState,
   chapter: string,
   construct: string,
   targetExpression: string,
   sourceId?: string,
 ) {
-  const warningId = [
+  const diagnosticId = [
     'dynamic_target',
     chapter,
     construct,
     targetExpression.trim(),
     sourceId ?? '',
   ].join('|');
-  addParseWarning(
+  addParseDiagnostic(
     state,
     {
       code: 'dynamic_target',
-      chapter,
-      construct,
-      targetExpression: targetExpression.trim(),
-      sourceId,
+      severity: 'warning',
+      location: {
+        chapter,
+        construct,
+        targetExpression: targetExpression.trim(),
+        sourceId,
+      },
       message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
+      recoveryAction: 'Use a static string target or configure explicit parser rules.',
     },
-    warningId,
+    diagnosticId,
   );
 }
 
@@ -412,7 +416,7 @@ function processDirectRenpyBlockCalls(
     const context = resolveCallContext(scanState, meta, menuDepth);
 
     if (!target) {
-      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       continue;
     }
 
@@ -442,7 +446,7 @@ function processDirectScreenActionCalls(
     const context = resolveCallContext(scanState, meta, menuDepth);
     const target = extractStaticTargetFromArgumentList(targetExpression);
     if (!target) {
-      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       return;
     }
     const dedupeKey = `${construct.toLowerCase()}|${target}|${context.source ?? ''}`;

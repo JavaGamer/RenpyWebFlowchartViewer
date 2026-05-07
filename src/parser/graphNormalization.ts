@@ -1,6 +1,6 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { ParseGraphState, EdgeKind } from './pipelineTypes';
-import { addParseWarning } from './warnings';
+import { addParseDiagnostic } from './diagnostics';
 import { MultiDirectedGraph } from 'graphology';
 
 const VALID_EDGE_KINDS = new Set<EdgeKind>(['sequence', 'jump', 'call', 'call_return']);
@@ -44,15 +44,19 @@ export function normalizeGraphState(state: ParseGraphState): void {
 
   for (const node of state.nodes) {
     if (!node.id) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'normalization',
-          category: 'invalid_node',
+          severity: 'warning',
           message: 'Dropped node with empty ID during parser normalization.',
-          detail: node.label,
+          context: {
+            category: 'invalid_node',
+            detail: node.label,
+          },
+          recoveryAction: 'Ensure every parsed node has a non-empty stable ID.',
         },
-        `normalization|invalid_node|${node.label}`,
+        `diagnostic|normalization|invalid_node|${node.label}`,
       );
       continue;
     }
@@ -67,46 +71,64 @@ export function normalizeGraphState(state: ParseGraphState): void {
 
   for (const edge of state.edges) {
     if (!edge.source) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'normalization',
-          category: 'missing_edge_source',
+          severity: 'warning',
           message: `Dropped edge "${edge.id}" because source is empty.`,
-          edgeId: edge.id,
-          targetId: edge.target,
+          location: {
+            edgeId: edge.id,
+            targetId: edge.target,
+          },
+          context: {
+            category: 'missing_edge_source',
+          },
+          recoveryAction: 'Ensure jump/call edge generation always sets a source ID.',
         },
-        `normalization|missing_edge_source|${edge.id}`,
+        `diagnostic|normalization|missing_edge_source|${edge.id}`,
       );
       continue;
     }
     if (!edge.target) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'normalization',
-          category: 'missing_edge_target',
+          severity: 'warning',
           message: `Dropped edge "${edge.id}" because target is empty.`,
-          edgeId: edge.id,
-          sourceId: edge.source,
+          location: {
+            edgeId: edge.id,
+            sourceId: edge.source,
+          },
+          context: {
+            category: 'missing_edge_target',
+          },
+          recoveryAction: 'Ensure jump/call edge generation always sets a target ID.',
         },
-        `normalization|missing_edge_target|${edge.id}`,
+        `diagnostic|normalization|missing_edge_target|${edge.id}`,
       );
       continue;
     }
 
     if (!nodeIds.has(edge.source)) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'normalization',
-          category: 'missing_edge_source',
+          severity: 'warning',
           message: `Dropped edge "${edge.id}" because source node "${edge.source}" does not exist.`,
-          edgeId: edge.id,
-          sourceId: edge.source,
-          targetId: edge.target,
+          location: {
+            edgeId: edge.id,
+            sourceId: edge.source,
+            targetId: edge.target,
+          },
+          context: {
+            category: 'missing_edge_source',
+          },
+          recoveryAction: 'Ensure edge sources reference emitted nodes.',
         },
-        `normalization|missing_edge_source_node|${edge.id}|${edge.source}`,
+        `diagnostic|normalization|missing_edge_source_node|${edge.id}|${edge.source}`,
       );
       continue;
     }
@@ -114,32 +136,42 @@ export function normalizeGraphState(state: ParseGraphState): void {
     const normalizedKind = normalizeEdgeKind(edge);
     const normalizedEdgeId = resolveNormalizedEdgeId(edge, normalizedKind);
     if (edge.kind !== normalizedKind) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'normalization',
-          category: 'invalid_edge_kind',
+          severity: 'warning',
           message: `Normalized edge kind for "${normalizedEdgeId}" to "${normalizedKind}".`,
-          edgeId: normalizedEdgeId,
-          sourceId: edge.source,
-          targetId: edge.target,
-          detail: String(edge.kind ?? 'undefined'),
+          location: {
+            edgeId: normalizedEdgeId,
+            sourceId: edge.source,
+            targetId: edge.target,
+          },
+          context: {
+            category: 'invalid_edge_kind',
+            detail: String(edge.kind ?? 'undefined'),
+          },
+          recoveryAction: 'Emit edge kinds using known values: sequence, jump, call, or call_return.',
         },
-        `normalization|invalid_edge_kind|${normalizedEdgeId}|${normalizedKind}|${edge.kind ?? 'undefined'}`,
+        `diagnostic|normalization|invalid_edge_kind|${normalizedEdgeId}|${normalizedKind}|${edge.kind ?? 'undefined'}`,
       );
     }
 
     if (!nodeIds.has(edge.target)) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'unresolved_target',
+          severity: 'warning',
           message: `Edge "${normalizedEdgeId}" targets unresolved label "${edge.target}".`,
-          edgeId: normalizedEdgeId,
-          sourceId: edge.source,
-          targetId: edge.target,
+          location: {
+            edgeId: normalizedEdgeId,
+            sourceId: edge.source,
+            targetId: edge.target,
+          },
+          recoveryAction: 'Define the target label or update the jump/call target expression.',
         },
-        `unresolved_target|${normalizedEdgeId}|${edge.source}|${edge.target}`,
+        `diagnostic|unresolved_target|${normalizedEdgeId}|${edge.source}|${edge.target}`,
       );
     }
 
@@ -150,18 +182,24 @@ export function normalizeGraphState(state: ParseGraphState): void {
     };
     const semanticKey = stableSemanticEdgeId(normalizedEdge, normalizedKind);
     if (semanticEdgeKeys.has(semanticKey)) {
-      addParseWarning(
+      addParseDiagnostic(
         state,
         {
           code: 'normalization',
-          category: 'duplicate_semantic_edge',
+          severity: 'warning',
           message: `Dropped duplicate semantic edge "${normalizedEdge.id}".`,
-          edgeId: normalizedEdge.id,
-          sourceId: normalizedEdge.source,
-          targetId: normalizedEdge.target,
-          detail: semanticKey,
+          location: {
+            edgeId: normalizedEdge.id,
+            sourceId: normalizedEdge.source,
+            targetId: normalizedEdge.target,
+          },
+          context: {
+            category: 'duplicate_semantic_edge',
+            detail: semanticKey,
+          },
+          recoveryAction: 'Avoid emitting duplicate edges with identical semantic meaning.',
         },
-        `normalization|duplicate_semantic_edge|${semanticKey}`,
+        `diagnostic|normalization|duplicate_semantic_edge|${semanticKey}`,
       );
       continue;
     }

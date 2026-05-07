@@ -106,7 +106,7 @@ describe('parseRenpyFilesInWorker', () => {
     expect(workerMessageHandlers.size).toBe(0);
   });
 
-  it('propagates warnings from worker result messages to partial callback and resolve value', async () => {
+  it('propagates diagnostics from worker result messages to partial callback and resolve value', async () => {
     const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
     const onPartialResult = vi.fn();
     const request = parseRenpyFilesInWorker({
@@ -115,11 +115,14 @@ describe('parseRenpyFilesInWorker', () => {
     });
     await waitForPostedMessages(1);
     const requestId = (postedMessages[0] as { requestId: number }).requestId;
-    const warnings = [{
+    const diagnostics = [{
       code: 'dynamic_target',
-      chapter: 'warned',
-      construct: 'renpy.call',
-      targetExpression: 'dynamic_target',
+      severity: 'warning',
+      location: {
+        chapter: 'warned',
+        construct: 'renpy.call',
+        targetExpression: 'dynamic_target',
+      },
       message: 'Dynamic target',
     }];
 
@@ -130,18 +133,18 @@ describe('parseRenpyFilesInWorker', () => {
       partial: true,
       nodes: [{ id: 'warned' }],
       edges: [],
-      warnings,
+      diagnostics,
     });
 
     expect(onPartialResult).toHaveBeenCalledWith({
       nodes: [{ id: 'warned' }],
       edges: [],
-      warnings,
+      diagnostics,
     });
     await expect(request).resolves.toEqual({
       nodes: [{ id: 'warned' }],
       edges: [],
-      warnings,
+      diagnostics,
     });
   });
 

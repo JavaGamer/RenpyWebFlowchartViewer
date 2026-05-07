@@ -2,10 +2,17 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
-import { PARSER_VARIANTS, type ParserVariant, type ScreenActionRule } from '../config/parserRules';
+import {
+  DEFAULT_PARSER_VARIANT,
+  getParserVariants,
+  isParserVariant,
+  normalizeScreenActionRule,
+  type ParserVariant,
+  type ScreenActionRule,
+} from '../config/parserRules';
 import { STORAGE_KEYS } from '../config/storageKeys';
 
-export type RulesByVariant = Record<ParserVariant, ScreenActionRule[]>;
+export type RulesByVariant = Record<string, ScreenActionRule[]>;
 
 export interface ParserRuleSettings {
   selectedVariant: ParserVariant;
@@ -22,17 +29,14 @@ export interface ParserRuleSettingsActions {
 
 export type ParserRuleSettingsStore = ParserRuleSettings & ParserRuleSettingsActions;
 
-export const defaultParserRuleSettings: ParserRuleSettings = {
-  selectedVariant: 'renpy',
-  customRulesByVariant: {
-    renpy: [],
-    st: [],
-  },
-};
-
-function isParserVariant(value: unknown): value is ParserVariant {
-  return typeof value === 'string' && PARSER_VARIANTS.includes(value as ParserVariant);
+function createEmptyRulesByVariant(): RulesByVariant {
+  return Object.fromEntries(getParserVariants().map((variant) => [variant, []] as const));
 }
+
+export const defaultParserRuleSettings: ParserRuleSettings = {
+  selectedVariant: DEFAULT_PARSER_VARIANT,
+  customRulesByVariant: createEmptyRulesByVariant(),
+};
 
 const screenActionRuleSchema = z.object({
   actionName: z.string().transform((s) => s.trim()).pipe(z.string().min(1)),
@@ -55,8 +59,8 @@ const parserRuleSettingsSchema = z.object({
     .refine(isParserVariant)
     .catch(defaultParserRuleSettings.selectedVariant),
   customRulesByVariant: z
-    .object({ renpy: rulesArraySchema, st: rulesArraySchema })
-    .catch(defaultParserRuleSettings.customRulesByVariant),
+    .record(z.string(), rulesArraySchema)
+    .catch({}),
 });
 
 function mergePersistedState(
@@ -66,7 +70,21 @@ function mergePersistedState(
   const parsed = parserRuleSettingsSchema.parse(
     persisted && typeof persisted === 'object' ? persisted : {},
   );
-  return { ...current, ...parsed };
+  const normalizedRules = createEmptyRulesByVariant();
+  for (const [variant, rules] of Object.entries(parsed.customRulesByVariant)) {
+    if (!isParserVariant(variant)) continue;
+    normalizedRules[variant] = (rules ?? [])
+      .map(normalizeScreenActionRule)
+      .filter((rule): rule is ScreenActionRule => rule !== null);
+  }
+  const selectedVariant = isParserVariant(parsed.selectedVariant)
+    ? parsed.selectedVariant
+    : defaultParserRuleSettings.selectedVariant;
+  return {
+    ...current,
+    selectedVariant,
+    customRulesByVariant: normalizedRules,
+  };
 }
 
 export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
@@ -81,6 +99,9 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
 
       addCustomRule: () =>
         set((draft) => {
+          if (!draft.customRulesByVariant[draft.selectedVariant]) {
+            draft.customRulesByVariant[draft.selectedVariant] = [];
+          }
           draft.customRulesByVariant[draft.selectedVariant].push({
             actionName: '',
             actionKind: 'jump',
@@ -97,6 +118,7 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
 
       removeCustomRule: (idx) =>
         set((draft) => {
+          if (!draft.customRulesByVariant[draft.selectedVariant]) return;
           draft.customRulesByVariant[draft.selectedVariant].splice(idx, 1);
         }),
 

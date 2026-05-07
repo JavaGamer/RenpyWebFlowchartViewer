@@ -18,7 +18,7 @@ async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
     createGraphState: () => ({
       nodes: [],
       edges: [],
-      warnings: [],
+      diagnostics: [],
     }),
   }));
 
