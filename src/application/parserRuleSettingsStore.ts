@@ -4,7 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
 import {
   DEFAULT_PARSER_VARIANT,
-  PARSER_VARIANTS,
+  getParserVariants,
   isParserVariant,
   normalizeScreenActionRule,
   type ParserVariant,
@@ -30,7 +30,7 @@ export interface ParserRuleSettingsActions {
 export type ParserRuleSettingsStore = ParserRuleSettings & ParserRuleSettingsActions;
 
 function createEmptyRulesByVariant(): RulesByVariant {
-  return Object.fromEntries(PARSER_VARIANTS.map((variant) => [variant, []] as const));
+  return Object.fromEntries(getParserVariants().map((variant) => [variant, []] as const));
 }
 
 export const defaultParserRuleSettings: ParserRuleSettings = {
@@ -99,6 +99,9 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
 
       addCustomRule: () =>
         set((draft) => {
+          if (!draft.customRulesByVariant[draft.selectedVariant]) {
+            draft.customRulesByVariant[draft.selectedVariant] = [];
+          }
           draft.customRulesByVariant[draft.selectedVariant].push({
             actionName: '',
             actionKind: 'jump',
@@ -115,6 +118,7 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
 
       removeCustomRule: (idx) =>
         set((draft) => {
+          if (!draft.customRulesByVariant[draft.selectedVariant]) return;
           draft.customRulesByVariant[draft.selectedVariant].splice(idx, 1);
         }),
 

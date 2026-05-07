@@ -27,7 +27,7 @@ import {
 } from './application';
 import { MAX_RPY_FILE_COUNT, MAX_TOTAL_RPY_SIZE_BYTES } from './config/uploadLimits';
 import {
-  PARSER_VARIANTS,
+  getParserVariantPlugins,
   type ParserVariant,
   type ScreenActionKind,
 } from './config/parserRules';
@@ -78,7 +78,8 @@ export default function App() {
   const updateCustomRule = useParserRuleSettingsStore((s) => s.updateCustomRule);
   const removeCustomRule = useParserRuleSettingsStore((s) => s.removeCustomRule);
   const resetParserRuleSettings = useParserRuleSettingsStore((s) => s.resetSettings);
-  const selectedVariantCustomRules = customRulesByVariant[selectedVariant];
+  const selectedVariantCustomRules = customRulesByVariant[selectedVariant] ?? [];
+  const parserVariantPlugins = useMemo(() => getParserVariantPlugins(), []);
 
   const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<DebugBundlePrivacyOptions>(
     DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -350,9 +351,9 @@ export default function App() {
                   onChange={(event) => setSelectedVariant(event.target.value as ParserVariant)}
                   className="rounded-md border border-gray-300 px-2 py-1 text-xs bg-white"
                 >
-                  {PARSER_VARIANTS.map((variant) => (
-                    <option key={variant} value={variant}>
-                      {variant.toUpperCase()}
+                  {parserVariantPlugins.map((variantPlugin) => (
+                    <option key={variantPlugin.id} value={variantPlugin.id}>
+                      {variantPlugin.label}
                     </option>
                   ))}
                 </select>

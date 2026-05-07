@@ -1,6 +1,6 @@
 import {
   DEFAULT_PARSER_VARIANT,
-  PARSER_VARIANTS,
+  getParserVariants,
   isParserVariant,
   normalizeScreenActionRule,
   type ParserVariant,
@@ -16,7 +16,7 @@ export interface ParserRuleSettings {
 }
 
 function createEmptyRulesByVariant(): RulesByVariant {
-  return Object.fromEntries(PARSER_VARIANTS.map((variant) => [variant, []] as const));
+  return Object.fromEntries(getParserVariants().map((variant) => [variant, []] as const));
 }
 
 export const defaultParserRuleSettings: ParserRuleSettings = {

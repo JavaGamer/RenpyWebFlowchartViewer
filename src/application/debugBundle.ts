@@ -42,7 +42,7 @@ interface RedactedWarning {
   code: ParseDiagnosticPayload['code'];
   severity: ParseDiagnosticPayload['severity'];
   construct?: string;
-  category?: ParseDiagnosticPayload['context'] extends { category?: infer C } ? C : never;
+  category?: 'invalid_node' | 'missing_edge_source' | 'missing_edge_target' | 'invalid_edge_kind' | 'duplicate_semantic_edge';
   edgeId?: string;
   sourceId?: string;
   targetId?: string;
@@ -109,11 +109,29 @@ function redactWarning(
   privacy: DebugBundlePrivacyOptions,
   graphAliasContext: GraphAliasContext,
 ): RedactedWarning {
-  const location = warning.location ?? {};
-  const context = warning.context ?? {};
+  const legacyWarning = warning as ParseDiagnosticPayload & {
+    chapter?: string;
+    construct?: string;
+    targetExpression?: string;
+    edgeId?: string;
+    sourceId?: string;
+    targetId?: string;
+    category?: RedactedWarning['category'];
+  };
+  const location = warning.location ?? {
+    chapter: legacyWarning.chapter,
+    construct: legacyWarning.construct,
+    targetExpression: legacyWarning.targetExpression,
+    edgeId: legacyWarning.edgeId,
+    sourceId: legacyWarning.sourceId,
+    targetId: legacyWarning.targetId,
+  };
+  const context = warning.context ?? {
+    category: legacyWarning.category,
+  };
   return {
     code: warning.code,
-    severity: warning.severity,
+    severity: warning.severity ?? 'warning',
     ...(location.construct ? { construct: location.construct } : {}),
     ...(context.category ? { category: context.category } : {}),
     ...(location.edgeId

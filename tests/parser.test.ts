@@ -774,13 +774,16 @@ describe('parseRenpyFiles', () => {
         expect.objectContaining({ source: 'start', target: 'next_label', kind: 'sequence', label: 'next' }),
       ]),
     );
-    expect(result.warnings).toEqual(
+    expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'dynamic_target',
-          chapter: 'direct-renpy-api',
-          construct: 'renpy.call',
-          targetExpression: 'dynamic_target',
+          severity: 'warning',
+          location: expect.objectContaining({
+            chapter: 'direct-renpy-api',
+            construct: 'renpy.call',
+            targetExpression: 'dynamic_target',
+          }),
         }),
       ]),
     );
@@ -811,13 +814,16 @@ describe('parseRenpyFiles', () => {
         expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
       ]),
     );
-    expect(result.warnings).toEqual(
+    expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'dynamic_target',
-          chapter: 'direct-screen-actions',
-          construct: 'Jump',
-          targetExpression: 'dynamic_target',
+          severity: 'warning',
+          location: expect.objectContaining({
+            chapter: 'direct-screen-actions',
+            construct: 'Jump',
+            targetExpression: 'dynamic_target',
+          }),
         }),
       ]),
     );
@@ -892,13 +898,16 @@ describe('parseRenpyFiles', () => {
     const result = await parseRenpyFiles([{ name: 'st-dynamic-target.rpy', content: script }], { parserVariant: 'st' });
 
     expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
-    expect(result.warnings).toEqual(
+    expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'dynamic_target',
-          chapter: 'st-dynamic-target',
-          construct: 'timedchoice',
-          targetExpression: 'dynamic_target',
+          severity: 'warning',
+          location: expect.objectContaining({
+            chapter: 'st-dynamic-target',
+            construct: 'timedchoice',
+            targetExpression: 'dynamic_target',
+          }),
         }),
       ]),
     );
@@ -927,10 +936,10 @@ describe('parseRenpyFiles', () => {
         expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
       ]),
     );
-    expect(result.warnings ?? []).not.toEqual(
+    expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.jump' }),
-        expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.call' }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.jump' }) }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.call' }) }),
       ]),
     );
   });
@@ -958,10 +967,10 @@ describe('parseRenpyFiles', () => {
         expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
       ]),
     );
-    expect(result.warnings ?? []).not.toEqual(
+    expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.jump' }),
-        expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.call' }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.jump' }) }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.call' }) }),
       ]),
     );
   });
@@ -991,10 +1000,10 @@ describe('parseRenpyFiles', () => {
         expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
       ]),
     );
-    expect(result.warnings ?? []).not.toEqual(
+    expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Jump' }),
-        expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Call' }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Jump' }) }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Call' }) }),
       ]),
     );
   });
@@ -1097,12 +1106,12 @@ describe('parseRenpyFiles', () => {
     const result = await parseRenpyFiles([{ name: 'ignored-direct-call-patterns.rpy', content: script }]);
     const ignoredTargets = new Set(['string_target', 'comment_target', 'text_target', 'comment_call_target']);
     expect(result.edges.some((edge) => ignoredTargets.has(edge.target))).toBe(false);
-    expect(result.warnings ?? []).not.toEqual(
+    expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.jump' }),
-        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.call' }),
-        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Jump' }),
-        expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Call' }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.jump' }) }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.call' }) }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Jump' }) }),
+        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Call' }) }),
       ]),
     );
   });
@@ -1212,12 +1221,15 @@ describe('parseRenpyFiles', () => {
     expect(result.edges).toContainEqual(
       expect.objectContaining({ source: 'intro', target: 'missing_label', kind: 'jump' }),
     );
-    expect(result.warnings).toEqual(
+    expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'unresolved_target',
-          sourceId: 'intro',
-          targetId: 'missing_label',
+          severity: 'warning',
+          location: expect.objectContaining({
+            sourceId: 'intro',
+            targetId: 'missing_label',
+          }),
         }),
       ]),
     );
@@ -1346,11 +1358,11 @@ describe('parseRenpyFiles', () => {
       (e) => e.kind === 'jump' && e.source === 'start' && e.target === ' ',
     );
     expect(jumpEdge).toBeUndefined();
-    expect(result.warnings).toEqual(
+    expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'dynamic_target',
-          construct: 'renpy.jump',
+          location: expect.objectContaining({ construct: 'renpy.jump' }),
         }),
       ]),
     );
@@ -1371,11 +1383,11 @@ describe('parseRenpyFiles', () => {
       (e) => e.kind === 'call' && e.source === 'start' && e.target === '',
     );
     expect(callEdge).toBeUndefined();
-    expect(result.warnings).toEqual(
+    expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'dynamic_target',
-          construct: 'renpy.call',
+          location: expect.objectContaining({ construct: 'renpy.call' }),
         }),
       ]),
     );

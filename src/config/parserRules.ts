@@ -26,7 +26,7 @@ const ST_DEFAULT_SCREEN_ACTION_RULES: ScreenActionRule[] = [
   { actionName: 'routename', actionKind: 'jump' },
 ];
 
-export const PARSER_VARIANT_PLUGINS: readonly ParserVariantPlugin[] = [
+export const BUILTIN_PARSER_VARIANT_PLUGINS: readonly ParserVariantPlugin[] = [
   {
     id: 'renpy',
     label: "Ren'Py",
@@ -40,9 +40,29 @@ export const PARSER_VARIANT_PLUGINS: readonly ParserVariantPlugin[] = [
 ] as const;
 
 export const DEFAULT_PARSER_VARIANT = 'renpy' as const;
-export const PARSER_VARIANTS = PARSER_VARIANT_PLUGINS.map((plugin) => plugin.id);
+const parserVariantPluginMap = new Map(BUILTIN_PARSER_VARIANT_PLUGINS.map((plugin) => [plugin.id, plugin] as const));
 
-const parserVariantPluginMap = new Map(PARSER_VARIANT_PLUGINS.map((plugin) => [plugin.id, plugin] as const));
+export function getParserVariantPlugins(): ParserVariantPlugin[] {
+  return Array.from(parserVariantPluginMap.values());
+}
+
+export function getParserVariants(): string[] {
+  return getParserVariantPlugins().map((plugin) => plugin.id);
+}
+
+export const PARSER_VARIANTS = getParserVariants();
+
+export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
+  const normalizedId = plugin.id.trim();
+  if (!normalizedId) {
+    throw new Error('Parser variant plugin ID must be a non-empty string.');
+  }
+  parserVariantPluginMap.set(normalizedId, {
+    ...plugin,
+    id: normalizedId,
+    defaultScreenActionRules: [...plugin.defaultScreenActionRules],
+  });
+}
 
 export function normalizeScreenActionRule(rule: ScreenActionRule): ScreenActionRule | null {
   const actionName = rule.actionName.trim();
