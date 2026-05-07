@@ -3,6 +3,7 @@ import {
   getPredefinedScreenActionRules,
   mergeScreenActionRules,
   toScreenActionRuleMap,
+  registerParserVariantPlugin,
 } from '../src/config/parserRules';
 
 describe('parser rule variants', () => {
@@ -72,5 +73,49 @@ describe('parser rule variants', () => {
   it('toScreenActionRuleMap with undefined customRules still returns predefined rules', () => {
     const ruleMap = toScreenActionRuleMap('renpy', undefined);
     expect(ruleMap.size).toBe(2);
+  });
+});
+
+describe('registerParserVariantPlugin validation', () => {
+  it('throws when plugin id is empty', () => {
+    expect(() =>
+      registerParserVariantPlugin({ id: '   ', label: 'My Variant', defaultScreenActionRules: [] }),
+    ).toThrow('non-empty string');
+  });
+
+  it('throws when plugin label is empty', () => {
+    expect(() =>
+      registerParserVariantPlugin({ id: 'myvariant', label: '   ', defaultScreenActionRules: [] }),
+    ).toThrow('non-empty label');
+  });
+
+  it('throws when a defaultScreenActionRule has an invalid actionKind', () => {
+    expect(() =>
+      registerParserVariantPlugin({
+        id: 'myvariant',
+        label: 'My Variant',
+        defaultScreenActionRules: [{ actionName: 'Teleport', actionKind: 'warp' as 'jump' }],
+      }),
+    ).toThrow('Invalid defaultScreenActionRule');
+  });
+
+  it('throws when a defaultScreenActionRule has an empty actionName', () => {
+    expect(() =>
+      registerParserVariantPlugin({
+        id: 'myvariant',
+        label: 'My Variant',
+        defaultScreenActionRules: [{ actionName: '   ', actionKind: 'jump' }],
+      }),
+    ).toThrow('Invalid defaultScreenActionRule');
+  });
+
+  it('registers a valid plugin and trims id and label', () => {
+    registerParserVariantPlugin({
+      id: '  testvariant  ',
+      label: '  Test Variant  ',
+      defaultScreenActionRules: [{ actionName: ' Warp ', actionKind: 'jump' }],
+    });
+    const rules = getPredefinedScreenActionRules('testvariant');
+    expect(rules).toEqual([{ actionName: 'Warp', actionKind: 'jump' }]);
   });
 });

@@ -35,14 +35,34 @@ interface ParseDiagnosticBase {
 
 export interface DynamicTargetParseDiagnostic extends ParseDiagnosticBase {
   code: 'dynamic_target';
+  location: {
+    chapter: string;
+    construct: string;
+    targetExpression: string;
+    sourceId?: string;
+  };
 }
 
 export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
   code: 'normalization';
+  context: {
+    category:
+      | 'invalid_node'
+      | 'missing_edge_source'
+      | 'missing_edge_target'
+      | 'invalid_edge_kind'
+      | 'duplicate_semantic_edge';
+    detail?: string;
+  };
 }
 
 export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
   code: 'unresolved_target';
+  location: {
+    edgeId: string;
+    sourceId: string;
+    targetId: string;
+  };
 }
 
 export type ParseDiagnostic =

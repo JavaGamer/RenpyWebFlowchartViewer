@@ -92,7 +92,7 @@ function readParenthesizedArgument(
   return null;
 }
 
-function addDynamicTargetWarning(
+function addDynamicTargetDiagnostic(
   state: ParseGraphState,
   chapter: string,
   construct: string,
@@ -416,7 +416,7 @@ function processDirectRenpyBlockCalls(
     const context = resolveCallContext(scanState, meta, menuDepth);
 
     if (!target) {
-      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       continue;
     }
 
@@ -446,7 +446,7 @@ function processDirectScreenActionCalls(
     const context = resolveCallContext(scanState, meta, menuDepth);
     const target = extractStaticTargetFromArgumentList(targetExpression);
     if (!target) {
-      addDynamicTargetWarning(state, chapter, construct, targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       return;
     }
     const dedupeKey = `${construct.toLowerCase()}|${target}|${context.source ?? ''}`;

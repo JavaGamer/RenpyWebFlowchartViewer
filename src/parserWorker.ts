@@ -79,7 +79,20 @@ function postMessageSafe(message: WorkerResponseMessage) {
 
 self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
   const message = event.data;
-  if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
+  if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) {
+    const raw = event.data as { requestId?: unknown; protocolVersion?: unknown };
+    if (typeof raw.requestId === 'number') {
+      self.postMessage({
+        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+        type: 'error',
+        requestId: raw.requestId,
+        message:
+          `Worker protocol version mismatch: expected ${PARSER_WORKER_PROTOCOL_VERSION}, received ${String(raw.protocolVersion)}. ` +
+          'Please reload the page to use the latest worker version.',
+      });
+    }
+    return;
+  }
 
   if (message.type === 'cancel') {
     cancelledRequests.add(message.requestId);

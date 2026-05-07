@@ -55,6 +55,10 @@ export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
   if (!normalizedId) {
     throw new Error('Parser variant plugin ID must be a non-empty string.');
   }
+  const normalizedLabel = plugin.label.trim();
+  if (!normalizedLabel) {
+    throw new Error(`Parser variant plugin "${normalizedId}" must have a non-empty label.`);
+  }
   const validatedRules: ScreenActionRule[] = [];
   for (const rule of plugin.defaultScreenActionRules) {
     const normalized = normalizeScreenActionRule(rule);
@@ -68,6 +72,7 @@ export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
   parserVariantPluginMap.set(normalizedId, {
     ...plugin,
     id: normalizedId,
+    label: normalizedLabel,
     defaultScreenActionRules: validatedRules,
   });
 }
