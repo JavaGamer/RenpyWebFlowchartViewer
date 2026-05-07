@@ -1,6 +1,6 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { ParseGraphState, EdgeKind } from './pipelineTypes';
-import { addParseDiagnostic } from './warnings';
+import { addParseDiagnostic } from './diagnostics';
 import { MultiDirectedGraph } from 'graphology';
 
 const VALID_EDGE_KINDS = new Set<EdgeKind>(['sequence', 'jump', 'call', 'call_return']);

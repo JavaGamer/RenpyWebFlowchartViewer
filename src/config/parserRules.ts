@@ -55,10 +55,20 @@ export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
   if (!normalizedId) {
     throw new Error('Parser variant plugin ID must be a non-empty string.');
   }
+  const validatedRules: ScreenActionRule[] = [];
+  for (const rule of plugin.defaultScreenActionRules) {
+    const normalized = normalizeScreenActionRule(rule);
+    if (!normalized) {
+      throw new Error(
+        `Invalid defaultScreenActionRule in plugin "${normalizedId}": actionName must be non-empty and actionKind must be "jump" or "call". Got: ${JSON.stringify(rule)}`,
+      );
+    }
+    validatedRules.push(normalized);
+  }
   parserVariantPluginMap.set(normalizedId, {
     ...plugin,
     id: normalizedId,
-    defaultScreenActionRules: [...plugin.defaultScreenActionRules],
+    defaultScreenActionRules: validatedRules,
   });
 }
 

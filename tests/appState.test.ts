@@ -47,24 +47,24 @@ describe('useAppStore', () => {
     expect(progress).toEqual({ doneFiles: 1, totalFiles: 3, currentFile: 'a.rpy' });
   });
 
-  it('partialParseSuccess updates nodes, edges and warnings while keeping phase parsing', () => {
+  it('partialParseSuccess updates nodes, edges and diagnostics while keeping phase parsing', () => {
     useAppStore.getState().startParsing();
     const nodes = [{ id: 'n1', type: 'LABEL' as const, label: 'n1', dialogueCount: 0 }];
     const edges = [{ id: 'e1', source: 'n1', target: 'n2', kind: 'jump' as const }];
-    const warnings = [{ code: 'dynamic_target' as const, chapter: 'ch', construct: 'jump', targetExpression: 'x', message: 'dynamic' }];
-    useAppStore.getState().partialParseSuccess(nodes, edges, warnings);
+    const diagnostics = [{ code: 'dynamic_target' as const, severity: 'warning' as const, location: { chapter: 'ch', construct: 'jump', targetExpression: 'x' }, message: 'dynamic' }];
+    useAppStore.getState().partialParseSuccess(nodes, edges, diagnostics);
     const state = useAppStore.getState();
     expect(state.phase).toBe('parsing');
     expect(state.flowNodes).toEqual(nodes);
     expect(state.flowEdges).toEqual(edges);
-    expect(state.parseDiagnostics).toEqual(warnings);
+    expect(state.parseDiagnostics).toEqual(diagnostics);
   });
 
-  it('partialParseSuccess without warnings does not overwrite existing warnings', () => {
-    const warnings = [{ code: 'dynamic_target' as const, chapter: 'ch', construct: 'jump', targetExpression: 'x', message: 'dynamic' }];
-    useAppStore.getState().partialParseSuccess([], [], warnings);
+  it('partialParseSuccess without diagnostics does not overwrite existing diagnostics', () => {
+    const diagnostics = [{ code: 'dynamic_target' as const, severity: 'warning' as const, location: { chapter: 'ch', construct: 'jump', targetExpression: 'x' }, message: 'dynamic' }];
+    useAppStore.getState().partialParseSuccess([], [], diagnostics);
     useAppStore.getState().partialParseSuccess([], []);
-    expect(useAppStore.getState().parseDiagnostics).toEqual(warnings);
+    expect(useAppStore.getState().parseDiagnostics).toEqual(diagnostics);
   });
 
   it('transitions to success and clears progress', () => {
@@ -77,10 +77,10 @@ describe('useAppStore', () => {
     expect(state.importRevision).toBe(1);
   });
 
-  it('parseSuccess stores warnings from arguments', () => {
-    const warnings = [{ code: 'dynamic_target' as const, chapter: 'ch', construct: 'call', targetExpression: 'y', message: 'dynamic call' }];
-    useAppStore.getState().parseSuccess([], [], warnings);
-    expect(useAppStore.getState().parseDiagnostics).toEqual(warnings);
+  it('parseSuccess stores diagnostics from arguments', () => {
+    const diagnostics = [{ code: 'dynamic_target' as const, severity: 'warning' as const, location: { chapter: 'ch', construct: 'call', targetExpression: 'y' }, message: 'dynamic call' }];
+    useAppStore.getState().parseSuccess([], [], diagnostics);
+    expect(useAppStore.getState().parseDiagnostics).toEqual(diagnostics);
   });
 
   it('parseSuccess increments importRevision on each call', () => {

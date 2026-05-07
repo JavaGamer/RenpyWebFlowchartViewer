@@ -4,7 +4,7 @@ import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTran
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
-import { addParseDiagnostic } from './warnings';
+import { addParseDiagnostic } from './diagnostics';
 
 interface HandleTokenInput {
   type: number;
@@ -99,7 +99,7 @@ function addDynamicTargetWarning(
   targetExpression: string,
   sourceId?: string,
 ) {
-  const warningId = [
+  const diagnosticId = [
     'dynamic_target',
     chapter,
     construct,
@@ -120,7 +120,7 @@ function addDynamicTargetWarning(
       message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
       recoveryAction: 'Use a static string target or configure explicit parser rules.',
     },
-    warningId,
+    diagnosticId,
   );
 }
 
