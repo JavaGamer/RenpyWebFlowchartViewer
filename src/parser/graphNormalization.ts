@@ -5,6 +5,10 @@ import { MultiDirectedGraph } from 'graphology';
 
 const VALID_EDGE_KINDS = new Set<EdgeKind>(['sequence', 'jump', 'call', 'call_return']);
 
+function normalizeIdentifier(value: string | undefined | null): string {
+  return (value ?? '').trim();
+}
+
 function normalizeEdgeKind(edge: FlowEdge): EdgeKind {
   if (edge.kind && VALID_EDGE_KINDS.has(edge.kind)) return edge.kind;
   if (edge.id.startsWith('jump_')) return 'jump';
@@ -43,7 +47,8 @@ export function normalizeGraphState(state: ParseGraphState): void {
   const nodeMap = new Map<string, FlowNode>();
 
   for (const node of state.nodes) {
-    if (!node.id) {
+    const normalizedNodeId = normalizeIdentifier(node.id);
+    if (!normalizedNodeId) {
       addParseDiagnostic(
         state,
         {
@@ -60,9 +65,29 @@ export function normalizeGraphState(state: ParseGraphState): void {
       );
       continue;
     }
-    if (nodeMap.has(node.id)) continue;
-    nodeMap.set(node.id, node);
-    normalizedNodes.push(node);
+    if (nodeMap.has(normalizedNodeId)) {
+      addParseDiagnostic(
+        state,
+        {
+          code: 'normalization',
+          severity: 'warning',
+          message: `Dropped duplicate node "${normalizedNodeId}" during parser normalization.`,
+          location: {
+            sourceId: normalizedNodeId,
+          },
+          context: {
+            category: 'duplicate_node',
+            detail: normalizedNodeId,
+          },
+          recoveryAction: 'Ensure each emitted node ID is unique and stable.',
+        },
+        `diagnostic|normalization|duplicate_node|${normalizedNodeId}`,
+      );
+      continue;
+    }
+    const normalizedNode: FlowNode = normalizedNodeId === node.id ? node : { ...node, id: normalizedNodeId };
+    nodeMap.set(normalizedNode.id, normalizedNode);
+    normalizedNodes.push(normalizedNode);
   }
 
   const normalizedEdges: FlowEdge[] = [];
@@ -70,7 +95,10 @@ export function normalizeGraphState(state: ParseGraphState): void {
   const nodeIds = new Set(normalizedNodes.map((node) => node.id));
 
   for (const edge of state.edges) {
-    if (!edge.source) {
+    const normalizedSource = normalizeIdentifier(edge.source);
+    const normalizedTarget = normalizeIdentifier(edge.target);
+
+    if (!normalizedSource) {
       addParseDiagnostic(
         state,
         {
@@ -90,7 +118,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
       );
       continue;
     }
-    if (!edge.target) {
+    if (!normalizedTarget) {
       addParseDiagnostic(
         state,
         {
@@ -111,7 +139,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
       continue;
     }
 
-    if (!nodeIds.has(edge.source)) {
+    if (!nodeIds.has(normalizedSource)) {
       addParseDiagnostic(
         state,
         {
@@ -120,8 +148,8 @@ export function normalizeGraphState(state: ParseGraphState): void {
           message: `Dropped edge "${edge.id}" because source node "${edge.source}" does not exist.`,
           location: {
             edgeId: edge.id,
-            sourceId: edge.source,
-            targetId: edge.target,
+            sourceId: normalizedSource,
+            targetId: normalizedTarget,
           },
           context: {
             category: 'missing_edge_source',
@@ -134,7 +162,11 @@ export function normalizeGraphState(state: ParseGraphState): void {
     }
 
     const normalizedKind = normalizeEdgeKind(edge);
-    const normalizedEdgeId = resolveNormalizedEdgeId(edge, normalizedKind);
+    const normalizedEdgeBase: FlowEdge =
+      normalizedSource === edge.source && normalizedTarget === edge.target
+        ? edge
+        : { ...edge, source: normalizedSource, target: normalizedTarget };
+    const normalizedEdgeId = resolveNormalizedEdgeId(normalizedEdgeBase, normalizedKind);
     if (edge.kind !== normalizedKind) {
       addParseDiagnostic(
         state,
@@ -144,8 +176,8 @@ export function normalizeGraphState(state: ParseGraphState): void {
           message: `Normalized edge kind for "${normalizedEdgeId}" to "${normalizedKind}".`,
           location: {
             edgeId: normalizedEdgeId,
-            sourceId: edge.source,
-            targetId: edge.target,
+            sourceId: normalizedSource,
+            targetId: normalizedTarget,
           },
           context: {
             category: 'invalid_edge_kind',
@@ -157,26 +189,26 @@ export function normalizeGraphState(state: ParseGraphState): void {
       );
     }
 
-    if (!nodeIds.has(edge.target)) {
+    if (!nodeIds.has(normalizedTarget)) {
       addParseDiagnostic(
         state,
         {
           code: 'unresolved_target',
           severity: 'warning',
-          message: `Edge "${normalizedEdgeId}" targets unresolved label "${edge.target}".`,
+          message: `Edge "${normalizedEdgeId}" targets unresolved label "${normalizedTarget}".`,
           location: {
             edgeId: normalizedEdgeId,
-            sourceId: edge.source,
-            targetId: edge.target,
+            sourceId: normalizedSource,
+            targetId: normalizedTarget,
           },
           recoveryAction: 'Define the target label or update the jump/call target expression.',
         },
-        `diagnostic|unresolved_target|${normalizedEdgeId}|${edge.source}|${edge.target}`,
+        `diagnostic|unresolved_target|${normalizedEdgeId}|${normalizedSource}|${normalizedTarget}`,
       );
     }
 
     const normalizedEdge: FlowEdge = {
-      ...edge,
+      ...normalizedEdgeBase,
       kind: normalizedKind,
       id: normalizedEdgeId,
     };

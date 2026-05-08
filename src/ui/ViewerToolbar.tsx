@@ -92,6 +92,7 @@ export function ViewerToolbar({
                 onKeyDown={onSearchInputKeyDown}
                 placeholder="Search labels, dialogue lines, or dialogue count"
                 aria-describedby="viewer-search-help"
+                aria-keyshortcuts="Control+F Meta+F"
                 className={`pl-7 pr-2 w-full sm:w-[16rem] max-w-[90vw] ${CONTROL_INPUT_CLASS}`}
               />
             </div>
@@ -137,6 +138,7 @@ export function ViewerToolbar({
             onClick={onFitView}
             className={CONTROL_BUTTON_CLASS}
             aria-label="Fit graph to view"
+            aria-keyshortcuts="Control+L Meta+L"
           >
             Fit view
           </button>
@@ -150,6 +152,7 @@ export function ViewerToolbar({
           <button
             onClick={onExport}
             aria-label="Export flowchart as PNG"
+            aria-keyshortcuts="Control+E Meta+E"
             className={`${PRIMARY_BUTTON_CLASS} text-white bg-violet-600 hover:bg-violet-700`}
           >
             <Download size={14} aria-hidden="true" />

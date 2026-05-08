@@ -590,7 +590,7 @@ function FlowchartCanvas({
   return (
     <>
       {showAdvancedControls && (
-        <div className="px-3 sm:px-4 pb-3 bg-white border-b border-gray-200 shrink-0">
+        <div id="viewer-advanced-controls" className="px-3 sm:px-4 pb-3 bg-white border-b border-gray-200 shrink-0">
           <ViewerAdvancedControls
             layoutDirection={layoutDirection}
             setLayoutDirection={setLayoutDirection}
