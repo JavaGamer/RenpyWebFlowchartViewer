@@ -153,9 +153,10 @@ After running `npm run bench:perf`, summarize key metrics from `perf-data/baseli
 
 | Dataset | Read (ms) | Parse total (ms) | Parse/file avg (ms) | Layout (ms) | Render transform (ms) | Export estimate (ms) | Nodes | Edges | Memory after (heap MB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| small | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill_ | _fill_ | _fill_ |
-| medium | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill_ | _fill_ | _fill_ |
-| large | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill from JSON_ | _fill_ | _fill_ | _fill_ |
+| small | 0.09 | 40.25 | 9.61 | 33.87 | 0.45 | 0.27 | 108 | 72 | 19.64 |
+| medium | 0.29 | 150.04 | 8.16 | 302.37 | 0.96 | 1.45 | 846 | 612 | 34.08 |
+| large | 0.77 | 687.8 | 11.12 | 3540.73 | 5.51 | 8.46 | 4500 | 3600 | 75.31 |
+| nearMax | 6.72 | 1008.15 | 3.74 | 24144.57 | 14.19 | 13.25 | 8580 | 6240 | 199.34 |
 
 ## Troubleshooting
 
