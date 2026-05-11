@@ -42,7 +42,13 @@ interface RedactedWarning {
   code: ParseDiagnosticPayload['code'];
   severity: ParseDiagnosticPayload['severity'];
   construct?: string;
-  category?: 'invalid_node' | 'missing_edge_source' | 'missing_edge_target' | 'invalid_edge_kind' | 'duplicate_semantic_edge';
+  category?:
+    | 'invalid_node'
+    | 'duplicate_node'
+    | 'missing_edge_source'
+    | 'missing_edge_target'
+    | 'invalid_edge_kind'
+    | 'duplicate_semantic_edge';
   edgeId?: string;
   sourceId?: string;
   targetId?: string;

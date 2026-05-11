@@ -62,6 +62,8 @@ export function useViewerSearch({
   useEffect(() => () => debouncedSetSearch.cancel(), [debouncedSetSearch]);
 
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
+  const trimmedSearch = effectiveSearch.trim();
+  const hasActiveQuery = trimmedSearch.length > 0;
 
   // ── Candidate node IDs for scoped worker search ───────────────────────────
   const dialogueSearchCandidateNodeIds = useMemo(() => {
@@ -122,7 +124,7 @@ export function useViewerSearch({
   const searchableDocs = useMemo<DialogueSearchDocument[]>(() => {
     // Skip entirely in large-graph mode (worker handles search there) and when
     // dialogue-line search is disabled.
-    if (!dialogueLineSearchEnabled || largeGraphMode) return [];
+    if (!dialogueLineSearchEnabled || largeGraphMode || !hasActiveQuery) return [];
     const docs: DialogueSearchDocument[] = [];
     for (const node of nodes) {
       const nodeData = node.data as { label: string; chapter?: string; dialogueCount?: number; dialogueLines?: string[] };
@@ -141,12 +143,7 @@ export function useViewerSearch({
       });
     }
     return docs;
-  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, largeGraphMode, minDialogue, nodes]);
-
-  // A boolean that transitions only when the user starts/stops searching.
-  // Using this (rather than the raw string) as a Fuse dep avoids rebuilding
-  // the index on every keystroke while the query is non-empty.
-  const hasActiveQuery = Boolean(effectiveSearch.trim());
+  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, hasActiveQuery, largeGraphMode, minDialogue, nodes]);
 
   const localDialogueFuse = useMemo(
     () => (searchableDocs.length > 0 && hasActiveQuery ? new Fuse(searchableDocs, DIALOGUE_FUSE_OPTIONS) : null),
@@ -155,15 +152,13 @@ export function useViewerSearch({
 
   const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
     if (!localDialogueFuse) return [];
-    const query = effectiveSearch.trim();
-    if (!query) return [];
-    return localDialogueFuse.search(query, { limit: DIALOGUE_SEARCH_MAX_RESULTS }).map((entry) => ({
+    return localDialogueFuse.search(trimmedSearch, { limit: DIALOGUE_SEARCH_MAX_RESULTS }).map((entry) => ({
       nodeId: entry.item.nodeId,
       nodeLabel: entry.item.nodeLabel,
       lineIndex: entry.item.lineIndex,
       lineText: entry.item.lineText,
     }));
-  }, [effectiveSearch, localDialogueFuse]);
+  }, [localDialogueFuse, trimmedSearch]);
 
   const activeDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
 
@@ -174,16 +169,18 @@ export function useViewerSearch({
 
   // ── Node Fuse index (lazy: only built when there is an active query) ─────────
   const nodeSearchDocs = useMemo<NodeSearchDocument[]>(
-    () =>
-      nodes.map((node) => {
+    () => {
+      if (!hasActiveQuery) return [];
+      return nodes.map((node) => {
         const nodeData = node.data as { label?: string; dialogueCount?: number };
         return {
           nodeId: node.id,
           label: nodeData.label ?? '',
           dialogueCountText: String(nodeData.dialogueCount ?? 0),
         };
-      }),
-    [nodes],
+      });
+    },
+    [hasActiveQuery, nodes],
   );
 
   // Same hasActiveQuery boolean gates construction so the index is built once
@@ -194,10 +191,9 @@ export function useViewerSearch({
   );
 
   const nodeSearchMatchIds = useMemo(() => {
-    const query = effectiveSearch.trim();
-    if (!query || !nodeFuse) return null;
-    return new Set(nodeFuse.search(query).map((entry) => entry.item.nodeId));
-  }, [effectiveSearch, nodeFuse]);
+    if (!nodeFuse || !hasActiveQuery) return null;
+    return new Set(nodeFuse.search(trimmedSearch).map((entry) => entry.item.nodeId));
+  }, [hasActiveQuery, nodeFuse, trimmedSearch]);
 
   const searchMatchNodeIds = useMemo(() => {
     if (!nodeSearchMatchIds) return null;

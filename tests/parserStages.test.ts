@@ -324,4 +324,61 @@ describe('parser stage modules', () => {
     expect(state.graph.hasEdge(state.edges[0]!.id)).toBe(true);
     expect(state.pendingGraphEdgeIds.size).toBe(0);
   });
+
+  it('normalization trims identifiers and emits a deterministic duplicate-node diagnostic', () => {
+    const state = createGraphState();
+    addNode(state, {
+      id: ' start ',
+      type: 'LABEL',
+      label: 'start',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    addNode(state, {
+      id: 'start',
+      type: 'LABEL',
+      label: 'start_duplicate',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    addNode(state, {
+      id: 'next',
+      type: 'LABEL',
+      label: 'next',
+      dialogueCount: 0,
+      chapter: 'ch',
+    });
+    state.edges.push({
+      id: 'jump_start__next',
+      source: ' start ',
+      target: ' next ',
+      kind: 'jump',
+    });
+
+    normalizeGraphState(state);
+
+    expect(state.nodes.map((node) => node.id)).toEqual(['start', 'next']);
+    expect(state.edges).toEqual([
+      expect.objectContaining({
+        source: 'start',
+        target: 'next',
+        kind: 'jump',
+      }),
+    ]);
+    expect(state.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'normalization',
+          context: expect.objectContaining({ category: 'duplicate_node', detail: 'start' }),
+        }),
+      ]),
+    );
+    expect(
+      state.diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.code === 'normalization' &&
+          diagnostic.context?.category === 'duplicate_node',
+      ),
+    ).toHaveLength(1);
+  });
 });

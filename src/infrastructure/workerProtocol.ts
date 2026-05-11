@@ -115,6 +115,7 @@ export interface ParseDiagnosticPayload {
   context?: {
     category?:
       | 'invalid_node'
+      | 'duplicate_node'
       | 'missing_edge_source'
       | 'missing_edge_target'
       | 'invalid_edge_kind'
@@ -148,6 +149,7 @@ export interface NormalizationParseDiagnosticPayload extends ParseDiagnosticPayl
   context: {
     category:
       | 'invalid_node'
+      | 'duplicate_node'
       | 'missing_edge_source'
       | 'missing_edge_target'
       | 'invalid_edge_kind'

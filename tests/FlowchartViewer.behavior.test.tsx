@@ -303,6 +303,11 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByRole('group', { name: /Search and filters/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Layout and focus controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Export controls/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Search/i })).toHaveAttribute('aria-keyshortcuts', 'Control+F Meta+F');
+    expect(screen.getByRole('button', { name: /Fit graph to view/i })).toHaveAttribute('aria-keyshortcuts', 'Control+L Meta+L');
+    expect(screen.getByRole('button', { name: /Export flowchart as PNG/i })).toHaveAttribute('aria-keyshortcuts', 'Control+E Meta+E');
+    expect(screen.getByRole('button', { name: /Hide advanced controls/i })).toHaveAttribute('aria-controls', 'viewer-advanced-controls');
+    expect(screen.getByRole('group', { name: /Layout and focus controls/i }).closest('#viewer-advanced-controls')).toBeTruthy();
   });
 
   it('uses onInit instance for zoom and relayout controls', async () => {
