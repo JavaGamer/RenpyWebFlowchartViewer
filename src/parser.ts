@@ -10,6 +10,7 @@ import { createGraphState } from './parser/pipelineState';
 import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
 import type {
+  ParseInputFile,
   ParseResult,
   ParseProgress,
   ParseOptions,
@@ -24,31 +25,42 @@ function getMaxParallelFiles(requested: number | undefined, fileCount: number): 
   return Math.max(1, Math.min(normalized, fileCount));
 }
 
+function normalizeFileIdentity(value: string): string {
+  return value.replace(/\\/g, '/');
+}
+
+function compareFiles(a: ParseInputFile, b: ParseInputFile): number {
+  const aIdentity = normalizeFileIdentity(a.relativePath ?? a.name);
+  const bIdentity = normalizeFileIdentity(b.relativePath ?? b.name);
+  return aIdentity.localeCompare(bIdentity) || a.name.localeCompare(b.name);
+}
+
 export async function parseRenpyFiles(
-  files: { name: string; content: string }[],
+  files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
   const perf = createPerfTracker('parser');
   perf.mark('total');
   const state = createGraphState();
-  const maxParallelFiles = getMaxParallelFiles(options.maxParallelFiles, files.length);
+  const orderedFiles = [...files].sort(compareFiles);
+  const maxParallelFiles = getMaxParallelFiles(options.maxParallelFiles, orderedFiles.length);
 
   if (maxParallelFiles === 1) {
-    for (let idx = 0; idx < files.length; idx += 1) {
-      const file = files[idx];
+    for (let idx = 0; idx < orderedFiles.length; idx += 1) {
+      const file = orderedFiles[idx];
       perf.mark(`file:${idx}`);
       await parseOneFile(state, file, options, idx);
       perf.measure(`file:${idx}`, 'parse_file_ms', { file: file.name });
       options.onProgress?.({
         doneFiles: idx + 1,
-        totalFiles: files.length,
-        currentFile: file.name,
+        totalFiles: orderedFiles.length,
+        currentFile: file.relativePath ?? file.name,
       });
     }
   } else {
     const limit = pLimit(maxParallelFiles);
     const tokenizedFiles = await Promise.all(
-      files.map((file, idx) =>
+      orderedFiles.map((file, idx) =>
         limit(async () => {
           perf.mark(`file:${idx}:tokenize`);
           const tokenized = await tokenizeOneFile(file, options, idx);
@@ -58,12 +70,12 @@ export async function parseRenpyFiles(
       ),
     );
 
-    for (let idx = 0; idx < files.length; idx += 1) {
+    for (let idx = 0; idx < orderedFiles.length; idx += 1) {
       const tokenized = tokenizedFiles[idx];
       if (!tokenized) {
-        throw new Error(`Failed to tokenize file at index ${idx} (${files[idx]?.name ?? 'unknown'})`);
+        throw new Error(`Failed to tokenize file at index ${idx} (${orderedFiles[idx]?.name ?? 'unknown'})`);
       }
-      const file = files[idx];
+      const file = orderedFiles[idx];
       perf.mark(`file:${idx}:scan`);
       processTokenizedFile(state, tokenized, {
         captureDialogueLines: options.captureDialogueLines,
@@ -73,8 +85,8 @@ export async function parseRenpyFiles(
       perf.measure(`file:${idx}:scan`, 'parse_file_scan_ms', { file: file.name });
       options.onProgress?.({
         doneFiles: idx + 1,
-        totalFiles: files.length,
-        currentFile: file.name,
+        totalFiles: orderedFiles.length,
+        currentFile: file.relativePath ?? file.name,
       });
     }
   }
@@ -83,7 +95,7 @@ export async function parseRenpyFiles(
   finalizeRoles(state);
   perf.measure('finalize', 'finalize_roles_ms', { nodes: state.nodes.length });
   perf.measure('total', 'parse_total_ms', {
-    files: files.length,
+    files: orderedFiles.length,
     nodes: state.nodes.length,
     edges: state.edges.length,
   });

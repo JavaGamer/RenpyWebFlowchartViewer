@@ -71,6 +71,8 @@ describe('parserTokens runtime guards', () => {
 
     expect(PARSER_TOKENS.kwLabel).toBe(1);
     expect(PARSER_TOKENS.kwMenuObserved).toBe(5);
+    expect(PARSER_TOKENS.kwMenuFallback).toBe(6);
+    expect(PARSER_TOKENS.menuKeywordTypes).toEqual([5, 6]);
     expect(PARSER_TOKENS.metaMenuStatement).toBe(23);
     expect(PARSER_TOKENS.charNewline).toBe(42);
   });
@@ -83,19 +85,41 @@ describe('parserTokens runtime guards', () => {
     );
   });
 
-  it('throws when observed menu token unexpectedly equals KeywordTokenType.Menu', async () => {
-    keywordEnum.Def = keywordEnum.Menu;
+  it('accepts tokenizer builds that surface menu as KeywordTokenType.Menu when Def is unavailable', async () => {
+    delete keywordEnum.Def;
+    delete keywordEnum[5];
+
+    const { PARSER_TOKENS } = await import(modulePath);
+
+    expect(PARSER_TOKENS.kwMenuObserved).toBe(6);
+    expect(PARSER_TOKENS.kwMenuFallback).toBeUndefined();
+    expect(PARSER_TOKENS.menuKeywordTypes).toEqual([6]);
+  });
+
+  it('throws when a menu keyword reverse lookup is unsupported', async () => {
+    keywordEnum[6] = 'NotMenu';
 
     await expect(import(modulePath)).rejects.toThrow(
-      'Unexpected @renpy/ast menu tokenization behavior',
+      'expected KeywordTokenType.Menu reverse lookup',
     );
   });
 
-  it('throws when observed menu token does not resolve to Def by reverse enum lookup', async () => {
+  it('throws when Def reverse lookup is unsupported', async () => {
     keywordEnum[5] = 'NotDef';
 
     await expect(import(modulePath)).rejects.toThrow(
-      'expected observed menu keyword token to resolve to Def',
+      'expected KeywordTokenType.Def reverse lookup',
+    );
+  });
+
+  it('throws when no supported menu keyword token is available', async () => {
+    delete keywordEnum.Def;
+    delete keywordEnum[5];
+    delete keywordEnum.Menu;
+    delete keywordEnum[6];
+
+    await expect(import(modulePath)).rejects.toThrow(
+      'expected KeywordTokenType.Def or KeywordTokenType.Menu to be numeric',
     );
   });
 });

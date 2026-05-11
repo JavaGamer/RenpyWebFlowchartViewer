@@ -1,5 +1,6 @@
 import type { FlowEdge, FlowNode } from '../domain';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
+import type { ParseInputFile } from '../parser/pipelineTypes';
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 2 as const;
 
@@ -16,7 +17,7 @@ export interface ParseProgressPayload {
  * contain callbacks and an AbortSignal.
  */
 export interface ParseWorkerClientRequest {
-  files: Array<{ name: string; content: string }>;
+  files: ParseInputFile[];
   onProgress?: (progress: ParseProgressPayload) => void;
   signal?: AbortSignal;
   maxParallelFiles?: number;
@@ -43,7 +44,7 @@ export interface ParseRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
   type: 'parse';
   requestId: number;
-  files: Array<{ name: string; content: string }>;
+  files: ParseInputFile[];
   fileCacheKeys?: string[];
   wantsProgress?: boolean;
   maxParallelFiles?: number;

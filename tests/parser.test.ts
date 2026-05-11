@@ -576,6 +576,29 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('does not add call-return edges when a callee only returns conditionally', async () => {
+    const script = [
+      'label main:',
+      '    call helper',
+      '',
+      'label helper:',
+      '    if flag:',
+      '        return',
+      '    "continue"',
+      '',
+      'label after_helper:',
+      '    "done"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional-call-return.rpy', content: script }]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'main', target: 'helper', kind: 'call' }),
+    );
+    expect(result.edges.find((e) => e.kind === 'call_return' && e.source === 'helper' && e.target === 'main')).toBeUndefined();
+  });
+
   it('classifies label roles using strict rules and keeps role metadata on nodes', async () => {
     const script = [
       'label main:',
@@ -829,14 +852,72 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('ignores top-level python blocks that are outside any active label scope', async () => {
+    const script = [
+      'python:',
+      '    renpy.call("helper")',
+      '',
+      'label start:',
+      '    "hello"',
+      '',
+      'label helper:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'global-python.rpy', content: script }]);
+
+    expect(result.edges.find((e) => e.kind === 'call' && e.target === 'helper')).toBeUndefined();
+  });
+
+  it('ignores top-level screen blocks instead of attributing them to the previous label', async () => {
+    const script = [
+      'label start:',
+      '    "hello"',
+      '',
+      'screen chooser():',
+      '    textbutton "Go" action Jump("dest")',
+      '',
+      'label dest:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'global-screen.rpy', content: script }]);
+
+    expect(result.edges.find((e) => e.kind === 'jump' && e.source === 'start' && e.target === 'dest')).toBeUndefined();
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'dest', kind: 'sequence', label: 'next' }),
+    );
+  });
+
+  it('does not synthesize action edges from a reused global screen for whichever label was parsed last', async () => {
+    const script = [
+      'label first:',
+      '    show screen chooser',
+      '',
+      'label second:',
+      '    show screen chooser',
+      '',
+      'screen chooser():',
+      '    textbutton "Go" action Call("dest")',
+      '',
+      'label dest:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'reused-global-screen.rpy', content: script }]);
+
+    expect(result.edges.find((e) => e.kind === 'call' && e.target === 'dest')).toBeUndefined();
+  });
+
   it('extracts ST variant default action rules', async () => {
     const script = [
       'label start:',
-      '    show screen route_picker',
-      '',
-      'screen route_picker():',
-      '    textbutton "Route" action timedchoice("route_one")',
-      '    textbutton "Title" action title("title_screen")',
+      '    screen route_picker():',
+      '        textbutton "Route" action timedchoice("route_one")',
+      '        textbutton "Title" action title("title_screen")',
       '',
       'label route_one:',
       '    return',
@@ -859,10 +940,8 @@ describe('parseRenpyFiles', () => {
   it('applies custom screen action rules on top of defaults', async () => {
     const script = [
       'label start:',
-      '    show screen route_picker',
-      '',
-      'screen route_picker():',
-      '    textbutton "Route" action Warp("warp_target")',
+      '    screen route_picker():',
+      '        textbutton "Route" action Warp("warp_target")',
       '',
       'label warp_target:',
       '    return',
@@ -885,10 +964,8 @@ describe('parseRenpyFiles', () => {
   it('warns instead of inferring dynamic ST variant action targets', async () => {
     const script = [
       'label start:',
-      '    show screen route_picker',
-      '',
-      'screen route_picker():',
-      '    textbutton "Route" action timedchoice(dynamic_target)',
+      '    screen route_picker():',
+      '        textbutton "Route" action timedchoice(dynamic_target)',
       '',
       'label route_one:',
       '    return',
@@ -978,11 +1055,9 @@ describe('parseRenpyFiles', () => {
   it('extracts direct screen action targets with keyword and trailing arguments', async () => {
     const script = [
       'label start:',
-      '    show screen nav_overlay',
-      '',
-      'screen nav_overlay:',
-      '    textbutton "Jump A" action Jump("jump_target", from_current=True)',
-      '    textbutton "Call B" action Call(label="call_target")',
+      '    screen nav_overlay:',
+      '        textbutton "Jump A" action Jump("jump_target", from_current=True)',
+      '        textbutton "Call B" action Call(label="call_target")',
       '',
       'label jump_target:',
       '    return',
@@ -1011,11 +1086,9 @@ describe('parseRenpyFiles', () => {
   it('extracts direct screen action targets when action uses assignment syntax', async () => {
     const script = [
       'label start:',
-      '    show screen nav_overlay',
-      '',
-      'screen nav_overlay:',
-      '    textbutton "Jump A" action=Jump("jump_target")',
-      '    textbutton "Call B" action = Call("call_target")',
+      '    screen nav_overlay:',
+      '        textbutton "Jump A" action=Jump("jump_target")',
+      '        textbutton "Call B" action = Call("call_target")',
       '',
       'label jump_target:',
       '    return',
@@ -1038,10 +1111,8 @@ describe('parseRenpyFiles', () => {
   it('extracts multiple screen actions from action list expressions', async () => {
     const script = [
       'label start:',
-      '    show screen nav_overlay',
-      '',
-      'screen nav_overlay:',
-      '    textbutton "Jump A" action [Jump("jump_target"), Call("call_target")]',
+      '    screen nav_overlay:',
+      '        textbutton "Jump A" action [Jump("jump_target"), Call("call_target")]',
       '',
       'label jump_target:',
       '    return',
@@ -1185,6 +1256,34 @@ describe('parseRenpyFiles', () => {
     expect(same).toBeDefined();
     expect(same?.chapter).toBe('chapter_one');
     expect(same?.dialogueCount).toBe(2);
+  });
+
+  it('uses relative paths to keep duplicate basenames distinct and deterministically ordered', async () => {
+    const progressFiles: string[] = [];
+    const result = await parseRenpyFiles(
+      [
+        {
+          name: 'script.rpy',
+          relativePath: 'routes/beta/script.rpy',
+          content: ['label same:', '    "beta"', ''].join('\n'),
+        },
+        {
+          name: 'script.rpy',
+          relativePath: 'routes/alpha/script.rpy',
+          content: ['label same:', '    "alpha"', ''].join('\n'),
+        },
+      ],
+      {
+        onProgress: (progress) => {
+          progressFiles.push(progress.currentFile);
+        },
+      },
+    );
+
+    const same = result.nodes.find((n) => n.id === 'same');
+    expect(same?.chapter).toBe('routes/alpha/script');
+    expect(same?.dialogueCount).toBe(2);
+    expect(progressFiles).toEqual(['routes/alpha/script.rpy', 'routes/beta/script.rpy']);
   });
 
   it('resolves jumps to labels that are defined in a different file', async () => {

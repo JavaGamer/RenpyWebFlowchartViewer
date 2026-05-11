@@ -1,4 +1,4 @@
-import { PARSER_TOKENS } from '../parserTokens';
+import { PARSER_TOKENS, isMenuKeywordTokenType } from '../parserTokens';
 import type { ParseGraphState, ParseScanState, TokenMetaFlags } from './pipelineTypes';
 import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTransitions';
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
@@ -12,12 +12,23 @@ interface HandleTokenInput {
   val: () => string;
   chapter: string;
   menuDepth: number;
+  lineIndent: number;
   captureDialogueLines: boolean;
   screenActionRuleMap: Map<string, ScreenActionKind>;
 }
 
 function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
   return state.outgoingByLabel.has(sourceId);
+}
+
+function isWithinCurrentLabelScope(scanState: ParseScanState, meta: TokenMetaFlags, lineIndent: number): boolean {
+  if (meta.hasLabelStatement) {
+    return true;
+  }
+  if (scanState.currentLabelId === null || scanState.currentLabelIndent === null) {
+    return false;
+  }
+  return lineIndent > scanState.currentLabelIndent;
 }
 
 const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
@@ -492,7 +503,7 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
   // On malformed or mixed token streams, these intents can leak into later tokens and create
   // false edges; this guard clears stale waits when token context no longer matches.
   if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) return;
-  if (type === PARSER_TOKENS.kwLabel || type === PARSER_TOKENS.kwMenuObserved) {
+  if (type === PARSER_TOKENS.kwLabel || isMenuKeywordTokenType(type)) {
     scanState.waitForJumpTarget = false;
     scanState.waitForCallTarget = false;
     scanState.waitForMenuNameForId = null;
@@ -514,7 +525,7 @@ export function handleToken(
   scanState: ParseScanState,
   input: HandleTokenInput,
 ): void {
-  const { type, meta, val, chapter, menuDepth, captureDialogueLines, screenActionRuleMap } = input;
+  const { type, meta, val, chapter, menuDepth, lineIndent, captureDialogueLines, screenActionRuleMap } = input;
   resetStaleWaitFlags(scanState, type);
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
@@ -556,6 +567,7 @@ export function handleToken(
     }
 
     scanState.currentLabelId = newLabelId;
+    scanState.currentLabelIndent = lineIndent;
     for (const menuId of scanState.pendingMenuFallthroughIds) {
       addEdge(state, {
         id: `seq_${menuId}__${newLabelId}`,
@@ -582,6 +594,10 @@ export function handleToken(
     return;
   }
 
+  if (!isWithinCurrentLabelScope(scanState, meta, lineIndent)) {
+    return;
+  }
+
   if (type === PARSER_TOKENS.metaPythonBlock) {
     processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, val());
     return;
@@ -594,7 +610,7 @@ export function handleToken(
 
   if (scanState.currentLabelId === null) return;
 
-  if (type === PARSER_TOKENS.kwMenuObserved && meta.hasMenuStatement) {
+  if (isMenuKeywordTokenType(type) && meta.hasMenuStatement) {
     const poppedMenus: Array<{ id: string; optionText: string | null }> = [];
     while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
       const closedMenu = scanState.menuStack.pop();
@@ -710,8 +726,10 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.kwReturn && !meta.hasMenuOptionBlock) {
-    if (scanState.conditionalIndentStack.length === 0) {
+    const isReliableReturn = scanState.conditionalIndentStack.length === 0;
+    if (isReliableReturn) {
       scanState.labelHasExplicitExit = true;
+      state.hasReliableReturnInLabel.add(scanState.currentLabelId);
     }
     state.hasReturnInLabel.add(scanState.currentLabelId);
     return;

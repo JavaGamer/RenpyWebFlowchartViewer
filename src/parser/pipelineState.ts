@@ -17,6 +17,7 @@ export function createGraphState(): ParseGraphState {
     incomingByLabel: new Map<string, Set<EdgeKind>>(),
     outgoingByLabel: new Map<string, Set<EdgeKind>>(),
     hasReturnInLabel: new Set<string>(),
+    hasReliableReturnInLabel: new Set<string>(),
     calledLabels: new Set<string>(),
     calledFromMenuOptionTargets: new Set<string>(),
     pendingCallReturns: [],
@@ -28,6 +29,7 @@ export function createGraphState(): ParseGraphState {
 export function createScanState(): ParseScanState {
   return {
     currentLabelId: null,
+    currentLabelIndent: null,
     menuStack: [],
     pendingMenuFallthroughIds: [],
     conditionalIndentStack: [],

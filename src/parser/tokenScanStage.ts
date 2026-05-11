@@ -4,20 +4,20 @@ import type { ParseGraphState, ParseScanState } from './pipelineTypes';
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from './tokenMeta';
 import { maybeUpdateConditionalState } from './scanTransitions';
 import { handleToken } from './tokenHandling';
-import { PARSER_TOKENS } from '../parserTokens';
+import { PARSER_TOKENS, isMenuKeywordTokenType } from '../parserTokens';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import { toScreenActionRuleMap, type ScreenActionKind } from '../config/parserRules';
 
 interface FlatTokenLike {
   type: number;
   metaTokens: Iterable<number>;
-  startPos: { character: number };
+  startPos: { line: number; character: number };
   startOffset?: number;
   getValue: (document: TextDocument) => string;
 }
 
 const RELEVANT_TOKEN_TYPES = new Set<number>([
-  PARSER_TOKENS.kwMenuObserved,
+  ...PARSER_TOKENS.menuKeywordTypes,
   PARSER_TOKENS.kwLabel,
   PARSER_TOKENS.entityFunctionName,
   PARSER_TOKENS.kwJump,
@@ -28,6 +28,15 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.metaPythonBlock,
   PARSER_TOKENS.metaScreenBlock,
 ].filter((t): t is number => typeof t === 'number'));
+
+function getLineIndent(document: TextDocument, lineNumber: number): number {
+  const line = document.getText({
+    start: { line: lineNumber, character: 0 },
+    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
+  });
+  const match = line.match(/^[ \t]*/);
+  return match?.[0]?.length ?? 0;
+}
 
 export function processFlatToken(
   state: ParseGraphState,
@@ -52,6 +61,7 @@ export function processFlatToken(
     return tokenText;
   };
   const menuDepth = meta.menuDepth;
+  const lineIndent = getLineIndent(document, token.startPos.line);
 
   maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
   handleToken(state, scanState, {
@@ -60,6 +70,7 @@ export function processFlatToken(
     val,
     chapter,
     menuDepth,
+    lineIndent,
     captureDialogueLines,
     screenActionRuleMap,
   });
@@ -155,6 +166,7 @@ export function processTokenTreeStream(
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
+    const lineIndent = getLineIndent(document, token.startPos.line);
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
     handleToken(state, scanState, {
       type,
@@ -162,6 +174,7 @@ export function processTokenTreeStream(
       val,
       chapter,
       menuDepth,
+      lineIndent,
       captureDialogueLines,
       screenActionRuleMap,
     });
@@ -197,6 +210,7 @@ export function processFlatTokens(
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
+    const lineIndent = getLineIndent(document, token.startPos.line);
 
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
     handleToken(state, scanState, {
@@ -205,8 +219,13 @@ export function processFlatTokens(
       val,
       chapter,
       menuDepth,
+      lineIndent,
       captureDialogueLines,
       screenActionRuleMap,
     });
   }
+}
+
+export function isMenuTokenType(type: number): boolean {
+  return isMenuKeywordTokenType(type);
 }
