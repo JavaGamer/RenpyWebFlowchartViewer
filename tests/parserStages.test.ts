@@ -219,9 +219,6 @@ describe('parser stage modules', () => {
       doc,
       'ch',
       true,
-      undefined,
-      undefined,
-      undefined,
       new Map(),
     );
 
