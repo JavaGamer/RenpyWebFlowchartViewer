@@ -13,6 +13,8 @@ export interface ParserTokenMap {
   kwReturn: number;
   kwConditional: number;
   kwMenuObserved: number;
+  kwMenuFallback?: number;
+  menuKeywordTypes: number[];
   entityFunctionName: number;
   literalString: number;
   metaLabelStatement: number;
@@ -52,8 +54,50 @@ function readOptionalEnumEntry(value: unknown): number | undefined {
   return isNumber(value) ? value : undefined;
 }
 
+function assertEnumReverseLookup(
+  enumName: string,
+  numericValue: number,
+  expectedName: string,
+): void {
+  if (KeywordTokenType[numericValue] !== expectedName) {
+    throw new Error(
+      `[parser] Unsupported @renpy/ast tokenizer shape: expected ${enumName}.${expectedName} reverse lookup for token ${numericValue}.`,
+    );
+  }
+}
+
+function readMenuKeywordTypes(): { kwMenuObserved: number; kwMenuFallback?: number; menuKeywordTypes: number[] } {
+  const defValue = readOptionalEnumEntry(KeywordTokenType.Def);
+  const menuValue = readOptionalEnumEntry(KeywordTokenType.Menu);
+
+  if (defValue !== undefined) {
+    assertEnumReverseLookup('KeywordTokenType', defValue, 'Def');
+  }
+  if (menuValue !== undefined) {
+    assertEnumReverseLookup('KeywordTokenType', menuValue, 'Menu');
+  }
+  if (defValue === undefined && menuValue === undefined) {
+    throw new Error(
+      '[parser] Unsupported @renpy/ast tokenizer shape: expected KeywordTokenType.Def or KeywordTokenType.Menu to be numeric.',
+    );
+  }
+
+  const primary = defValue ?? menuValue!;
+  const fallback = defValue !== undefined && menuValue !== undefined && menuValue !== primary
+    ? menuValue
+    : undefined;
+  const menuKeywordTypes = Array.from(new Set([primary, fallback].filter(isNumber)));
+
+  return {
+    kwMenuObserved: primary,
+    kwMenuFallback: fallback,
+    menuKeywordTypes,
+  };
+}
+
 function buildTokenMap(): ParserTokenMap {
-  const map: ParserTokenMap = {
+  const menuKeywords = readMenuKeywordTypes();
+  return {
     kwLabel: assertEnumEntry('KeywordTokenType', 'Label', KeywordTokenType.Label),
     kwJump: assertEnumEntry('KeywordTokenType', 'Jump', KeywordTokenType.Jump),
     kwCall: assertEnumEntry('KeywordTokenType', 'Call', KeywordTokenType.Call),
@@ -63,8 +107,7 @@ function buildTokenMap(): ParserTokenMap {
       'ControlFlowKeyword',
       MetaTokenType.ControlFlowKeyword,
     ),
-    // Current tokenizer quirk: `menu` appears as KeywordTokenType.Def in menu statements.
-    kwMenuObserved: assertEnumEntry('KeywordTokenType', 'Def', KeywordTokenType.Def),
+    ...menuKeywords,
     entityFunctionName: assertEnumEntry(
       'EntityTokenType',
       'FunctionName',
@@ -122,21 +165,10 @@ function buildTokenMap(): ParserTokenMap {
     ),
     charNewline: assertEnumEntry('CharacterTokenType', 'NewLine', CharacterTokenType.NewLine),
   };
-
-  // Runtime guard for the known tokenizer quirk:
-  // in current @renpy/ast builds, `menu` statement tokens are surfaced as `Def`.
-  if (map.kwMenuObserved === KeywordTokenType.Menu) {
-    throw new Error(
-      '[parser] Unexpected @renpy/ast menu tokenization behavior; `menu` no longer maps to KeywordTokenType.Def.',
-    );
-  }
-  if (KeywordTokenType[map.kwMenuObserved] !== 'Def') {
-    throw new Error(
-      '[parser] Unsupported @renpy/ast tokenizer shape: expected observed menu keyword token to resolve to Def.',
-    );
-  }
-
-  return map;
 }
 
 export const PARSER_TOKENS = buildTokenMap();
+
+export function isMenuKeywordTokenType(type: number): boolean {
+  return PARSER_TOKENS.menuKeywordTypes.includes(type);
+}

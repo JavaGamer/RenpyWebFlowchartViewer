@@ -44,6 +44,7 @@ describe('parser stage modules', () => {
     const state = createGraphState();
     const scanState = {
       currentLabelId: 'start',
+      currentLabelIndent: 0,
       menuStack: [{ id: 'menu_1', optionText: null as string | null }],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [2],
@@ -74,6 +75,7 @@ describe('parser stage modules', () => {
       val: () => '',
       chapter: 'ch',
       menuDepth: 0,
+      lineIndent: 0,
       captureDialogueLines: true,
       screenActionRuleMap: new Map(),
     });
@@ -89,7 +91,7 @@ describe('parser stage modules', () => {
   it('materializes call return edges from pending call-return pairs', () => {
     const state = createGraphState();
     state.pendingCallReturns.push({ callerLabelId: 'caller', callTargetId: 'callee' });
-    state.hasReturnInLabel.add('callee');
+    state.hasReliableReturnInLabel.add('callee');
 
     materializeCallReturnEdges(state);
 
@@ -149,6 +151,7 @@ describe('parser stage modules', () => {
     });
     const scanState = {
       currentLabelId: 'start',
+      currentLabelIndent: 0,
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
@@ -179,6 +182,7 @@ describe('parser stage modules', () => {
       val: () => 'menu',
       chapter: 'ch',
       menuDepth: 1,
+      lineIndent: 4,
       captureDialogueLines: true,
       screenActionRuleMap: new Map(),
     });
@@ -191,6 +195,7 @@ describe('parser stage modules', () => {
     const state = createGraphState();
     const scanState = {
       currentLabelId: null as string | null,
+      currentLabelIndent: null as number | null,
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
@@ -208,11 +213,13 @@ describe('parser stage modules', () => {
       {
         type: PARSER_TOKENS.kwLabel,
         metaTokens: [PARSER_TOKENS.metaLabelStatement],
-        startPos: { character: 0 },
+        startPos: { line: 0, character: 0 },
         getValue: () => 'label',
       },
       doc,
       'ch',
+      true,
+      new Map(),
     );
 
     expect(scanState.waitForLabelName).toBe(true);
@@ -225,6 +232,7 @@ describe('parser stage modules', () => {
     const state = createGraphState();
     const scanState = {
       currentLabelId: null as string | null,
+      currentLabelIndent: null as number | null,
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
@@ -243,13 +251,13 @@ describe('parser stage modules', () => {
         {
           type: PARSER_TOKENS.kwLabel,
           metaTokens: [PARSER_TOKENS.metaLabelStatement],
-          startPos: { character: 0 },
+          startPos: { line: 0, character: 0 },
           getValue: () => 'label',
         },
         {
           type: PARSER_TOKENS.entityFunctionName,
           metaTokens: [PARSER_TOKENS.metaLabelStatement],
-          startPos: { character: 6 },
+          startPos: { line: 0, character: 6 },
           getValue: () => 'start',
         },
       ],
@@ -265,6 +273,7 @@ describe('parser stage modules', () => {
     const state = createGraphState();
     const scanState = {
       currentLabelId: null as string | null,
+      currentLabelIndent: null as number | null,
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],

@@ -74,6 +74,7 @@ export type ParseDiagnostic =
 
 export interface ParseScanState {
   currentLabelId: string | null;
+  currentLabelIndent: number | null;
   menuStack: Array<{ id: string; optionText: string | null }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
@@ -98,6 +99,7 @@ export interface ParseGraphState {
   incomingByLabel: Map<string, Set<EdgeKind>>;
   outgoingByLabel: Map<string, Set<EdgeKind>>;
   hasReturnInLabel: Set<string>;
+  hasReliableReturnInLabel: Set<string>;
   calledLabels: Set<string>;
   calledFromMenuOptionTargets: Set<string>;
   pendingCallReturns: Array<{ callerLabelId: string; callTargetId: string }>;
@@ -115,6 +117,12 @@ export interface ParseProgress {
   doneFiles: number;
   totalFiles: number;
   currentFile: string;
+}
+
+export interface ParseInputFile {
+  name: string;
+  content: string;
+  relativePath?: string;
 }
 
 export interface ParseOptions {

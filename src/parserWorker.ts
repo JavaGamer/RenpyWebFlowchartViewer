@@ -205,7 +205,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
             requestId,
             doneFiles: idx + 1,
             totalFiles: files.length,
-            currentFile: file.name,
+            currentFile: file.relativePath ?? file.name,
             elapsedMs: performance.now() - startedAt,
           };
           pendingProgress = nextProgress;

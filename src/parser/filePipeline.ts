@@ -5,7 +5,7 @@ import type { ParseGraphState } from './pipelineTypes';
 import { createScanState } from './pipelineState';
 import { processTokenTreeStream } from './tokenScanStage';
 import { createPerfTracker } from '../perf';
-import type { ParseOptions } from './pipelineTypes';
+import type { ParseInputFile, ParseOptions } from './pipelineTypes';
 
 let _docVersion = 0;
 const parserPerf = createPerfTracker('parser:file');
@@ -16,7 +16,7 @@ async function renpyParse(content: string) {
 }
 
 export interface TokenizedFile {
-  file: { name: string; content: string };
+  file: ParseInputFile;
   chapter: string;
   document: TextDocument;
   tokenTree: TokenTree;
@@ -29,12 +29,13 @@ type ParseFileOptions = Pick<
 >;
 
 export async function tokenizeOneFile(
-  file: { name: string; content: string },
+  file: ParseInputFile,
   options: Pick<ParseFileOptions, 'tokenizedCache' | 'fileCacheKeys'> = {},
   fileIndex?: number,
 ): Promise<TokenizedFile> {
   const { tokenizedCache } = options;
-  const chapter = file.name.replace(/\.rpy$/i, '');
+  const chapterSource = file.relativePath ?? file.name;
+  const chapter = chapterSource.replace(/\\/g, '/').replace(/\.rpy$/i, '');
   const cacheKey =
     fileIndex !== undefined && options.fileCacheKeys?.[fileIndex]
       ? options.fileCacheKeys[fileIndex]
@@ -80,7 +81,7 @@ export function processTokenizedFile(
 
 export async function parseOneFile(
   state: ParseGraphState,
-  file: { name: string; content: string },
+  file: ParseInputFile,
   options: ParseFileOptions = {},
   fileIndex?: number,
 ) {

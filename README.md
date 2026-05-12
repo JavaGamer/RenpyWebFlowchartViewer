@@ -5,7 +5,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 ## Features
 
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
-- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in Python blocks, direct screen `action Jump(...)`/`action Call(...)`, and counts dialogue lines per block.
+- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in label-scoped Python blocks, direct screen `action Jump(...)`/`action Call(...)` in label-scoped screen blocks, and counts dialogue lines per block.
 - **Variant-aware parser rules** — choose `Ren'Py` or `ST` parser variants, with variant defaults plus custom screen-action mappings persisted in browser storage across imports/projects.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
@@ -210,9 +210,11 @@ Then open <http://localhost:8080>.
 Ambiguous constructs policy:
 
 - dynamic python/screen targets remain static-only: no inferred edge, emit warning
+- top-level python/screen blocks are treated as global definitions and are not back-attributed to the previously parsed label
 - malformed scripts are best-effort parsed: recover parsable labels/edges without throwing
 - unresolved targets emit parser warnings and are preserved for downstream handling
 - nested/conditional menus preserve branch edges while avoiding unconditional fallthrough suppression
+- when available, uploaded relative paths are preserved for deterministic chapter naming and duplicate-basename imports
 
 ## Application Architecture
 

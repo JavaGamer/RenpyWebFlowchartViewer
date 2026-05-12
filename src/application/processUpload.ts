@@ -8,6 +8,7 @@ import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import type { ParseDiagnosticPayload } from '../infrastructure';
+import { compareDeterministicStrings } from '../sortUtils';
 
 export interface ProcessUploadDeps {
   parseService: ParseService;
@@ -25,6 +26,17 @@ export interface ProcessUploadDeps {
 const READ_BATCH_SIZE = 24;
 const PARSE_BATCH_SIZE = 32;
 const LARGE_PROJECT_THRESHOLD = 200;
+
+function getFileRelativePath(file: File): string | undefined {
+  const relativePath = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
+  return relativePath ? relativePath.replace(/\\/g, '/') : undefined;
+}
+
+function compareUploadFiles(a: File, b: File): number {
+  const aIdentity = getFileRelativePath(a) ?? a.name;
+  const bIdentity = getFileRelativePath(b) ?? b.name;
+  return compareDeterministicStrings(aIdentity, bIdentity) || compareDeterministicStrings(a.name, b.name);
+}
 
 export function createProcessUpload(deps: ProcessUploadDeps) {
   const {
@@ -57,28 +69,30 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       actions.fail(errorMessage);
       return;
     }
+    const orderedRpyFiles = [...rpyFiles].sort(compareUploadFiles);
     const controller = new AbortController();
     parseAbortControllerRef.current = controller;
 
-    actions.startReading(rpyFiles.length);
+    actions.startReading(orderedRpyFiles.length);
 
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
     let parsedDiagnostics: ParseDiagnosticPayload[] = [];
     let hasStartedParsing = false;
     try {
-      const shouldUseChunking = rpyFiles.length >= LARGE_PROJECT_THRESHOLD;
+      const shouldUseChunking = orderedRpyFiles.length >= LARGE_PROJECT_THRESHOLD;
       const effectiveDialogueMode =
         dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
       const shouldCaptureDialogueLines = effectiveDialogueMode !== 'countOnly';
       let readCount = 0;
       let parsedFileCount = 0;
-      for (let offset = 0; offset < rpyFiles.length; offset += READ_BATCH_SIZE) {
+      for (let offset = 0; offset < orderedRpyFiles.length; offset += READ_BATCH_SIZE) {
         if (!isActiveRun()) return;
-        const batch = rpyFiles.slice(offset, offset + READ_BATCH_SIZE);
+        const batch = orderedRpyFiles.slice(offset, offset + READ_BATCH_SIZE);
         const inputs = await Promise.all(
           batch.map(async (f) => ({
             name: f.name,
+            relativePath: getFileRelativePath(f),
             content: await readFileAsText(f),
           })),
         );
@@ -88,7 +102,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
         try {
           if (shouldUseChunking) {
-            const isLastReadBatch = offset + batch.length >= rpyFiles.length;
+            const isLastReadBatch = offset + batch.length >= orderedRpyFiles.length;
             for (let parseOffset = 0; parseOffset < inputs.length; parseOffset += PARSE_BATCH_SIZE) {
               if (!isActiveRun()) return;
               if (!hasStartedParsing) {
@@ -111,8 +125,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
                   actions.setProgress({
-                    doneFiles: Math.min(parsedFileCount + progress.doneFiles, rpyFiles.length),
-                    totalFiles: rpyFiles.length,
+                    doneFiles: Math.min(parsedFileCount + progress.doneFiles, orderedRpyFiles.length),
+                    totalFiles: orderedRpyFiles.length,
                     currentFile: progress.currentFile,
                   });
                 },
@@ -131,7 +145,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             }
           } else {
             const isFirstReadBatch = offset === 0;
-            const isLastReadBatch = offset + batch.length >= rpyFiles.length;
+            const isLastReadBatch = offset + batch.length >= orderedRpyFiles.length;
             if (!hasStartedParsing) {
               hasStartedParsing = true;
               onParseStarted?.();
@@ -149,8 +163,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
                 actions.setProgress({
-                  doneFiles: Math.min(parsedFileCount + progress.doneFiles, rpyFiles.length),
-                  totalFiles: rpyFiles.length,
+                  doneFiles: Math.min(parsedFileCount + progress.doneFiles, orderedRpyFiles.length),
+                  totalFiles: orderedRpyFiles.length,
                   currentFile: progress.currentFile,
                 });
               },
@@ -173,7 +187,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       return;
     }
     if (!isActiveRun()) return;
-    onParseMeasured?.({ fileCount: rpyFiles.length, nodeCount: parsedNodes.length, edgeCount: parsedEdges.length });
+    onParseMeasured?.({ fileCount: orderedRpyFiles.length, nodeCount: parsedNodes.length, edgeCount: parsedEdges.length });
     actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
   };
 }

@@ -28,8 +28,15 @@ function toFileList(files: File[]): FileList {
   } as unknown as FileList;
 }
 
-function makeRpy(name: string): File {
-  return new File(['label start:'], name, { type: 'text/plain' });
+function makeRpy(name: string, relativePath?: string): File {
+  const file = new File(['label start:'], name, { type: 'text/plain' });
+  if (relativePath) {
+    Object.defineProperty(file, 'webkitRelativePath', {
+      configurable: true,
+      value: relativePath,
+    });
+  }
+  return file;
 }
 
 type MockActions = {
@@ -140,6 +147,47 @@ describe('createProcessUpload', () => {
       [],
     );
     expect(onParseMeasured).toHaveBeenCalledWith({ fileCount: 2, nodeCount: 1, edgeCount: 0 });
+  });
+
+  it('sorts uploads by relative path and forwards stable file identity to parsing', async () => {
+    vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
+    const actions = makeActions();
+    const parse = vi.fn(async () => ({
+      nodes: [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }],
+      edges: [],
+    }));
+    const parseService: ParseService = {
+      parse,
+      searchDialogueLines: vi.fn(),
+    };
+    const processUpload = createProcessUpload({
+      parseService,
+      actions,
+      activeRunIdRef: { current: 0 },
+      parseAbortControllerRef: { current: null },
+    });
+
+    await processUpload(
+      toFileList([
+        makeRpy('script.rpy', 'routes/beta/script.rpy'),
+        makeRpy('script.rpy', 'routes/alpha/script.rpy'),
+      ]),
+    );
+
+    expect(parse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        files: [
+          expect.objectContaining({
+            name: 'script.rpy',
+            relativePath: 'routes/alpha/script.rpy',
+          }),
+          expect.objectContaining({
+            name: 'script.rpy',
+            relativePath: 'routes/beta/script.rpy',
+          }),
+        ],
+      }),
+    );
   });
 
   it('captures dialogue lines in auto mode for non-large uploads', async () => {

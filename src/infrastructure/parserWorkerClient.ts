@@ -42,16 +42,19 @@ function simpleStringHash(input: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-async function computeFileCacheKeys(files: Array<{ name: string; content: string }>): Promise<string[]> {
+async function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): Promise<string[]> {
   if (!globalThis.crypto?.subtle) {
-    return files.map((file) => `${file.name}:${file.content.length}:${simpleStringHash(file.content)}`);
+    return files.map((file) => {
+      const identity = file.relativePath ?? file.name;
+      return `${identity}:${file.content.length}:${simpleStringHash(file.content)}`;
+    });
   }
 
   const digests = await Promise.all(
     files.map(async (file) => {
       const data = textEncoder.encode(file.content);
       const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
-      return `${file.name}:${hashToHex(digest)}`;
+      return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
     }),
   );
   return digests;
