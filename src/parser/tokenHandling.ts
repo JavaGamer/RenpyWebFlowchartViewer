@@ -42,7 +42,129 @@ const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 //   4) RHS expression text up to line end
 // This intentionally targets simple one-line bindings and does not attempt to
 // parse complex/multiline annotations or assignment expressions.
-const PYTHON_ASSIGNMENT_PATTERN = /^[ \t]*([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*:[^=\n#]+)?[ \t]*=(?!=)([^\n]*)$/gm;
+const PYTHON_ASSIGNMENT_PATTERN_SOURCE = '^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)(?:[ \\t]*:[^=\\n#]+)?[ \\t]*=(?!=)([^\\n]*)$';
+
+function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boolean {
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
+  let index = 0;
+
+  while (index < matchIndex) {
+    const char = text[index];
+    if (activeQuote) {
+      if (tripleQuoted) {
+        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+          index += 3;
+          activeQuote = null;
+          tripleQuoted = false;
+        } else {
+          index += 1;
+        }
+        continue;
+      }
+      if (char === '\\') {
+        index += (index + 1 < text.length) ? 2 : 1;
+        continue;
+      }
+      if (char === activeQuote) {
+        activeQuote = null;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === '#') {
+      while (index < matchIndex && text[index] !== '\n') {
+        index += 1;
+      }
+      continue;
+    }
+
+    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
+      activeQuote = char;
+      tripleQuoted = true;
+      index += 3;
+      continue;
+    }
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      tripleQuoted = false;
+      index += 1;
+      continue;
+    }
+
+    if (char === '(') {
+      parenDepth += 1;
+    } else if (char === ')') {
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (char === '[') {
+      bracketDepth += 1;
+    } else if (char === ']') {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+    } else if (char === '{') {
+      braceDepth += 1;
+    } else if (char === '}') {
+      braceDepth = Math.max(0, braceDepth - 1);
+    }
+
+    index += 1;
+  }
+
+  return parenDepth === 0 && bracketDepth === 0 && braceDepth === 0;
+}
+
+class TopLevelPythonAssignmentPattern extends RegExp {
+  constructor() {
+    super(PYTHON_ASSIGNMENT_PATTERN_SOURCE, 'gm');
+  }
+
+  override exec(text: string): RegExpExecArray | null {
+    const matcher = new RegExp(this.source, this.flags);
+    matcher.lastIndex = this.lastIndex;
+
+    let match: RegExpExecArray | null;
+    while ((match = matcher.exec(text)) !== null) {
+      this.lastIndex = matcher.lastIndex;
+      if (match.index !== undefined && isTopLevelPythonStatementMatch(text, match.index)) {
+        return match;
+      }
+      if (match[0].length === 0) {
+        matcher.lastIndex += 1;
+        this.lastIndex = matcher.lastIndex;
+      }
+    }
+
+    this.lastIndex = 0;
+    return null;
+  }
+
+  override [Symbol.matchAll](text: string): IterableIterator<RegExpMatchArray> {
+    const source = this.source;
+    const flags = this.flags.includes('g') ? this.flags : `${this.flags}g`;
+    const self = this;
+
+    return (function* matchAll(): IterableIterator<RegExpMatchArray> {
+      const matcher = new RegExp(source, flags);
+      let match: RegExpExecArray | null;
+      while ((match = matcher.exec(text)) !== null) {
+        self.lastIndex = matcher.lastIndex;
+        if (match.index !== undefined && isTopLevelPythonStatementMatch(text, match.index)) {
+          yield match;
+        }
+        if (match[0].length === 0) {
+          matcher.lastIndex += 1;
+          self.lastIndex = matcher.lastIndex;
+        }
+      }
+      self.lastIndex = 0;
+    })();
+  }
+}
+
+const PYTHON_ASSIGNMENT_PATTERN = new TopLevelPythonAssignmentPattern();
 
 function readParenthesizedArgument(
   text: string,
@@ -847,6 +969,12 @@ export function handleToken(
     const context = resolveCallContext(scanState, meta, menuDepth);
     if (!target) {
       addDynamicTargetDiagnostic(state, chapter, 'jump expression', targetExpression, context.source ?? undefined);
+      const isReliableJumpExit =
+        scanState.conditionalIndentStack.length === 0 &&
+        !meta.hasMenuOptionBlock;
+      if (isReliableJumpExit) {
+        scanState.labelHasExplicitExit = true;
+      }
       scanState.waitForJumpTarget = false;
       scanState.waitForJumpExpressionTarget = false;
       return;
