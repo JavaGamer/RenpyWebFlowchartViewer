@@ -1157,6 +1157,126 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('uses the latest earlier same-label python assignment for direct renpy api targets', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        route = "first_target"',
+      '        route = "second_target"',
+      '        renpy.jump(route)',
+      '',
+      'label first_target:',
+      '    return',
+      '',
+      'label second_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'latest-assignment.rpy', content: script }]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'second_target', kind: 'jump' }),
+    );
+    expect(result.edges.find((edge) => edge.source === 'start' && edge.target === 'first_target' && edge.kind === 'jump')).toBeUndefined();
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'renpy.jump' }) }),
+      ]),
+    );
+  });
+
+  it('resolves typed python assignments for jump expression and screen action calls', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        jump_target: str = "jump_dest"',
+      '        call_target: str = "call_dest"',
+      '    jump expression jump_target',
+      '    screen nav_overlay:',
+      '        textbutton "Go Jump" action Jump(jump_target)',
+      '        textbutton "Go Call" action Call(call_target)',
+      '',
+      'label jump_dest:',
+      '    return',
+      '',
+      'label call_dest:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'typed-targets.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_dest', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_dest', kind: 'call' }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'jump expression' }) }),
+        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'Jump' }) }),
+        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'Call' }) }),
+      ]),
+    );
+  });
+
+  it('invalidates same-label python assignment bindings after a dynamic reassignment', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        target = "resolved_dest"',
+      '        target = compute_target()',
+      '        renpy.call(target)',
+      '',
+      'label resolved_dest:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'dynamic-reassign.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'call' && edge.source === 'start' && edge.target === 'resolved_dest')).toBeUndefined();
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ construct: 'renpy.call', targetExpression: 'target' }),
+        }),
+      ]),
+    );
+  });
+
+  it('does not leak same-label python assignment bindings into later labels', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        route = "start_dest"',
+      '    return',
+      '',
+      'label second:',
+      '    python:',
+      '        renpy.jump(route)',
+      '',
+      'label start_dest:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'no-cross-label-leak.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.source === 'second' && edge.target === 'start_dest')).toBeUndefined();
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ construct: 'renpy.jump', targetExpression: 'route' }),
+        }),
+      ]),
+    );
+  });
+
   it('ignores direct call-like patterns inside comments and quoted strings', async () => {
     const script = [
       'label start:',

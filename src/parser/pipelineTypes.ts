@@ -75,12 +75,14 @@ export type ParseDiagnostic =
 export interface ParseScanState {
   currentLabelId: string | null;
   currentLabelIndent: number | null;
+  labelVariableLiteralTargets: Map<string, string>;
   menuStack: Array<{ id: string; optionText: string | null }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
   labelHasExplicitExit: boolean;
   waitForLabelName: boolean;
   waitForJumpTarget: boolean;
+  waitForJumpExpressionTarget: boolean;
   waitForCallTarget: boolean;
   waitForMenuNameForId: string | null;
 }

@@ -9,6 +9,7 @@ import {
 export interface ParserTokenMap {
   kwLabel: number;
   kwJump: number;
+  kwExpression?: number;
   kwCall: number;
   kwReturn: number;
   kwConditional: number;
@@ -100,6 +101,7 @@ function buildTokenMap(): ParserTokenMap {
   return {
     kwLabel: assertEnumEntry('KeywordTokenType', 'Label', KeywordTokenType.Label),
     kwJump: assertEnumEntry('KeywordTokenType', 'Jump', KeywordTokenType.Jump),
+    kwExpression: readOptionalEnumEntry(KeywordTokenType.Expression),
     kwCall: assertEnumEntry('KeywordTokenType', 'Call', KeywordTokenType.Call),
     kwReturn: assertEnumEntry('KeywordTokenType', 'Return', KeywordTokenType.Return),
     kwConditional: assertEnumEntry(

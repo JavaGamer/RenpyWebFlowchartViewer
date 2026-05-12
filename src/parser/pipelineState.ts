@@ -30,12 +30,14 @@ export function createScanState(): ParseScanState {
   return {
     currentLabelId: null,
     currentLabelIndent: null,
+    labelVariableLiteralTargets: new Map<string, string>(),
     menuStack: [],
     pendingMenuFallthroughIds: [],
     conditionalIndentStack: [],
     labelHasExplicitExit: false,
     waitForLabelName: false,
     waitForJumpTarget: false,
+    waitForJumpExpressionTarget: false,
     waitForCallTarget: false,
     waitForMenuNameForId: null,
   };

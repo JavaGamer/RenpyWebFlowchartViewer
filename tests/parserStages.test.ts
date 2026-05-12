@@ -45,12 +45,14 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: 'start',
       currentLabelIndent: 0,
+      labelVariableLiteralTargets: new Map<string, string>(),
       menuStack: [{ id: 'menu_1', optionText: null as string | null }],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [2],
       labelHasExplicitExit: false,
       waitForLabelName: false,
       waitForJumpTarget: true,
+      waitForJumpExpressionTarget: false,
       waitForCallTarget: true,
       waitForMenuNameForId: 'menu_1',
     };
@@ -152,12 +154,14 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: 'start',
       currentLabelIndent: 0,
+      labelVariableLiteralTargets: new Map<string, string>(),
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
       waitForJumpTarget: false,
+      waitForJumpExpressionTarget: false,
       waitForCallTarget: false,
       waitForMenuNameForId: null as string | null,
     };
@@ -196,12 +200,14 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: null as string | null,
       currentLabelIndent: null as number | null,
+      labelVariableLiteralTargets: new Map<string, string>(),
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
       waitForJumpTarget: true,
+      waitForJumpExpressionTarget: false,
       waitForCallTarget: true,
       waitForMenuNameForId: 'menu_1',
     };
@@ -233,12 +239,14 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: null as string | null,
       currentLabelIndent: null as number | null,
+      labelVariableLiteralTargets: new Map<string, string>(),
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
       waitForJumpTarget: false,
+      waitForJumpExpressionTarget: false,
       waitForCallTarget: false,
       waitForMenuNameForId: null as string | null,
     };
@@ -274,12 +282,14 @@ describe('parser stage modules', () => {
     const scanState = {
       currentLabelId: null as string | null,
       currentLabelIndent: null as number | null,
+      labelVariableLiteralTargets: new Map<string, string>(),
       menuStack: [],
       pendingMenuFallthroughIds: [],
       conditionalIndentStack: [],
       labelHasExplicitExit: false,
       waitForLabelName: false,
       waitForJumpTarget: false,
+      waitForJumpExpressionTarget: false,
       waitForCallTarget: false,
       waitForMenuNameForId: null as string | null,
     };

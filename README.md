@@ -6,6 +6,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in label-scoped Python blocks, direct screen `action Jump(...)`/`action Call(...)` in label-scoped screen blocks, and counts dialogue lines per block.
+- **Conservative same-label target propagation** — resolves identifier targets for `jump expression`, direct `renpy.jump`/`renpy.call`, and screen action calls when a prior assignment in the same label binds that identifier to a static string literal (including typed forms like `name: str = "label"`).
 - **Variant-aware parser rules** — choose `Ren'Py` or `ST` parser variants, with variant defaults plus custom screen-action mappings persisted in browser storage across imports/projects.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
@@ -210,6 +211,7 @@ Then open <http://localhost:8080>.
 Ambiguous constructs policy:
 
 - dynamic python/screen targets remain static-only: no inferred edge, emit warning
+- same-label identifier propagation is conservative and local: only earlier same-label literal assignments are used, latest assignment wins, and non-literal reassignments clear the tracked binding
 - top-level python/screen blocks are treated as global definitions and are not back-attributed to the previously parsed label
 - malformed scripts are best-effort parsed: recover parsable labels/edges without throwing
 - unresolved targets emit parser warnings and are preserved for downstream handling
@@ -247,7 +249,7 @@ See `docs/architecture.md` for the detailed architecture and flow.
 ### Unresolved jump/call targets
 
 - Jump/call edges are emitted even when a target label is not defined in the uploaded set.
-- For direct Python/screen API forms, only literal-string targets are emitted as edges; dynamic targets are reported as parser warnings in the parse result.
+- For direct Python/screen API forms (and `jump expression`), literal-string targets are emitted as edges. Identifier targets are also resolved when an earlier assignment in the same label maps the identifier to a literal; otherwise dynamic targets are reported as parser warnings in the parse result.
 - Parser warnings are shown in a warning panel above the graph when present.
 - Parser variants:
   - `renpy`: default `Jump`/`Call` screen-action extraction.
