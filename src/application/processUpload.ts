@@ -31,10 +31,15 @@ function getFileRelativePath(file: File): string | undefined {
   return relativePath ? relativePath.replace(/\\/g, '/') : undefined;
 }
 
+function compareDeterministicStrings(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 function compareUploadFiles(a: File, b: File): number {
   const aIdentity = getFileRelativePath(a) ?? a.name;
   const bIdentity = getFileRelativePath(b) ?? b.name;
-  return aIdentity.localeCompare(bIdentity) || a.name.localeCompare(b.name);
+  return compareDeterministicStrings(aIdentity, bIdentity) || compareDeterministicStrings(a.name, b.name);
 }
 
 export function createProcessUpload(deps: ProcessUploadDeps) {

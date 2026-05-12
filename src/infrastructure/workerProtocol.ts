@@ -2,7 +2,7 @@ import type { FlowEdge, FlowNode } from '../domain';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import type { ParseInputFile } from '../parser/pipelineTypes';
 
-export const PARSER_WORKER_PROTOCOL_VERSION = 2 as const;
+export const PARSER_WORKER_PROTOCOL_VERSION = 3 as const;
 
 export interface ParseProgressPayload {
   doneFiles: number;

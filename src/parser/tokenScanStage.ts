@@ -4,7 +4,7 @@ import type { ParseGraphState, ParseScanState } from './pipelineTypes';
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from './tokenMeta';
 import { maybeUpdateConditionalState } from './scanTransitions';
 import { handleToken } from './tokenHandling';
-import { PARSER_TOKENS, isMenuKeywordTokenType } from '../parserTokens';
+import { PARSER_TOKENS } from '../parserTokens';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import { toScreenActionRuleMap, type ScreenActionKind } from '../config/parserRules';
 
@@ -29,13 +29,23 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.metaScreenBlock,
 ].filter((t): t is number => typeof t === 'number'));
 
-function getLineIndent(document: TextDocument, lineNumber: number): number {
+function getLineIndent(
+  document: TextDocument,
+  lineNumber: number,
+  cache: Map<number, number>,
+): number {
+  const cached = cache.get(lineNumber);
+  if (cached !== undefined) {
+    return cached;
+  }
   const line = document.getText({
     start: { line: lineNumber, character: 0 },
     end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
   });
   const match = line.match(/^[ \t]*/);
-  return match?.[0]?.length ?? 0;
+  const indent = match?.[0]?.length ?? 0;
+  cache.set(lineNumber, indent);
+  return indent;
 }
 
 export function processFlatToken(
@@ -48,6 +58,7 @@ export function processFlatToken(
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
   precomputedScreenActionRuleMap?: Map<string, ScreenActionKind>,
+  lineIndentCache: Map<number, number> = new Map(),
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
@@ -61,7 +72,7 @@ export function processFlatToken(
     return tokenText;
   };
   const menuDepth = meta.menuDepth;
-  const lineIndent = getLineIndent(document, token.startPos.line);
+  const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache);
 
   maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
   handleToken(state, scanState, {
@@ -154,6 +165,7 @@ export function processTokenTreeStream(
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
   const startOffsetCache = new WeakMap<TreeNode, number>();
+  const lineIndentCache = new Map<number, number>();
   for (const token of iterateStreamTokens(tokenTree.root, [], startOffsetCache)) {
     const type = token.type as number;
     analyzeTokenMetaInto(token.metaTokens as Iterable<number>, meta);
@@ -166,7 +178,7 @@ export function processTokenTreeStream(
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
-    const lineIndent = getLineIndent(document, token.startPos.line);
+    const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache);
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
     handleToken(state, scanState, {
       type,
@@ -193,6 +205,7 @@ export function processFlatTokens(
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
+  const lineIndentCache = new Map<number, number>();
 
   for (const token of tokens) {
     const type = token.type as number;
@@ -210,7 +223,7 @@ export function processFlatTokens(
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
-    const lineIndent = getLineIndent(document, token.startPos.line);
+    const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache);
 
     maybeUpdateConditionalState(scanState, type, val, token.startPos.character);
     handleToken(state, scanState, {
@@ -224,8 +237,4 @@ export function processFlatTokens(
       screenActionRuleMap,
     });
   }
-}
-
-export function isMenuTokenType(type: number): boolean {
-  return isMenuKeywordTokenType(type);
 }

@@ -29,10 +29,15 @@ function normalizeFileIdentity(value: string): string {
   return value.replace(/\\/g, '/');
 }
 
+function compareDeterministicStrings(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 function compareFiles(a: ParseInputFile, b: ParseInputFile): number {
   const aIdentity = normalizeFileIdentity(a.relativePath ?? a.name);
   const bIdentity = normalizeFileIdentity(b.relativePath ?? b.name);
-  return aIdentity.localeCompare(bIdentity) || a.name.localeCompare(b.name);
+  return compareDeterministicStrings(aIdentity, bIdentity) || compareDeterministicStrings(a.name, b.name);
 }
 
 export async function parseRenpyFiles(
