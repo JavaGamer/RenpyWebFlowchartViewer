@@ -35,6 +35,13 @@ const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|''
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const SCREEN_ACTION_CALL_START_PATTERN = /\baction(?:\s+|\s*=\s*)([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// Captures simple assignment statements in Python blocks:
+//   1) LHS variable identifier
+//   2) optional type annotation (`name: str = ...`)
+//   3) single `=` assignment (not `==`)
+//   4) RHS expression text up to line end
+// This intentionally targets simple one-line bindings and does not attempt to
+// parse complex/multiline annotations or assignment expressions.
 const PYTHON_ASSIGNMENT_PATTERN = /^[ \t]*([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*:[^=\n#]+)?[ \t]*=(?!=)([^\n]*)$/gm;
 
 function readParenthesizedArgument(
@@ -233,6 +240,16 @@ function resolveStaticTargetExpression(
   return scanState.labelVariableLiteralTargets.get(identifier) ?? null;
 }
 
+function resolveJumpStatementTarget(
+  scanState: ParseScanState,
+  targetExpression: string,
+): string | null {
+  if (!scanState.waitForJumpExpressionTarget) return targetExpression;
+  const targetIdentifier = extractIdentifierTarget(targetExpression);
+  if (!targetIdentifier) return null;
+  return scanState.labelVariableLiteralTargets.get(targetIdentifier) ?? null;
+}
+
 function splitTopLevelArguments(argumentList: string): string[] {
   const args: string[] = [];
   let depth = 0;
@@ -427,7 +444,12 @@ function stripInlineComment(value: string): string {
     const char = value[i];
     if (activeQuote) {
       if (tripleQuoted) {
-        if (char === activeQuote && value[i + 1] === activeQuote && value[i + 2] === activeQuote) {
+        if (
+          i + 2 < value.length &&
+          char === activeQuote &&
+          value[i + 1] === activeQuote &&
+          value[i + 2] === activeQuote
+        ) {
           i += 2;
           activeQuote = null;
           tripleQuoted = false;
@@ -441,7 +463,12 @@ function stripInlineComment(value: string): string {
       if (char === activeQuote) activeQuote = null;
       continue;
     }
-    if ((char === '"' || char === '\'') && value[i + 1] === char && value[i + 2] === char) {
+    if (
+      i + 2 < value.length &&
+      (char === '"' || char === '\'') &&
+      value[i + 1] === char &&
+      value[i + 2] === char
+    ) {
       activeQuote = char;
       tripleQuoted = true;
       i += 2;
@@ -508,7 +535,7 @@ function processDirectRenpyBlockCalls(
     if (ignoredMask[match.index]) continue;
     const variableName = (match[1] ?? '').trim();
     if (!variableName) continue;
-    const assignedExpression = stripInlineComment((match[2] ?? '').trim());
+    const assignedExpression = stripInlineComment(match[2] ?? '');
     const assignedTarget = resolveStaticTargetExpression(assignedExpression, scanState);
     events.push({
       kind: 'assignment',
@@ -816,10 +843,7 @@ export function handleToken(
     meta.hasJumpStatement
   ) {
     const targetExpression = val();
-    const targetIdentifier = extractIdentifierTarget(targetExpression);
-    const target = scanState.waitForJumpExpressionTarget
-      ? (targetIdentifier ? (scanState.labelVariableLiteralTargets.get(targetIdentifier) ?? null) : null)
-      : targetExpression;
+    const target = resolveJumpStatementTarget(scanState, targetExpression);
     const context = resolveCallContext(scanState, meta, menuDepth);
     if (!target) {
       addDynamicTargetDiagnostic(state, chapter, 'jump expression', targetExpression, context.source ?? undefined);
