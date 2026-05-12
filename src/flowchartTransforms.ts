@@ -2,10 +2,12 @@ import dagre from '@dagrejs/dagre';
 import type { Edge, Node } from '@xyflow/react';
 import type { FlowNode, FlowEdge, EdgeKind } from './domain';
 import type { ThemeName } from './ui';
+import { evaluateConditionExpression, type MockFlagValue } from './conditionLogic';
 
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
 export const NODE_HEIGHT_MENU = 80;
+export const NODE_HEIGHT_DECISION = 96;
 export const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
 const PROGRESSIVE_FALLBACK_MAX_COLUMNS = 16;
 
@@ -15,25 +17,32 @@ export interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
   dialogueLines?: string[];
-  nodeType: 'LABEL' | 'MENU';
+  nodeType: 'LABEL' | 'MENU' | 'DECISION';
   chapter?: string;
   parentLabelId?: string;
+  conditionExpression?: string;
+  conditionReferences?: string[];
   theme: 'violet' | 'highContrast' | 'colorblind';
 }
 
 export interface EdgeData extends Record<string, unknown> {
   label: string;
   kind?: 'sequence' | 'jump' | 'call' | 'call_return';
+  condition?: FlowEdge['condition'];
+  conditionState?: ConditionReachability;
 }
 
 export type LabelNodeType = Node<NodeData, 'labelNode'>;
 export type MenuNodeType = Node<NodeData, 'menuNode'>;
-export type CanvasNode = LabelNodeType | MenuNodeType;
+export type DecisionNodeType = Node<NodeData, 'decisionNode'>;
+export type CanvasNode = LabelNodeType | MenuNodeType | DecisionNodeType;
 
 export type LabeledEdgeType = Edge<EdgeData, 'labeled'>;
 export type CanvasEdge = LabeledEdgeType;
 
 export type EdgeKindFilter = EdgeKind;
+export type ConditionReachability = 'reachable' | 'unreachable' | 'unknown';
+export type ConditionVisibilityMode = 'fade' | 'hide';
 
 function normalizeEdgeKind(kind: string | undefined): EdgeKindFilter {
   if (kind && EDGE_KIND_FILTERS.includes(kind as EdgeKindFilter)) {
@@ -46,6 +55,12 @@ function compareIdsLocaleIndependent(a: string, b: string): number {
   if (a < b) return -1;
   if (a > b) return 1;
   return 0;
+}
+
+function getNodeHeight(nodeType: FlowNode['type']): number {
+  if (nodeType === 'MENU') return NODE_HEIGHT_MENU;
+  if (nodeType === 'DECISION') return NODE_HEIGHT_DECISION;
+  return NODE_HEIGHT_LABEL;
 }
 
 function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
@@ -127,7 +142,7 @@ export function applyDagreLayout(
   normalizedNodes.forEach((n) => {
     g.setNode(n.id, {
       width: NODE_WIDTH,
-      height: n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU,
+      height: getNodeHeight(n.type),
     });
   });
 
@@ -142,10 +157,10 @@ export function applyDagreLayout(
   const resolvedTheme: ThemeName = options?.theme ?? 'violet';
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = g.node(n.id);
-    const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
+    const h = getNodeHeight(n.type);
     return {
       id: n.id,
-      type: n.type === 'LABEL' ? 'labelNode' : 'menuNode',
+      type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
       position: {
         x: pos ? pos.x - NODE_WIDTH / 2 : 0,
         y: pos ? pos.y - h / 2 : 0,
@@ -157,6 +172,8 @@ export function applyDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
+        conditionExpression: n.condition?.expression,
+        conditionReferences: n.condition?.references,
         theme: resolvedTheme,
       },
       draggable: true,
@@ -170,7 +187,7 @@ export function applyDagreLayout(
       source: e.source,
       target: e.target,
       type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind },
+      data: { label: e.label ?? '', kind: e.kind, condition: e.condition },
       markerEnd: { type: 'arrowclosed' as const },
       style: { stroke: '#6b7280', strokeWidth: 1.5 },
     }));
@@ -229,11 +246,11 @@ function applyProgressiveDagreLayout(
 
   const resolvedTheme: ThemeName = theme ?? 'violet';
   const nodes: CanvasNode[] = orderedNodes.map((n) => {
-    const h = n.type === 'LABEL' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
+    const h = getNodeHeight(n.type);
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
     return {
       id: n.id,
-      type: n.type === 'LABEL' ? 'labelNode' : 'menuNode',
+      type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
       position: { x: pos.x, y: pos.y },
       data: {
         label: n.label,
@@ -242,6 +259,8 @@ function applyProgressiveDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
+        conditionExpression: n.condition?.expression,
+        conditionReferences: n.condition?.references,
         theme: resolvedTheme,
       },
       draggable: true,
@@ -256,7 +275,7 @@ function applyProgressiveDagreLayout(
       source: e.source,
       target: e.target,
       type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind },
+      data: { label: e.label ?? '', kind: e.kind, condition: e.condition },
       markerEnd: { type: 'arrowclosed' as const },
       style: { stroke: '#6b7280', strokeWidth: 1.5 },
     }));
@@ -265,7 +284,8 @@ function applyProgressiveDagreLayout(
 }
 
 export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
-  const nodeHeight = node.type === 'labelNode' ? NODE_HEIGHT_LABEL : NODE_HEIGHT_MENU;
+  const nodeHeight =
+    node.type === 'labelNode' ? NODE_HEIGHT_LABEL : node.type === 'menuNode' ? NODE_HEIGHT_MENU : NODE_HEIGHT_DECISION;
   return {
     x: node.position.x + NODE_WIDTH / 2,
     y: node.position.y + nodeHeight / 2,
@@ -281,6 +301,7 @@ export function buildVisibleNodes(params: {
   minDialogue: number;
   collapsedChapters: Record<string, boolean>;
   collapsedLabelChildren: Set<string>;
+  conditionHiddenNodeIds?: Set<string>;
   theme: 'violet' | 'highContrast' | 'colorblind';
   previousById?: Map<string, CanvasNode>;
 }): CanvasNode[] {
@@ -293,6 +314,7 @@ export function buildVisibleNodes(params: {
     minDialogue,
     collapsedChapters,
     collapsedLabelChildren,
+    conditionHiddenNodeIds,
     theme,
     previousById,
   } = params;
@@ -312,7 +334,13 @@ export function buildVisibleNodes(params: {
       (includeDialogueLineSearch &&
         (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query)));
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
-    const hidden = Boolean(chapterCollapsed || labelCollapsed || !matchesSearch || !matchesDialogue);
+    const hidden = Boolean(
+      chapterCollapsed ||
+      labelCollapsed ||
+      (conditionHiddenNodeIds?.has(n.id) ?? false) ||
+      !matchesSearch ||
+      !matchesDialogue,
+    );
     const previous = previousById?.get(n.id);
     if (previous) {
       const prevData = previous.data as NodeData;
@@ -348,6 +376,8 @@ export function buildVisibleEdges(params: {
   visibleNodeIds: Set<string>;
   edgeColor: string;
   largeGraphMode: boolean;
+  conditionVisibilityMode?: ConditionVisibilityMode;
+  edgeConditionStateById?: Map<string, ConditionReachability>;
   previousById?: Map<string, CanvasEdge>;
 }): CanvasEdge[] {
   const {
@@ -357,6 +387,8 @@ export function buildVisibleEdges(params: {
     visibleNodeIds,
     edgeColor,
     largeGraphMode,
+    conditionVisibilityMode = 'fade',
+    edgeConditionStateById,
     previousById,
   } =
     params;
@@ -366,6 +398,8 @@ export function buildVisibleEdges(params: {
     const kind = normalizeEdgeKind(edgeData.kind);
     if (!visibleEdgeKinds[kind]) continue;
     if (!showCallReturns && kind === 'call_return') continue;
+    const conditionState = edgeConditionStateById?.get(edge.id);
+    if (conditionVisibilityMode === 'hide' && conditionState === 'unreachable') continue;
     if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
     const edgeLabel = largeGraphMode && kind === 'sequence' ? '' : (edgeData.label ?? '');
     const previous = previousById?.get(edge.id);
@@ -374,6 +408,7 @@ export function buildVisibleEdges(params: {
       previous &&
       previousData?.label === edgeLabel &&
       previousData?.kind === kind &&
+      previousData?.conditionState === conditionState &&
       previous.source === edge.source &&
       previous.target === edge.target &&
       previous.style?.stroke === edgeColor
@@ -381,11 +416,71 @@ export function buildVisibleEdges(params: {
       visible.push(previous);
       continue;
     }
+    const unreachableStyle =
+      conditionVisibilityMode === 'fade' && conditionState === 'unreachable'
+        ? { opacity: 0.28, strokeDasharray: '5 4' }
+        : {};
     visible.push({
       ...edge,
-      data: { ...edgeData, label: edgeLabel, kind },
-      style: { ...(edge.style || {}), stroke: edgeColor, strokeWidth: 1.5 },
+      data: { ...edgeData, label: edgeLabel, kind, conditionState },
+      style: { ...(edge.style || {}), ...unreachableStyle, stroke: edgeColor, strokeWidth: 1.5 },
     });
   }
   return visible;
+}
+
+export function buildConditionalVisibility(params: {
+  edges: CanvasEdge[];
+  mockFlags: Record<string, MockFlagValue>;
+}): {
+  edgeConditionStateById: Map<string, ConditionReachability>;
+  hiddenNodeIds: Set<string>;
+  discoveredFlags: string[];
+} {
+  const edgeConditionStateById = new Map<string, ConditionReachability>();
+  const discoveredFlagSet = new Set<string>();
+  const incoming = new Map<string, { hasConditionalIncoming: boolean; hasReachableOrUnknownIncoming: boolean }>();
+
+  for (const edge of params.edges) {
+    const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
+    const condition = edgeData.condition;
+    if (!condition) {
+      const targetState = incoming.get(edge.target) ?? {
+        hasConditionalIncoming: false,
+        hasReachableOrUnknownIncoming: false,
+      };
+      targetState.hasReachableOrUnknownIncoming = true;
+      incoming.set(edge.target, targetState);
+      continue;
+    }
+    for (const ref of condition.references ?? []) {
+      discoveredFlagSet.add(ref);
+    }
+    const evaluated = evaluateConditionExpression(condition.expression, params.mockFlags);
+    const conditionState: ConditionReachability =
+      evaluated === 'true' ? 'reachable' : evaluated === 'false' ? 'unreachable' : 'unknown';
+    edgeConditionStateById.set(edge.id, conditionState);
+    const targetState = incoming.get(edge.target) ?? {
+      hasConditionalIncoming: false,
+      hasReachableOrUnknownIncoming: false,
+    };
+    targetState.hasConditionalIncoming = true;
+    if (conditionState !== 'unreachable') {
+      targetState.hasReachableOrUnknownIncoming = true;
+    }
+    incoming.set(edge.target, targetState);
+  }
+
+  const hiddenNodeIds = new Set<string>();
+  for (const [nodeId, state] of incoming.entries()) {
+    if (state.hasConditionalIncoming && !state.hasReachableOrUnknownIncoming) {
+      hiddenNodeIds.add(nodeId);
+    }
+  }
+
+  return {
+    edgeConditionStateById,
+    hiddenNodeIds,
+    discoveredFlags: Array.from(discoveredFlagSet).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+  };
 }

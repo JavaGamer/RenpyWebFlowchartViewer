@@ -473,9 +473,17 @@ describe('parseRenpyFiles', () => {
 
     const result = await parseRenpyFiles([{ name: 'conditional_jump.rpy', content: script }]);
 
+    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    expect(decisionNode).toBeDefined();
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'branch_a' }),
+        expect.objectContaining({ source: 'start', target: decisionNode?.id, kind: 'sequence' }),
+        expect.objectContaining({
+          source: decisionNode?.id,
+          target: 'branch_a',
+          kind: 'jump',
+          condition: expect.objectContaining({ branchKind: 'if', expression: 'flag' }),
+        }),
         expect.objectContaining({ source: 'start', target: 'next_label', label: 'next' }),
       ]),
     );
@@ -524,6 +532,61 @@ describe('parseRenpyFiles', () => {
 
     expect(result.edges).toContainEqual(
       expect.objectContaining({ source: 'start', target: 'next_label', kind: 'sequence', label: 'next' }),
+    );
+  });
+
+  it('emits an explicit decision node and conditional branch metadata for if/elif/else', async () => {
+    const script = [
+      'label start:',
+      '    if flag_a:',
+      '        jump branch_a',
+      '    elif flag_b:',
+      '        jump branch_b',
+      '    else:',
+      '        jump branch_c',
+      '',
+      'label branch_a:',
+      '    "A"',
+      '',
+      'label branch_b:',
+      '    "B"',
+      '',
+      'label branch_c:',
+      '    "C"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional_branches.rpy', content: script }]);
+    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    expect(decisionNode).toBeDefined();
+
+    const conditionalJumpEdges = result.edges.filter((edge) => edge.source === decisionNode?.id && edge.kind === 'jump');
+    expect(conditionalJumpEdges).toHaveLength(3);
+    expect(conditionalJumpEdges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          target: 'branch_a',
+          condition: expect.objectContaining({
+            branchKind: 'if',
+            expression: 'flag_a',
+            references: ['flag_a'],
+          }),
+        }),
+        expect.objectContaining({
+          target: 'branch_b',
+          condition: expect.objectContaining({
+            branchKind: 'elif',
+            expression: 'flag_b',
+            references: ['flag_b'],
+          }),
+        }),
+        expect.objectContaining({
+          target: 'branch_c',
+          condition: expect.objectContaining({
+            branchKind: 'else',
+          }),
+        }),
+      ]),
     );
   });
 

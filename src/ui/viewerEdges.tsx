@@ -32,6 +32,7 @@ export function LabeledEdge({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
+              opacity: data.conditionState === 'unreachable' ? 0.45 : 1,
             }}
             className="bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[10px] text-gray-600 max-w-[120px] truncate shadow-sm nodrag nopan"
           >

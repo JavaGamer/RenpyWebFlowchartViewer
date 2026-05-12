@@ -1,6 +1,14 @@
-export type NodeType = 'LABEL' | 'MENU';
-export type NodeRole = 'story' | 'detour' | 'utility' | 'state_toggle' | 'menu';
+export type NodeType = 'LABEL' | 'MENU' | 'DECISION';
+export type NodeRole = 'story' | 'detour' | 'utility' | 'state_toggle' | 'menu' | 'decision';
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
+export type ConditionBranchKind = 'if' | 'elif' | 'else';
+
+export interface ConditionMetadata {
+  branchKind: ConditionBranchKind;
+  expression?: string;
+  references?: string[];
+  decisionNodeId?: string;
+}
 
 /** A node in the flowchart graph. */
 export interface FlowNode {
@@ -19,6 +27,8 @@ export interface FlowNode {
   chapter?: string;
   /** Parent label id for MENU nodes. */
   parentLabelId?: string;
+  /** Optional condition metadata (primarily for DECISION nodes). */
+  condition?: ConditionMetadata;
 }
 
 /** A directed edge in the flowchart graph. */
@@ -30,4 +40,6 @@ export interface FlowEdge {
   kind?: EdgeKind;
   /** Optional label shown on the edge (e.g. menu option text). */
   label?: string;
+  /** Optional condition metadata for branches sourced from DECISION nodes. */
+  condition?: ConditionMetadata;
 }

@@ -5,6 +5,8 @@ import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
 import { addParseDiagnostic } from './diagnostics';
+import { extractConditionFlagRefs } from '../conditionLogic';
+import type { ConditionMetadata } from '../domain';
 
 interface HandleTokenInput {
   type: number;
@@ -13,6 +15,7 @@ interface HandleTokenInput {
   chapter: string;
   menuDepth: number;
   lineIndent: number;
+  lineText: string;
   captureDialogueLines: boolean;
   screenActionRuleMap: Map<string, ScreenActionKind>;
 }
@@ -270,18 +273,27 @@ function resolveCallContext(
   scanState: ParseScanState,
   meta: TokenMetaFlags,
   menuDepth: number,
-): { isInOption: boolean; source: string | null; optionText: string | null } {
+): { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata } {
   const isInOption = meta.hasMenuOptionBlock;
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
-  const source = isInOption && menu ? menu.id : scanState.currentLabelId;
-  return { isInOption, source, optionText: menu?.optionText ?? null };
+  const decisionContext = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+  const source = isInOption && menu ? menu.id : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
+  const condition: ConditionMetadata | undefined = decisionContext
+    ? {
+      branchKind: decisionContext.branchKind,
+      expression: decisionContext.expression ?? undefined,
+      references: decisionContext.references,
+      decisionNodeId: decisionContext.decisionNodeId,
+    }
+    : undefined;
+  return { isInOption, source, optionText: menu?.optionText ?? null, condition };
 }
 
 function emitJumpEdge(
   state: ParseGraphState,
   scanState: ParseScanState,
   target: string,
-  context: { isInOption: boolean; source: string | null; optionText: string | null },
+  context: { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata },
   suppressFallthrough: boolean,
 ) {
   const { isInOption, source, optionText } = context;
@@ -292,6 +304,7 @@ function emitJumpEdge(
       target,
       kind: 'jump',
       label: isInOption ? (optionText ?? undefined) : undefined,
+      condition: context.condition,
     });
   }
   if (!isInOption && scanState.currentLabelId) {
@@ -313,7 +326,7 @@ function emitCallEdge(
   state: ParseGraphState,
   scanState: ParseScanState,
   target: string,
-  context: { isInOption: boolean; source: string | null; optionText: string | null },
+  context: { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata },
 ) {
   const { isInOption, source, optionText } = context;
   if (!source) return;
@@ -323,6 +336,7 @@ function emitCallEdge(
     target,
     kind: 'call',
     label: isInOption ? (optionText ? `call: ${optionText}` : 'call') : 'call',
+    condition: context.condition,
   });
 
   state.calledLabels.add(target);
@@ -781,12 +795,87 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
   }
 }
 
+function resolveConditionalSource(scanState: ParseScanState, meta: TokenMetaFlags, menuDepth: number): string | null {
+  if (meta.hasMenuOptionBlock) {
+    const menu = menuAtDepth(scanState.menuStack, menuDepth);
+    return menu?.id ?? scanState.currentLabelId;
+  }
+  return scanState.currentLabelId;
+}
+
+function handleConditionalHeader(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  menuDepth: number,
+  chapter: string,
+): boolean {
+  const pending = scanState.pendingConditionalHeader;
+  if (!pending || scanState.currentLabelId === null) return false;
+  const source = resolveConditionalSource(scanState, meta, menuDepth);
+  if (!source) return false;
+  if (pending.kind === 'if') {
+    state.decisionCounter += 1;
+    const decisionNodeId = `decision_${state.decisionCounter}`;
+    const references = extractConditionFlagRefs(pending.expression ?? undefined);
+    addNode(state, {
+      id: decisionNodeId,
+      type: 'DECISION',
+      label: pending.expression ? `if ${pending.expression}` : 'if',
+      dialogueCount: 0,
+      chapter,
+      parentLabelId: scanState.currentLabelId ?? undefined,
+      condition: {
+        branchKind: 'if',
+        expression: pending.expression ?? undefined,
+        references,
+        decisionNodeId,
+      },
+    });
+    addEdge(state, {
+      id: `seq_${source}__${decisionNodeId}`,
+      source,
+      target: decisionNodeId,
+      kind: 'sequence',
+      label: 'if',
+    });
+    addOutgoing(state, source, 'sequence');
+    addIncoming(state, decisionNodeId, 'sequence');
+    scanState.conditionalDecisionStack.push({
+      indent: pending.indent,
+      decisionNodeId,
+      sourceId: source,
+      branchKind: 'if',
+      expression: pending.expression,
+      references,
+    });
+    scanState.pendingConditionalHeader = null;
+    return true;
+  }
+  const existing = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+  if (!existing || existing.indent !== pending.indent) {
+    scanState.pendingConditionalHeader = null;
+    return false;
+  }
+  existing.branchKind = pending.kind;
+  existing.expression = pending.expression;
+  existing.references = extractConditionFlagRefs(pending.expression ?? undefined);
+  scanState.pendingConditionalHeader = null;
+  return true;
+}
+
 export function handleToken(
   state: ParseGraphState,
   scanState: ParseScanState,
   input: HandleTokenInput,
 ): void {
-  const { type, meta, val, chapter, menuDepth, lineIndent, captureDialogueLines, screenActionRuleMap } = input;
+  if (!scanState.conditionalDecisionStack) {
+    scanState.conditionalDecisionStack = [];
+  }
+  if (scanState.pendingConditionalHeader === undefined) {
+    scanState.pendingConditionalHeader = null;
+  }
+  const { type, meta, val, chapter, menuDepth, lineIndent, lineText, captureDialogueLines, screenActionRuleMap } = input;
   resetStaleWaitFlags(scanState, type);
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
@@ -799,6 +888,8 @@ export function handleToken(
     }
     scanState.menuStack.length = 0;
     scanState.conditionalIndentStack.length = 0;
+    scanState.conditionalDecisionStack.length = 0;
+    scanState.pendingConditionalHeader = null;
     scanState.waitForJumpTarget = false;
     scanState.waitForJumpExpressionTarget = false;
     scanState.waitForCallTarget = false;
@@ -861,6 +952,18 @@ export function handleToken(
     return;
   }
 
+  if (type === PARSER_TOKENS.kwConditional) {
+    const normalized = lineText.trim();
+    if (
+      normalized.startsWith('if ') ||
+      normalized.startsWith('elif ') ||
+      normalized === 'else:' ||
+      normalized.startsWith('else :')
+    ) {
+      handleConditionalHeader(state, scanState, meta, menuDepth, chapter);
+    }
+  }
+
   if (type === PARSER_TOKENS.metaPythonBlock) {
     processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, val());
     return;
@@ -905,7 +1008,8 @@ export function handleToken(
     }
 
     const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
-    const source = parentMenu ? parentMenu.id : scanState.currentLabelId;
+    const decisionContext = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+    const source = parentMenu ? parentMenu.id : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
     if (source) {
       addEdge(state, {
         id: edgeIdWithOption(`seq_${source}__${newMenuId}`, parentMenu?.optionText),
@@ -913,6 +1017,14 @@ export function handleToken(
         target: newMenuId,
         kind: 'sequence',
         label: parentMenu?.optionText ?? undefined,
+        condition: decisionContext
+          ? {
+            branchKind: decisionContext.branchKind,
+            expression: decisionContext.expression ?? undefined,
+            references: decisionContext.references,
+            decisionNodeId: decisionContext.decisionNodeId,
+          }
+          : undefined,
       });
       addOutgoing(state, source, 'sequence');
       addIncoming(state, newMenuId, 'sequence');

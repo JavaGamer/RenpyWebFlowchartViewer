@@ -15,10 +15,11 @@ import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
 import type { DialogueSearchResult } from '../infrastructure';
-import type { EdgeKindFilter } from '../flowchartTransforms';
+import type { ConditionVisibilityMode, EdgeKindFilter } from '../flowchartTransforms';
 import type { ThemeName, LayoutDirection } from '../ui';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import type { DialogueSearchMode } from './appStore';
+import type { MockFlagValue } from '../conditionLogic';
 
 // ─── Persisted slice ──────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export interface ViewerSessionState {
   showAdvancedControls: boolean;
   showAllLabelSubgraphToggles: boolean;
   standaloneDialogueSearchMode: DialogueSearchMode;
+  mockFlags: Record<string, MockFlagValue>;
+  conditionVisibilityMode: ConditionVisibilityMode;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -76,6 +79,9 @@ export interface ViewerActions {
   toggleShowAdvancedControls: () => void;
   toggleShowAllLabelSubgraphToggles: () => void;
   setStandaloneDialogueSearchMode: (mode: DialogueSearchMode) => void;
+  setMockFlag: (flag: string, value: MockFlagValue) => void;
+  resetMockFlags: () => void;
+  setConditionVisibilityMode: (mode: ConditionVisibilityMode) => void;
 
   /** Resets all session state to defaults. Called on component unmount. */
   resetSession: () => void;
@@ -115,6 +121,8 @@ const defaultSessionState: ViewerSessionState = {
   showAdvancedControls: false,
   showAllLabelSubgraphToggles: false,
   standaloneDialogueSearchMode: 'auto',
+  mockFlags: {},
+  conditionVisibilityMode: 'fade',
 };
 
 // ─── Persist merge/validation helpers ────────────────────────────────────────
@@ -306,6 +314,21 @@ export const useViewerStore = create<ViewerStore>()(
       setStandaloneDialogueSearchMode: (mode) =>
         set((draft) => {
           draft.standaloneDialogueSearchMode = mode;
+        }),
+
+      setMockFlag: (flag, value) =>
+        set((draft) => {
+          draft.mockFlags[flag] = value;
+        }),
+
+      resetMockFlags: () =>
+        set((draft) => {
+          draft.mockFlags = {};
+        }),
+
+      setConditionVisibilityMode: (mode) =>
+        set((draft) => {
+          draft.conditionVisibilityMode = mode;
         }),
 
       // ── Reset ─────────────────────────────────────────────────────────────

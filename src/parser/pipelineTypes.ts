@@ -5,6 +5,22 @@ import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import type { MultiDirectedGraph } from 'graphology';
 
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
+export type ConditionalBranchKind = 'if' | 'elif' | 'else';
+
+export interface PendingConditionalHeader {
+  kind: ConditionalBranchKind;
+  indent: number;
+  expression: string | null;
+}
+
+export interface ConditionalDecisionContext {
+  indent: number;
+  decisionNodeId: string;
+  sourceId: string | null;
+  branchKind: ConditionalBranchKind;
+  expression: string | null;
+  references: string[];
+}
 
 export interface ParseDiagnosticLocation {
   chapter?: string;
@@ -79,6 +95,8 @@ export interface ParseScanState {
   menuStack: Array<{ id: string; optionText: string | null }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
+  pendingConditionalHeader: PendingConditionalHeader | null;
+  conditionalDecisionStack: ConditionalDecisionContext[];
   labelHasExplicitExit: boolean;
   waitForLabelName: boolean;
   waitForJumpTarget: boolean;
@@ -97,6 +115,7 @@ export interface ParseGraphState {
   edgeMap: Map<string, FlowEdge>;
   pendingGraphEdgeIds: Set<string>;
   menuCounter: number;
+  decisionCounter: number;
   allLabelIds: Set<string>;
   incomingByLabel: Map<string, Set<EdgeKind>>;
   outgoingByLabel: Map<string, Set<EdgeKind>>;

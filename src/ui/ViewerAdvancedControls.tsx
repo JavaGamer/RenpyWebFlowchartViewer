@@ -1,8 +1,9 @@
 import { LayoutGrid, Palette, LocateFixed } from 'lucide-react';
 import type { CanvasNode } from '../flowchartTransforms';
-import type { EdgeKindFilter } from '../flowchartTransforms';
+import type { ConditionVisibilityMode, EdgeKindFilter } from '../flowchartTransforms';
 import type { LayoutDirection, ThemeName } from './viewerTypes';
 import { CONTROL_INPUT_CLASS, CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
+import type { MockFlagValue } from '../conditionLogic';
 
 export interface ViewerAdvancedControlsProps {
   layoutDirection: LayoutDirection;
@@ -41,6 +42,12 @@ export interface ViewerAdvancedControlsProps {
   toggleParentLabel: (label: string) => void;
   setAllVisibleSubgraphLabelsCollapsed: (collapsed: boolean) => void;
   toggleShowAllLabelSubgraphToggles: () => void;
+  discoveredFlags: string[];
+  mockFlags: Record<string, MockFlagValue>;
+  setMockFlag: (flag: string, value: MockFlagValue) => void;
+  resetMockFlags: () => void;
+  conditionVisibilityMode: ConditionVisibilityMode;
+  setConditionVisibilityMode: (mode: ConditionVisibilityMode) => void;
 }
 
 export function ViewerAdvancedControls({
@@ -75,6 +82,12 @@ export function ViewerAdvancedControls({
   toggleParentLabel,
   setAllVisibleSubgraphLabelsCollapsed,
   toggleShowAllLabelSubgraphToggles,
+  discoveredFlags,
+  mockFlags,
+  setMockFlag,
+  resetMockFlags,
+  conditionVisibilityMode,
+  setConditionVisibilityMode,
 }: ViewerAdvancedControlsProps) {
   return (
     <div id="viewer-advanced-controls" className="border border-gray-200 rounded-lg p-3 flex flex-col gap-3" role="group" aria-label="Advanced controls">
@@ -287,6 +300,53 @@ export function ViewerAdvancedControls({
             </div>
           </div>
         )}
+      </div>
+      <div className="border-t border-gray-200 pt-3 flex flex-col gap-3" role="group" aria-label="Mock state simulation controls">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-xs">Conditional simulation:</span>
+          <label className="text-xs flex items-center gap-1" htmlFor="condition-visibility-mode">
+            Unreachable paths
+            <select
+              id="condition-visibility-mode"
+              value={conditionVisibilityMode}
+              onChange={(e) => setConditionVisibilityMode(e.target.value as ConditionVisibilityMode)}
+              className={CONTROL_INPUT_CLASS}
+              aria-label="Unreachable condition path visibility mode"
+            >
+              <option value="fade">Fade</option>
+              <option value="hide">Hide</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={resetMockFlags}
+            className={CONTROL_BUTTON_CLASS}
+            aria-label="Reset mock flag state"
+          >
+            Reset flags
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {discoveredFlags.length === 0 ? (
+            <span className="text-[11px] text-gray-500">No condition flags discovered in the current graph.</span>
+          ) : (
+            discoveredFlags.map((flag) => (
+              <label key={flag} className="inline-flex items-center gap-1">
+                <span>{flag}</span>
+                <select
+                  value={mockFlags[flag] ?? 'unknown'}
+                  onChange={(e) => setMockFlag(flag, e.target.value as MockFlagValue)}
+                  className={CONTROL_INPUT_CLASS}
+                  aria-label={`Mock value for ${flag}`}
+                >
+                  <option value="unknown">unknown</option>
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </label>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
