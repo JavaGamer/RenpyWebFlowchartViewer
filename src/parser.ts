@@ -6,6 +6,7 @@
 
 import pLimit from 'p-limit';
 import { createPerfTracker } from './perf';
+import { compareDeterministicStrings } from './sortUtils';
 import { createGraphState } from './parser/pipelineState';
 import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './parser/filePipeline';
 import { finalizeRoles } from './parser/roleFinalization';
@@ -27,11 +28,6 @@ function getMaxParallelFiles(requested: number | undefined, fileCount: number): 
 
 function normalizeFileIdentity(value: string): string {
   return value.replace(/\\/g, '/');
-}
-
-function compareDeterministicStrings(a: string, b: string): number {
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
 }
 
 function compareFiles(a: ParseInputFile, b: ParseInputFile): number {

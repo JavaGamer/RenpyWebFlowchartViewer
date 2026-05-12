@@ -8,6 +8,7 @@ import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import type { ParseDiagnosticPayload } from '../infrastructure';
+import { compareDeterministicStrings } from '../sortUtils';
 
 export interface ProcessUploadDeps {
   parseService: ParseService;
@@ -29,11 +30,6 @@ const LARGE_PROJECT_THRESHOLD = 200;
 function getFileRelativePath(file: File): string | undefined {
   const relativePath = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
   return relativePath ? relativePath.replace(/\\/g, '/') : undefined;
-}
-
-function compareDeterministicStrings(a: string, b: string): number {
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
 }
 
 function compareUploadFiles(a: File, b: File): number {

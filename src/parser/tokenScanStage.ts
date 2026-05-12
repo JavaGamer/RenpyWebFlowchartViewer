@@ -58,7 +58,7 @@ export function processFlatToken(
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
   precomputedScreenActionRuleMap?: Map<string, ScreenActionKind>,
-  lineIndentCache: Map<number, number> = new Map(),
+  lineIndentCache: Map<number, number>,
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
