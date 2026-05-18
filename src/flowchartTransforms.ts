@@ -7,6 +7,7 @@ import { evaluateConditionExpression, type MockFlagValue } from './conditionLogi
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
 export const NODE_HEIGHT_MENU = 80;
+// Keep this aligned with the rendered decision node height (diamond + vertical padding).
 export const NODE_HEIGHT_DECISION = 176;
 export const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
 const PROGRESSIVE_FALLBACK_MAX_COLUMNS = 16;
@@ -468,7 +469,8 @@ export function buildConditionalVisibility(params: {
   const reachableNodeIds = new Set<string>();
   const stack = [...traversalStarts];
   while (stack.length > 0) {
-    const nodeId = stack.pop()!;
+    const nodeId = stack.pop();
+    if (!nodeId) continue;
     if (reachableNodeIds.has(nodeId)) continue;
     reachableNodeIds.add(nodeId);
     for (const edge of outgoing.get(nodeId) ?? []) {

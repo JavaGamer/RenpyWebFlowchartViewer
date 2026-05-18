@@ -12,6 +12,8 @@ const KEYWORDS = new Set([
   'elif',
   'else',
 ]);
+const WHITESPACE_PATTERN = /\s/;
+const CONDITION_TOKEN_PATTERN = /(\(|\)|==|!=|&&|\|\||!|and\b|or\b|not\b|True\b|False\b|[A-Za-z_][A-Za-z0-9_]*)/y;
 
 export function extractConditionFlagRefs(expression: string | undefined): string[] {
   if (!expression) return [];
@@ -36,10 +38,11 @@ interface ParseState {
 
 function tokenizeCondition(expression: string): { tokens: string[]; fullyTokenized: boolean } {
   const tokens: string[] = [];
-  const tokenPattern = /(\(|\)|==|!=|&&|\|\||!|and\b|or\b|not\b|True\b|False\b|[A-Za-z_][A-Za-z0-9_]*)/y;
+  const tokenPattern = CONDITION_TOKEN_PATTERN;
+  tokenPattern.lastIndex = 0;
   let index = 0;
   while (index < expression.length) {
-    while (index < expression.length && /\s/.test(expression[index] ?? '')) {
+    while (index < expression.length && WHITESPACE_PATTERN.test(expression[index])) {
       index += 1;
     }
     if (index >= expression.length) break;
