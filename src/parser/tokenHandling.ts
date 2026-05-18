@@ -147,23 +147,21 @@ class TopLevelPythonAssignmentPattern extends RegExp {
   override [Symbol.matchAll](text: string): IterableIterator<RegExpMatchArray> {
     const source = this.source;
     const flags = this.flags.includes('g') ? this.flags : `${this.flags}g`;
-    const self = this;
-
-    return (function* matchAll(): IterableIterator<RegExpMatchArray> {
+    return (function* matchAll(this: TopLevelPythonAssignmentPattern): IterableIterator<RegExpMatchArray> {
       const matcher = new RegExp(source, flags);
       let match: RegExpExecArray | null;
       while ((match = matcher.exec(text)) !== null) {
-        self.lastIndex = matcher.lastIndex;
+        this.lastIndex = matcher.lastIndex;
         if (match.index !== undefined && isTopLevelPythonStatementMatch(text, match.index)) {
           yield match;
         }
         if (match[0].length === 0) {
           matcher.lastIndex += 1;
-          self.lastIndex = matcher.lastIndex;
+          this.lastIndex = matcher.lastIndex;
         }
       }
-      self.lastIndex = 0;
-    })();
+      this.lastIndex = 0;
+    }).call(this);
   }
 }
 

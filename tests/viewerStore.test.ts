@@ -34,6 +34,8 @@ const DEFAULT_SESSION = {
   showAdvancedControls: false,
   showAllLabelSubgraphToggles: false,
   standaloneDialogueSearchMode: 'auto' as const,
+  mockFlags: {},
+  conditionVisibilityMode: 'fade' as const,
 };
 
 describe('useViewerStore persistence', () => {
@@ -312,6 +314,20 @@ describe('useViewerStore session state actions', () => {
     expect(useViewerStore.getState().standaloneDialogueSearchMode).toBe('full');
   });
 
+  it('sets and resets mock flags for conditional simulation', () => {
+    useViewerStore.getState().setMockFlag('flag_a', 'true');
+    useViewerStore.getState().setMockFlag('flag_b', 'false');
+    expect(useViewerStore.getState().mockFlags).toEqual({ flag_a: 'true', flag_b: 'false' });
+
+    useViewerStore.getState().resetMockFlags();
+    expect(useViewerStore.getState().mockFlags).toEqual({});
+  });
+
+  it('setConditionVisibilityMode updates conditional visibility mode', () => {
+    useViewerStore.getState().setConditionVisibilityMode('hide');
+    expect(useViewerStore.getState().conditionVisibilityMode).toBe('hide');
+  });
+
   it('resetSession resets all session state to defaults without touching persisted state', () => {
     // Mutate persisted state.
     useViewerStore.getState().setTheme('highContrast');
@@ -336,6 +352,7 @@ describe('useViewerStore session state actions', () => {
     expect(s.focusNodeId).toBe('');
     expect(s.selectedNodeId).toBe('');
     expect(s.layoutDirection).toBe('TB');
+    expect(s.mockFlags).toEqual({});
+    expect(s.conditionVisibilityMode).toBe('fade');
   });
 });
-

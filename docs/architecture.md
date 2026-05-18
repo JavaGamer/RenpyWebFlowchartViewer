@@ -59,11 +59,16 @@ This project is organized into layered modules to keep parser correctness, UI re
   - **Primary controls** are always visible for high-frequency tasks (search/filter baseline, fit, zoom, export).
   - **Advanced controls** are revealed on demand for lower-frequency tasks (layout/theme/focus/edge toggles/subgraph controls).
 - `src/flowchartTransforms.ts` remains responsible for graph visibility and transformation decisions (search filtering, edge filtering, large-graph edge-label behavior).
+- Conditional simulation is split across parser/UI boundary helpers:
+  - parser emits optional condition metadata on decision nodes/edges (`expression`, normalized flag references, branch kind)
+  - viewer transforms evaluate branch reachability against mock flag state (`true` / `false` / `unknown`)
+  - `unknown` evaluations are treated conservatively and not hidden by default
 - `src/flowchartTransforms.ts` also enforces pre-render graph integrity policy:
   - deterministic edge dedupe/kind normalization
   - placeholder node materialization for unresolved edge endpoints
   - deterministic ordering/fallback placement for large progressive layouts
 - `src/ui/viewerTheme.ts` remains the source of theme tokens, while interactive control styling is standardized at component level using shared class constants.
+- `src/ui/ViewerAdvancedControls.tsx` hosts the mock-state panel (flag toggles + fade/hide mode), with session state managed in `src/application/viewerStore.ts`.
 
 ## UX and Accessibility Conventions
 

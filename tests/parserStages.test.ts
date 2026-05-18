@@ -9,6 +9,7 @@ import { materializeCallReturnEdges } from '../src/parser/callReturnFinalization
 import { classifyNodeRole } from '../src/parser/roleClassification';
 import { normalizeGraphState } from '../src/parser/graphNormalization';
 import { processFlatToken, processFlatTokens, processTokenTreeStream } from '../src/parser/tokenScanStage';
+import { maybeUpdateConditionalState } from '../src/parser/scanTransitions';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 
@@ -232,6 +233,51 @@ describe('parser stage modules', () => {
     expect(scanState.waitForJumpTarget).toBe(false);
     expect(scanState.waitForCallTarget).toBe(false);
     expect(scanState.waitForMenuNameForId).toBeNull();
+  });
+
+  it('tracks conditional header transitions for decision-context parsing', () => {
+    const scanState = {
+      currentLabelId: 'start',
+      currentLabelIndent: 0,
+      labelVariableLiteralTargets: new Map<string, string>(),
+      menuStack: [],
+      pendingMenuFallthroughIds: [],
+      conditionalIndentStack: [],
+      pendingConditionalHeader: null,
+      conditionalDecisionStack: [],
+      labelHasExplicitExit: false,
+      waitForLabelName: false,
+      waitForJumpTarget: false,
+      waitForJumpExpressionTarget: false,
+      waitForCallTarget: false,
+      waitForMenuNameForId: null as string | null,
+    };
+
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, 'if flag_a:');
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'if',
+      indent: 4,
+      expression: 'flag_a',
+    });
+
+    scanState.conditionalDecisionStack.push({
+      indent: 4,
+      decisionNodeId: 'decision_1',
+      sourceId: 'start',
+      branchKind: 'if',
+      expression: 'flag_a',
+      references: ['flag_a'],
+    });
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'elif', 4, 'elif flag_b:');
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'elif',
+      indent: 4,
+      expression: 'flag_b',
+    });
+    expect(scanState.conditionalDecisionStack).toHaveLength(1);
+
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.entityFunctionName, () => 'jump', 4, 'jump branch');
+    expect(scanState.conditionalDecisionStack).toHaveLength(0);
   });
 
   it('processFlatTokens processes token stream in order', () => {
