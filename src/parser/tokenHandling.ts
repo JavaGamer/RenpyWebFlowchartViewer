@@ -873,7 +873,7 @@ export function handleToken(
   if (scanState.pendingConditionalHeader === undefined) {
     scanState.pendingConditionalHeader = null;
   }
-  const { type, meta, val, chapter, menuDepth, lineIndent, lineText, captureDialogueLines, screenActionRuleMap } = input;
+  const { type, meta, val, chapter, menuDepth, lineIndent, captureDialogueLines, screenActionRuleMap } = input;
   resetStaleWaitFlags(scanState, type);
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
@@ -951,15 +951,7 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.kwConditional) {
-    const normalized = lineText.trim();
-    if (
-      normalized.startsWith('if ') ||
-      normalized.startsWith('elif ') ||
-      normalized === 'else:' ||
-      normalized.startsWith('else :')
-    ) {
-      handleConditionalHeader(state, scanState, meta, menuDepth, chapter);
-    }
+    handleConditionalHeader(state, scanState, meta, menuDepth, chapter);
   }
 
   if (type === PARSER_TOKENS.metaPythonBlock) {

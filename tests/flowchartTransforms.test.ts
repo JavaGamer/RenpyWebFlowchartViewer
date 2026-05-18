@@ -401,4 +401,28 @@ describe('flowchartTransforms', () => {
     });
     expect(edges.map((edge) => edge.id)).toEqual(['e2']);
   });
+
+  it('propagates hide-mode reachability through downstream sequence edges', () => {
+    const layout = applyDagreLayout(
+      [
+        { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 },
+        { id: 'decision', type: 'DECISION', label: 'if f', dialogueCount: 0 },
+        { id: 'branch_false', type: 'LABEL', label: 'branch_false', dialogueCount: 0 },
+        { id: 'downstream', type: 'LABEL', label: 'downstream', dialogueCount: 0 },
+      ],
+      [
+        { id: 'start_decision', source: 'start', target: 'decision', kind: 'sequence' },
+        { id: 'decision_false_branch', source: 'decision', target: 'branch_false', kind: 'jump', condition: { branchKind: 'if', expression: 'f' } },
+        { id: 'branch_downstream', source: 'branch_false', target: 'downstream', kind: 'sequence' },
+      ],
+      'TB',
+    );
+
+    const conditional = buildConditionalVisibility({
+      edges: layout.edges as CanvasEdge[],
+      mockFlags: { f: 'false' },
+    });
+    expect(conditional.hiddenNodeIds.has('branch_false')).toBe(true);
+    expect(conditional.hiddenNodeIds.has('downstream')).toBe(true);
+  });
 });

@@ -70,15 +70,15 @@ function parseConditionalHeader(lineText: string): {
   expression: string | null;
 } | null {
   const trimmed = lineText.trim();
-  const ifMatch = /^if\s+(.+):\s*$/.exec(trimmed);
+  const ifMatch = /^if\s+(.+?)\s*:\s*(?:#.*)?$/.exec(trimmed);
   if (ifMatch) {
     return { kind: 'if', expression: ifMatch[1]?.trim() ?? null };
   }
-  const elifMatch = /^elif\s+(.+):\s*$/.exec(trimmed);
+  const elifMatch = /^elif\s+(.+?)\s*:\s*(?:#.*)?$/.exec(trimmed);
   if (elifMatch) {
     return { kind: 'elif', expression: elifMatch[1]?.trim() ?? null };
   }
-  if (/^else\s*:\s*$/.test(trimmed)) {
+  if (/^else\s*:\s*(?:#.*)?$/.test(trimmed)) {
     return { kind: 'else', expression: null };
   }
   return null;

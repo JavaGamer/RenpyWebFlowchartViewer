@@ -7,7 +7,7 @@ import { evaluateConditionExpression, type MockFlagValue } from './conditionLogi
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
 export const NODE_HEIGHT_MENU = 80;
-export const NODE_HEIGHT_DECISION = 96;
+export const NODE_HEIGHT_DECISION = 176;
 export const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
 const PROGRESSIVE_FALLBACK_MAX_COLUMNS = 16;
 
@@ -439,20 +439,21 @@ export function buildConditionalVisibility(params: {
 } {
   const edgeConditionStateById = new Map<string, ConditionReachability>();
   const discoveredFlagSet = new Set<string>();
-  const incoming = new Map<string, { hasConditionalIncoming: boolean; hasReachableOrUnknownIncoming: boolean }>();
+  const nodeIds = new Set<string>();
+  const incomingCounts = new Map<string, number>();
+  const outgoing = new Map<string, CanvasEdge[]>();
 
   for (const edge of params.edges) {
+    nodeIds.add(edge.source);
+    nodeIds.add(edge.target);
+    incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+    const sourceOutgoing = outgoing.get(edge.source) ?? [];
+    sourceOutgoing.push(edge);
+    outgoing.set(edge.source, sourceOutgoing);
+
     const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
     const condition = edgeData.condition;
-    if (!condition) {
-      const targetState = incoming.get(edge.target) ?? {
-        hasConditionalIncoming: false,
-        hasReachableOrUnknownIncoming: false,
-      };
-      targetState.hasReachableOrUnknownIncoming = true;
-      incoming.set(edge.target, targetState);
-      continue;
-    }
+    if (!condition) continue;
     for (const ref of condition.references ?? []) {
       discoveredFlagSet.add(ref);
     }
@@ -460,20 +461,26 @@ export function buildConditionalVisibility(params: {
     const conditionState: ConditionReachability =
       evaluated === 'true' ? 'reachable' : evaluated === 'false' ? 'unreachable' : 'unknown';
     edgeConditionStateById.set(edge.id, conditionState);
-    const targetState = incoming.get(edge.target) ?? {
-      hasConditionalIncoming: false,
-      hasReachableOrUnknownIncoming: false,
-    };
-    targetState.hasConditionalIncoming = true;
-    if (conditionState !== 'unreachable') {
-      targetState.hasReachableOrUnknownIncoming = true;
+  }
+
+  const roots = Array.from(nodeIds).filter((nodeId) => (incomingCounts.get(nodeId) ?? 0) === 0);
+  const traversalStarts = roots.length > 0 ? roots : Array.from(nodeIds);
+  const reachableNodeIds = new Set<string>();
+  const stack = [...traversalStarts];
+  while (stack.length > 0) {
+    const nodeId = stack.pop()!;
+    if (reachableNodeIds.has(nodeId)) continue;
+    reachableNodeIds.add(nodeId);
+    for (const edge of outgoing.get(nodeId) ?? []) {
+      const edgeState = edgeConditionStateById.get(edge.id);
+      if (edgeState === 'unreachable') continue;
+      stack.push(edge.target);
     }
-    incoming.set(edge.target, targetState);
   }
 
   const hiddenNodeIds = new Set<string>();
-  for (const [nodeId, state] of incoming.entries()) {
-    if (state.hasConditionalIncoming && !state.hasReachableOrUnknownIncoming) {
+  for (const nodeId of nodeIds) {
+    if (!reachableNodeIds.has(nodeId)) {
       hiddenNodeIds.add(nodeId);
     }
   }

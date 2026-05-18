@@ -34,14 +34,24 @@ interface ParseState {
   supported: boolean;
 }
 
-function tokenizeCondition(expression: string): string[] {
+function tokenizeCondition(expression: string): { tokens: string[]; fullyTokenized: boolean } {
   const tokens: string[] = [];
-  const tokenPattern = /\s*(\(|\)|==|!=|&&|\|\||!|and\b|or\b|not\b|True\b|False\b|[A-Za-z_][A-Za-z0-9_]*)\s*/g;
-  let match: RegExpExecArray | null;
-  while ((match = tokenPattern.exec(expression)) !== null) {
-    if (match[1]) tokens.push(match[1]);
+  const tokenPattern = /(\(|\)|==|!=|&&|\|\||!|and\b|or\b|not\b|True\b|False\b|[A-Za-z_][A-Za-z0-9_]*)/y;
+  let index = 0;
+  while (index < expression.length) {
+    while (index < expression.length && /\s/.test(expression[index] ?? '')) {
+      index += 1;
+    }
+    if (index >= expression.length) break;
+    tokenPattern.lastIndex = index;
+    const match = tokenPattern.exec(expression);
+    if (!match?.[1]) {
+      return { tokens, fullyTokenized: false };
+    }
+    tokens.push(match[1]);
+    index = tokenPattern.lastIndex;
   }
-  return tokens;
+  return { tokens, fullyTokenized: true };
 }
 
 function resolveIdentifierValue(identifier: string, flags: Record<string, MockFlagValue>): ConditionEvaluationResult {
@@ -155,8 +165,10 @@ export function evaluateConditionExpression(
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return 'unknown';
-  const tokens = tokenizeCondition(expression);
+  const tokenized = tokenizeCondition(expression);
+  const tokens = tokenized.tokens;
   if (tokens.length === 0) return 'unknown';
+  if (!tokenized.fullyTokenized) return 'unknown';
   const state: ParseState = { tokens, index: 0, flags, supported: true };
   const result = parseOr(state);
   if (!state.supported) return 'unknown';

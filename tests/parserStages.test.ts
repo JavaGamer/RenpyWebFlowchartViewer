@@ -253,7 +253,7 @@ describe('parser stage modules', () => {
       waitForMenuNameForId: null as string | null,
     };
 
-    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, 'if flag_a:');
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, 'if flag_a:  # inline');
     expect(scanState.pendingConditionalHeader).toEqual({
       kind: 'if',
       indent: 4,
@@ -268,13 +268,20 @@ describe('parser stage modules', () => {
       expression: 'flag_a',
       references: ['flag_a'],
     });
-    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'elif', 4, 'elif flag_b:');
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'elif', 4, 'elif flag_b:  # inline');
     expect(scanState.pendingConditionalHeader).toEqual({
       kind: 'elif',
       indent: 4,
       expression: 'flag_b',
     });
     expect(scanState.conditionalDecisionStack).toHaveLength(1);
+
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'else', 4, 'else:  # fallback');
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'else',
+      indent: 4,
+      expression: null,
+    });
 
     maybeUpdateConditionalState(scanState, PARSER_TOKENS.entityFunctionName, () => 'jump', 4, 'jump branch');
     expect(scanState.conditionalDecisionStack).toHaveLength(0);

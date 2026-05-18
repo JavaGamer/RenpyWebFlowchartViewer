@@ -93,6 +93,16 @@ export type ViewerStore = ViewerPersistedState & ViewerSessionState & ViewerActi
 
 // ─── Default values ───────────────────────────────────────────────────────────
 
+const UNSAFE_MOCK_FLAG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function createEmptyMockFlags(): Record<string, MockFlagValue> {
+  return Object.create(null) as Record<string, MockFlagValue>;
+}
+
+function isSafeMockFlagKey(flag: string): boolean {
+  return !UNSAFE_MOCK_FLAG_KEYS.has(flag);
+}
+
 const defaultPersistedState: ViewerPersistedState = {
   theme: 'violet',
   showCallReturns: false,
@@ -121,7 +131,7 @@ const defaultSessionState: ViewerSessionState = {
   showAdvancedControls: false,
   showAllLabelSubgraphToggles: false,
   standaloneDialogueSearchMode: 'auto',
-  mockFlags: {},
+  mockFlags: createEmptyMockFlags(),
   conditionVisibilityMode: 'fade',
 };
 
@@ -318,12 +328,13 @@ export const useViewerStore = create<ViewerStore>()(
 
       setMockFlag: (flag, value) =>
         set((draft) => {
+          if (!isSafeMockFlagKey(flag)) return;
           draft.mockFlags[flag] = value;
         }),
 
       resetMockFlags: () =>
         set((draft) => {
-          draft.mockFlags = {};
+          draft.mockFlags = createEmptyMockFlags();
         }),
 
       setConditionVisibilityMode: (mode) =>

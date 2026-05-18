@@ -538,11 +538,11 @@ describe('parseRenpyFiles', () => {
   it('emits an explicit decision node and conditional branch metadata for if/elif/else', async () => {
     const script = [
       'label start:',
-      '    if flag_a:',
+      '    if flag_a:  # branch A',
       '        jump branch_a',
-      '    elif flag_b:',
+      '    elif flag_b:  # branch B',
       '        jump branch_b',
-      '    else:',
+      '    else:  # fallback',
       '        jump branch_c',
       '',
       'label branch_a:',
