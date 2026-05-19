@@ -39,6 +39,10 @@ const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const IDENTIFIER_START_PATTERN = /[A-Za-z_]/;
 const IDENTIFIER_PART_PATTERN = /[A-Za-z0-9_.]/;
+
+function isWhitespaceChar(char: string | undefined): boolean {
+  return char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f';
+}
 // Captures simple assignment statements in Python blocks:
 //   1) LHS variable identifier
 //   2) optional type annotation (`name: str = ...`)
@@ -70,8 +74,8 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
         continue;
       }
       if (char === '\\') {
-        const escapedCharacterWidth = (index + 1 < text.length) ? 2 : 1;
-        index += escapedCharacterWidth;
+        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
+        index += escapeSequenceLength;
         continue;
       }
       if (char === activeQuote) {
@@ -239,7 +243,7 @@ function readParenthesizedArgument(
 
 function skipWhitespace(text: string, startIndex: number): number {
   let index = startIndex;
-  while (index < text.length && /\s/.test(text[index] ?? '')) {
+  while (index < text.length && isWhitespaceChar(text[index])) {
     index += 1;
   }
   return index;
@@ -284,7 +288,8 @@ function readBalancedSegment(
         continue;
       }
       if (char === '\\') {
-        index += (index + 1 < text.length) ? 2 : 1;
+        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
+        index += escapeSequenceLength;
         continue;
       }
       if (char === activeQuote) activeQuote = null;
