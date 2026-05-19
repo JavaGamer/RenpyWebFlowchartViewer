@@ -70,7 +70,8 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
         continue;
       }
       if (char === '\\') {
-        index += (index + 1 < text.length) ? 2 : 1;
+        const escapedCharacterWidth = (index + 1 < text.length) ? 2 : 1;
+        index += escapedCharacterWidth;
         continue;
       }
       if (char === activeQuote) {
@@ -310,7 +311,7 @@ function readBalancedSegment(
     }
 
     if (char === '(' || char === '[' || char === '{') {
-      stack.push(closingByOpening[char]);
+      stack.push(closingByOpening[char]!);
       index += 1;
       continue;
     }
@@ -602,6 +603,9 @@ function splitTopLevelArguments(argumentList: string): string[] {
   return args;
 }
 
+// Finds the first delimiter at the current expression depth. This is used for
+// top-level argument splitting/keyword parsing (`=`), dictionary payloads (`:`),
+// and comma-separated argument handling.
 function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): number {
   let depth = 0;
   let activeQuote: '"' | '\'' | null = null;
