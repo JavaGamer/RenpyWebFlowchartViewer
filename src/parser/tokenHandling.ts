@@ -377,28 +377,62 @@ function isIdentifierBoundary(char: string | undefined): boolean {
   return !char || !/[A-Za-z0-9_]/.test(char);
 }
 
+function readIdentifier(text: string, startIndex: number): { identifier: string; endIndex: number } | null {
+  if (!IDENTIFIER_START_PATTERN.test(text[startIndex] ?? '')) return null;
+  let endIndex = startIndex + 1;
+  while (endIndex < text.length && IDENTIFIER_PART_PATTERN.test(text[endIndex] ?? '')) {
+    endIndex += 1;
+  }
+  return {
+    identifier: text.slice(startIndex, endIndex),
+    endIndex,
+  };
+}
+
+function isActionRootingLineKeyword(keyword: string): boolean {
+  return keyword.toLowerCase() !== 'default';
+}
+
 function extractScreenActionExpressions(blockText: string): string[] {
   const ignoredMask = buildIgnoredPositionMask(blockText);
   const expressions: string[] = [];
+  let currentLineFirstTopLevelIdentifier: string | null = null;
 
   for (let index = 0; index < blockText.length; index += 1) {
-    if (ignoredMask[index]) continue;
-    if (!blockText.startsWith('action', index)) continue;
-    if (!isIdentifierBoundary(blockText[index - 1]) || !isIdentifierBoundary(blockText[index + 'action'.length])) {
+    if (blockText[index] === '\n') {
+      currentLineFirstTopLevelIdentifier = null;
       continue;
     }
-
-    let cursor = index + 'action'.length;
-    if (!/\s|=/.test(blockText[cursor] ?? '')) continue;
-    cursor = skipWhitespace(blockText, cursor);
-    if (blockText[cursor] === '=') {
-      cursor = skipWhitespace(blockText, cursor + 1);
+    if (ignoredMask[index]) continue;
+    const identifier = readIdentifier(blockText, index);
+    if (!identifier) continue;
+    if (!currentLineFirstTopLevelIdentifier) {
+      currentLineFirstTopLevelIdentifier = identifier.identifier;
     }
+    if (
+      identifier.identifier === 'action'
+      && isActionRootingLineKeyword(currentLineFirstTopLevelIdentifier)
+      && isIdentifierBoundary(blockText[index - 1])
+      && isIdentifierBoundary(blockText[identifier.endIndex])
+    ) {
+      let cursor = identifier.endIndex;
+      if (!/\s|=/.test(blockText[cursor] ?? '')) {
+        index = identifier.endIndex - 1;
+        continue;
+      }
+      cursor = skipWhitespace(blockText, cursor);
+      if (blockText[cursor] === '=') {
+        cursor = skipWhitespace(blockText, cursor + 1);
+      }
 
-    const parsed = readScreenActionExpression(blockText, cursor);
-    if (!parsed) continue;
-    expressions.push(parsed.expression);
-    index = parsed.endIndex - 1;
+      const parsed = readScreenActionExpression(blockText, cursor);
+      if (parsed) {
+        expressions.push(parsed.expression);
+        index = parsed.endIndex - 1;
+        continue;
+      }
+    }
+    index = identifier.endIndex - 1;
   }
 
   return expressions;
@@ -687,6 +721,11 @@ function extractNestedExpressionValue(expression: string): string {
   return expression.trim();
 }
 
+function isRecursiveScreenActionWrapper(construct: string): boolean {
+  const normalized = construct.toLowerCase();
+  return normalized === 'if' || normalized.endsWith('if');
+}
+
 function walkScreenActionExpression(
   expression: string,
   visitCall: (construct: string, argumentList: string) => void,
@@ -725,6 +764,9 @@ function walkScreenActionExpression(
   if (!parsedArguments || parsedArguments.endIndex !== trimmed.length) return;
 
   visitCall(construct, parsedArguments.argument);
+  if (!isRecursiveScreenActionWrapper(construct)) {
+    return;
+  }
   for (const argument of splitTopLevelArguments(parsedArguments.argument)) {
     walkScreenActionExpression(extractNestedExpressionValue(argument), visitCall);
   }

@@ -1296,6 +1296,26 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('does not recurse into nested calls for non-wrapper screen actions', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        textbutton "Go" action Function(handler, Jump("jump_target"), Call("call_target"))',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-non-wrapper-nested-calls.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
+    expect(result.edges.find((edge) => edge.kind === 'call' && edge.target === 'call_target')).toBeUndefined();
+  });
+
   it('does not infer navigation edges from non-action screen expressions', async () => {
     const script = [
       'label start:',
@@ -1321,6 +1341,23 @@ describe('parseRenpyFiles', () => {
     expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
     expect(result.edges.find((edge) => edge.kind === 'call' && edge.target === 'call_target')).toBeUndefined();
     expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'hover_target')).toBeUndefined();
+  });
+
+  it('does not root navigation extraction from nested action keywords in unrelated screen expressions', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        default cfg = ButtonConfig(action=Jump("jump_target"))',
+      '        textbutton "Actual" action NullAction()',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-nested-action-keyword.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
   });
 
   it('extracts direct renpy.jump/renpy.call targets from non-f-string prefixed literals', async () => {
