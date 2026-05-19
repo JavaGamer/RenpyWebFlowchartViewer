@@ -39,6 +39,12 @@ const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const IDENTIFIER_START_PATTERN = /[A-Za-z_]/;
 const IDENTIFIER_PART_PATTERN = /[A-Za-z0-9_.]/;
+const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
+  'if',
+  'selectedif',
+  'sensitiveif',
+  'showif',
+]);
 
 function isWhitespaceChar(char: string | undefined): boolean {
   return char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f';
@@ -389,7 +395,7 @@ function readIdentifier(text: string, startIndex: number): { identifier: string;
   };
 }
 
-function isActionRootingLineKeyword(keyword: string): boolean {
+function allowsActionExtractionOnLine(keyword: string): boolean {
   return keyword.toLowerCase() !== 'default';
 }
 
@@ -411,7 +417,7 @@ function extractScreenActionExpressions(blockText: string): string[] {
     }
     if (
       identifier.identifier === 'action'
-      && isActionRootingLineKeyword(currentLineFirstTopLevelIdentifier)
+      && allowsActionExtractionOnLine(currentLineFirstTopLevelIdentifier)
       && isIdentifierBoundary(blockText[index - 1])
       && isIdentifierBoundary(blockText[identifier.endIndex])
     ) {
@@ -722,8 +728,7 @@ function extractNestedExpressionValue(expression: string): string {
 }
 
 function isRecursiveScreenActionWrapper(construct: string): boolean {
-  const normalized = construct.toLowerCase();
-  return normalized === 'if' || normalized.endsWith('if');
+  return RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES.has(construct.toLowerCase());
 }
 
 function walkScreenActionExpression(
