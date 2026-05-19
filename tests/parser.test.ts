@@ -1195,6 +1195,171 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts nested screen actions from composite conditional action expressions', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        textbutton "Go" action If(seen_intro, [Jump("jump_target"), NullAction()], (Call("call_target"),))',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-action-nested-composite.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
+  it('extracts nested screen actions from keyword action payloads', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        textbutton "Go" action SelectedIf(seen_intro, yes=Jump("jump_target"), no=[NullAction(), Call("call_target")])',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-action-keyword-payloads.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
+  it('applies custom screen action rules inside nested action structures', async () => {
+    const script = [
+      'label start:',
+      '    screen route_picker():',
+      '        textbutton "Route" action If(can_warp, [Warp("warp_target")], NullAction())',
+      '',
+      'label warp_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles(
+      [{ name: 'nested-custom-screen-rule.rpy', content: script }],
+      {
+        parserVariant: 'renpy',
+        screenActionRules: [{ actionName: 'Warp', actionKind: 'jump' }],
+      },
+    );
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'warp_target', kind: 'jump' }),
+    );
+  });
+
+  it('warns on dynamic nested screen action targets', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        textbutton "Go" action If(can_jump, Jump(dynamic_target), NullAction())',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'nested-dynamic-screen-target.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          severity: 'warning',
+          location: expect.objectContaining({
+            chapter: 'nested-dynamic-screen-target',
+            construct: 'Jump',
+            targetExpression: 'dynamic_target',
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('does not recurse into nested calls for non-wrapper screen actions', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        textbutton "Go" action Function(handler, Jump("jump_target"), Call("call_target"))',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-non-wrapper-nested-calls.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
+    expect(result.edges.find((edge) => edge.kind === 'call' && edge.target === 'call_target')).toBeUndefined();
+  });
+
+  it('does not infer navigation edges from non-action screen expressions', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        default preview_jump = Jump("jump_target")',
+      '        default preview_call = Call("call_target")',
+      '        textbutton "Hover" hovered Jump("hover_target")',
+      '        textbutton "Actual" action NullAction()',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+      'label hover_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-non-action-expressions.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
+    expect(result.edges.find((edge) => edge.kind === 'call' && edge.target === 'call_target')).toBeUndefined();
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'hover_target')).toBeUndefined();
+  });
+
+  it('does not root navigation extraction from nested action keywords in unrelated screen expressions', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        default cfg = ButtonConfig(action=Jump("jump_target"))',
+      '        textbutton "Actual" action NullAction()',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-nested-action-keyword.rpy', content: script }]);
+
+    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
+  });
+
   it('extracts direct renpy.jump/renpy.call targets from non-f-string prefixed literals', async () => {
     const script = [
       'label start:',

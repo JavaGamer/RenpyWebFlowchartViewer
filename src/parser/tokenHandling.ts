@@ -36,8 +36,19 @@ function isWithinCurrentLabelScope(scanState: ParseScanState, meta: TokenMetaFla
 
 const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
-const SCREEN_ACTION_CALL_START_PATTERN = /\baction(?:\s+|\s*=\s*)([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const IDENTIFIER_START_PATTERN = /[A-Za-z_]/;
+const IDENTIFIER_PART_PATTERN = /[A-Za-z0-9_.]/;
+const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
+  'if',
+  'selectedif',
+  'sensitiveif',
+  'showif',
+]);
+
+function isWhitespaceChar(char: string | undefined): boolean {
+  return char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f';
+}
 // Captures simple assignment statements in Python blocks:
 //   1) LHS variable identifier
 //   2) optional type annotation (`name: str = ...`)
@@ -69,7 +80,8 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
         continue;
       }
       if (char === '\\') {
-        index += (index + 1 < text.length) ? 2 : 1;
+        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
+        index += escapeSequenceLength;
         continue;
       }
       if (char === activeQuote) {
@@ -233,6 +245,203 @@ function readParenthesizedArgument(
   }
 
   return null;
+}
+
+function skipWhitespace(text: string, startIndex: number): number {
+  let index = startIndex;
+  while (index < text.length && isWhitespaceChar(text[index])) {
+    index += 1;
+  }
+  return index;
+}
+
+function readBalancedSegment(
+  text: string,
+  startIndex: number,
+): { expression: string; endIndex: number } | null {
+  const opener = text[startIndex];
+  const closingByOpening: Record<string, string> = {
+    '(': ')',
+    '[': ']',
+    '{': '}',
+  };
+  const expectedCloser = closingByOpening[opener ?? ''];
+  if (!expectedCloser) return null;
+
+  const stack = [expectedCloser];
+  let index = startIndex + 1;
+  let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
+  let inComment = false;
+
+  while (index < text.length) {
+    const char = text[index];
+    if (inComment) {
+      if (char === '\n') inComment = false;
+      index += 1;
+      continue;
+    }
+
+    if (activeQuote) {
+      if (tripleQuoted) {
+        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+          index += 3;
+          activeQuote = null;
+          tripleQuoted = false;
+        } else {
+          index += 1;
+        }
+        continue;
+      }
+      if (char === '\\') {
+        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
+        index += escapeSequenceLength;
+        continue;
+      }
+      if (char === activeQuote) activeQuote = null;
+      index += 1;
+      continue;
+    }
+
+    if (char === '#') {
+      inComment = true;
+      index += 1;
+      continue;
+    }
+
+    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
+      activeQuote = char;
+      tripleQuoted = true;
+      index += 3;
+      continue;
+    }
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      index += 1;
+      continue;
+    }
+
+    if (char === '(' || char === '[' || char === '{') {
+      stack.push(closingByOpening[char]!);
+      index += 1;
+      continue;
+    }
+    if (char === stack[stack.length - 1]) {
+      stack.pop();
+      index += 1;
+      if (stack.length === 0) {
+        return {
+          expression: text.slice(startIndex, index),
+          endIndex: index,
+        };
+      }
+      continue;
+    }
+    index += 1;
+  }
+
+  return null;
+}
+
+function readScreenActionExpression(
+  text: string,
+  startIndex: number,
+): { expression: string; endIndex: number } | null {
+  const expressionStart = skipWhitespace(text, startIndex);
+  if (expressionStart >= text.length) return null;
+  const firstChar = text[expressionStart];
+
+  if (firstChar === '(' || firstChar === '[' || firstChar === '{') {
+    return readBalancedSegment(text, expressionStart);
+  }
+
+  if (!IDENTIFIER_START_PATTERN.test(firstChar ?? '')) {
+    return null;
+  }
+
+  let identifierEnd = expressionStart + 1;
+  while (identifierEnd < text.length && IDENTIFIER_PART_PATTERN.test(text[identifierEnd] ?? '')) {
+    identifierEnd += 1;
+  }
+  const afterIdentifier = skipWhitespace(text, identifierEnd);
+  if (text[afterIdentifier] !== '(') {
+    return {
+      expression: text.slice(expressionStart, identifierEnd),
+      endIndex: identifierEnd,
+    };
+  }
+
+  const parsedArguments = readParenthesizedArgument(text, afterIdentifier + 1);
+  if (!parsedArguments) return null;
+  return {
+    expression: text.slice(expressionStart, parsedArguments.endIndex),
+    endIndex: parsedArguments.endIndex,
+  };
+}
+
+function isIdentifierBoundary(char: string | undefined): boolean {
+  return !char || !/[A-Za-z0-9_]/.test(char);
+}
+
+function readIdentifier(text: string, startIndex: number): { identifier: string; endIndex: number } | null {
+  if (!IDENTIFIER_START_PATTERN.test(text[startIndex] ?? '')) return null;
+  let endIndex = startIndex + 1;
+  while (endIndex < text.length && IDENTIFIER_PART_PATTERN.test(text[endIndex] ?? '')) {
+    endIndex += 1;
+  }
+  return {
+    identifier: text.slice(startIndex, endIndex),
+    endIndex,
+  };
+}
+
+function allowsActionExtractionOnLine(keyword: string): boolean {
+  return keyword.toLowerCase() !== 'default';
+}
+
+function extractScreenActionExpressions(blockText: string): string[] {
+  const ignoredMask = buildIgnoredPositionMask(blockText);
+  const expressions: string[] = [];
+  let currentLineFirstTopLevelIdentifier: string | null = null;
+
+  for (let index = 0; index < blockText.length; index += 1) {
+    if (blockText[index] === '\n') {
+      currentLineFirstTopLevelIdentifier = null;
+      continue;
+    }
+    if (ignoredMask[index]) continue;
+    const identifier = readIdentifier(blockText, index);
+    if (!identifier) continue;
+    if (!currentLineFirstTopLevelIdentifier) {
+      currentLineFirstTopLevelIdentifier = identifier.identifier;
+    }
+    if (
+      identifier.identifier === 'action'
+      && allowsActionExtractionOnLine(currentLineFirstTopLevelIdentifier)
+      && isIdentifierBoundary(blockText[index - 1])
+      && isIdentifierBoundary(blockText[identifier.endIndex])
+    ) {
+      let cursor = identifier.endIndex;
+      if (!/\s|=/.test(blockText[cursor] ?? '')) {
+        index = identifier.endIndex - 1;
+        continue;
+      }
+      cursor = skipWhitespace(blockText, cursor);
+      if (blockText[cursor] === '=') {
+        cursor = skipWhitespace(blockText, cursor + 1);
+      }
+
+      const parsed = readScreenActionExpression(blockText, cursor);
+      if (parsed) {
+        expressions.push(parsed.expression);
+        index = parsed.endIndex - 1;
+        continue;
+      }
+    }
+    index = identifier.endIndex - 1;
+  }
+
+  return expressions;
 }
 
 function addDynamicTargetDiagnostic(
@@ -439,7 +648,10 @@ function splitTopLevelArguments(argumentList: string): string[] {
   return args;
 }
 
-function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '='): number {
+// Finds the first delimiter at the current expression depth. This is used for
+// top-level argument splitting/keyword parsing (`=`), dictionary payloads (`:`),
+// and comma-separated argument handling.
+function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): number {
   let depth = 0;
   let activeQuote: '"' | '\'' | null = null;
   let tripleQuoted = false;
@@ -505,6 +717,64 @@ function extractStaticTargetFromArgumentList(argumentList: string, scanState: Pa
   const equalsIndex = findTopLevelDelimiterIndex(firstArgument, '=');
   if (equalsIndex <= 0) return null;
   return resolveStaticTargetExpression(firstArgument.slice(equalsIndex + 1), scanState);
+}
+
+function extractNestedExpressionValue(expression: string): string {
+  const equalsIndex = findTopLevelDelimiterIndex(expression, '=');
+  if (equalsIndex > 0) {
+    return expression.slice(equalsIndex + 1).trim();
+  }
+  return expression.trim();
+}
+
+function isRecursiveScreenActionWrapper(construct: string): boolean {
+  return RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES.has(construct.toLowerCase());
+}
+
+function walkScreenActionExpression(
+  expression: string,
+  visitCall: (construct: string, argumentList: string) => void,
+): void {
+  const trimmed = expression.trim();
+  if (!trimmed) return;
+
+  const balancedRoot = readScreenActionExpression(trimmed, 0);
+  if (!balancedRoot || balancedRoot.endIndex !== trimmed.length) return;
+
+  const opener = trimmed[0];
+  if (opener === '[' || opener === '(' || opener === '{') {
+    const inner = trimmed.slice(1, -1);
+    for (const item of splitTopLevelArguments(inner)) {
+      if (opener === '{') {
+        const colonIndex = findTopLevelDelimiterIndex(item, ':');
+        if (colonIndex > -1) {
+          walkScreenActionExpression(item.slice(colonIndex + 1), visitCall);
+          continue;
+        }
+      }
+      walkScreenActionExpression(extractNestedExpressionValue(item), visitCall);
+    }
+    return;
+  }
+
+  let identifierEnd = 1;
+  while (identifierEnd < trimmed.length && IDENTIFIER_PART_PATTERN.test(trimmed[identifierEnd] ?? '')) {
+    identifierEnd += 1;
+  }
+  const construct = trimmed.slice(0, identifierEnd);
+  const afterIdentifier = skipWhitespace(trimmed, identifierEnd);
+  if (trimmed[afterIdentifier] !== '(') return;
+
+  const parsedArguments = readParenthesizedArgument(trimmed, afterIdentifier + 1);
+  if (!parsedArguments || parsedArguments.endIndex !== trimmed.length) return;
+
+  visitCall(construct, parsedArguments.argument);
+  if (!isRecursiveScreenActionWrapper(construct)) {
+    return;
+  }
+  for (const argument of splitTopLevelArguments(parsedArguments.argument)) {
+    walkScreenActionExpression(extractNestedExpressionValue(argument), visitCall);
+  }
 }
 
 function buildIgnoredPositionMask(text: string): boolean[] {
@@ -715,9 +985,7 @@ function processDirectScreenActionCalls(
   blockText: string,
   screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
-  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const seenCalls = new Set<string>();
-  const ignoredMask = buildIgnoredPositionMask(blockText);
   const emitActionCall = (construct: string, targetExpression: string) => {
     const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) return;
@@ -737,31 +1005,8 @@ function processDirectScreenActionCalls(
     }
   };
 
-  SCREEN_ACTION_CALL_START_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = SCREEN_ACTION_CALL_START_PATTERN.exec(blockText)) !== null) {
-    if (ignoredMask[match.index]) {
-      continue;
-    }
-    const construct = match[1];
-    if (!screenActionRuleMap.has(construct.toLowerCase())) continue;
-    const parsed = readParenthesizedArgument(blockText, SCREEN_ACTION_CALL_START_PATTERN.lastIndex);
-    if (!parsed) continue;
-    SCREEN_ACTION_CALL_START_PATTERN.lastIndex = parsed.endIndex;
-    emitActionCall(construct, parsed.argument);
-  }
-
-  for (const [ruleName] of screenActionRuleMap.entries()) {
-    const callPattern = new RegExp(`\\b(${escapeRegex(ruleName)})\\s*\\(`, 'gi');
-    let callMatch: RegExpExecArray | null;
-    while ((callMatch = callPattern.exec(blockText)) !== null) {
-      const callIndex = callMatch.index;
-      if (ignoredMask[callIndex]) continue;
-      const parsed = readParenthesizedArgument(blockText, callPattern.lastIndex);
-      if (!parsed) continue;
-      callPattern.lastIndex = parsed.endIndex;
-      emitActionCall(callMatch[1] ?? ruleName, parsed.argument);
-    }
+  for (const expression of extractScreenActionExpressions(blockText)) {
+    walkScreenActionExpression(expression, emitActionCall);
   }
 }
 
