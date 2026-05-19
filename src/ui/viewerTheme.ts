@@ -13,10 +13,15 @@ export interface ThemeColors {
   menuBg: string;
   menuTitle: string;
   menuText: string;
+  decisionBorder: string;
+  decisionBg: string;
+  decisionTitle: string;
+  decisionText: string;
   edge: string;
   grid: string;
   minimapLabel: string;
   minimapMenu: string;
+  minimapDecision: string;
 }
 
 export const THEMES: Record<ThemeName, ThemeColors> = {
@@ -33,10 +38,15 @@ export const THEMES: Record<ThemeName, ThemeColors> = {
     menuBg: '#fffbeb',
     menuTitle: '#f59e0b',
     menuText: '#78350f',
+    decisionBorder: '#0f766e',
+    decisionBg: '#f0fdfa',
+    decisionTitle: '#0f766e',
+    decisionText: '#134e4a',
     edge: '#4b5563',
     grid: '#d1d5db',
     minimapLabel: '#8b5cf6',
     minimapMenu: '#f59e0b',
+    minimapDecision: '#0f766e',
   },
   highContrast: {
     pageBg: '#ffffff',
@@ -51,10 +61,15 @@ export const THEMES: Record<ThemeName, ThemeColors> = {
     menuBg: '#f3f4f6',
     menuTitle: '#111111',
     menuText: '#000000',
+    decisionBorder: '#000000',
+    decisionBg: '#f3f4f6',
+    decisionTitle: '#111111',
+    decisionText: '#000000',
     edge: '#000000',
     grid: '#9ca3af',
     minimapLabel: '#000000',
     minimapMenu: '#4b5563',
+    minimapDecision: '#111111',
   },
   colorblind: {
     pageBg: '#f8fafc',
@@ -69,9 +84,14 @@ export const THEMES: Record<ThemeName, ThemeColors> = {
     menuBg: '#fff7cc',
     menuTitle: '#a16207',
     menuText: '#713f12',
+    decisionBorder: '#009e73',
+    decisionBg: '#ecfdf5',
+    decisionTitle: '#047857',
+    decisionText: '#065f46',
     edge: '#334155',
     grid: '#cbd5e1',
     minimapLabel: '#0072b2',
     minimapMenu: '#e69f00',
+    minimapDecision: '#009e73',
   },
 };

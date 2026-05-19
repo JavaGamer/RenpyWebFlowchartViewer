@@ -37,6 +37,7 @@ import {
 import {
   type CanvasNode,
   type CanvasEdge,
+  buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
@@ -188,6 +189,8 @@ function FlowchartCanvas({
     showAdvancedControls,
     showAllLabelSubgraphToggles,
     standaloneDialogueSearchMode,
+    mockFlags,
+    conditionVisibilityMode,
   } = useViewerStore(useShallow((s) => ({
     layoutDirection: s.layoutDirection,
     searchInput: s.searchInput,
@@ -208,6 +211,8 @@ function FlowchartCanvas({
     showAdvancedControls: s.showAdvancedControls,
     showAllLabelSubgraphToggles: s.showAllLabelSubgraphToggles,
     standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
+    mockFlags: s.mockFlags,
+    conditionVisibilityMode: s.conditionVisibilityMode,
   })));
   const {
     setLayoutDirection,
@@ -228,6 +233,9 @@ function FlowchartCanvas({
     setDialogueSearchResults,
     toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode,
+    setMockFlag,
+    resetMockFlags,
+    setConditionVisibilityMode,
     resetSession,
   } = useViewerStore(useShallow((s) => ({
     setLayoutDirection: s.setLayoutDirection,
@@ -248,6 +256,9 @@ function FlowchartCanvas({
     setDialogueSearchResults: s.setDialogueSearchResults,
     toggleShowAllLabelSubgraphToggles: s.toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
+    setMockFlag: s.setMockFlag,
+    resetMockFlags: s.resetMockFlags,
+    setConditionVisibilityMode: s.setConditionVisibilityMode,
     resetSession: s.resetSession,
   })));
 
@@ -365,6 +376,11 @@ function FlowchartCanvas({
     [setAllParentLabelsCollapsed, visibleSubgraphLabels],
   );
 
+  const conditionalVisibility = useMemo(
+    () => buildConditionalVisibility({ edges, mockFlags }),
+    [edges, mockFlags],
+  );
+
   // -- Search hook ------------------------------------------------------------
   const {
     effectiveSearch,
@@ -397,6 +413,8 @@ function FlowchartCanvas({
         minDialogue,
         collapsedChapters,
         collapsedLabelChildren,
+        conditionHiddenNodeIds:
+          conditionVisibilityMode === 'hide' ? conditionalVisibility.hiddenNodeIds : undefined,
         theme,
         // eslint-disable-next-line react-hooks/refs -- intentional: reads ref.current inside memo to get the identity-preserving cache map; the cache is updated in a useEffect after each render so stale reads can't occur (Issue 10)
         previousById: previousVisibleNodesByIdRef.current,
@@ -407,6 +425,8 @@ function FlowchartCanvas({
     [
       collapsedChapters,
       collapsedLabelChildren,
+      conditionVisibilityMode,
+      conditionalVisibility.hiddenNodeIds,
       dialogueMatchNodeIds,
       dialogueLineSearchEnabled,
       effectiveSearch,
@@ -432,12 +452,24 @@ function FlowchartCanvas({
         visibleNodeIds,
         edgeColor: THEMES[theme].edge,
         largeGraphMode,
+        conditionVisibilityMode,
+        edgeConditionStateById: conditionalVisibility.edgeConditionStateById,
         // eslint-disable-next-line react-hooks/refs -- intentional: same pattern as above (Issue 10)
         previousById: previousVisibleEdgesByIdRef.current,
       }),
     // previousVisibleEdgesByIdRef is a stable ref — including it here does not cause extra
     // renders but satisfies exhaustive-deps (Issue 10).
-    [edges, largeGraphMode, previousVisibleEdgesByIdRef, showCallReturns, theme, visibleEdgeKinds, visibleNodeIds],
+    [
+      conditionalVisibility.edgeConditionStateById,
+      conditionVisibilityMode,
+      edges,
+      largeGraphMode,
+      previousVisibleEdgesByIdRef,
+      showCallReturns,
+      theme,
+      visibleEdgeKinds,
+      visibleNodeIds,
+    ],
   );
 
   // Issue 10: update ref caches without triggering re-renders
@@ -623,6 +655,12 @@ function FlowchartCanvas({
             toggleParentLabel={toggleParentLabel}
             setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
             toggleShowAllLabelSubgraphToggles={toggleShowAllLabelSubgraphToggles}
+            discoveredFlags={conditionalVisibility.discoveredFlags}
+            mockFlags={mockFlags}
+            setMockFlag={setMockFlag}
+            resetMockFlags={resetMockFlags}
+            conditionVisibilityMode={conditionVisibilityMode}
+            setConditionVisibilityMode={setConditionVisibilityMode}
           />
         </div>
       )}
@@ -655,7 +693,11 @@ function FlowchartCanvas({
             <Controls />
             <MiniMap
               nodeColor={(n) =>
-                n.type === 'labelNode' ? THEMES[theme].minimapLabel : THEMES[theme].minimapMenu
+                n.type === 'labelNode'
+                  ? THEMES[theme].minimapLabel
+                  : n.type === 'menuNode'
+                    ? THEMES[theme].minimapMenu
+                    : THEMES[theme].minimapDecision
               }
             />
           </ReactFlow>

@@ -34,6 +34,8 @@ const DEFAULT_SESSION = {
   showAdvancedControls: false,
   showAllLabelSubgraphToggles: false,
   standaloneDialogueSearchMode: 'auto' as const,
+  mockFlags: Object.create(null) as Record<string, 'true' | 'false' | 'unknown'>,
+  conditionVisibilityMode: 'fade' as const,
 };
 
 describe('useViewerStore persistence', () => {
@@ -312,6 +314,36 @@ describe('useViewerStore session state actions', () => {
     expect(useViewerStore.getState().standaloneDialogueSearchMode).toBe('full');
   });
 
+  it('sets and resets mock flags for conditional simulation', () => {
+    useViewerStore.getState().setMockFlag('flag_a', 'true');
+    useViewerStore.getState().setMockFlag('flag_b', 'false');
+    expect(Object.fromEntries(Object.entries(useViewerStore.getState().mockFlags))).toEqual({
+      flag_a: 'true',
+      flag_b: 'false',
+    });
+
+    useViewerStore.getState().resetMockFlags();
+    expect(Object.keys(useViewerStore.getState().mockFlags)).toEqual([]);
+  });
+
+  it('ignores unsafe mock flag keys to prevent prototype pollution', () => {
+    useViewerStore.getState().setMockFlag('__proto__', 'true');
+    useViewerStore.getState().setMockFlag('constructor', 'false');
+    useViewerStore.getState().setMockFlag('prototype', 'unknown');
+    useViewerStore.getState().setMockFlag('safe_flag', 'true');
+
+    const mockFlags = useViewerStore.getState().mockFlags;
+    expect(Object.prototype.hasOwnProperty.call(mockFlags, '__proto__')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(mockFlags, 'constructor')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(mockFlags, 'prototype')).toBe(false);
+    expect(mockFlags.safe_flag).toBe('true');
+  });
+
+  it('setConditionVisibilityMode updates conditional visibility mode', () => {
+    useViewerStore.getState().setConditionVisibilityMode('hide');
+    expect(useViewerStore.getState().conditionVisibilityMode).toBe('hide');
+  });
+
   it('resetSession resets all session state to defaults without touching persisted state', () => {
     // Mutate persisted state.
     useViewerStore.getState().setTheme('highContrast');
@@ -336,6 +368,7 @@ describe('useViewerStore session state actions', () => {
     expect(s.focusNodeId).toBe('');
     expect(s.selectedNodeId).toBe('');
     expect(s.layoutDirection).toBe('TB');
+    expect(Object.keys(s.mockFlags)).toEqual([]);
+    expect(s.conditionVisibilityMode).toBe('fade');
   });
 });
-

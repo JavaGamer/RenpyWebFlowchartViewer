@@ -197,6 +197,50 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByTestId('mini-map-colors')).toHaveTextContent('#8b5cf6,#f59e0b');
   });
 
+  it('shows mock-state controls and hides unreachable conditional edges in hide mode', async () => {
+    const user = userEvent.setup();
+    const decisionNodes: FlowNode[] = [
+      { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0, chapter: 'ch' },
+      { id: 'decision_1', type: 'DECISION', label: 'if flag_a', dialogueCount: 0, chapter: 'ch' },
+      { id: 'path_true', type: 'LABEL', label: 'path_true', dialogueCount: 0, chapter: 'ch' },
+      { id: 'path_else', type: 'LABEL', label: 'path_else', dialogueCount: 0, chapter: 'ch' },
+    ];
+    const decisionEdges: FlowEdge[] = [
+      { id: 'seq_start__decision_1', source: 'start', target: 'decision_1', kind: 'sequence', label: 'if' },
+      {
+        id: 'jump_decision_1__path_true',
+        source: 'decision_1',
+        target: 'path_true',
+        kind: 'jump',
+        condition: { branchKind: 'if', expression: 'flag_a', references: ['flag_a'], decisionNodeId: 'decision_1' },
+      },
+      {
+        id: 'jump_decision_1__path_else',
+        source: 'decision_1',
+        target: 'path_else',
+        kind: 'jump',
+        condition: { branchKind: 'else', decisionNodeId: 'decision_1' },
+      },
+    ];
+
+    render(<FlowchartViewer flowNodes={decisionNodes} flowEdges={decisionEdges} />);
+
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
+    expect(screen.getByText(/Conditional simulation/i)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Mock value for flag_a/i })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mock value for flag_a/i }), 'false');
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: /Unreachable condition path visibility mode/i }),
+      'hide',
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('base-edge-jump_decision_1__path_true')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('base-edge-jump_decision_1__path_else')).toBeInTheDocument();
+  });
+
   it('does not crash when localStorage access throws', () => {
     const localStorageMock = {
       getItem: vi.fn(() => {

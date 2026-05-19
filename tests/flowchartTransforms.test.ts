@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyDagreLayout,
+  buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
@@ -335,5 +336,93 @@ describe('flowchartTransforms', () => {
       previousById: prevById,
     });
     expect(second[0]).toBe(first[0]);
+  });
+
+  it('evaluates conditional reachability and discovers mock flags from edge conditions', () => {
+    const layout = applyDagreLayout(
+      [
+        { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 },
+        { id: 'decision_1', type: 'DECISION', label: 'if flag', dialogueCount: 0 },
+        { id: 'branch_true', type: 'LABEL', label: 'branch_true', dialogueCount: 0 },
+        { id: 'branch_false', type: 'LABEL', label: 'branch_false', dialogueCount: 0 },
+      ],
+      [
+        { id: 'seq_start__decision_1', source: 'start', target: 'decision_1', kind: 'sequence' },
+        {
+          id: 'jump_decision_1__branch_true',
+          source: 'decision_1',
+          target: 'branch_true',
+          kind: 'jump',
+          condition: { branchKind: 'if', expression: 'flag_x', references: ['flag_x'], decisionNodeId: 'decision_1' },
+        },
+        {
+          id: 'jump_decision_1__branch_false',
+          source: 'decision_1',
+          target: 'branch_false',
+          kind: 'jump',
+          condition: { branchKind: 'else', decisionNodeId: 'decision_1' },
+        },
+      ],
+      'TB',
+    );
+
+    const visibility = buildConditionalVisibility({
+      edges: layout.edges as CanvasEdge[],
+      mockFlags: { flag_x: 'false' },
+    });
+    expect(visibility.discoveredFlags).toEqual(['flag_x']);
+    expect(visibility.edgeConditionStateById.get('jump_decision_1__branch_true')).toBe('unreachable');
+    expect(visibility.edgeConditionStateById.get('jump_decision_1__branch_false')).toBe('unknown');
+  });
+
+  it('hides unreachable conditional edges when mode is hide', () => {
+    const layout = applyDagreLayout(
+      [
+        { id: 'decision', type: 'DECISION', label: 'if f', dialogueCount: 0 },
+        { id: 'a', type: 'LABEL', label: 'a', dialogueCount: 0 },
+        { id: 'b', type: 'LABEL', label: 'b', dialogueCount: 0 },
+      ],
+      [
+        { id: 'e1', source: 'decision', target: 'a', kind: 'jump', condition: { branchKind: 'if', expression: 'f' } },
+        { id: 'e2', source: 'decision', target: 'b', kind: 'jump', condition: { branchKind: 'else' } },
+      ],
+      'TB',
+    );
+    const conditional = buildConditionalVisibility({ edges: layout.edges as CanvasEdge[], mockFlags: { f: 'false' } });
+    const edges = buildVisibleEdges({
+      edges: layout.edges as CanvasEdge[],
+      showCallReturns: true,
+      visibleEdgeKinds: { sequence: true, jump: true, call: true, call_return: true },
+      visibleNodeIds: new Set(['decision', 'a', 'b']),
+      edgeColor: '#111',
+      largeGraphMode: false,
+      conditionVisibilityMode: 'hide',
+      edgeConditionStateById: conditional.edgeConditionStateById,
+    });
+    expect(edges.map((edge) => edge.id)).toEqual(['e2']);
+  });
+
+  it('propagates hide-mode reachability through downstream sequence edges', () => {
+    const layout = applyDagreLayout(
+      [
+        { id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 },
+        { id: 'decision', type: 'DECISION', label: 'if f', dialogueCount: 0 },
+        { id: 'branch_false', type: 'LABEL', label: 'branch_false', dialogueCount: 0 },
+        { id: 'downstream', type: 'LABEL', label: 'downstream', dialogueCount: 0 },
+      ],
+      [
+        { id: 'start_decision', source: 'start', target: 'decision', kind: 'sequence' },
+        { id: 'decision_false_branch', source: 'decision', target: 'branch_false', kind: 'jump', condition: { branchKind: 'if', expression: 'f' } },
+        { id: 'branch_downstream', source: 'branch_false', target: 'downstream', kind: 'sequence' },
+      ],
+      'TB',
+    );
+
+    const conditional = buildConditionalVisibility({
+      edges: layout.edges as CanvasEdge[],
+      mockFlags: { f: 'false' },
+    });
+    expect(conditional.hiddenNodeIds.has('branch_false')).toBe(true);
+    expect(conditional.hiddenNodeIds.has('downstream')).toBe(true);
   });
 });

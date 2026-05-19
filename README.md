@@ -8,7 +8,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in label-scoped Python blocks, direct screen `action Jump(...)`/`action Call(...)` in label-scoped screen blocks, and counts dialogue lines per block.
 - **Conservative same-label target propagation** — resolves identifier targets for `jump expression`, direct `renpy.jump`/`renpy.call`, and screen action calls when a prior assignment in the same label binds that identifier to a static string literal (including typed forms like `name: str = "label"`).
 - **Variant-aware parser rules** — choose `Ren'Py` or `ST` parser variants, with variant defaults plus custom screen-action mappings persisted in browser storage across imports/projects.
-- **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus.
+- **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus, teal for Decisions (`if/elif/else` split points).
 - **Filtering and subgraph controls** — search labels/dialogue, filter by minimum dialogue lines, and use progressive disclosure to reveal advanced chapter/label subgraph controls (including collapse-all / expand-all).
 - **Dialogue inspector workflow** — search dialogue lines, open matching results directly, inspect node dialogue in a side panel, and expand beyond the default 20-line preview.
 - **Large-project optimization controls** — dialogue search mode can be set to full indexing or performance mode (label/count search only), with auto mode favoring faster first graph for near-max imports.
@@ -16,6 +16,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Themes and accessibility** — choose default, high-contrast, or colorblind-safe color palettes.
 - **Keyboard accessibility** — focus-visible controls, skip link support, and shortcut hints for common actions.
 - **Edge labels** — menu-option text and call annotations are shown on the connecting arrows.
+- **Conditional path simulation** — conditional branches retain expression metadata and can be simulated with mock flag values; unreachable branches can be faded or hidden.
 - **Export options** — export the current chart as PNG or SVG, and optionally download the raw graph as JSON.
 - **Privacy-aware debugging/reporting** — export a debug bundle and open a prefilled GitHub bug report, with file names and raw/script details excluded by default unless you explicitly opt in.
 - **Responsive UI** — toolbar, canvas, and inspector adapt for desktop, tablet, and mobile widths.
@@ -40,6 +41,10 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 - **Primary controls (always visible)**: search, minimum dialogue filter, fit view, export actions, zoom presets, and keyboard shortcut hints.
 - **Search mode selector (always visible)**: choose `Auto`, `Full dialogue line search`, or `Performance mode` depending on import size and responsiveness needs.
 - **Advanced controls (on demand)**: layout direction, theme, focus-label centering, large-graph mode controls, edge-kind toggles, chapter collapse, and label subgraph tools.
+- **Mock state panel (advanced controls)**:
+  - discovered condition flags are listed with `unknown` / `true` / `false` toggles
+  - unsupported or dynamic conditions remain `unknown` and are never force-hidden
+  - unreachable conditional branches can be either faded (default) or hidden
 - **Inspector model**:
   - shows both node-level match count and dialogue-line results while searching
   - supports keyboard result navigation (`↑` / `↓`) and open (`Enter`)
@@ -205,6 +210,7 @@ Then open <http://localhost:8080>.
 - **Extraction misses**: expected labels/menus/jump/call/action targets not emitted.
 - **False-positive edges**: edges emitted from comments/strings/non-action contexts.
 - **Control-flow misclassification**: incorrect fallthrough suppression around conditional/menu/return/jump/call.
+- **Conditional branch fidelity**: `if/elif/else` should materialize as explicit decision nodes with conditioned outgoing edges.
 - **Unresolved-target handling**: unresolved jump/call targets remain in graph with explicit warning signals.
 - **Render-time inaccuracies**: visibility/layout drops or unstable ordering for valid parser output.
 
@@ -216,6 +222,7 @@ Ambiguous constructs policy:
 - malformed scripts are best-effort parsed: recover parsable labels/edges without throwing
 - unresolved targets emit parser warnings and are preserved for downstream handling
 - nested/conditional menus preserve branch edges while avoiding unconditional fallthrough suppression
+- conditional expressions are evaluated conservatively in viewer simulation (`true` / `false` / `unknown`); unsupported expressions remain `unknown`
 - when available, uploaded relative paths are preserved for deterministic chapter naming and duplicate-basename imports
 
 ## Application Architecture

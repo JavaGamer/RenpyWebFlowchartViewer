@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { LabelNodeType, MenuNodeType } from '../flowchartTransforms';
+import type { DecisionNodeType, LabelNodeType, MenuNodeType } from '../flowchartTransforms';
 import { THEMES } from './viewerTheme';
 
 function getTheme(themeName: unknown) {
@@ -52,6 +52,33 @@ export function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
       </div>
       <div className="font-mono font-bold truncate text-sm" style={{ color: theme.menuText }}>
         {data.label}
+      </div>
+      <Handle type="source" position={Position.Bottom} />
+    </div>
+  );
+}
+
+export function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
+  const theme = getTheme(data.theme);
+  const expression = data.conditionExpression ?? data.label;
+  return (
+    <div className="w-[220px] flex items-center justify-center relative py-2">
+      <Handle type="target" position={Position.Top} />
+      <div
+        className="w-[160px] h-[160px] rotate-45 border-2 shadow-md rounded-xl flex items-center justify-center"
+        style={{ borderColor: theme.decisionBorder, backgroundColor: theme.decisionBg }}
+      >
+        <div className="-rotate-45 px-4 text-center">
+          <div
+            className="text-[10px] font-semibold uppercase tracking-widest mb-1"
+            style={{ color: theme.decisionTitle }}
+          >
+            Decision
+          </div>
+          <div className="font-mono text-xs font-semibold break-words" style={{ color: theme.decisionText }}>
+            {expression}
+          </div>
+        </div>
       </div>
       <Handle type="source" position={Position.Bottom} />
     </div>

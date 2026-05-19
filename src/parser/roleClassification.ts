@@ -3,6 +3,7 @@ import type { ParseGraphState } from './pipelineTypes';
 
 export function classifyNodeRole(state: ParseGraphState, node: FlowNode): FlowNode['role'] {
   if (node.type === 'MENU') return 'menu';
+  if (node.type === 'DECISION') return 'decision';
 
   const incoming = state.incomingByLabel.get(node.id);
   const outgoing = state.outgoingByLabel.get(node.id);
