@@ -35,7 +35,7 @@ export function createScanState(): ParseScanState {
     currentLabelIndent: null,
     currentLabelDeclaredName: null,
     currentLabelBaseId: null,
-    currentLabelSceneIndex: 0,
+    currentLabelSceneIndex: 1,
     currentLabelHasSplit: false,
     currentLabelHasContentSinceSceneBoundary: false,
     labelVariableLiteralTargets: new Map<string, string>(),

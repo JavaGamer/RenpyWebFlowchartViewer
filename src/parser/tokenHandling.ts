@@ -1245,7 +1245,7 @@ export function handleToken(
     scanState.currentLabelBaseId = null;
   }
   if (scanState.currentLabelSceneIndex === undefined) {
-    scanState.currentLabelSceneIndex = 0;
+    scanState.currentLabelSceneIndex = 1;
   }
   if (scanState.currentLabelHasSplit === undefined) {
     scanState.currentLabelHasSplit = false;
