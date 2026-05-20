@@ -21,6 +21,10 @@ export interface NodeData extends Record<string, unknown> {
   nodeType: 'LABEL' | 'MENU' | 'DECISION';
   chapter?: string;
   parentLabelId?: string;
+  role?: FlowNode['role'];
+  isShadowed?: boolean;
+  shadowOfId?: string;
+  isTerminalOutcome?: boolean;
   conditionExpression?: string;
   conditionReferences?: string[];
   theme: 'violet' | 'highContrast' | 'colorblind';
@@ -173,6 +177,10 @@ export function applyDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
+        role: n.role,
+        isShadowed: n.isShadowed,
+        shadowOfId: n.shadowOfId,
+        isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
         theme: resolvedTheme,
@@ -260,6 +268,10 @@ function applyProgressiveDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
+        role: n.role,
+        isShadowed: n.isShadowed,
+        shadowOfId: n.shadowOfId,
+        isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
         theme: resolvedTheme,
@@ -357,7 +369,11 @@ export function buildVisibleNodes(params: {
         prevData.dialogueLines === nodeData.dialogueLines &&
         prevData.nodeType === nodeData.nodeType &&
         prevData.chapter === nodeData.chapter &&
-        prevData.parentLabelId === nodeData.parentLabelId
+        prevData.parentLabelId === nodeData.parentLabelId &&
+        prevData.role === nodeData.role &&
+        prevData.isShadowed === nodeData.isShadowed &&
+        prevData.shadowOfId === nodeData.shadowOfId &&
+        prevData.isTerminalOutcome === nodeData.isTerminalOutcome
       ) {
         return previous;
       }

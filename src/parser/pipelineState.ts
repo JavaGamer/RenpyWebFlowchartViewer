@@ -22,6 +22,8 @@ export function createGraphState(): ParseGraphState {
     calledLabels: new Set<string>(),
     calledFromMenuOptionTargets: new Set<string>(),
     pendingCallReturns: [],
+    canonicalLabelIdByName: new Map<string, string>(),
+    labelDefinitionCountByName: new Map<string, number>(),
     diagnostics: [],
     diagnosticIds: new Set<string>(),
   };

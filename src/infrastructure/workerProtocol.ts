@@ -102,7 +102,7 @@ export interface ResultResponseMessage {
 }
 
 export interface ParseDiagnosticPayload {
-  code: 'dynamic_target' | 'normalization' | 'unresolved_target';
+  code: 'dynamic_target' | 'normalization' | 'unresolved_target' | 'shadowed_label';
   severity: 'warning' | 'error';
   message: string;
   location?: {
@@ -120,7 +120,9 @@ export interface ParseDiagnosticPayload {
       | 'missing_edge_source'
       | 'missing_edge_target'
       | 'invalid_edge_kind'
-      | 'duplicate_semantic_edge';
+      | 'duplicate_semantic_edge'
+      | 'shadowed_label'
+      | 'shadowed_target_resolution';
     detail?: string;
   };
   recoveryAction?: string;
@@ -154,15 +156,22 @@ export interface NormalizationParseDiagnosticPayload extends ParseDiagnosticPayl
       | 'missing_edge_source'
       | 'missing_edge_target'
       | 'invalid_edge_kind'
-      | 'duplicate_semantic_edge';
+      | 'duplicate_semantic_edge'
+      | 'shadowed_label'
+      | 'shadowed_target_resolution';
     detail?: string;
   };
+}
+
+export interface ShadowedLabelParseDiagnosticPayload extends ParseDiagnosticPayload {
+  code: 'shadowed_label';
 }
 
 export type StrictParseDiagnosticPayload =
   | DynamicTargetParseDiagnosticPayload
   | UnresolvedTargetParseDiagnosticPayload
-  | NormalizationParseDiagnosticPayload;
+  | NormalizationParseDiagnosticPayload
+  | ShadowedLabelParseDiagnosticPayload;
 
 export interface ErrorResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;

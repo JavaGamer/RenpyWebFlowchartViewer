@@ -496,6 +496,15 @@ function resolveCallContext(
   return { isInOption, source, optionText: menu?.optionText ?? null, condition };
 }
 
+function resolveTargetLabelId(
+  state: ParseGraphState,
+  targetExpression: string,
+): { resolvedTargetId: string } {
+  const targetName = targetExpression.trim();
+  const resolvedTargetId = state.canonicalLabelIdByName.get(targetName) ?? targetName;
+  return { resolvedTargetId };
+}
+
 function emitJumpEdge(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -505,24 +514,26 @@ function emitJumpEdge(
 ) {
   const { isInOption, source, optionText } = context;
   if (source) {
+    const { resolvedTargetId } = resolveTargetLabelId(state, target);
+    const edgeId = `jump_${source}__${resolvedTargetId}_${optionText ?? ''}`;
     addEdge(state, {
-      id: `jump_${source}__${target}_${optionText ?? ''}`,
+      id: edgeId,
       source,
-      target,
+      target: resolvedTargetId,
       kind: 'jump',
       label: isInOption ? (optionText ?? undefined) : undefined,
       condition: context.condition,
     });
-  }
-  if (!isInOption && scanState.currentLabelId) {
-    addOutgoing(state, scanState.currentLabelId, 'jump');
-    addIncoming(state, target, 'jump');
-  } else if (isInOption && source) {
-    // Register the menu node's outgoing jump traffic so that fallthrough
-    // detection (hasOutgoingEdge) correctly skips menus whose options all
-    // explicitly jump to another label.
-    addOutgoing(state, source, 'jump');
-    addIncoming(state, target, 'jump');
+    if (!isInOption && scanState.currentLabelId) {
+      addOutgoing(state, scanState.currentLabelId, 'jump');
+      addIncoming(state, resolvedTargetId, 'jump');
+    } else if (isInOption) {
+      // Register the menu node's outgoing jump traffic so that fallthrough
+      // detection (hasOutgoingEdge) correctly skips menus whose options all
+      // explicitly jump to another label.
+      addOutgoing(state, source, 'jump');
+      addIncoming(state, resolvedTargetId, 'jump');
+    }
   }
   if (suppressFallthrough && !isInOption && scanState.conditionalIndentStack.length === 0) {
     scanState.labelHasExplicitExit = true;
@@ -537,25 +548,26 @@ function emitCallEdge(
 ) {
   const { isInOption, source, optionText } = context;
   if (!source) return;
+  const { resolvedTargetId } = resolveTargetLabelId(state, target);
+  const edgeId = `call_${source}__${resolvedTargetId}_${optionText ?? ''}`;
   addEdge(state, {
-    id: `call_${source}__${target}_${optionText ?? ''}`,
+    id: edgeId,
     source,
-    target,
+    target: resolvedTargetId,
     kind: 'call',
     label: isInOption ? (optionText ? `call: ${optionText}` : 'call') : 'call',
     condition: context.condition,
   });
-
-  state.calledLabels.add(target);
+  state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {
     addOutgoing(state, scanState.currentLabelId, 'call');
-    addIncoming(state, target, 'call');
-    state.pendingCallReturns.push({
-      callerLabelId: scanState.currentLabelId,
-      callTargetId: target,
-    });
+    addIncoming(state, resolvedTargetId, 'call');
   }
-  if (isInOption) state.calledFromMenuOptionTargets.add(target);
+  state.pendingCallReturns.push({
+    returnTargetId: source,
+    callTargetId: resolvedTargetId,
+  });
+  if (isInOption) state.calledFromMenuOptionTargets.add(resolvedTargetId);
 }
 
 function extractLiteralTarget(expression: string): string | null {
@@ -1145,7 +1157,15 @@ export function handleToken(
     scanState.waitForLabelName &&
     meta.hasLabelStatement
   ) {
-    const newLabelId = val();
+    const declaredLabelName = val().trim();
+    const definitionCount = (state.labelDefinitionCountByName.get(declaredLabelName) ?? 0) + 1;
+    state.labelDefinitionCountByName.set(declaredLabelName, definitionCount);
+    const canonicalLabelId = state.canonicalLabelIdByName.get(declaredLabelName) ?? declaredLabelName;
+    state.canonicalLabelIdByName.set(declaredLabelName, canonicalLabelId);
+    const newLabelId =
+      definitionCount === 1
+        ? canonicalLabelId
+        : `${canonicalLabelId}__shadow_${definitionCount}`;
     if (
       scanState.currentLabelId !== null &&
       !scanState.labelHasExplicitExit &&
@@ -1184,10 +1204,35 @@ export function handleToken(
     addNode(state, {
       id: newLabelId,
       type: 'LABEL',
-      label: newLabelId,
+      label: declaredLabelName,
       dialogueCount: 0,
       chapter,
+      isShadowed: definitionCount > 1,
+      shadowOfId: definitionCount > 1 ? canonicalLabelId : undefined,
     });
+    if (definitionCount > 1) {
+      const diagnosticId = `shadowed_label|${chapter}|${declaredLabelName}|${newLabelId}|${canonicalLabelId}`;
+      addParseDiagnostic(
+        state,
+        {
+          code: 'shadowed_label',
+          severity: 'warning',
+          location: {
+            chapter,
+            construct: 'label',
+            sourceId: newLabelId,
+            targetId: canonicalLabelId,
+          },
+          context: {
+            category: 'shadowed_label',
+            detail: declaredLabelName,
+          },
+          message: `Label "${declaredLabelName}" is a duplicate definition and is shadowed by canonical label "${canonicalLabelId}".`,
+          recoveryAction: 'Rename duplicate labels or keep one canonical definition.',
+        },
+        diagnosticId,
+      );
+    }
     return;
   }
 

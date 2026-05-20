@@ -34,6 +34,32 @@ describe('flowchartTransforms', () => {
     expect(result.nodes[0]).toEqual(expect.objectContaining({ id: 'start' }));
   });
 
+  it('preserves shadow and terminal metadata on label node data', () => {
+    const result = applyDagreLayout(
+      [
+        {
+          id: 'ending',
+          type: 'LABEL',
+          label: 'ending',
+          dialogueCount: 0,
+          isShadowed: true,
+          shadowOfId: 'ending_canonical',
+          isTerminalOutcome: true,
+        },
+      ],
+      [],
+      'TB',
+    );
+    const nodeData = result.nodes[0]?.data as {
+      isShadowed?: boolean;
+      shadowOfId?: string;
+      isTerminalOutcome?: boolean;
+    };
+    expect(nodeData.isShadowed).toBe(true);
+    expect(nodeData.shadowOfId).toBe('ending_canonical');
+    expect(nodeData.isTerminalOutcome).toBe(true);
+  });
+
   it('computes node center based on node type dimensions', () => {
     const result = applyDagreLayout(flowNodes, flowEdges, 'TB');
     const node = result.nodes[0] as CanvasNode;
