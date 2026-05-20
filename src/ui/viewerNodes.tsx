@@ -11,21 +11,50 @@ function getTheme(themeName: unknown) {
 
 export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
   const theme = getTheme(data.theme);
+  const isShadowed = data.isShadowed === true;
+  const isTerminalOutcome = data.isTerminalOutcome === true;
   return (
     <div
       className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
-      style={{ borderColor: theme.labelBorder, backgroundColor: theme.labelBg }}
+      style={{
+        borderColor: theme.labelBorder,
+        backgroundColor: theme.labelBg,
+        borderStyle: isShadowed ? 'dashed' : 'solid',
+        opacity: isShadowed ? 0.9 : 1,
+      }}
     >
       <Handle type="target" position={Position.Top} />
-      <div
-        className="text-xs font-semibold uppercase tracking-widest mb-1"
-        style={{ color: theme.labelTitle }}
-      >
-        Label
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: theme.labelTitle }}
+        >
+          Label
+        </div>
+        <div className="flex items-center gap-1">
+          {isTerminalOutcome && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+              End of Route
+            </span>
+          )}
+          {isShadowed && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+              Shadowed
+            </span>
+          )}
+        </div>
       </div>
-      <div className="font-mono font-bold truncate text-sm" style={{ color: theme.labelText }}>
+      <div
+        className="font-mono font-bold truncate text-sm"
+        style={{ color: theme.labelText, opacity: isShadowed ? 0.8 : 1 }}
+      >
         {data.label}
       </div>
+      {isShadowed && data.shadowOfId && (
+        <div className="mt-1 text-[10px]" style={{ color: theme.labelTitle }}>
+          Canonical target: {data.shadowOfId}
+        </div>
+      )}
       {data.dialogueCount > 0 && (
         <div className="mt-1 text-xs" style={{ color: theme.labelTitle }}>
           {data.dialogueCount} dialogue line{data.dialogueCount !== 1 ? 's' : ''}

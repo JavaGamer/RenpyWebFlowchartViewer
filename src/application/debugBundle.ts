@@ -48,7 +48,9 @@ interface RedactedWarning {
     | 'missing_edge_source'
     | 'missing_edge_target'
     | 'invalid_edge_kind'
-    | 'duplicate_semantic_edge';
+    | 'duplicate_semantic_edge'
+    | 'shadowed_label'
+    | 'shadowed_target_resolution';
   edgeId?: string;
   sourceId?: string;
   targetId?: string;

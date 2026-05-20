@@ -29,6 +29,12 @@ export interface FlowNode {
   parentLabelId?: string;
   /** Optional condition metadata (primarily for DECISION nodes). */
   condition?: ConditionMetadata;
+  /** True when this label is a non-canonical duplicate definition. */
+  isShadowed?: boolean;
+  /** Canonical label id that this shadowed node maps to for target resolution. */
+  shadowOfId?: string;
+  /** True when this label is a terminal story outcome. */
+  isTerminalOutcome?: boolean;
 }
 
 /** A directed edge in the flowchart graph. */

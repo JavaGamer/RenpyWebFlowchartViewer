@@ -51,7 +51,7 @@ describe('parseRenpyFiles', () => {
     });
   });
 
-  it('deduplicates nodes and sequence edges across multiple files while aggregating dialogue counts', async () => {
+  it('keeps duplicate label nodes visible across files while preserving local sequence edges', async () => {
     const files = [
       {
         name: 'part1.rpy',
@@ -79,25 +79,20 @@ describe('parseRenpyFiles', () => {
 
     const result = await parseRenpyFiles(files);
 
-    const alphaNodes = result.nodes.filter((n) => n.id === 'alpha');
-    const downstreamNodes = result.nodes.filter((n) => n.id !== 'alpha');
-    expect(alphaNodes).toHaveLength(1);
-    expect(downstreamNodes).toHaveLength(1);
-    expect(alphaNodes[0]).toEqual(
-      expect.objectContaining({ dialogueCount: 2 }),
-    );
-    expect(downstreamNodes[0]).toEqual(
-      expect.objectContaining({ dialogueCount: 2 }),
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'alpha', dialogueCount: 1 }),
+        expect.objectContaining({ id: 'beta', dialogueCount: 1 }),
+        expect.objectContaining({ id: 'alpha__shadow_2', dialogueCount: 1, isShadowed: true, shadowOfId: 'alpha' }),
+        expect.objectContaining({ id: 'beta__shadow_2', dialogueCount: 1, isShadowed: true, shadowOfId: 'beta' }),
+      ]),
     );
 
-    const sequenceEdges = result.edges.filter((e) => e.source === 'alpha');
-    expect(sequenceEdges).toHaveLength(1);
-    expect(sequenceEdges[0]).toEqual(
-      expect.objectContaining({
-        source: 'alpha',
-        target: downstreamNodes[0]?.id,
-        label: 'next',
-      }),
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'alpha', target: 'beta', kind: 'sequence', label: 'next' }),
+        expect.objectContaining({ source: 'alpha__shadow_2', target: 'beta__shadow_2', kind: 'sequence', label: 'next' }),
+      ]),
     );
   });
 
@@ -660,6 +655,43 @@ describe('parseRenpyFiles', () => {
       expect.objectContaining({ source: 'main', target: 'helper', kind: 'call' }),
     );
     expect(result.edges.find((e) => e.kind === 'call_return' && e.source === 'helper' && e.target === 'main')).toBeUndefined();
+  });
+
+  it('adds call-return edges for menu option call, renpy.call, and screen action Call with direct-call parity', async () => {
+    const script = [
+      'label menu_caller:',
+      '    menu:',
+      '        "Ask":',
+      '            call helper',
+      '',
+      'label py_caller:',
+      '    python:',
+      '        renpy.call("helper")',
+      '',
+      'label screen_caller:',
+      '    screen chooser():',
+      '        textbutton "Go" action Call("helper")',
+      '',
+      'label helper:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'call-parity.rpy', content: script }]);
+    const menuNode = result.nodes.find((node) => node.type === 'MENU');
+    expect(menuNode).toBeDefined();
+    expect(menuNode?.id).toMatch(/^menu_/);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'call', source: menuNode?.id, target: 'helper' }),
+        expect.objectContaining({ kind: 'call_return', source: 'helper', target: menuNode?.id }),
+        expect.objectContaining({ kind: 'call', source: 'py_caller', target: 'helper' }),
+        expect.objectContaining({ kind: 'call_return', source: 'helper', target: 'py_caller' }),
+        expect.objectContaining({ kind: 'call', source: 'screen_caller', target: 'helper' }),
+        expect.objectContaining({ kind: 'call_return', source: 'helper', target: 'screen_caller' }),
+      ]),
+    );
   });
 
   it('classifies label roles using strict rules and keeps role metadata on nodes', async () => {
@@ -1588,7 +1620,24 @@ describe('parseRenpyFiles', () => {
     expect(helper?.role).toBe('utility');
   });
 
-  it('keeps first node metadata for duplicate labels while aggregating dialogue', async () => {
+  it('marks terminal story labels for end-of-route badge rendering', async () => {
+    const script = [
+      'label start:',
+      '    jump ending',
+      '',
+      'label ending:',
+      '    "The End"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'terminal-outcome.rpy', content: script }]);
+    const start = result.nodes.find((n) => n.id === 'start');
+    const ending = result.nodes.find((n) => n.id === 'ending');
+    expect(start?.isTerminalOutcome).toBe(false);
+    expect(ending?.isTerminalOutcome).toBe(true);
+  });
+
+  it('keeps duplicate labels visible as shadowed nodes and emits warnings', async () => {
     const result = await parseRenpyFiles([
       {
         name: 'chapter_one.rpy',
@@ -1601,9 +1650,24 @@ describe('parseRenpyFiles', () => {
     ]);
 
     const same = result.nodes.find((n) => n.id === 'same');
+    const shadow = result.nodes.find((n) => n.id === 'same__shadow_2');
     expect(same).toBeDefined();
     expect(same?.chapter).toBe('chapter_one');
-    expect(same?.dialogueCount).toBe(2);
+    expect(same?.dialogueCount).toBe(1);
+    expect(shadow).toBeDefined();
+    expect(shadow?.chapter).toBe('chapter_two');
+    expect(shadow?.dialogueCount).toBe(1);
+    expect(shadow?.isShadowed).toBe(true);
+    expect(shadow?.shadowOfId).toBe('same');
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'shadowed_label',
+          context: expect.objectContaining({ category: 'shadowed_label' }),
+          location: expect.objectContaining({ sourceId: 'same__shadow_2', targetId: 'same' }),
+        }),
+      ]),
+    );
   });
 
   it('uses relative paths to keep duplicate basenames distinct and deterministically ordered', async () => {
@@ -1629,9 +1693,54 @@ describe('parseRenpyFiles', () => {
     );
 
     const same = result.nodes.find((n) => n.id === 'same');
+    const shadow = result.nodes.find((n) => n.id === 'same__shadow_2');
     expect(same?.chapter).toBe('routes/alpha/script');
-    expect(same?.dialogueCount).toBe(2);
+    expect(same?.dialogueCount).toBe(1);
+    expect(shadow?.chapter).toBe('routes/beta/script');
+    expect(shadow?.dialogueCount).toBe(1);
     expect(progressFiles).toEqual(['routes/alpha/script.rpy', 'routes/beta/script.rpy']);
+  });
+
+  it('warns when jump/call targets resolve through shadowed duplicate labels', async () => {
+    const result = await parseRenpyFiles([
+      {
+        name: 'a.rpy',
+        content: ['label start:', '    jump same', ''].join('\n'),
+      },
+      {
+        name: 'b.rpy',
+        content: ['label helper:', '    call same', ''].join('\n'),
+      },
+      {
+        name: 'c.rpy',
+        content: ['label same:', '    return', ''].join('\n'),
+      },
+      {
+        name: 'd.rpy',
+        content: ['label same:', '    return', ''].join('\n'),
+      },
+    ]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'same', kind: 'jump' }),
+        expect.objectContaining({ source: 'helper', target: 'same', kind: 'call' }),
+      ]),
+    );
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'shadowed_label',
+          context: expect.objectContaining({ category: 'shadowed_target_resolution' }),
+          location: expect.objectContaining({ sourceId: 'start', targetId: 'same' }),
+        }),
+        expect.objectContaining({
+          code: 'shadowed_label',
+          context: expect.objectContaining({ category: 'shadowed_target_resolution' }),
+          location: expect.objectContaining({ sourceId: 'helper', targetId: 'same' }),
+        }),
+      ]),
+    );
   });
 
   it('resolves jumps to labels that are defined in a different file', async () => {

@@ -6,6 +6,8 @@ import { evaluateConditionExpression, type MockFlagValue } from './conditionLogi
 
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT_LABEL = 90;
+export const NODE_HEIGHT_LABEL_TERMINAL = 104;
+export const NODE_HEIGHT_LABEL_SHADOWED = 122;
 export const NODE_HEIGHT_MENU = 80;
 // Keep this aligned with the rendered decision node height (diamond + vertical padding).
 export const NODE_HEIGHT_DECISION = 176;
@@ -21,6 +23,10 @@ export interface NodeData extends Record<string, unknown> {
   nodeType: 'LABEL' | 'MENU' | 'DECISION';
   chapter?: string;
   parentLabelId?: string;
+  role?: FlowNode['role'];
+  isShadowed?: boolean;
+  shadowOfId?: string;
+  isTerminalOutcome?: boolean;
   conditionExpression?: string;
   conditionReferences?: string[];
   theme: 'violet' | 'highContrast' | 'colorblind';
@@ -58,10 +64,16 @@ function compareIdsLocaleIndependent(a: string, b: string): number {
   return 0;
 }
 
-function getNodeHeight(nodeType: FlowNode['type']): number {
-  if (nodeType === 'MENU') return NODE_HEIGHT_MENU;
-  if (nodeType === 'DECISION') return NODE_HEIGHT_DECISION;
+function getLabelHeight(params: { isShadowed?: boolean; isTerminalOutcome?: boolean }): number {
+  if (params.isShadowed) return NODE_HEIGHT_LABEL_SHADOWED;
+  if (params.isTerminalOutcome) return NODE_HEIGHT_LABEL_TERMINAL;
   return NODE_HEIGHT_LABEL;
+}
+
+function getNodeHeight(node: Pick<FlowNode, 'type' | 'isShadowed' | 'isTerminalOutcome'>): number {
+  if (node.type === 'MENU') return NODE_HEIGHT_MENU;
+  if (node.type === 'DECISION') return NODE_HEIGHT_DECISION;
+  return getLabelHeight(node);
 }
 
 function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
@@ -143,7 +155,7 @@ export function applyDagreLayout(
   normalizedNodes.forEach((n) => {
     g.setNode(n.id, {
       width: NODE_WIDTH,
-      height: getNodeHeight(n.type),
+      height: getNodeHeight(n),
     });
   });
 
@@ -158,7 +170,7 @@ export function applyDagreLayout(
   const resolvedTheme: ThemeName = options?.theme ?? 'violet';
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = g.node(n.id);
-    const h = getNodeHeight(n.type);
+    const h = getNodeHeight(n);
     return {
       id: n.id,
       type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
@@ -173,6 +185,10 @@ export function applyDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
+        role: n.role,
+        isShadowed: n.isShadowed,
+        shadowOfId: n.shadowOfId,
+        isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
         theme: resolvedTheme,
@@ -223,7 +239,7 @@ function applyProgressiveDagreLayout(
   const fallbackStartX = maxX + 80;
   const fallbackStartY = maxY + 80;
   const fallbackStrideX = NODE_WIDTH + 24;
-  const fallbackStrideY = NODE_HEIGHT_LABEL + 24;
+  const fallbackStrideY = NODE_HEIGHT_LABEL_SHADOWED + 24;
   let fallbackIndex = 0;
   const fallbackColumns = Math.max(
     4,
@@ -247,7 +263,7 @@ function applyProgressiveDagreLayout(
 
   const resolvedTheme: ThemeName = theme ?? 'violet';
   const nodes: CanvasNode[] = orderedNodes.map((n) => {
-    const h = getNodeHeight(n.type);
+    const h = getNodeHeight(n);
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
     return {
       id: n.id,
@@ -260,6 +276,10 @@ function applyProgressiveDagreLayout(
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
+        role: n.role,
+        isShadowed: n.isShadowed,
+        shadowOfId: n.shadowOfId,
+        isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
         theme: resolvedTheme,
@@ -285,8 +305,17 @@ function applyProgressiveDagreLayout(
 }
 
 export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
+  const nodeData = node.data as NodeData;
   const nodeHeight =
-    node.type === 'labelNode' ? NODE_HEIGHT_LABEL : node.type === 'menuNode' ? NODE_HEIGHT_MENU : NODE_HEIGHT_DECISION;
+    node.measured?.height ??
+    (node.type === 'labelNode'
+      ? getLabelHeight({
+          isShadowed: nodeData.isShadowed,
+          isTerminalOutcome: nodeData.isTerminalOutcome,
+        })
+      : node.type === 'menuNode'
+        ? NODE_HEIGHT_MENU
+        : NODE_HEIGHT_DECISION);
   return {
     x: node.position.x + NODE_WIDTH / 2,
     y: node.position.y + nodeHeight / 2,
@@ -357,7 +386,11 @@ export function buildVisibleNodes(params: {
         prevData.dialogueLines === nodeData.dialogueLines &&
         prevData.nodeType === nodeData.nodeType &&
         prevData.chapter === nodeData.chapter &&
-        prevData.parentLabelId === nodeData.parentLabelId
+        prevData.parentLabelId === nodeData.parentLabelId &&
+        prevData.role === nodeData.role &&
+        prevData.isShadowed === nodeData.isShadowed &&
+        prevData.shadowOfId === nodeData.shadowOfId &&
+        prevData.isTerminalOutcome === nodeData.isTerminalOutcome
       ) {
         return previous;
       }

@@ -38,7 +38,9 @@ export interface ParseDiagnosticContext {
     | 'missing_edge_source'
     | 'missing_edge_target'
     | 'invalid_edge_kind'
-    | 'duplicate_semantic_edge';
+    | 'duplicate_semantic_edge'
+    | 'shadowed_label'
+    | 'shadowed_target_resolution';
   detail?: string;
 }
 
@@ -69,9 +71,15 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | 'missing_edge_source'
       | 'missing_edge_target'
       | 'invalid_edge_kind'
-      | 'duplicate_semantic_edge';
+      | 'duplicate_semantic_edge'
+      | 'shadowed_label'
+      | 'shadowed_target_resolution';
     detail?: string;
   };
+}
+
+export interface ShadowedLabelParseDiagnostic extends ParseDiagnosticBase {
+  code: 'shadowed_label';
 }
 
 export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
@@ -86,7 +94,8 @@ export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
 export type ParseDiagnostic =
   | DynamicTargetParseDiagnostic
   | NormalizationParseDiagnostic
-  | UnresolvedTargetParseDiagnostic;
+  | UnresolvedTargetParseDiagnostic
+  | ShadowedLabelParseDiagnostic;
 
 export interface ParseScanState {
   currentLabelId: string | null;
@@ -123,7 +132,9 @@ export interface ParseGraphState {
   hasReliableReturnInLabel: Set<string>;
   calledLabels: Set<string>;
   calledFromMenuOptionTargets: Set<string>;
-  pendingCallReturns: Array<{ callerLabelId: string; callTargetId: string }>;
+  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  canonicalLabelIdByName: Map<string, string>;
+  labelDefinitionCountByName: Map<string, number>;
   diagnostics: ParseDiagnostic[];
   diagnosticIds: Set<string>;
 }
