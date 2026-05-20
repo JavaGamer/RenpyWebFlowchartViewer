@@ -40,8 +40,8 @@ function emitShadowedTargetResolutionDiagnostics(state: ParseGraphState): void {
 
 export function finalizeRoles(state: ParseGraphState) {
   materializeCallReturnEdges(state);
-  emitShadowedTargetResolutionDiagnostics(state);
   normalizeGraphState(state);
+  emitShadowedTargetResolutionDiagnostics(state);
 
   for (const node of state.nodes) {
     node.role = classifyNodeRole(state, node);
