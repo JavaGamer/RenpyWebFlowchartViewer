@@ -51,7 +51,7 @@ describe('parseRenpyFiles', () => {
     });
   });
 
-  it('deduplicates nodes and sequence edges across multiple files while aggregating dialogue counts', async () => {
+  it('keeps duplicate label nodes visible across files while preserving local sequence edges', async () => {
     const files = [
       {
         name: 'part1.rpy',
@@ -79,25 +79,20 @@ describe('parseRenpyFiles', () => {
 
     const result = await parseRenpyFiles(files);
 
-    const alphaNodes = result.nodes.filter((n) => n.id === 'alpha');
-    const downstreamNodes = result.nodes.filter((n) => n.id !== 'alpha');
-    expect(alphaNodes).toHaveLength(1);
-    expect(downstreamNodes).toHaveLength(1);
-    expect(alphaNodes[0]).toEqual(
-      expect.objectContaining({ dialogueCount: 2 }),
-    );
-    expect(downstreamNodes[0]).toEqual(
-      expect.objectContaining({ dialogueCount: 2 }),
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'alpha', dialogueCount: 1 }),
+        expect.objectContaining({ id: 'beta', dialogueCount: 1 }),
+        expect.objectContaining({ id: 'alpha__shadow_2', dialogueCount: 1, isShadowed: true, shadowOfId: 'alpha' }),
+        expect.objectContaining({ id: 'beta__shadow_2', dialogueCount: 1, isShadowed: true, shadowOfId: 'beta' }),
+      ]),
     );
 
-    const sequenceEdges = result.edges.filter((e) => e.source === 'alpha');
-    expect(sequenceEdges).toHaveLength(1);
-    expect(sequenceEdges[0]).toEqual(
-      expect.objectContaining({
-        source: 'alpha',
-        target: downstreamNodes[0]?.id,
-        label: 'next',
-      }),
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'alpha', target: 'beta', kind: 'sequence', label: 'next' }),
+        expect.objectContaining({ source: 'alpha__shadow_2', target: 'beta__shadow_2', kind: 'sequence', label: 'next' }),
+      ]),
     );
   });
 
@@ -685,6 +680,7 @@ describe('parseRenpyFiles', () => {
     const result = await parseRenpyFiles([{ name: 'call-parity.rpy', content: script }]);
     const menuNode = result.nodes.find((node) => node.type === 'MENU');
     expect(menuNode).toBeDefined();
+    expect(menuNode?.id).toMatch(/^menu_/);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
