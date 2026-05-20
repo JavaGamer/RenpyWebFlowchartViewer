@@ -147,4 +147,94 @@ describe('parseRenpyFiles coverage gaps', () => {
     expect(parseOneFile).not.toHaveBeenCalled();
     expect(tokenizeOneFile).not.toHaveBeenCalled();
   });
+
+  it('falls back to file name comparison when normalized relative paths are identical', async () => {
+    const parseOneFile = vi.fn(async () => undefined);
+    const processTokenizedFile = vi.fn();
+    const tokenizeOneFile = vi.fn(async () => ({ file: { name: 'a.rpy' }, tokenState: {} }));
+
+    const { parseRenpyFiles } = await loadParserWithMocks({
+      parseOneFile,
+      processTokenizedFile,
+      tokenizeOneFile,
+    });
+
+    await expect(
+      parseRenpyFiles(
+        [
+          {
+            name: 'b.rpy',
+            relativePath: 'routes\\same.rpy',
+            content: 'label b:\n',
+          },
+          {
+            name: 'a.rpy',
+            relativePath: 'routes/same.rpy',
+            content: 'label a:\n',
+          },
+        ],
+        { maxParallelFiles: 1 },
+      ),
+    ).resolves.toEqual({ nodes: [], edges: [] });
+
+    expect(parseOneFile).toHaveBeenCalledTimes(2);
+    expect(parseOneFile.mock.calls.map(([, file]) => file.name)).toEqual(['a.rpy', 'b.rpy']);
+  });
+
+  it('reports currentFile as the file name in sequential progress when relativePath is absent', async () => {
+    const parseOneFile = vi.fn(async () => undefined);
+    const processTokenizedFile = vi.fn();
+    const tokenizeOneFile = vi.fn(async () => ({ file: { name: 'a.rpy' }, tokenState: {} }));
+    const progressFiles: string[] = [];
+
+    const { parseRenpyFiles } = await loadParserWithMocks({
+      parseOneFile,
+      processTokenizedFile,
+      tokenizeOneFile,
+    });
+
+    await expect(
+      parseRenpyFiles([{ name: 'a.rpy', content: 'label a:\n' }], {
+        maxParallelFiles: 1,
+        onProgress: (progress) => {
+          progressFiles.push(progress.currentFile);
+        },
+      }),
+    ).resolves.toEqual({ nodes: [], edges: [] });
+
+    expect(progressFiles).toEqual(['a.rpy']);
+  });
+
+  it('reports currentFile as the file name in parallel progress when relativePath is absent', async () => {
+    const parseOneFile = vi.fn(async () => undefined);
+    const processTokenizedFile = vi.fn();
+    const tokenizeOneFile = vi.fn(async (file: { name: string }) => ({ file, tokenState: {} }));
+    const progressFiles: string[] = [];
+
+    const { parseRenpyFiles } = await loadParserWithMocks({
+      parseOneFile,
+      processTokenizedFile,
+      tokenizeOneFile,
+    });
+
+    await expect(
+      parseRenpyFiles(
+        [
+          { name: 'b.rpy', content: 'label b:\n' },
+          { name: 'a.rpy', content: 'label a:\n' },
+        ],
+        {
+          maxParallelFiles: 2,
+          onProgress: (progress) => {
+            progressFiles.push(progress.currentFile);
+          },
+        },
+      ),
+    ).resolves.toEqual({ nodes: [], edges: [] });
+
+    expect(progressFiles).toEqual(['a.rpy', 'b.rpy']);
+    expect(parseOneFile).not.toHaveBeenCalled();
+    expect(tokenizeOneFile).toHaveBeenCalledTimes(2);
+    expect(processTokenizedFile).toHaveBeenCalledTimes(2);
+  });
 });
