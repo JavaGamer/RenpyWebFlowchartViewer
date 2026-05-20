@@ -40,14 +40,14 @@ function toSceneLabelId(baseLabelId: string, sceneIndex: number): string {
   return `${baseLabelId}${LABEL_SCENE_ID_SEPARATOR}${sceneIndex}`;
 }
 
-function remapSetValue(set: Set<string>, fromId: string, toId: string): void {
+function replaceSetEntry(set: Set<string>, fromId: string, toId: string): void {
   if (!set.delete(fromId)) return;
   set.add(toId);
 }
 
 function remapMapKey<T>(map: Map<string, T>, fromId: string, toId: string): void {
-  const value = map.get(fromId);
-  if (value === undefined) return;
+  if (!map.has(fromId)) return;
+  const value = map.get(fromId) as T;
   map.delete(fromId);
   map.set(toId, value);
 }
@@ -64,10 +64,10 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
   if (state.allLabelIds.delete(fromId)) state.allLabelIds.add(toId);
   remapMapKey(state.outgoingByLabel, fromId, toId);
   remapMapKey(state.incomingByLabel, fromId, toId);
-  remapSetValue(state.hasReturnInLabel, fromId, toId);
-  remapSetValue(state.hasReliableReturnInLabel, fromId, toId);
-  remapSetValue(state.calledLabels, fromId, toId);
-  remapSetValue(state.calledFromMenuOptionTargets, fromId, toId);
+  replaceSetEntry(state.hasReturnInLabel, fromId, toId);
+  replaceSetEntry(state.hasReliableReturnInLabel, fromId, toId);
+  replaceSetEntry(state.calledLabels, fromId, toId);
+  replaceSetEntry(state.calledFromMenuOptionTargets, fromId, toId);
 
   for (const pendingCallReturn of state.pendingCallReturns) {
     if (pendingCallReturn.returnTargetId === fromId) pendingCallReturn.returnTargetId = toId;
@@ -117,7 +117,7 @@ function splitCurrentLabelOnSceneBoundary(
     scanState.currentLabelSceneIndex = 1;
   }
 
-  const sceneIndex = Math.max(1, scanState.currentLabelSceneIndex ?? 1) + 1;
+  const sceneIndex = (scanState.currentLabelSceneIndex ?? 1) + 1;
   const nextSceneId = toSceneLabelId(currentLabelBaseId, sceneIndex);
   addNode(state, {
     id: nextSceneId,
