@@ -8,6 +8,7 @@ import {
 
 export interface ParserTokenMap {
   kwLabel: number;
+  kwScene?: number;
   kwJump: number;
   kwExpression?: number;
   kwCall: number;
@@ -100,6 +101,7 @@ function buildTokenMap(): ParserTokenMap {
   const menuKeywords = readMenuKeywordTypes();
   return {
     kwLabel: assertEnumEntry('KeywordTokenType', 'Label', KeywordTokenType.Label),
+    kwScene: readOptionalEnumEntry(KeywordTokenType.Scene),
     kwJump: assertEnumEntry('KeywordTokenType', 'Jump', KeywordTokenType.Jump),
     kwExpression: readOptionalEnumEntry(KeywordTokenType.Expression),
     kwCall: assertEnumEntry('KeywordTokenType', 'Call', KeywordTokenType.Call),
