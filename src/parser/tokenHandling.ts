@@ -52,6 +52,26 @@ function remapMapKey<T>(map: Map<string, T>, fromId: string, toId: string): void
   map.set(toId, value);
 }
 
+function rebuildGraphFromState(state: ParseGraphState): void {
+  state.graph.clear();
+  state.pendingGraphEdgeIds.clear();
+
+  for (const node of state.nodes) {
+    if (!state.graph.hasNode(node.id)) {
+      state.graph.addNode(node.id, node);
+    }
+  }
+  for (const edge of state.edges) {
+    if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
+      if (!state.graph.hasEdge(edge.id)) {
+        state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+      }
+    } else {
+      state.pendingGraphEdgeIds.add(edge.id);
+    }
+  }
+}
+
 function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: string): void {
   if (fromId === toId) return;
   const node = state.nodeMap.get(fromId);
@@ -77,19 +97,49 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
     if (edge.source === fromId) edge.source = toId;
     if (edge.target === fromId) edge.target = toId;
   }
+  for (const stateNode of state.nodeMap.values()) {
+    if (stateNode.parentLabelId === fromId) {
+      stateNode.parentLabelId = toId;
+    }
+  }
   for (const [labelName, canonicalLabelId] of state.canonicalLabelIdByName.entries()) {
     if (canonicalLabelId === fromId) {
       state.canonicalLabelIdByName.set(labelName, toId);
     }
   }
+  rebuildGraphFromState(state);
+}
 
-  if (state.graph.hasNode(fromId)) {
-    const attrs = state.graph.getNodeAttributes(fromId);
-    state.graph.dropNode(fromId);
-    if (!state.graph.hasNode(toId)) {
-      state.graph.addNode(toId, attrs);
-    }
-  }
+function createDecisionConditionMetadata(
+  decisionContext: ParseScanState['conditionalDecisionStack'][number] | undefined,
+): ConditionMetadata | undefined {
+  if (!decisionContext) return undefined;
+  return {
+    branchKind: decisionContext.branchKind,
+    expression: decisionContext.expression ?? undefined,
+    references: decisionContext.references,
+    decisionNodeId: decisionContext.decisionNodeId,
+  };
+}
+
+function connectSceneSplitFromSource(
+  state: ParseGraphState,
+  sourceId: string,
+  nextSceneId: string,
+  label?: string,
+  condition?: ConditionMetadata,
+): void {
+  const baseEdgeId = `seq_${sourceId}__${nextSceneId}`;
+  addEdge(state, {
+    id: label ? edgeIdWithOption(baseEdgeId, label) : baseEdgeId,
+    source: sourceId,
+    target: nextSceneId,
+    kind: 'sequence',
+    label,
+    condition,
+  });
+  addOutgoing(state, sourceId, 'sequence');
+  addIncoming(state, nextSceneId, 'sequence');
 }
 
 function splitCurrentLabelOnSceneBoundary(
@@ -126,15 +176,30 @@ function splitCurrentLabelOnSceneBoundary(
     dialogueCount: 0,
     chapter,
   });
-  addEdge(state, {
-    id: `seq_${activeSceneId}__${nextSceneId}`,
-    source: activeSceneId,
-    target: nextSceneId,
-    kind: 'sequence',
-    label: 'next',
-  });
-  addOutgoing(state, activeSceneId, 'sequence');
-  addIncoming(state, nextSceneId, 'sequence');
+
+  if (scanState.pendingMenuFallthroughIds.length > 0) {
+    for (const menuId of scanState.pendingMenuFallthroughIds) {
+      connectSceneSplitFromSource(state, menuId, nextSceneId, 'next');
+    }
+    scanState.pendingMenuFallthroughIds = [];
+  } else {
+    const activeMenu = scanState.menuStack[scanState.menuStack.length - 1];
+    const activeDecision = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+    if (activeMenu) {
+      connectSceneSplitFromSource(state, activeMenu.id, nextSceneId, activeMenu.optionText ?? undefined);
+    } else if (activeDecision) {
+      connectSceneSplitFromSource(
+        state,
+        activeDecision.decisionNodeId,
+        nextSceneId,
+        undefined,
+        createDecisionConditionMetadata(activeDecision),
+      );
+    } else {
+      connectSceneSplitFromSource(state, activeSceneId, nextSceneId, 'next');
+    }
+  }
+
   state.allLabelIds.add(nextSceneId);
   scanState.currentLabelId = nextSceneId;
   scanState.currentLabelSceneIndex = sceneIndex;

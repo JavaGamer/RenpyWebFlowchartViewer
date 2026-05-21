@@ -236,22 +236,28 @@ describe('parseRenpyFiles', () => {
 
     const result = await parseRenpyFiles([{ name: 'menu-option-scene-split.rpy', content: script }]);
 
+    const menuNode = result.nodes.find((node) => node.type === 'MENU');
     expect(result.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'start__scene_1', label: 'start: Scene 1', type: 'LABEL' }),
         expect.objectContaining({ id: 'start__scene_2', label: 'start: Scene 2', type: 'LABEL' }),
       ]),
     );
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          source: 'start__scene_1',
-          target: 'start__scene_2',
-          kind: 'sequence',
-          label: 'next',
-        }),
-      ]),
+    expect(menuNode?.parentLabelId).toBe('start__scene_1');
+    const sceneSplitEdge = result.edges.find(
+      (edge) => edge.kind === 'sequence' && edge.target === 'start__scene_2',
     );
+    expect(sceneSplitEdge).toBeDefined();
+    expect(sceneSplitEdge?.source).toBe(menuNode?.id);
+    expect(sceneSplitEdge?.label).toBe('Pick');
+    expect(
+      result.edges.find(
+        (edge) =>
+          edge.kind === 'sequence' &&
+          edge.source === 'start__scene_1' &&
+          edge.target === 'start__scene_2',
+      ),
+    ).toBeUndefined();
   });
 
   it('enables scene-based label splitting by default for all parser variants', async () => {
