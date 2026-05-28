@@ -98,7 +98,7 @@ function findTopLevelHeaderColon(text: string): number {
     const char = text[i];
     if (activeQuote) {
       if (tripleQuoted) {
-        if (char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+        if (i + 2 < text.length && char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
           i += 2;
           activeQuote = null;
           tripleQuoted = false;
@@ -106,7 +106,11 @@ function findTopLevelHeaderColon(text: string): number {
         continue;
       }
       if (char === '\\') {
-        i += 1;
+        if (i + 1 < text.length) {
+          i += 1;
+        } else {
+          break;
+        }
         continue;
       }
       if (char === activeQuote) {
@@ -115,7 +119,7 @@ function findTopLevelHeaderColon(text: string): number {
       continue;
     }
 
-    if ((char === '"' || char === '\'') && text[i + 1] === char && text[i + 2] === char) {
+    if ((char === '"' || char === '\'') && i + 2 < text.length && text[i + 1] === char && text[i + 2] === char) {
       activeQuote = char;
       tripleQuoted = true;
       i += 2;
@@ -136,7 +140,8 @@ function findTopLevelHeaderColon(text: string): number {
       continue;
     }
     if (char === ')') {
-      parenDepth = Math.max(0, parenDepth - 1);
+      parenDepth -= 1;
+      if (parenDepth < 0) return -1;
       continue;
     }
     if (char === '[') {
@@ -144,7 +149,8 @@ function findTopLevelHeaderColon(text: string): number {
       continue;
     }
     if (char === ']') {
-      bracketDepth = Math.max(0, bracketDepth - 1);
+      bracketDepth -= 1;
+      if (bracketDepth < 0) return -1;
       continue;
     }
     if (char === '{') {
@@ -152,7 +158,8 @@ function findTopLevelHeaderColon(text: string): number {
       continue;
     }
     if (char === '}') {
-      braceDepth = Math.max(0, braceDepth - 1);
+      braceDepth -= 1;
+      if (braceDepth < 0) return -1;
       continue;
     }
 

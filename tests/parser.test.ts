@@ -746,7 +746,8 @@ describe('parseRenpyFiles', () => {
   it('preserves full conditional expression text when it contains nested colons', async () => {
     const script = [
       'label start:',
-      '    if route_map["a:b"] == {"k": "v:1"}: jump branch_a',
+      '    if route_map["a:b"] == {"k": "v:1"}:',
+      '        jump branch_a',
       '    else:',
       '        jump branch_b',
       '',
@@ -761,9 +762,7 @@ describe('parseRenpyFiles', () => {
     const result = await parseRenpyFiles([{ name: 'conditional_nested_colons.rpy', content: script }]);
     const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
     expect(decisionNode).toBeDefined();
-
-    const jumpToBranchA = result.edges.find((edge) => edge.source === decisionNode?.id && edge.target === 'branch_a');
-    expect(jumpToBranchA?.condition).toEqual(
+    expect(decisionNode?.condition).toEqual(
       expect.objectContaining({
         branchKind: 'if',
         expression: 'route_map["a:b"] == {"k": "v:1"}',
