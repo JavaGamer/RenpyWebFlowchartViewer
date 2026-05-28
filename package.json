@@ -16,7 +16,7 @@
     "@dagrejs/dagre": "^3.0.0",
     "@renpy/ast": "^0.1.0",
     "@tailwindcss/vite": "^4.2.2",
-    "@tanstack/react-virtual": "^3.13.24",
+    "@tanstack/react-virtual": "^3.13.25",
     "@xyflow/react": "^12.10.2",
     "file-saver": "^2.0.5",
     "fuse.js": "^7.3.0",
