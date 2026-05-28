@@ -22,7 +22,7 @@
     "fuse.js": "^7.3.0",
     "graphology": "^0.26.0",
     "html-to-image": "^1.11.13",
-    "immer": "^11.1.4",
+    "immer": "^11.1.8",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^1.17.0",
     "p-limit": "^7.3.0",
