@@ -19,6 +19,7 @@ interface FlatTokenLike {
 const RELEVANT_TOKEN_TYPES = new Set<number>([
   ...PARSER_TOKENS.menuKeywordTypes,
   PARSER_TOKENS.kwLabel,
+  PARSER_TOKENS.kwScene,
   PARSER_TOKENS.entityFunctionName,
   PARSER_TOKENS.kwJump,
   PARSER_TOKENS.kwCall,

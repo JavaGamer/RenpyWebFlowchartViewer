@@ -100,6 +100,11 @@ export type ParseDiagnostic =
 export interface ParseScanState {
   currentLabelId: string | null;
   currentLabelIndent: number | null;
+  currentLabelDeclaredName?: string | null;
+  currentLabelBaseId?: string | null;
+  currentLabelSceneIndex?: number;
+  currentLabelHasSplit?: boolean;
+  currentLabelHasContentSinceSceneBoundary?: boolean;
   labelVariableLiteralTargets: Map<string, string>;
   menuStack: Array<{ id: string; optionText: string | null }>;
   pendingMenuFallthroughIds: string[];

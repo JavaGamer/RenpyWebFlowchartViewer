@@ -34,6 +34,193 @@ function isWithinCurrentLabelScope(scanState: ParseScanState, meta: TokenMetaFla
   return lineIndent > scanState.currentLabelIndent;
 }
 
+const LABEL_SCENE_ID_SEPARATOR = '__scene_';
+
+function toSceneLabelId(baseLabelId: string, sceneIndex: number): string {
+  return `${baseLabelId}${LABEL_SCENE_ID_SEPARATOR}${sceneIndex}`;
+}
+
+function replaceSetEntry(set: Set<string>, fromId: string, toId: string): void {
+  if (!set.delete(fromId)) return;
+  set.add(toId);
+}
+
+function remapMapKey<T>(map: Map<string, T>, fromId: string, toId: string): void {
+  if (!map.has(fromId)) return;
+  const value = map.get(fromId) as T;
+  map.delete(fromId);
+  map.set(toId, value);
+}
+
+function rebuildGraphFromState(state: ParseGraphState): void {
+  state.graph.clear();
+  state.pendingGraphEdgeIds.clear();
+
+  for (const node of state.nodes) {
+    if (!state.graph.hasNode(node.id)) {
+      state.graph.addNode(node.id, node);
+    }
+  }
+  for (const edge of state.edges) {
+    if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
+      if (!state.graph.hasEdge(edge.id)) {
+        state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+      }
+    } else {
+      state.pendingGraphEdgeIds.add(edge.id);
+    }
+  }
+}
+
+function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: string): void {
+  if (fromId === toId) return;
+  const node = state.nodeMap.get(fromId);
+  if (node) {
+    node.id = toId;
+    state.nodeMap.delete(fromId);
+    state.nodeMap.set(toId, node);
+  }
+  if (state.nodeIds.delete(fromId)) state.nodeIds.add(toId);
+  if (state.allLabelIds.delete(fromId)) state.allLabelIds.add(toId);
+  remapMapKey(state.outgoingByLabel, fromId, toId);
+  remapMapKey(state.incomingByLabel, fromId, toId);
+  replaceSetEntry(state.hasReturnInLabel, fromId, toId);
+  replaceSetEntry(state.hasReliableReturnInLabel, fromId, toId);
+  replaceSetEntry(state.calledLabels, fromId, toId);
+  replaceSetEntry(state.calledFromMenuOptionTargets, fromId, toId);
+
+  for (const pendingCallReturn of state.pendingCallReturns) {
+    if (pendingCallReturn.returnTargetId === fromId) pendingCallReturn.returnTargetId = toId;
+    if (pendingCallReturn.callTargetId === fromId) pendingCallReturn.callTargetId = toId;
+  }
+  for (const edge of state.edges) {
+    if (edge.source === fromId) edge.source = toId;
+    if (edge.target === fromId) edge.target = toId;
+  }
+  for (const stateNode of state.nodeMap.values()) {
+    if (stateNode.parentLabelId === fromId) {
+      stateNode.parentLabelId = toId;
+    }
+  }
+  for (const [labelName, canonicalLabelId] of state.canonicalLabelIdByName.entries()) {
+    if (canonicalLabelId === fromId) {
+      state.canonicalLabelIdByName.set(labelName, toId);
+    }
+  }
+  rebuildGraphFromState(state);
+}
+
+function createDecisionConditionMetadata(
+  decisionContext: ParseScanState['conditionalDecisionStack'][number] | undefined,
+): ConditionMetadata | undefined {
+  if (!decisionContext) return undefined;
+  return {
+    branchKind: decisionContext.branchKind,
+    expression: decisionContext.expression ?? undefined,
+    references: decisionContext.references,
+    decisionNodeId: decisionContext.decisionNodeId,
+  };
+}
+
+function connectSceneSplitFromSource(
+  state: ParseGraphState,
+  sourceId: string,
+  nextSceneId: string,
+  label?: string,
+  condition?: ConditionMetadata,
+): void {
+  const baseEdgeId = `seq_${sourceId}__${nextSceneId}`;
+  addEdge(state, {
+    id: label ? edgeIdWithOption(baseEdgeId, label) : baseEdgeId,
+    source: sourceId,
+    target: nextSceneId,
+    kind: 'sequence',
+    label,
+    condition,
+  });
+  addOutgoing(state, sourceId, 'sequence');
+  addIncoming(state, nextSceneId, 'sequence');
+}
+
+function splitCurrentLabelOnSceneBoundary(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  chapter: string,
+  meta: TokenMetaFlags,
+  menuDepth: number,
+): void {
+  const currentLabelId = scanState.currentLabelId;
+  const currentLabelBaseId = scanState.currentLabelBaseId;
+  const currentLabelDeclaredName = scanState.currentLabelDeclaredName;
+  if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) return;
+  if (!scanState.currentLabelHasContentSinceSceneBoundary) return;
+
+  let activeSceneId = currentLabelId;
+  if (!scanState.currentLabelHasSplit) {
+    const sceneOneId = toSceneLabelId(currentLabelBaseId, 1);
+    remapLabelIdReferences(state, currentLabelId, sceneOneId);
+    const sceneOneNode = state.nodeMap.get(sceneOneId);
+    if (sceneOneNode) {
+      sceneOneNode.label = `${currentLabelDeclaredName}: Scene 1`;
+    }
+    activeSceneId = sceneOneId;
+    scanState.currentLabelId = sceneOneId;
+    scanState.currentLabelHasSplit = true;
+    scanState.currentLabelSceneIndex = 1;
+  }
+
+  const sceneIndex = (scanState.currentLabelSceneIndex ?? 1) + 1;
+  const nextSceneId = toSceneLabelId(currentLabelBaseId, sceneIndex);
+  addNode(state, {
+    id: nextSceneId,
+    type: 'LABEL',
+    label: `${currentLabelDeclaredName}: Scene ${sceneIndex}`,
+    dialogueCount: 0,
+    chapter,
+  });
+
+  if (scanState.pendingMenuFallthroughIds.length > 0) {
+    for (const menuId of scanState.pendingMenuFallthroughIds) {
+      connectSceneSplitFromSource(state, menuId, nextSceneId, 'next');
+    }
+    scanState.pendingMenuFallthroughIds = [];
+  } else {
+    const activeMenu = meta.hasMenuOptionBlock ? menuAtDepth(scanState.menuStack, menuDepth) : null;
+    const activeDecision = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+    if (activeMenu) {
+      connectSceneSplitFromSource(state, activeMenu.id, nextSceneId, activeMenu.optionText ?? undefined);
+    } else {
+      let fallbackMenu: { id: string; optionText: string | null } | null = null;
+      for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
+        const menu = scanState.menuStack[index];
+        if (!hasOutgoingEdge(state, menu.id)) {
+          fallbackMenu = menu;
+          break;
+        }
+      }
+      if (fallbackMenu) {
+        connectSceneSplitFromSource(state, fallbackMenu.id, nextSceneId, 'next');
+      } else if (activeDecision) {
+        connectSceneSplitFromSource(
+          state,
+          activeDecision.decisionNodeId,
+          nextSceneId,
+          undefined,
+          createDecisionConditionMetadata(activeDecision),
+        );
+      } else {
+        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, 'next');
+      }
+    }
+  }
+
+  state.allLabelIds.add(nextSceneId);
+  scanState.currentLabelId = nextSceneId;
+  scanState.currentLabelSceneIndex = sceneIndex;
+  scanState.currentLabelHasContentSinceSceneBoundary = false;
+  scanState.labelHasExplicitExit = false;
+}
+
 const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -1130,6 +1317,21 @@ export function handleToken(
   if (scanState.pendingConditionalHeader === undefined) {
     scanState.pendingConditionalHeader = null;
   }
+  if (scanState.currentLabelDeclaredName === undefined) {
+    scanState.currentLabelDeclaredName = null;
+  }
+  if (scanState.currentLabelBaseId === undefined) {
+    scanState.currentLabelBaseId = null;
+  }
+  if (scanState.currentLabelSceneIndex === undefined) {
+    scanState.currentLabelSceneIndex = 1;
+  }
+  if (scanState.currentLabelHasSplit === undefined) {
+    scanState.currentLabelHasSplit = false;
+  }
+  if (scanState.currentLabelHasContentSinceSceneBoundary === undefined) {
+    scanState.currentLabelHasContentSinceSceneBoundary = false;
+  }
   const { type, meta, val, chapter, menuDepth, lineIndent, captureDialogueLines, screenActionRuleMap } = input;
   resetStaleWaitFlags(scanState, type);
 
@@ -1183,6 +1385,11 @@ export function handleToken(
     }
 
     scanState.currentLabelId = newLabelId;
+    scanState.currentLabelBaseId = newLabelId;
+    scanState.currentLabelDeclaredName = declaredLabelName;
+    scanState.currentLabelSceneIndex = 1;
+    scanState.currentLabelHasSplit = false;
+    scanState.currentLabelHasContentSinceSceneBoundary = false;
     scanState.currentLabelIndent = lineIndent;
     scanState.labelVariableLiteralTargets.clear();
     for (const menuId of scanState.pendingMenuFallthroughIds) {
@@ -1240,16 +1447,25 @@ export function handleToken(
     return;
   }
 
+  if (PARSER_TOKENS.kwScene !== undefined && type === PARSER_TOKENS.kwScene) {
+    splitCurrentLabelOnSceneBoundary(state, scanState, chapter, meta, menuDepth);
+    return;
+  }
+
   if (type === PARSER_TOKENS.kwConditional) {
-    handleConditionalHeader(state, scanState, meta, menuDepth, chapter);
+    if (handleConditionalHeader(state, scanState, meta, menuDepth, chapter)) {
+      scanState.currentLabelHasContentSinceSceneBoundary = true;
+    }
   }
 
   if (type === PARSER_TOKENS.metaPythonBlock) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
     processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, val());
     return;
   }
 
   if (type === PARSER_TOKENS.metaScreenBlock) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
     processDirectScreenActionCalls(state, scanState, meta, chapter, menuDepth, val(), screenActionRuleMap);
     return;
   }
@@ -1257,6 +1473,7 @@ export function handleToken(
   if (scanState.currentLabelId === null) return;
 
   if (isMenuKeywordTokenType(type) && meta.hasMenuStatement) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
     const poppedMenus: Array<{ id: string; optionText: string | null }> = [];
     while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
       const closedMenu = scanState.menuStack.pop();
@@ -1346,6 +1563,7 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.kwJump && meta.hasJumpStatement) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
     scanState.waitForJumpTarget = true;
     scanState.waitForJumpExpressionTarget = false;
     return;
@@ -1378,6 +1596,7 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.kwCall && meta.hasCallStatement) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
     scanState.waitForCallTarget = true;
     return;
   }
@@ -1396,6 +1615,7 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.kwReturn && !meta.hasMenuOptionBlock) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
     const isReliableReturn = scanState.conditionalIndentStack.length === 0;
     if (isReliableReturn) {
       scanState.labelHasExplicitExit = true;
@@ -1413,6 +1633,7 @@ export function handleToken(
     const isMenuOption = meta.hasMenuOption;
 
     if (isSay && !isMenuOption) {
+      scanState.currentLabelHasContentSinceSceneBoundary = true;
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       const ownerId =
         meta.hasMenuOptionBlock && menu

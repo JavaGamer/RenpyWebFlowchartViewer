@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeTokenMeta } from '../src/parser/tokenMeta';
 import { PARSER_TOKENS } from '../src/parserTokens';
-import { createGraphState } from '../src/parser/pipelineState';
+import { createGraphState, createScanState } from '../src/parser/pipelineState';
 import { finalizeRoles } from '../src/parser/roleFinalization';
 import { addNode, addOutgoing, addIncoming } from '../src/parser/graphMutations';
 import { handleToken } from '../src/parser/tokenHandling';
@@ -395,6 +395,31 @@ describe('parser stage modules', () => {
     expect(state.graph.hasNode('next')).toBe(true);
     expect(state.graph.hasEdge(state.edges[0]!.id)).toBe(true);
     expect(state.pendingGraphEdgeIds.size).toBe(0);
+  });
+
+  it('preserves graph edges and parent label links when first scene split remaps label id', async () => {
+    const state = createGraphState();
+    const scanState = createScanState();
+    const script = [
+      'label start:',
+      '    menu:',
+      '        "Pick":',
+      '            "inside option"',
+      '            scene bg beach',
+      '            "after split trigger"',
+      '',
+    ].join('\n');
+    const doc = TextDocument.create('file://scene-remap.rpy', 'rpy', 1, script);
+    const tokenTree = await Tokenizer.tokenizeDocument(doc);
+
+    processTokenTreeStream(state, scanState, tokenTree, doc, 'scene-remap');
+
+    const menuNode = state.nodes.find((node) => node.type === 'MENU');
+    expect(menuNode).toBeDefined();
+    expect(menuNode?.parentLabelId).toBe('start__scene_1');
+    expect(state.graph.hasNode('start__scene_1')).toBe(true);
+    expect(state.graph.hasEdge('seq_start__menu_1')).toBe(true);
+    expect(state.graph.hasEdge('seq_menu_1__start__scene_2_Pick')).toBe(true);
   });
 
   it('normalization trims identifiers and emits a deterministic duplicate-node diagnostic', () => {

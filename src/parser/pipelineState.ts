@@ -33,6 +33,11 @@ export function createScanState(): ParseScanState {
   return {
     currentLabelId: null,
     currentLabelIndent: null,
+    currentLabelDeclaredName: null,
+    currentLabelBaseId: null,
+    currentLabelSceneIndex: 1,
+    currentLabelHasSplit: false,
+    currentLabelHasContentSinceSceneBoundary: false,
     labelVariableLiteralTargets: new Map<string, string>(),
     menuStack: [],
     pendingMenuFallthroughIds: [],
