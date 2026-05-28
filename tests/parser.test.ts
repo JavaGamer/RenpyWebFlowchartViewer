@@ -743,6 +743,34 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('preserves full conditional expression text when it contains nested colons', async () => {
+    const script = [
+      'label start:',
+      '    if route_map["a:b"] == {"k": "v:1"}: jump branch_a',
+      '    else:',
+      '        jump branch_b',
+      '',
+      'label branch_a:',
+      '    "A"',
+      '',
+      'label branch_b:',
+      '    "B"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional_nested_colons.rpy', content: script }]);
+    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    expect(decisionNode).toBeDefined();
+
+    const jumpToBranchA = result.edges.find((edge) => edge.source === decisionNode?.id && edge.target === 'branch_a');
+    expect(jumpToBranchA?.condition).toEqual(
+      expect.objectContaining({
+        branchKind: 'if',
+        expression: 'route_map["a:b"] == {"k": "v:1"}',
+      }),
+    );
+  });
+
   it('creates a call edge labeled with the option text when call is inside a menu option', async () => {
     const script = [
       'label hub:',
