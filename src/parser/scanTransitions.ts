@@ -88,9 +88,7 @@ function parseConditionalHeader(lineText: string): {
 }
 
 function findTopLevelHeaderColon(text: string): number {
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let braceDepth = 0;
+  const delimiterStack: Array<'(' | '[' | '{'> = [];
   let activeQuote: '"' | '\'' | null = null;
   let tripleQuoted = false;
 
@@ -135,35 +133,24 @@ function findTopLevelHeaderColon(text: string): number {
       break;
     }
 
-    if (char === '(') {
-      parenDepth += 1;
+    if (char === '(' || char === '[' || char === '{') {
+      delimiterStack.push(char);
       continue;
     }
-    if (char === ')') {
-      parenDepth -= 1;
-      if (parenDepth < 0) return -1;
-      continue;
-    }
-    if (char === '[') {
-      bracketDepth += 1;
-      continue;
-    }
-    if (char === ']') {
-      bracketDepth -= 1;
-      if (bracketDepth < 0) return -1;
-      continue;
-    }
-    if (char === '{') {
-      braceDepth += 1;
-      continue;
-    }
-    if (char === '}') {
-      braceDepth -= 1;
-      if (braceDepth < 0) return -1;
+    if (char === ')' || char === ']' || char === '}') {
+      const open = delimiterStack.pop();
+      if (
+        !open ||
+        (char === ')' && open !== '(') ||
+        (char === ']' && open !== '[') ||
+        (char === '}' && open !== '{')
+      ) {
+        return -1;
+      }
       continue;
     }
 
-    if (char === ':' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+    if (char === ':' && delimiterStack.length === 0) {
       return i;
     }
   }

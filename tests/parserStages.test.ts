@@ -273,6 +273,9 @@ describe('parser stage modules', () => {
       expression: 'route_map["a:b"] == {"k": "v:1"}',
     });
 
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, 'if ([flag)]:');
+    expect(scanState.pendingConditionalHeader).toBeNull();
+
     scanState.conditionalDecisionStack.push({
       indent: 4,
       decisionNodeId: 'decision_1',
