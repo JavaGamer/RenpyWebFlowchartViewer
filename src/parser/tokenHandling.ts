@@ -146,6 +146,8 @@ function splitCurrentLabelOnSceneBoundary(
   state: ParseGraphState,
   scanState: ParseScanState,
   chapter: string,
+  meta: TokenMetaFlags,
+  menuDepth: number,
 ): void {
   const currentLabelId = scanState.currentLabelId;
   const currentLabelBaseId = scanState.currentLabelBaseId;
@@ -183,20 +185,32 @@ function splitCurrentLabelOnSceneBoundary(
     }
     scanState.pendingMenuFallthroughIds = [];
   } else {
-    const activeMenu = scanState.menuStack[scanState.menuStack.length - 1];
+    const activeMenu = meta.hasMenuOptionBlock ? menuAtDepth(scanState.menuStack, menuDepth) : null;
     const activeDecision = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
     if (activeMenu) {
       connectSceneSplitFromSource(state, activeMenu.id, nextSceneId, activeMenu.optionText ?? undefined);
-    } else if (activeDecision) {
-      connectSceneSplitFromSource(
-        state,
-        activeDecision.decisionNodeId,
-        nextSceneId,
-        undefined,
-        createDecisionConditionMetadata(activeDecision),
-      );
     } else {
-      connectSceneSplitFromSource(state, activeSceneId, nextSceneId, 'next');
+      let fallbackMenu: { id: string; optionText: string | null } | null = null;
+      for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
+        const menu = scanState.menuStack[index];
+        if (!hasOutgoingEdge(state, menu.id)) {
+          fallbackMenu = menu;
+          break;
+        }
+      }
+      if (fallbackMenu) {
+        connectSceneSplitFromSource(state, fallbackMenu.id, nextSceneId, 'next');
+      } else if (activeDecision) {
+        connectSceneSplitFromSource(
+          state,
+          activeDecision.decisionNodeId,
+          nextSceneId,
+          undefined,
+          createDecisionConditionMetadata(activeDecision),
+        );
+      } else {
+        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, 'next');
+      }
     }
   }
 
@@ -1434,12 +1448,14 @@ export function handleToken(
   }
 
   if (PARSER_TOKENS.kwScene !== undefined && type === PARSER_TOKENS.kwScene) {
-    splitCurrentLabelOnSceneBoundary(state, scanState, chapter);
+    splitCurrentLabelOnSceneBoundary(state, scanState, chapter, meta, menuDepth);
     return;
   }
 
   if (type === PARSER_TOKENS.kwConditional) {
-    handleConditionalHeader(state, scanState, meta, menuDepth, chapter);
+    if (handleConditionalHeader(state, scanState, meta, menuDepth, chapter)) {
+      scanState.currentLabelHasContentSinceSceneBoundary = true;
+    }
   }
 
   if (type === PARSER_TOKENS.metaPythonBlock) {

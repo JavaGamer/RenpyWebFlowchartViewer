@@ -260,6 +260,49 @@ describe('parseRenpyFiles', () => {
     ).toBeUndefined();
   });
 
+  it('uses next for scene split routing after menu options finish', async () => {
+    const script = [
+      'label start:',
+      '    "before"',
+      '    menu:',
+      '        "Pick":',
+      '            "inside option"',
+      '    scene bg beach',
+      '    "after split trigger"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'menu-fallthrough-scene-split.rpy', content: script }]);
+    const menuNode = result.nodes.find((node) => node.type === 'MENU');
+    const sceneSplitEdge = result.edges.find(
+      (edge) => edge.kind === 'sequence' && edge.target === 'start__scene_2',
+    );
+
+    expect(sceneSplitEdge).toBeDefined();
+    expect(sceneSplitEdge?.source).toBe(menuNode?.id);
+    expect(sceneSplitEdge?.label).toBe('next');
+  });
+
+  it('splits labels when a conditional header appears before a scene boundary', async () => {
+    const script = [
+      'label start:',
+      '    if seen_intro:',
+      '        pass',
+      '    scene bg beach',
+      '    "after split trigger"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'conditional-scene-split.rpy', content: script }]);
+
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'start__scene_1', label: 'start: Scene 1', type: 'LABEL' }),
+        expect.objectContaining({ id: 'start__scene_2', label: 'start: Scene 2', type: 'LABEL' }),
+      ]),
+    );
+  });
+
   it('enables scene-based label splitting by default for all parser variants', async () => {
     const script = [
       'label route:',
