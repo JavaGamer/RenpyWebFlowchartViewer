@@ -70,16 +70,90 @@ function parseConditionalHeader(lineText: string): {
   expression: string | null;
 } | null {
   const trimmed = lineText.trim();
-  const ifMatch = /^if\s+(.+?)\s*:\s*(?:#.*)?$/.exec(trimmed);
-  if (ifMatch) {
-    return { kind: 'if', expression: ifMatch[1]?.trim() ?? null };
+  const keywordMatch = /^(if|elif|else)\b/.exec(trimmed);
+  if (!keywordMatch) return null;
+  const kind = keywordMatch[1] as ConditionalBranchKind;
+  const headerColonIndex = findTopLevelHeaderColon(trimmed);
+  if (headerColonIndex < 0) return null;
+
+  const headerPrefix = trimmed.slice(0, headerColonIndex).trim();
+  if (kind === 'else') {
+    return headerPrefix === 'else' ? { kind: 'else', expression: null } : null;
   }
-  const elifMatch = /^elif\s+(.+?)\s*:\s*(?:#.*)?$/.exec(trimmed);
-  if (elifMatch) {
-    return { kind: 'elif', expression: elifMatch[1]?.trim() ?? null };
+
+  if (!headerPrefix.startsWith(kind)) return null;
+  const expression = headerPrefix.slice(kind.length).trim();
+  if (!expression) return null;
+  return { kind, expression };
+}
+
+function findTopLevelHeaderColon(text: string): number {
+  const delimiterStack: Array<'(' | '[' | '{'> = [];
+  let activeQuote: '"' | '\'' | null = null;
+  let tripleQuoted = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (activeQuote) {
+      if (tripleQuoted) {
+        if (i + 2 < text.length && char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+          i += 2;
+          activeQuote = null;
+          tripleQuoted = false;
+        }
+        continue;
+      }
+      if (char === '\\') {
+        if (i + 1 < text.length) {
+          i += 1;
+        } else {
+          break;
+        }
+        continue;
+      }
+      if (char === activeQuote) {
+        activeQuote = null;
+      }
+      continue;
+    }
+
+    if ((char === '"' || char === '\'') && i + 2 < text.length && text[i + 1] === char && text[i + 2] === char) {
+      activeQuote = char;
+      tripleQuoted = true;
+      i += 2;
+      continue;
+    }
+    if (char === '"' || char === '\'') {
+      activeQuote = char;
+      tripleQuoted = false;
+      continue;
+    }
+
+    if (char === '#') {
+      break;
+    }
+
+    if (char === '(' || char === '[' || char === '{') {
+      delimiterStack.push(char);
+      continue;
+    }
+    if (char === ')' || char === ']' || char === '}') {
+      const open = delimiterStack.pop();
+      if (
+        !open ||
+        (char === ')' && open !== '(') ||
+        (char === ']' && open !== '[') ||
+        (char === '}' && open !== '{')
+      ) {
+        return -1;
+      }
+      continue;
+    }
+
+    if (char === ':' && delimiterStack.length === 0) {
+      return i;
+    }
   }
-  if (/^else\s*:\s*(?:#.*)?$/.test(trimmed)) {
-    return { kind: 'else', expression: null };
-  }
-  return null;
+
+  return -1;
 }

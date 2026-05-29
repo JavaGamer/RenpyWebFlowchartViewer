@@ -260,6 +260,22 @@ describe('parser stage modules', () => {
       expression: 'flag_a',
     });
 
+    maybeUpdateConditionalState(
+      scanState,
+      PARSER_TOKENS.kwConditional,
+      () => 'if',
+      4,
+      'if route_map["a:b"] == {"k": "v:1"}: jump branch_a',
+    );
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'if',
+      indent: 4,
+      expression: 'route_map["a:b"] == {"k": "v:1"}',
+    });
+
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, 'if ([flag)]:');
+    expect(scanState.pendingConditionalHeader).toBeNull();
+
     scanState.conditionalDecisionStack.push({
       indent: 4,
       decisionNodeId: 'decision_1',
