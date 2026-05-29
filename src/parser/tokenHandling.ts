@@ -221,7 +221,7 @@ function splitCurrentLabelOnSceneBoundary(
   scanState.labelHasExplicitExit = false;
 }
 
-const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
+const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const IDENTIFIER_START_PATTERN = /[A-Za-z_]/;
