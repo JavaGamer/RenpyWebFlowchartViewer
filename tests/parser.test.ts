@@ -1602,6 +1602,31 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts direct renpy api targets from legacy unicode-raw prefixed literals', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump(ur"jump_target")',
+      '        renpy.call(ru"call_target")',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-legacy-unicode-raw-prefixes.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
   it('uses the latest earlier same-label python assignment for direct renpy api targets', async () => {
     const script = [
       'label start:',
@@ -2186,5 +2211,21 @@ describe('parseRenpyFiles', () => {
     expect(node).toBeDefined();
     expect(node?.dialogueCount).toBe(2);
     expect(node?.dialogueLines).toEqual(['Hello {name}!', 'Another line']);
+  });
+
+  it('strips legacy unicode-raw prefixes from say-statement dialogue lines', async () => {
+    const script = [
+      'label start:',
+      '    ur"Line one"',
+      '    ru"Line two"',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'legacy-prefix-dialogue.rpy', content: script }]);
+
+    const node = result.nodes.find((n) => n.id === 'start');
+    expect(node).toBeDefined();
+    expect(node?.dialogueCount).toBe(2);
+    expect(node?.dialogueLines).toEqual(['Line one', 'Line two']);
   });
 });
