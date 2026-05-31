@@ -89,7 +89,7 @@ function getConditionalLogicalLine(
   const processLine = (lineText: string) => {
     let lastSignificantCharOutsideComment: string | null = null;
     for (let i = 0; i < lineText.length; i += 1) {
-      const char = lineText[i]!;
+      const char = lineText[i] ?? '';
       if (inComment) {
         continue;
       }

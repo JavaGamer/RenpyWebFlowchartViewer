@@ -781,7 +781,7 @@ function forEachCodeCharacterOutsideStringsAndComments(
   let inComment = false;
 
   while (index < text.length) {
-    const char = text[index]!;
+    const char = text[index] ?? '';
     if (inComment) {
       if (char === '\n') {
         inComment = false;
