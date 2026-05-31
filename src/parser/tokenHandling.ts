@@ -565,7 +565,7 @@ function parseTimerDurationFromLine(lineText: string): number | undefined {
   if (!trimmed.toLowerCase().startsWith('timer')) return undefined;
   const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)/i.exec(trimmed);
   if (!durationMatch) return undefined;
-  const durationSeconds = Number.parseFloat(durationMatch[1] ?? '');
+  const durationSeconds = Number.parseFloat(durationMatch[1]);
   return Number.isFinite(durationSeconds) ? durationSeconds : undefined;
 }
 

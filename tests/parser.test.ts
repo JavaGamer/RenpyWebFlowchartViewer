@@ -1132,7 +1132,7 @@ describe('parseRenpyFiles', () => {
     );
   });
 
-  it('fixture: extracts timer-driven screen actions as timeout-aware jump/call edges', async () => {
+  it('extracts timer-driven screen actions as timeout-aware jump/call edges', async () => {
     const result = await parseRenpyFiles([
       { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
     ]);
