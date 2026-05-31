@@ -88,12 +88,20 @@ function parseConditionalHeader(lineText: string): {
 }
 
 function findTopLevelHeaderColon(text: string): number {
-  const delimiterStack: Array<'(' | '[' | '{'> = [];
+  const delimiterStack: Array<')' | ']' | '}'> = [];
   let activeQuote: '"' | '\'' | null = null;
   let tripleQuoted = false;
+  let inComment = false;
 
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
+    if (inComment) {
+      if (char === '\n') {
+        inComment = false;
+      }
+      continue;
+    }
+
     if (activeQuote) {
       if (tripleQuoted) {
         if (i + 2 < text.length && char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
@@ -130,21 +138,17 @@ function findTopLevelHeaderColon(text: string): number {
     }
 
     if (char === '#') {
-      break;
+      inComment = true;
+      continue;
     }
 
     if (char === '(' || char === '[' || char === '{') {
-      delimiterStack.push(char);
+      delimiterStack.push(char === '(' ? ')' : char === '[' ? ']' : '}');
       continue;
     }
     if (char === ')' || char === ']' || char === '}') {
-      const open = delimiterStack.pop();
-      if (
-        !open ||
-        (char === ')' && open !== '(') ||
-        (char === ']' && open !== '[') ||
-        (char === '}' && open !== '{')
-      ) {
+      const expectedCloser = delimiterStack.pop();
+      if (!expectedCloser || expectedCloser !== char) {
         return -1;
       }
       continue;

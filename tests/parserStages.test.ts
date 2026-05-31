@@ -273,6 +273,35 @@ describe('parser stage modules', () => {
       expression: 'route_map["a:b"] == {"k": "v:1"}',
     });
 
+    const multilineGroupedHeader = [
+      'if (',
+      '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , : tokens',
+      '    guard_flag,',
+      ') and fallback_ready:',
+    ].join('\n');
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, multilineGroupedHeader);
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'if',
+      indent: 4,
+      expression: [
+        '(',
+        '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , : tokens',
+        '    guard_flag,',
+        ') and fallback_ready',
+      ].join('\n'),
+    });
+
+    const multilineBackslashHeader = [
+      'elif route_a and \\',
+      '    route_b:  # trailing comment with ) , :',
+    ].join('\n');
+    maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'elif', 4, multilineBackslashHeader);
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'elif',
+      indent: 4,
+      expression: ['route_a and \\', '    route_b'].join('\n'),
+    });
+
     maybeUpdateConditionalState(scanState, PARSER_TOKENS.kwConditional, () => 'if', 4, 'if ([flag)]:');
     expect(scanState.pendingConditionalHeader).toBeNull();
 
@@ -301,6 +330,94 @@ describe('parser stage modules', () => {
 
     maybeUpdateConditionalState(scanState, PARSER_TOKENS.entityFunctionName, () => 'jump', 4, 'jump branch');
     expect(scanState.conditionalDecisionStack).toHaveLength(0);
+  });
+
+  it('builds multiline logical conditional headers from physical lines in token scan stage', () => {
+    const state = createGraphState();
+    const scanState = {
+      currentLabelId: 'start',
+      currentLabelIndent: 0,
+      labelVariableLiteralTargets: new Map<string, string>(),
+      menuStack: [],
+      pendingMenuFallthroughIds: [],
+      conditionalIndentStack: [],
+      pendingConditionalHeader: null,
+      conditionalDecisionStack: [],
+      labelHasExplicitExit: false,
+      waitForLabelName: false,
+      waitForJumpTarget: false,
+      waitForJumpExpressionTarget: false,
+      waitForCallTarget: false,
+      waitForMenuNameForId: null as string | null,
+    };
+    const doc = TextDocument.create(
+      'file://conditional-multiline.rpy',
+      'rpy',
+      1,
+      [
+        'if (',
+        '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , :',
+        '    guard_flag,',
+        '):',
+        '    pass',
+        'elif route_a and \\',
+        '    route_b:  # trailing comment with ) , :',
+        '    pass',
+        '',
+      ].join('\n'),
+    );
+    const lineIndentCache = new Map<number, number>();
+    const lineTextCache = new Map<number, string>();
+    const conditionalLogicalLineCache = new Map<number, string>();
+
+    processFlatToken(
+      state,
+      scanState,
+      {
+        type: PARSER_TOKENS.kwConditional,
+        metaTokens: [],
+        startPos: { line: 0, character: 0 },
+        getValue: () => 'if',
+      },
+      doc,
+      'ch',
+      true,
+      lineIndentCache,
+      lineTextCache,
+      conditionalLogicalLineCache,
+    );
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'if',
+      indent: 0,
+      expression: [
+        '(',
+        '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , :',
+        '    guard_flag,',
+        ')',
+      ].join('\n'),
+    });
+
+    processFlatToken(
+      state,
+      scanState,
+      {
+        type: PARSER_TOKENS.kwConditional,
+        metaTokens: [],
+        startPos: { line: 5, character: 0 },
+        getValue: () => 'elif',
+      },
+      doc,
+      'ch',
+      true,
+      lineIndentCache,
+      lineTextCache,
+      conditionalLogicalLineCache,
+    );
+    expect(scanState.pendingConditionalHeader).toEqual({
+      kind: 'elif',
+      indent: 0,
+      expression: ['route_a and \\', '    route_b'].join('\n'),
+    });
   });
 
   it('processFlatTokens processes token stream in order', () => {

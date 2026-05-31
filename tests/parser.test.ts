@@ -1332,6 +1332,88 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('extracts direct renpy api targets with explicit backslash multiline continuation and inline comments', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump("jump_target", \\',
+      '            from_current=True)  # comment with ) , : tokens',
+      '        renpy.call(label="call_target", \\',
+      '            from_current=True)  # trailing ) , : in comment',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-multiline-backslash.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ chapter: 'renpy-multiline-backslash', construct: 'renpy.jump' }),
+        }),
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ chapter: 'renpy-multiline-backslash', construct: 'renpy.call' }),
+        }),
+      ]),
+    );
+  });
+
+  it('extracts direct renpy api targets with implicit grouping multiline continuation and inline comments', async () => {
+    const script = [
+      'label start:',
+      '    python:',
+      '        renpy.jump(',
+      '            "jump_target",  # comment with ) , : tokens',
+      '            from_current=True,',
+      '        )',
+      '        renpy.call(',
+      '            from_current=True,',
+      '            label="call_target",  # trailing ) , : in comment',
+      '        )',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'renpy-multiline-grouping.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ chapter: 'renpy-multiline-grouping', construct: 'renpy.jump' }),
+        }),
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ chapter: 'renpy-multiline-grouping', construct: 'renpy.call' }),
+        }),
+      ]),
+    );
+  });
+
   it('extracts direct screen action targets with keyword and trailing arguments', async () => {
     const script = [
       'label start:',
@@ -1456,6 +1538,59 @@ describe('parseRenpyFiles', () => {
       expect.arrayContaining([
         expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
         expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+  });
+
+  it('extracts nested screen actions from multiline If/SelectedIf payloads with inline comments', async () => {
+    const script = [
+      'label start:',
+      '    screen nav_overlay:',
+      '        textbutton "Go If" action If(',
+      '            seen_intro,  # comment with ) , :',
+      '            [',
+      '                Jump("jump_target"),',
+      '                NullAction(),  # comment with ) , :',
+      '            ],',
+      '            (',
+      '                Call("call_target"),',
+      '            ),',
+      '        )',
+      '        textbutton "Go SelectedIf" action SelectedIf(',
+      '            seen_intro,  # comment with ) , :',
+      '            yes=Jump("jump_target"),',
+      '            no=[',
+      '                NullAction(),',
+      '                Call("call_target"),  # comment with ) , :',
+      '            ],',
+      '        )',
+      '',
+      'label jump_target:',
+      '    return',
+      '',
+      'label call_target:',
+      '    return',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen-action-multiline-comments.rpy', content: script }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
+        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ chapter: 'screen-action-multiline-comments', construct: 'Jump' }),
+        }),
+        expect.objectContaining({
+          code: 'dynamic_target',
+          location: expect.objectContaining({ chapter: 'screen-action-multiline-comments', construct: 'Call' }),
+        }),
       ]),
     );
   });

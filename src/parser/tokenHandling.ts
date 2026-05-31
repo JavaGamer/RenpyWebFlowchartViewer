@@ -370,67 +370,36 @@ function readParenthesizedArgument(
   text: string,
   argumentStartIndex: number,
 ): { argument: string; endIndex: number } | null {
-  let depth = 1;
-  let index = argumentStartIndex;
-  let activeQuote: '"' | '\'' | null = null;
-  let tripleQuoted = false;
-
-  while (index < text.length) {
-    const char = text[index];
-    if (activeQuote) {
-      if (tripleQuoted) {
-        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
-          index += 3;
-          activeQuote = null;
-          tripleQuoted = false;
-        } else {
-          index += 1;
-        }
-        continue;
+  const delimiterStack: Array<')' | ']' | '}'> = [')'];
+  let endIndex = -1;
+  forEachCodeCharacterOutsideStringsAndComments(
+    text,
+    argumentStartIndex,
+    (index, char) => {
+      const openingDelimiter = CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
+      if (openingDelimiter) {
+        delimiterStack.push(openingDelimiter);
+        return;
       }
-      if (char === '\\') {
-        index += (index + 1 < text.length) ? 2 : 1;
-        continue;
+      if (!CLOSING_DELIMITERS.has(char as ClosingDelimiter)) {
+        return;
       }
-      if (char === activeQuote) {
-        activeQuote = null;
+      if (char !== delimiterStack[delimiterStack.length - 1]) {
+        return;
       }
-      index += 1;
-      continue;
-    }
-
-    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
-      activeQuote = char;
-      tripleQuoted = true;
-      index += 3;
-      continue;
-    }
-    if (char === '"' || char === '\'') {
-      activeQuote = char;
-      index += 1;
-      continue;
-    }
-
-    if (char === '(') {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-    if (char === ')') {
-      depth -= 1;
-      if (depth === 0) {
-        return {
-          argument: text.slice(argumentStartIndex, index),
-          endIndex: index + 1,
-        };
+      delimiterStack.pop();
+      if (delimiterStack.length === 0) {
+        endIndex = index + 1;
+        return false;
       }
-      index += 1;
-      continue;
-    }
-
-    index += 1;
+    },
+  );
+  if (endIndex >= 0) {
+    return {
+      argument: text.slice(argumentStartIndex, endIndex - 1),
+      endIndex,
+    };
   }
-
   return null;
 }
 
@@ -792,55 +761,104 @@ function resolveJumpStatementTarget(
   return scanState.labelVariableLiteralTargets.get(targetIdentifier) ?? null;
 }
 
-function splitTopLevelArguments(argumentList: string): string[] {
-  const args: string[] = [];
-  let depth = 0;
+type OpeningDelimiter = '(' | '[' | '{';
+type ClosingDelimiter = ')' | ']' | '}';
+const CLOSING_DELIMITER_BY_OPENING: Record<OpeningDelimiter, ClosingDelimiter> = {
+  '(': ')',
+  '[': ']',
+  '{': '}',
+};
+const CLOSING_DELIMITERS = new Set<ClosingDelimiter>([')', ']', '}']);
+
+function forEachCodeCharacterOutsideStringsAndComments(
+  text: string,
+  startIndex: number,
+  visitor: (index: number, char: string) => false | void,
+): void {
+  let index = startIndex;
   let activeQuote: '"' | '\'' | null = null;
   let tripleQuoted = false;
-  let start = 0;
+  let inComment = false;
 
-  for (let i = 0; i < argumentList.length; i += 1) {
-    const char = argumentList[i];
+  while (index < text.length) {
+    const char = text[index] ?? '';
+    if (inComment) {
+      if (char === '\n') {
+        inComment = false;
+      }
+      index += 1;
+      continue;
+    }
+
     if (activeQuote) {
       if (tripleQuoted) {
-        if (char === activeQuote && argumentList[i + 1] === activeQuote && argumentList[i + 2] === activeQuote) {
-          i += 2;
+        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+          index += 3;
           activeQuote = null;
           tripleQuoted = false;
+        } else {
+          index += 1;
         }
         continue;
       }
       if (char === '\\') {
-        i += 1;
+        index += (index + 1 < text.length) ? 2 : 1;
         continue;
       }
-      if (char === activeQuote) activeQuote = null;
+      if (char === activeQuote) {
+        activeQuote = null;
+      }
+      index += 1;
       continue;
     }
-    if ((char === '"' || char === '\'') && argumentList[i + 1] === char && argumentList[i + 2] === char) {
+
+    if (char === '#') {
+      inComment = true;
+      index += 1;
+      continue;
+    }
+    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
       activeQuote = char;
       tripleQuoted = true;
-      i += 2;
+      index += 3;
       continue;
     }
     if (char === '"' || char === '\'') {
       activeQuote = char;
+      index += 1;
       continue;
     }
-    if (char === '(' || char === '[' || char === '{') {
-      depth += 1;
-      continue;
+
+    if (visitor(index, char) === false) {
+      return;
     }
-    if (char === ')' || char === ']' || char === '}') {
-      if (depth > 0) depth -= 1;
-      continue;
-    }
-    if (depth === 0 && char === ',') {
-      const segment = argumentList.slice(start, i).trim();
-      if (segment) args.push(segment);
-      start = i + 1;
-    }
+    index += 1;
   }
+}
+
+function splitTopLevelArguments(argumentList: string): string[] {
+  const args: string[] = [];
+  const delimiterStack: ClosingDelimiter[] = [];
+  let start = 0;
+
+  forEachCodeCharacterOutsideStringsAndComments(argumentList, 0, (index, char) => {
+    const openingDelimiter = CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
+    if (openingDelimiter) {
+      delimiterStack.push(openingDelimiter);
+      return;
+    }
+    if (CLOSING_DELIMITERS.has(char as ClosingDelimiter)) {
+      if (char === delimiterStack[delimiterStack.length - 1]) {
+        delimiterStack.pop();
+      }
+      return;
+    }
+    if (delimiterStack.length === 0 && char === ',') {
+      const segment = argumentList.slice(start, index).trim();
+      if (segment) args.push(segment);
+      start = index + 1;
+    }
+  });
 
   const last = argumentList.slice(start).trim();
   if (last) args.push(last);
@@ -851,47 +869,26 @@ function splitTopLevelArguments(argumentList: string): string[] {
 // top-level argument splitting/keyword parsing (`=`), dictionary payloads (`:`),
 // and comma-separated argument handling.
 function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): number {
-  let depth = 0;
-  let activeQuote: '"' | '\'' | null = null;
-  let tripleQuoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (activeQuote) {
-      if (tripleQuoted) {
-        if (char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
-          i += 2;
-          activeQuote = null;
-          tripleQuoted = false;
-        }
-        continue;
+  const delimiterStack: ClosingDelimiter[] = [];
+  let foundIndex = -1;
+  forEachCodeCharacterOutsideStringsAndComments(text, 0, (index, char) => {
+    const openingDelimiter = CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
+    if (openingDelimiter) {
+      delimiterStack.push(openingDelimiter);
+      return;
+    }
+    if (CLOSING_DELIMITERS.has(char as ClosingDelimiter)) {
+      if (char === delimiterStack[delimiterStack.length - 1]) {
+        delimiterStack.pop();
       }
-      if (char === '\\') {
-        i += 1;
-        continue;
-      }
-      if (char === activeQuote) activeQuote = null;
-      continue;
+      return;
     }
-    if ((char === '"' || char === '\'') && text[i + 1] === char && text[i + 2] === char) {
-      activeQuote = char;
-      tripleQuoted = true;
-      i += 2;
-      continue;
+    if (delimiterStack.length === 0 && char === delimiter) {
+      foundIndex = index;
+      return false;
     }
-    if (char === '"' || char === '\'') {
-      activeQuote = char;
-      continue;
-    }
-    if (char === '(' || char === '[' || char === '{') {
-      depth += 1;
-      continue;
-    }
-    if (char === ')' || char === ']' || char === '}') {
-      if (depth > 0) depth -= 1;
-      continue;
-    }
-    if (depth === 0 && char === delimiter) return i;
-  }
+  });
+  if (foundIndex >= 0) return foundIndex;
   return -1;
 }
 
