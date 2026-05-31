@@ -127,6 +127,62 @@ describe('flowchartTransforms', () => {
     expect((edges[0].data as { label: string }).label).toBe('');
   });
 
+  it('buildVisibleEdges applies timeout styling while retaining base edge kind', () => {
+    const timeoutEdge: FlowEdge = {
+      id: 'jump_start__menu_1__timeout',
+      source: 'start',
+      target: 'menu_1',
+      kind: 'jump',
+      timeout: { isTimeout: true, durationSeconds: 5 },
+    };
+    const layout = applyDagreLayout(flowNodes, [timeoutEdge], 'TB');
+    const edges = buildVisibleEdges({
+      edges: layout.edges as CanvasEdge[],
+      showCallReturns: true,
+      visibleEdgeKinds: { sequence: true, jump: true, call: true, call_return: true },
+      visibleNodeIds: new Set(['start', 'menu_1']),
+      edgeColor: '#111',
+      largeGraphMode: false,
+    });
+    expect(edges).toHaveLength(1);
+    expect(edges[0].style?.strokeDasharray).toBe('8 4');
+    expect((edges[0].data as { kind?: string }).kind).toBe('jump');
+  });
+
+  it('buildVisibleEdges keeps timeout style when conditional fade marks edge unreachable', () => {
+    const layout = applyDagreLayout(
+      [
+        { id: 'decision', type: 'DECISION', label: 'if f', dialogueCount: 0 },
+        { id: 'a', type: 'LABEL', label: 'a', dialogueCount: 0 },
+      ],
+      [
+        {
+          id: 'timeout_conditional',
+          source: 'decision',
+          target: 'a',
+          kind: 'jump',
+          condition: { branchKind: 'if', expression: 'f' },
+          timeout: { isTimeout: true },
+        },
+      ],
+      'TB',
+    );
+    const conditional = buildConditionalVisibility({ edges: layout.edges as CanvasEdge[], mockFlags: { f: 'false' } });
+    const edges = buildVisibleEdges({
+      edges: layout.edges as CanvasEdge[],
+      showCallReturns: true,
+      visibleEdgeKinds: { sequence: true, jump: true, call: true, call_return: true },
+      visibleNodeIds: new Set(['decision', 'a']),
+      edgeColor: '#111',
+      largeGraphMode: false,
+      edgeConditionStateById: conditional.edgeConditionStateById,
+      conditionVisibilityMode: 'fade',
+    });
+    expect(edges).toHaveLength(1);
+    expect(edges[0].style?.opacity).toBe(0.28);
+    expect(edges[0].style?.strokeDasharray).toBe('8 4');
+  });
+
   it('creates placeholder nodes for unresolved edge endpoints before layout', () => {
     const result = applyDagreLayout(
       [{ id: 'start', type: 'LABEL', label: 'start', dialogueCount: 0 }],

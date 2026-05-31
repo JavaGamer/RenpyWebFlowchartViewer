@@ -1132,6 +1132,73 @@ describe('parseRenpyFiles', () => {
     );
   });
 
+  it('fixture: extracts timer-driven screen actions as timeout-aware jump/call edges', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
+    ]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'start',
+          target: 'too_late',
+          kind: 'jump',
+          timeout: { isTimeout: true, durationSeconds: 5 },
+        }),
+        expect.objectContaining({
+          source: 'start',
+          target: 'helper',
+          kind: 'call',
+          timeout: { isTimeout: true, durationSeconds: 3 },
+        }),
+      ]),
+    );
+  });
+
+  it('marks nested and assignment timer screen actions as timeout edges', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
+    ]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'start',
+          target: 'skip_target',
+          kind: 'jump',
+          timeout: { isTimeout: true, durationSeconds: 7 },
+        }),
+        expect.objectContaining({
+          source: 'start',
+          target: 'helper_two',
+          kind: 'call',
+          timeout: { isTimeout: true, durationSeconds: 2 },
+        }),
+      ]),
+    );
+  });
+
+  it('warns on dynamic timer screen action targets without emitting unresolved timer edges', async () => {
+    const result = await parseRenpyFiles([
+      { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
+    ]);
+
+    expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'dynamic_target',
+          severity: 'warning',
+          location: expect.objectContaining({
+            chapter: 'timer-screen-actions',
+            construct: 'Jump',
+            targetExpression: 'dynamic_target',
+          }),
+        }),
+      ]),
+    );
+  });
+
   it('ignores top-level python blocks that are outside any active label scope', async () => {
     const script = [
       'python:',

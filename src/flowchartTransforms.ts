@@ -36,6 +36,7 @@ export interface EdgeData extends Record<string, unknown> {
   label: string;
   kind?: 'sequence' | 'jump' | 'call' | 'call_return';
   condition?: FlowEdge['condition'];
+  timeout?: FlowEdge['timeout'];
   conditionState?: ConditionReachability;
 }
 
@@ -112,7 +113,10 @@ function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]): { no
       nodes.push(targetPlaceholder);
     }
     const normalizedKind = normalizeEdgeKind(edge.kind);
-    const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${edge.label ?? ''}`;
+    const timeoutKey = edge.timeout?.isTimeout
+      ? `timeout:${edge.timeout.durationSeconds === undefined ? 'unknown' : edge.timeout.durationSeconds}`
+      : 'normal';
+    const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${edge.label ?? ''}|${timeoutKey}`;
     if (seenEdgeKeys.has(semanticKey)) continue;
     seenEdgeKeys.add(semanticKey);
     edges.push({
@@ -204,7 +208,7 @@ export function applyDagreLayout(
       source: e.source,
       target: e.target,
       type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind, condition: e.condition },
+      data: { label: e.label ?? '', kind: e.kind, condition: e.condition, timeout: e.timeout },
       markerEnd: { type: 'arrowclosed' as const },
       style: { stroke: '#6b7280', strokeWidth: 1.5 },
     }));
@@ -296,7 +300,7 @@ function applyProgressiveDagreLayout(
       source: e.source,
       target: e.target,
       type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind, condition: e.condition },
+      data: { label: e.label ?? '', kind: e.kind, condition: e.condition, timeout: e.timeout },
       markerEnd: { type: 'arrowclosed' as const },
       style: { stroke: '#6b7280', strokeWidth: 1.5 },
     }));
@@ -436,28 +440,32 @@ export function buildVisibleEdges(params: {
     if (conditionVisibilityMode === 'hide' && conditionState === 'unreachable') continue;
     if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
     const edgeLabel = largeGraphMode && kind === 'sequence' ? '' : (edgeData.label ?? '');
+    const timeoutStyle = edgeData.timeout?.isTimeout ? { strokeDasharray: '8 4' } : {};
     const previous = previousById?.get(edge.id);
     const previousData = previous?.data as EdgeData | undefined;
     if (
       previous &&
       previousData?.label === edgeLabel &&
       previousData?.kind === kind &&
+      previousData?.timeout?.isTimeout === edgeData.timeout?.isTimeout &&
+      previousData?.timeout?.durationSeconds === edgeData.timeout?.durationSeconds &&
       previousData?.conditionState === conditionState &&
       previous.source === edge.source &&
       previous.target === edge.target &&
-      previous.style?.stroke === edgeColor
+      previous.style?.stroke === edgeColor &&
+      previous.style?.strokeDasharray === timeoutStyle.strokeDasharray
     ) {
       visible.push(previous);
       continue;
     }
     const unreachableStyle =
       conditionVisibilityMode === 'fade' && conditionState === 'unreachable'
-        ? { opacity: 0.28, strokeDasharray: '5 4' }
+        ? { opacity: 0.28, ...(edgeData.timeout?.isTimeout ? {} : { strokeDasharray: '5 4' }) }
         : {};
     visible.push({
       ...edge,
       data: { ...edgeData, label: edgeLabel, kind, conditionState },
-      style: { ...(edge.style || {}), ...unreachableStyle, stroke: edgeColor, strokeWidth: 1.5 },
+      style: { ...(edge.style || {}), ...timeoutStyle, ...unreachableStyle, stroke: edgeColor, strokeWidth: 1.5 },
     });
   }
   return visible;

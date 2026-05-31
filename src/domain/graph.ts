@@ -10,6 +10,11 @@ export interface ConditionMetadata {
   decisionNodeId?: string;
 }
 
+export interface TimeoutMetadata {
+  isTimeout: true;
+  durationSeconds?: number;
+}
+
 /** A node in the flowchart graph. */
 export interface FlowNode {
   id: string;
@@ -48,4 +53,6 @@ export interface FlowEdge {
   label?: string;
   /** Optional condition metadata for branches sourced from DECISION nodes. */
   condition?: ConditionMetadata;
+  /** Optional timeout metadata for timer-driven navigation edges. */
+  timeout?: TimeoutMetadata;
 }

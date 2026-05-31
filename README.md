@@ -5,7 +5,7 @@ A client-side web application that parses Ren'Py script files (`.rpy`) and gener
 ## Features
 
 - **100% local processing** — files are read entirely in the browser via the FileReader API; nothing is uploaded to a server.
-- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in label-scoped Python blocks, direct screen `action Jump(...)`/`action Call(...)` in label-scoped screen blocks, and counts dialogue lines per block.
+- **Automatic structure extraction** — detects `label` blocks, `menu` choices, `jump`/`call` statements, direct `renpy.jump`/`renpy.call` in label-scoped Python blocks, direct screen `action Jump(...)`/`action Call(...)` in label-scoped screen blocks, timer-driven `timer ... action ...` timeout branches, and counts dialogue lines per block.
 - **Conservative same-label target propagation** — resolves identifier targets for `jump expression`, direct `renpy.jump`/`renpy.call`, and screen action calls when a prior assignment in the same label binds that identifier to a static string literal (including typed forms like `name: str = "label"`).
 - **Variant-aware parser rules** — choose `Ren'Py` or `ST` parser variants, with variant defaults plus custom screen-action mappings persisted in browser storage across imports/projects.
 - **Interactive flowchart** — drag, zoom, and pan the chart using React Flow. Nodes are colour-coded: violet for Labels, amber for Menus, teal for Decisions (`if/elif/else` split points).
