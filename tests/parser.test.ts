@@ -1151,6 +1151,12 @@ describe('parseRenpyFiles', () => {
           kind: 'call',
           timeout: { isTimeout: true, durationSeconds: 3 },
         }),
+        expect.objectContaining({
+          source: 'start',
+          target: 'block_timeout_target',
+          kind: 'jump',
+          timeout: { isTimeout: true, durationSeconds: 6.5 },
+        }),
       ]),
     );
   });

@@ -563,7 +563,7 @@ function allowsActionExtractionOnLine(keyword: string): boolean {
 function parseTimerDurationFromLine(lineText: string): number | undefined {
   const trimmed = lineText.trimStart();
   if (!trimmed.toLowerCase().startsWith('timer')) return undefined;
-  const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)/i.exec(trimmed);
+  const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?=[\s:]|$)/i.exec(trimmed);
   if (!durationMatch) return undefined;
   const durationSeconds = parseFloat(durationMatch[1]);
   return Number.isFinite(durationSeconds) ? durationSeconds : undefined;
@@ -581,17 +581,45 @@ function extractScreenActionExpressions(blockText: string): ExtractedScreenActio
   const ignoredMask = buildIgnoredPositionMask(blockText);
   const expressions: ExtractedScreenActionExpression[] = [];
   let currentLineFirstTopLevelIdentifier: string | null = null;
+  let currentLineStartIndex = 0;
+  let currentLineIndent: number | null = null;
+  let processedTimerHeaderForLine = false;
+  const timerBlockStack: Array<{ indent: number; durationSeconds: number | undefined }> = [];
 
   for (let index = 0; index < blockText.length; index += 1) {
     if (blockText[index] === '\n') {
       currentLineFirstTopLevelIdentifier = null;
+      currentLineStartIndex = index + 1;
+      currentLineIndent = null;
+      processedTimerHeaderForLine = false;
       continue;
+    }
+    if (currentLineIndent === null) {
+      if (blockText[index] === ' ' || blockText[index] === '\t') continue;
+      currentLineIndent = index - currentLineStartIndex;
+      while (
+        timerBlockStack.length > 0
+        && currentLineIndent <= timerBlockStack[timerBlockStack.length - 1].indent
+      ) {
+        timerBlockStack.pop();
+      }
     }
     if (ignoredMask[index]) continue;
     const identifier = readIdentifier(blockText, index);
     if (!identifier) continue;
     if (!currentLineFirstTopLevelIdentifier) {
       currentLineFirstTopLevelIdentifier = identifier.identifier;
+      if (identifier.identifier.toLowerCase() === 'timer' && currentLineIndent !== null && !processedTimerHeaderForLine) {
+        const lineRange = getLineRange(blockText, index);
+        const lineText = blockText.slice(lineRange.start, lineRange.end);
+        if (lineText.trimEnd().endsWith(':')) {
+          timerBlockStack.push({
+            indent: currentLineIndent,
+            durationSeconds: parseTimerDurationFromLine(lineText),
+          });
+        }
+        processedTimerHeaderForLine = true;
+      }
     }
     if (
       identifier.identifier === 'action'
@@ -612,12 +640,20 @@ function extractScreenActionExpressions(blockText: string): ExtractedScreenActio
       const parsed = readScreenActionExpression(blockText, cursor);
       if (parsed) {
         const isTimerContext = currentLineFirstTopLevelIdentifier?.toLowerCase() === 'timer';
+        const timerBlockContext = timerBlockStack[timerBlockStack.length - 1];
         let timeout: FlowEdge['timeout'] | undefined;
         if (isTimerContext) {
           const lineRange = getLineRange(blockText, index);
           const lineText = blockText.slice(lineRange.start, lineRange.end);
           const durationSeconds = parseTimerDurationFromLine(lineText);
           timeout = { isTimeout: true, ...(durationSeconds === undefined ? {} : { durationSeconds }) };
+        } else if (timerBlockContext) {
+          timeout = {
+            isTimeout: true,
+            ...(timerBlockContext.durationSeconds === undefined
+              ? {}
+              : { durationSeconds: timerBlockContext.durationSeconds }),
+          };
         }
         expressions.push({ expression: parsed.expression, timeout });
         index = parsed.endIndex - 1;
