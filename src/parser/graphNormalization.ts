@@ -18,7 +18,10 @@ function normalizeEdgeKind(edge: FlowEdge): EdgeKind {
 }
 
 function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
-  return `${kind}|${edge.source}|${edge.target}|${edge.label ?? ''}`;
+  const timeoutKey = edge.timeout?.isTimeout
+    ? `timeout:${edge.timeout.durationSeconds === undefined ? 'unknown' : edge.timeout.durationSeconds}`
+    : 'normal';
+  return `${kind}|${edge.source}|${edge.target}|${edge.label ?? ''}|${timeoutKey}`;
 }
 
 function resolveNormalizedEdgeId(edge: FlowEdge, kind: EdgeKind): string {

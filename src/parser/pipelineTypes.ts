@@ -7,6 +7,11 @@ import type { MultiDirectedGraph } from 'graphology';
 export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
 export type ConditionalBranchKind = 'if' | 'elif' | 'else';
 
+export interface ExtractedScreenActionExpression {
+  expression: string;
+  timeout?: FlowEdge['timeout'];
+}
+
 export interface PendingConditionalHeader {
   kind: ConditionalBranchKind;
   indent: number;

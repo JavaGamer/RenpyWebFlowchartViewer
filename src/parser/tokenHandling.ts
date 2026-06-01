@@ -1,12 +1,17 @@
 import { PARSER_TOKENS, isMenuKeywordTokenType } from '../parserTokens';
-import type { ParseGraphState, ParseScanState, TokenMetaFlags } from './pipelineTypes';
+import type {
+  ParseGraphState,
+  ParseScanState,
+  TokenMetaFlags,
+  ExtractedScreenActionExpression,
+} from './pipelineTypes';
 import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTransitions';
 import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
 import { addParseDiagnostic } from './diagnostics';
 import { extractConditionFlagRefs } from '../conditionLogic';
-import type { ConditionMetadata } from '../domain';
+import type { ConditionMetadata, FlowEdge } from '../domain';
 
 interface HandleTokenInput {
   type: number;
@@ -555,21 +560,66 @@ function allowsActionExtractionOnLine(keyword: string): boolean {
   return keyword.toLowerCase() !== 'default';
 }
 
-function extractScreenActionExpressions(blockText: string): string[] {
+function parseTimerDurationFromLine(lineText: string): number | undefined {
+  const trimmed = lineText.trimStart();
+  if (!trimmed.toLowerCase().startsWith('timer')) return undefined;
+  const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?=[\s:]|$)/i.exec(trimmed);
+  if (!durationMatch) return undefined;
+  const durationSeconds = parseFloat(durationMatch[1]);
+  return Number.isFinite(durationSeconds) ? durationSeconds : undefined;
+}
+
+function getLineRange(text: string, index: number): { start: number; end: number } {
+  let start = index;
+  while (start > 0 && text[start - 1] !== '\n') start -= 1;
+  let end = index;
+  while (end < text.length && text[end] !== '\n') end += 1;
+  return { start, end };
+}
+
+function extractScreenActionExpressions(blockText: string): ExtractedScreenActionExpression[] {
   const ignoredMask = buildIgnoredPositionMask(blockText);
-  const expressions: string[] = [];
+  const expressions: ExtractedScreenActionExpression[] = [];
   let currentLineFirstTopLevelIdentifier: string | null = null;
+  let currentLineStartIndex = 0;
+  let currentLineIndent: number | null = null;
+  let processedTimerHeaderForLine = false;
+  const timerBlockStack: Array<{ indent: number; durationSeconds: number | undefined }> = [];
 
   for (let index = 0; index < blockText.length; index += 1) {
     if (blockText[index] === '\n') {
       currentLineFirstTopLevelIdentifier = null;
+      currentLineStartIndex = index + 1;
+      currentLineIndent = null;
+      processedTimerHeaderForLine = false;
       continue;
+    }
+    if (currentLineIndent === null) {
+      if (blockText[index] === ' ' || blockText[index] === '\t') continue;
+      currentLineIndent = index - currentLineStartIndex;
+      while (
+        timerBlockStack.length > 0
+        && currentLineIndent <= timerBlockStack[timerBlockStack.length - 1].indent
+      ) {
+        timerBlockStack.pop();
+      }
     }
     if (ignoredMask[index]) continue;
     const identifier = readIdentifier(blockText, index);
     if (!identifier) continue;
     if (!currentLineFirstTopLevelIdentifier) {
       currentLineFirstTopLevelIdentifier = identifier.identifier;
+      if (identifier.identifier.toLowerCase() === 'timer' && currentLineIndent !== null && !processedTimerHeaderForLine) {
+        const lineRange = getLineRange(blockText, index);
+        const lineText = blockText.slice(lineRange.start, lineRange.end);
+        if (lineText.trimEnd().endsWith(':')) {
+          timerBlockStack.push({
+            indent: currentLineIndent,
+            durationSeconds: parseTimerDurationFromLine(lineText),
+          });
+        }
+        processedTimerHeaderForLine = true;
+      }
     }
     if (
       identifier.identifier === 'action'
@@ -589,7 +639,23 @@ function extractScreenActionExpressions(blockText: string): string[] {
 
       const parsed = readScreenActionExpression(blockText, cursor);
       if (parsed) {
-        expressions.push(parsed.expression);
+        const isTimerContext = currentLineFirstTopLevelIdentifier?.toLowerCase() === 'timer';
+        const timerBlockContext = timerBlockStack[timerBlockStack.length - 1];
+        let timeout: FlowEdge['timeout'] | undefined;
+        if (isTimerContext) {
+          const lineRange = getLineRange(blockText, index);
+          const lineText = blockText.slice(lineRange.start, lineRange.end);
+          const durationSeconds = parseTimerDurationFromLine(lineText);
+          timeout = { isTimeout: true, ...(durationSeconds === undefined ? {} : { durationSeconds }) };
+        } else if (timerBlockContext) {
+          timeout = {
+            isTimeout: true,
+            ...(timerBlockContext.durationSeconds === undefined
+              ? {}
+              : { durationSeconds: timerBlockContext.durationSeconds }),
+          };
+        }
+        expressions.push({ expression: parsed.expression, timeout });
         index = parsed.endIndex - 1;
         continue;
       }
@@ -667,11 +733,16 @@ function emitJumpEdge(
   target: string,
   context: { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata },
   suppressFallthrough: boolean,
+  timeout?: FlowEdge['timeout'],
 ) {
   const { isInOption, source, optionText } = context;
   if (source) {
     const { resolvedTargetId } = resolveTargetLabelId(state, target);
-    const edgeId = `jump_${source}__${resolvedTargetId}_${optionText ?? ''}`;
+    const timeoutSuffix =
+      timeout?.isTimeout === true
+        ? `_timeout_${timeout.durationSeconds === undefined ? 'unknown' : String(timeout.durationSeconds)}`
+        : '';
+    const edgeId = `jump_${source}__${resolvedTargetId}_${optionText ?? ''}${timeoutSuffix}`;
     addEdge(state, {
       id: edgeId,
       source,
@@ -679,6 +750,7 @@ function emitJumpEdge(
       kind: 'jump',
       label: isInOption ? (optionText ?? undefined) : undefined,
       condition: context.condition,
+      timeout,
     });
     if (!isInOption && scanState.currentLabelId) {
       addOutgoing(state, scanState.currentLabelId, 'jump');
@@ -701,11 +773,16 @@ function emitCallEdge(
   scanState: ParseScanState,
   target: string,
   context: { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata },
+  timeout?: FlowEdge['timeout'],
 ) {
   const { isInOption, source, optionText } = context;
   if (!source) return;
   const { resolvedTargetId } = resolveTargetLabelId(state, target);
-  const edgeId = `call_${source}__${resolvedTargetId}_${optionText ?? ''}`;
+  const timeoutSuffix =
+    timeout?.isTimeout === true
+      ? `_timeout_${timeout.durationSeconds === undefined ? 'unknown' : String(timeout.durationSeconds)}`
+      : '';
+  const edgeId = `call_${source}__${resolvedTargetId}_${optionText ?? ''}${timeoutSuffix}`;
   addEdge(state, {
     id: edgeId,
     source,
@@ -713,6 +790,7 @@ function emitCallEdge(
     kind: 'call',
     label: isInOption ? (optionText ? `call: ${optionText}` : 'call') : 'call',
     condition: context.condition,
+    timeout,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {
@@ -1182,7 +1260,7 @@ function processDirectScreenActionCalls(
   screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
   const seenCalls = new Set<string>();
-  const emitActionCall = (construct: string, targetExpression: string) => {
+  const emitActionCall = (construct: string, targetExpression: string, timeout?: FlowEdge['timeout']) => {
     const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) return;
     const context = resolveCallContext(scanState, meta, menuDepth);
@@ -1191,18 +1269,25 @@ function processDirectScreenActionCalls(
       addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       return;
     }
-    const dedupeKey = `${construct.toLowerCase()}|${target}|${context.source ?? ''}`;
+    const dedupeKey = [
+      construct.toLowerCase(),
+      target,
+      context.source ?? '',
+      timeout?.isTimeout ? `timeout:${timeout.durationSeconds === undefined ? 'unknown' : timeout.durationSeconds}` : 'normal',
+    ].join('|');
     if (seenCalls.has(dedupeKey)) return;
     seenCalls.add(dedupeKey);
     if (callType === 'jump') {
-      emitJumpEdge(state, scanState, target, context, false);
+      emitJumpEdge(state, scanState, target, context, false, timeout);
     } else {
-      emitCallEdge(state, scanState, target, context);
+      emitCallEdge(state, scanState, target, context, timeout);
     }
   };
 
-  for (const expression of extractScreenActionExpressions(blockText)) {
-    walkScreenActionExpression(expression, emitActionCall);
+  for (const extracted of extractScreenActionExpressions(blockText)) {
+    walkScreenActionExpression(extracted.expression, (construct, targetExpression) =>
+      emitActionCall(construct, targetExpression, extracted.timeout),
+    );
   }
 }
 
