@@ -21,6 +21,8 @@ export interface ViewerAdvancedControlsProps {
 
   showCallReturns: boolean;
   setShowCallReturns: (v: boolean) => void;
+  showAudioAssetCues: boolean;
+  setShowAudioAssetCues: (v: boolean) => void;
   largeGraphMode: boolean;
   largeGraphModeOverride: boolean | null;
   setLargeGraphModeOverride: (v: boolean | null) => void;
@@ -63,6 +65,8 @@ export function ViewerAdvancedControls({
   focusTargetNode,
   showCallReturns,
   setShowCallReturns,
+  showAudioAssetCues,
+  setShowAudioAssetCues,
   largeGraphMode,
   largeGraphModeOverride,
   setLargeGraphModeOverride,
@@ -170,6 +174,15 @@ export function ViewerAdvancedControls({
             aria-label="Show call returns"
           />
           Show call returns
+        </label>
+        <label className="inline-flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={showAudioAssetCues}
+            onChange={(e) => setShowAudioAssetCues(e.target.checked)}
+            aria-label="Show media cues"
+          />
+          Show media cues
         </label>
         <label className="inline-flex items-center gap-1">
           <input

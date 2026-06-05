@@ -5,10 +5,13 @@ import { type CanvasNode } from '../flowchartTransforms';
 import type { DialogueSearchResult } from '../infrastructure';
 import { renderHighlightedText, truncateForAria } from './viewerText';
 
+import { Image as ImageIcon, Music as MusicIcon, Volume2 as Volume2Icon, Mic as MicIcon, VolumeX as VolumeXIcon } from 'lucide-react';
+
 interface SelectedNodeData {
   label?: string;
   dialogueCount?: number;
   dialogueLines?: string[];
+  audioAssetCues?: import('../domain/graph').AudioAssetCue[];
 }
 
 export interface ViewerInspectorProps {
@@ -191,6 +194,70 @@ export function ViewerInspector({
           <div className="text-xs">
             <span className="font-semibold">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
           </div>
+
+          {selectedNodeData.audioAssetCues && selectedNodeData.audioAssetCues.length > 0 && (
+            <div className="text-xs space-y-2 mt-2 pt-2 border-t border-gray-100">
+              <div className="font-semibold text-gray-700">Media & Asset Cues</div>
+              <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+                {selectedNodeData.audioAssetCues.map((cue, idx) => {
+                  const style = (() => {
+                    switch (cue.type) {
+                      case 'scene':
+                        return { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' };
+                      case 'play':
+                      case 'queue':
+                        return cue.channel === 'music'
+                          ? { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#047857' }
+                          : { backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' };
+                      case 'stop':
+                        return { backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c' };
+                      case 'voice':
+                        return { backgroundColor: '#faf5ff', borderColor: '#e9d5ff', color: '#7e22ce' };
+                      default:
+                        return {};
+                    }
+                  })();
+
+                  const icon = (() => {
+                    switch (cue.type) {
+                      case 'scene':
+                        return <ImageIcon size={12} className="shrink-0 text-blue-700" />;
+                      case 'play':
+                      case 'queue':
+                        return cue.channel === 'music'
+                          ? <MusicIcon size={12} className="shrink-0 text-emerald-700" />
+                          : <Volume2Icon size={12} className="shrink-0 text-amber-700" />;
+                      case 'stop':
+                        return <VolumeXIcon size={12} className="shrink-0 text-rose-700" />;
+                      case 'voice':
+                        return <MicIcon size={12} className="shrink-0 text-purple-700" />;
+                      default:
+                        return null;
+                    }
+                  })();
+
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border shadow-sm font-mono"
+                      style={style}
+                      title={cue.raw}
+                    >
+                      {icon}
+                      <span className="font-medium tracking-wide uppercase text-[9px] shrink-0 opacity-80">
+                        {cue.type}
+                      </span>
+                      <span className="truncate flex-1">
+                        {cue.type === 'play' || cue.type === 'stop' || cue.type === 'queue' ? `${cue.channel}: ` : ''}
+                        {cue.asset}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="text-xs font-semibold">Dialogue</div>
           <div ref={inspectorLinesScrollRef} className={shouldVirtualizeInspectorLines ? 'max-h-64 overflow-y-auto' : ''}>
             {shouldVirtualizeInspectorLines ? (

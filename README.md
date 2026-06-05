@@ -172,6 +172,12 @@ After running `npm run bench:perf`, summarize key metrics from `perf-data/baseli
 - **Upload appears to do nothing**  
   The parser only processes files with a `.rpy` extension. Ensure your selected folder contains Ren'Py script files named with `.rpy`.
 
+- **Importing compiled games (.rpyc files) or archives (.rpa files)**  
+  The Flowchart Viewer requires plain-text `.rpy` source files. If you only have `.rpyc` files (compiled bytecode) or `.rpa` archives (compressed game assets), you must first extract and decompile them locally:
+  1. Extract `.rpa` files using a tool like [unrpa](https://github.com/Lattyware/unrpa) or [rpatool](https://codeberg.org/shiz/rpatool).
+  2. Decompile `.rpyc` files back to `.rpy` using [unrpyc](https://github.com/CensoredUsername/unrpyc).
+  3. Upload the resulting folder of decompiled `.rpy` files to the viewer.
+
 - **Flowchart is empty after upload**  
   This can happen when scripts contain no parsable `label` or `menu` structures (for example, comment-only files). Try with a script that includes at least one `label`.
 

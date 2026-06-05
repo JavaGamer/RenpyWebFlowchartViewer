@@ -22,12 +22,21 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.kwScene,
   PARSER_TOKENS.entityFunctionName,
   PARSER_TOKENS.kwJump,
+  PARSER_TOKENS.kwExpression,
   PARSER_TOKENS.kwCall,
   PARSER_TOKENS.kwReturn,
   PARSER_TOKENS.literalString,
   PARSER_TOKENS.kwConditional,
   PARSER_TOKENS.metaPythonBlock,
   PARSER_TOKENS.metaScreenBlock,
+  PARSER_TOKENS.kwPlay,
+  PARSER_TOKENS.kwVoice,
+  PARSER_TOKENS.kwStop,
+  PARSER_TOKENS.kwQueue,
+  PARSER_TOKENS.kwOther,
+  PARSER_TOKENS.kwDollarSign,
+  PARSER_TOKENS.metaItemAccess,
+  PARSER_TOKENS.metaFunctionCall,
 ].filter((t): t is number => typeof t === 'number'));
 
 function getLineIndent(
@@ -179,6 +188,7 @@ export function processFlatToken(
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
   precomputedScreenActionRuleMap?: Map<string, ScreenActionKind>,
+  sceneSplitDialogueThreshold?: number,
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
@@ -209,6 +219,7 @@ export function processFlatToken(
     lineText,
     captureDialogueLines,
     screenActionRuleMap,
+    sceneSplitDialogueThreshold,
   });
 }
 
@@ -286,6 +297,7 @@ export function processTokenTreeStream(
   captureDialogueLines = true,
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
+  sceneSplitDialogueThreshold?: number,
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
@@ -321,6 +333,7 @@ export function processTokenTreeStream(
       lineText,
       captureDialogueLines,
       screenActionRuleMap,
+      sceneSplitDialogueThreshold,
     });
   }
 }
@@ -334,6 +347,7 @@ export function processFlatTokens(
   captureDialogueLines: boolean,
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
+  sceneSplitDialogueThreshold?: number,
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
@@ -374,6 +388,7 @@ export function processFlatTokens(
       lineText,
       captureDialogueLines,
       screenActionRuleMap,
+      sceneSplitDialogueThreshold,
     });
   }
 }

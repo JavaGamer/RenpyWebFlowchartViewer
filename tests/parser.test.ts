@@ -170,7 +170,9 @@ describe('parseRenpyFiles', () => {
   it('splits labels into scene sub-nodes when scene boundaries occur after label content', async () => {
     const script = [
       'label start:',
-      '    "before"',
+      '    "before 1"',
+      '    "before 2"',
+      '    "before 3"',
       '    scene bg room',
       '    "after"',
       '',
@@ -179,7 +181,7 @@ describe('parseRenpyFiles', () => {
       '',
     ].join('\n');
 
-    const result = await parseRenpyFiles([{ name: 'scene-split.rpy', content: script }]);
+    const result = await parseRenpyFiles([{ name: 'scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
@@ -224,7 +226,9 @@ describe('parseRenpyFiles', () => {
       'label start:',
       '    menu:',
       '        "Pick":',
-      '            "inside option"',
+      '            "inside option 1"',
+      '            "inside option 2"',
+      '            "inside option 3"',
       '            scene bg beach',
       '            "after split trigger"',
       '    "outside option"',
@@ -234,7 +238,7 @@ describe('parseRenpyFiles', () => {
       '',
     ].join('\n');
 
-    const result = await parseRenpyFiles([{ name: 'menu-option-scene-split.rpy', content: script }]);
+    const result = await parseRenpyFiles([{ name: 'menu-option-scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
 
     const menuNode = result.nodes.find((node) => node.type === 'MENU');
     expect(result.nodes).toEqual(
@@ -263,7 +267,9 @@ describe('parseRenpyFiles', () => {
   it('uses next for scene split routing after menu options finish', async () => {
     const script = [
       'label start:',
-      '    "before"',
+      '    "before 1"',
+      '    "before 2"',
+      '    "before 3"',
       '    menu:',
       '        "Pick":',
       '            "inside option"',
@@ -272,7 +278,7 @@ describe('parseRenpyFiles', () => {
       '',
     ].join('\n');
 
-    const result = await parseRenpyFiles([{ name: 'menu-fallthrough-scene-split.rpy', content: script }]);
+    const result = await parseRenpyFiles([{ name: 'menu-fallthrough-scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
     const menuNode = result.nodes.find((node) => node.type === 'MENU');
     const sceneSplitEdge = result.edges.find(
       (edge) => edge.kind === 'sequence' && edge.target === 'start__scene_2',
@@ -286,6 +292,9 @@ describe('parseRenpyFiles', () => {
   it('splits labels when a conditional header appears before a scene boundary', async () => {
     const script = [
       'label start:',
+      '    "before 1"',
+      '    "before 2"',
+      '    "before 3"',
       '    if seen_intro:',
       '        pass',
       '    scene bg beach',
@@ -293,7 +302,7 @@ describe('parseRenpyFiles', () => {
       '',
     ].join('\n');
 
-    const result = await parseRenpyFiles([{ name: 'conditional-scene-split.rpy', content: script }]);
+    const result = await parseRenpyFiles([{ name: 'conditional-scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
@@ -306,7 +315,9 @@ describe('parseRenpyFiles', () => {
   it('enables scene-based label splitting by default for all parser variants', async () => {
     const script = [
       'label route:',
-      '    "first"',
+      '    "first 1"',
+      '    "first 2"',
+      '    "first 3"',
       '    scene bg city',
       '    "second"',
       '',
@@ -314,7 +325,7 @@ describe('parseRenpyFiles', () => {
 
     const result = await parseRenpyFiles(
       [{ name: 'st-scene-split.rpy', content: script }],
-      { parserVariant: 'st' },
+      { parserVariant: 'st', sceneSplitDialogueThreshold: 0 },
     );
 
     expect(result.nodes).toEqual(
@@ -2436,4 +2447,97 @@ describe('parseRenpyFiles', () => {
     expect(node?.dialogueCount).toBe(2);
     expect(node?.dialogueLines).toEqual(['Line one', 'Line two']);
   });
+
+  // ── Audio & Asset Cues parsing tests ──────────────────────────────────────────
+
+  it('correctly parses and associates audio and asset cues with the active node', async () => {
+    const script = [
+      'label start:',
+      '    scene bg room with fade',
+      '    play music "audio/bgm_chill.ogg" fadein 1.0',
+      '    "This is dialogue."',
+      '    "Extra dialogue 1."',
+      '    "Extra dialogue 2."',
+      '    play sound "audio/sfx_ding.wav"',
+      '    voice "audio/voice_line_1.mp3"',
+      '    "More dialogue."',
+      '    stop music fadeout 2.0',
+      '    queue music theme_track',
+      '    scene bg beach',
+      '    "Beach dialogue."',
+      '',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'audio-asset-cues.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
+
+    const scene1 = result.nodes.find((n) => n.id === 'start__scene_1');
+    const scene2 = result.nodes.find((n) => n.id === 'start__scene_2');
+
+    expect(scene1).toBeDefined();
+    expect(scene2).toBeDefined();
+
+    expect(scene1?.audioAssetCues).toEqual([
+      { type: 'scene', asset: 'bg room', raw: 'scene bg room with fade' },
+      { type: 'play', channel: 'music', asset: 'audio/bgm_chill.ogg', raw: 'play music "audio/bgm_chill.ogg" fadein 1.0' },
+      { type: 'play', channel: 'sound', asset: 'audio/sfx_ding.wav', raw: 'play sound "audio/sfx_ding.wav"' },
+      { type: 'voice', asset: 'audio/voice_line_1.mp3', raw: 'voice "audio/voice_line_1.mp3"' },
+      { type: 'stop', channel: 'music', asset: '', raw: 'stop music fadeout 2.0' },
+      { type: 'queue', channel: 'music', asset: 'theme_track', raw: 'queue music theme_track' },
+    ]);
+
+    expect(scene2?.audioAssetCues).toEqual([
+      { type: 'scene', asset: 'bg beach', raw: 'scene bg beach' },
+    ]);
+  });
+
+  // ── Dollar-Prefixed Python Statements & Dict Target Resolution tests ─────────────────
+
+  it('extracts jumps and assignments from dollar-prefixed single-line Python statements', async () => {
+    const script = [
+      'label start:',
+      '    $ target_label = "dest"',
+      '    $ renpy.jump(target_label)',
+      '',
+      'label dest:',
+      '    return',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'dollar-statements.rpy', content: script }]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'dest', kind: 'jump' })
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'dynamic_target' }),
+      ])
+    );
+  });
+
+  it('resolves static and dynamic dictionary-based targets to single and multiple edges', async () => {
+    const script = [
+      'label start:',
+      '    $ target_map = {"route_a": "target_a", "route_b": "target_b"}',
+      '    jump expression target_map["route_a"]',
+      '    jump expression target_map[route_var]',
+      '',
+      'label target_a:',
+      '    return',
+      '',
+      'label target_b:',
+      '    return',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'dict-targets.rpy', content: script }]);
+
+    // Static lookup mapping to target_a
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'target_a', kind: 'jump' })
+    );
+    // Dynamic lookup mapping to all target values in the dict: target_a and target_b
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'target_b', kind: 'jump' })
+    );
+  });
 });
+

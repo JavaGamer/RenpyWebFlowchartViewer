@@ -25,7 +25,7 @@ export interface TokenizedFile {
 
 type ParseFileOptions = Pick<
   ParseOptions,
-  'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'
+  'tokenizedCache' | 'fileCacheKeys' | 'captureDialogueLines' | 'parserVariant' | 'screenActionRules' | 'sceneSplitDialogueThreshold'
 >;
 
 export async function tokenizeOneFile(
@@ -61,7 +61,7 @@ export async function tokenizeOneFile(
 export function processTokenizedFile(
   state: ParseGraphState,
   tokenizedFile: TokenizedFile,
-  options: Pick<ParseFileOptions, 'captureDialogueLines' | 'parserVariant' | 'screenActionRules'> = {},
+  options: Pick<ParseFileOptions, 'captureDialogueLines' | 'parserVariant' | 'screenActionRules' | 'sceneSplitDialogueThreshold'> = {},
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
   parserPerf.mark('scan');
@@ -75,6 +75,7 @@ export function processTokenizedFile(
     options.captureDialogueLines !== false,
     options.parserVariant,
     options.screenActionRules,
+    options.sceneSplitDialogueThreshold,
   );
   parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
 }

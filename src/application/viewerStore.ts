@@ -26,6 +26,7 @@ import type { MockFlagValue } from '../conditionLogic';
 export interface ViewerPersistedState {
   theme: ThemeName;
   showCallReturns: boolean;
+  showAudioAssetCues: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
 }
 
@@ -58,6 +59,7 @@ export interface ViewerActions {
   // Persisted setters
   setTheme: (theme: ThemeName) => void;
   setShowCallReturns: (show: boolean) => void;
+  setShowAudioAssetCues: (show: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
 
   // Session setters
@@ -106,6 +108,7 @@ function isSafeMockFlagKey(flag: string): boolean {
 const defaultPersistedState: ViewerPersistedState = {
   theme: 'violet',
   showCallReturns: false,
+  showAudioAssetCues: true,
   visibleEdgeKinds: {
     sequence: true,
     jump: true,
@@ -140,6 +143,7 @@ const defaultSessionState: ViewerSessionState = {
 const viewerPersistedStateSchema = z.object({
   theme: z.enum(['violet', 'highContrast', 'colorblind']).catch(defaultPersistedState.theme),
   showCallReturns: z.boolean().catch(defaultPersistedState.showCallReturns),
+  showAudioAssetCues: z.boolean().catch(defaultPersistedState.showAudioAssetCues),
   visibleEdgeKinds: z
     .object({
       sequence: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.sequence),
@@ -191,6 +195,7 @@ function migrateLegacyKeys(): string | null {
     const migratedState: ViewerPersistedState = {
       theme: viewerPersistedStateSchema.shape.theme.parse(rawTheme),
       showCallReturns: rawCallReturns === 'true',
+      showAudioAssetCues: true,
       visibleEdgeKinds: {
         sequence: rawSeq !== 'false',
         jump: rawJump !== 'false',
@@ -226,6 +231,11 @@ export const useViewerStore = create<ViewerStore>()(
       setShowCallReturns: (show) =>
         set((draft) => {
           draft.showCallReturns = show;
+        }),
+
+      setShowAudioAssetCues: (show) =>
+        set((draft) => {
+          draft.showAudioAssetCues = show;
         }),
 
       setEdgeKindVisible: (kind, visible) =>
@@ -380,6 +390,7 @@ export const useViewerStore = create<ViewerStore>()(
       partialize: (state): ViewerPersistedState => ({
         theme: state.theme,
         showCallReturns: state.showCallReturns,
+        showAudioAssetCues: state.showAudioAssetCues,
         visibleEdgeKinds: state.visibleEdgeKinds,
       }),
     },

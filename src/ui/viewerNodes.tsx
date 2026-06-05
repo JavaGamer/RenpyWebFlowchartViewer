@@ -1,6 +1,8 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { DecisionNodeType, LabelNodeType, MenuNodeType } from '../flowchartTransforms';
 import { THEMES } from './viewerTheme';
+import { useViewerStore } from '../application';
+import { Image as ImageIcon, Music as MusicIcon, Volume2 as Volume2Icon, Mic as MicIcon } from 'lucide-react';
 
 function getTheme(themeName: unknown) {
   if (typeof themeName === 'string' && themeName in THEMES) {
@@ -13,6 +15,20 @@ export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
   const theme = getTheme(data.theme);
   const isShadowed = data.isShadowed === true;
   const isTerminalOutcome = data.isTerminalOutcome === true;
+  const showAudioAssetCues = useViewerStore((s) => s.showAudioAssetCues);
+
+  const cues = data.audioAssetCues ?? [];
+  const sceneCues = cues.filter((c) => c.type === 'scene');
+  const playMusicCues = cues.filter((c) => c.type === 'play' && c.channel === 'music');
+  const soundCues = cues.filter((c) => (c.type === 'play' || c.type === 'queue' || c.type === 'stop') && c.channel !== 'music' && c.channel !== 'voice');
+  const voiceCues = cues.filter((c) => c.type === 'voice' || c.channel === 'voice');
+  const musicCues = [...playMusicCues, ...cues.filter((c) => (c.type === 'queue' || c.type === 'stop') && c.channel === 'music')];
+
+  const sceneTooltip = sceneCues.map((c) => c.raw).join('\n');
+  const musicTooltip = musicCues.map((c) => c.raw).join('\n');
+  const soundTooltip = soundCues.map((c) => c.raw).join('\n');
+  const voiceTooltip = voiceCues.map((c) => c.raw).join('\n');
+
   return (
     <div
       className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
@@ -58,6 +74,46 @@ export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
       {data.dialogueCount > 0 && (
         <div className="mt-1 text-xs" style={{ color: theme.labelTitle }}>
           {data.dialogueCount} dialogue line{data.dialogueCount !== 1 ? 's' : ''}
+        </div>
+      )}
+      {showAudioAssetCues && cues.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5 justify-start">
+          {sceneCues.length > 0 && (
+            <div
+              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-blue-50 border-blue-200 text-blue-700 cursor-help"
+              title={sceneTooltip}
+            >
+              <ImageIcon size={10} />
+              <span>{sceneCues.length}</span>
+            </div>
+          )}
+          {musicCues.length > 0 && (
+            <div
+              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 border-emerald-200 text-emerald-700 cursor-help"
+              title={musicTooltip}
+            >
+              <MusicIcon size={10} />
+              <span>{musicCues.length}</span>
+            </div>
+          )}
+          {soundCues.length > 0 && (
+            <div
+              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-amber-50 border-amber-200 text-amber-700 cursor-help"
+              title={soundTooltip}
+            >
+              <Volume2Icon size={10} />
+              <span>{soundCues.length}</span>
+            </div>
+          )}
+          {voiceCues.length > 0 && (
+            <div
+              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-purple-50 border-purple-200 text-purple-700 cursor-help"
+              title={voiceTooltip}
+            >
+              <MicIcon size={10} />
+              <span>{voiceCues.length}</span>
+            </div>
+          )}
         </div>
       )}
       <Handle type="source" position={Position.Bottom} />

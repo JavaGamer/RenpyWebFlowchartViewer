@@ -537,7 +537,9 @@ describe('parser stage modules', () => {
       'label start:',
       '    menu:',
       '        "Pick":',
-      '            "inside option"',
+      '            "inside option 1"',
+      '            "inside option 2"',
+      '            "inside option 3"',
       '            scene bg beach',
       '            "after split trigger"',
       '',
@@ -545,7 +547,7 @@ describe('parser stage modules', () => {
     const doc = TextDocument.create('file://scene-remap.rpy', 'rpy', 1, script);
     const tokenTree = await Tokenizer.tokenizeDocument(doc);
 
-    processTokenTreeStream(state, scanState, tokenTree, doc, 'scene-remap');
+    processTokenTreeStream(state, scanState, tokenTree, doc, 'scene-remap', true, undefined, undefined, 0);
 
     const menuNode = state.nodes.find((node) => node.type === 'MENU');
     expect(menuNode).toBeDefined();

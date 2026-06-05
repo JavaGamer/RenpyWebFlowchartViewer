@@ -110,7 +110,9 @@ export interface ParseScanState {
   currentLabelSceneIndex?: number;
   currentLabelHasSplit?: boolean;
   currentLabelHasContentSinceSceneBoundary?: boolean;
+  currentSceneDialogueCount?: number;
   labelVariableLiteralTargets: Map<string, string>;
+  labelVariableDictTargets: Map<string, Map<string, string>>;
   menuStack: Array<{ id: string; optionText: string | null }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
@@ -175,6 +177,7 @@ export interface ParseOptions {
   captureDialogueLines?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  sceneSplitDialogueThreshold?: number;
 }
 
 export interface TokenMetaFlags {

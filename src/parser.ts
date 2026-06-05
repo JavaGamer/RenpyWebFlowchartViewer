@@ -82,6 +82,7 @@ export async function parseRenpyFiles(
         captureDialogueLines: options.captureDialogueLines,
         parserVariant: options.parserVariant,
         screenActionRules: options.screenActionRules,
+        sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
       });
       perf.measure(`file:${idx}:scan`, 'parse_file_scan_ms', { file: file.name });
       options.onProgress?.({

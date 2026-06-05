@@ -66,7 +66,7 @@ export function useViewerSearch({
   const hasActiveQuery = trimmedSearch.length > 0;
 
   // ── Candidate node IDs for scoped worker search ───────────────────────────
-  const dialogueSearchCandidateNodeIds = useMemo(() => {
+  const dialogueSearchCandidateNodeIdsKey = useMemo(() => {
     const ids: string[] = [];
     for (const node of nodes) {
       const nodeData = node.data as { chapter?: string; dialogueCount?: number } | undefined;
@@ -77,8 +77,12 @@ export function useViewerSearch({
       if (dialogueCount < minDialogue) continue;
       ids.push(node.id);
     }
-    return ids;
+    return JSON.stringify(ids);
   }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes]);
+
+  const dialogueSearchCandidateNodeIds = useMemo(() => {
+    return JSON.parse(dialogueSearchCandidateNodeIdsKey) as string[];
+  }, [dialogueSearchCandidateNodeIdsKey]);
 
   // ── Worker-backed search (large graph mode) ───────────────────────────────
   useEffect(() => {

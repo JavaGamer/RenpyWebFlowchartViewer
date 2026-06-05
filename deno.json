@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno run -A npm:tsc -b && deno run -A npm:vite build",
+    "lint": "deno run -A npm:eslint .",
+    "preview": "deno run -A npm:vite preview",
+    "test": "deno run -A npm:vitest run",
+    "test:coverage": "deno run -A npm:vitest run --coverage",
+    "bench:perf": "deno run -A npm:vitest run -c vitest.perf.config.ts"
+  },
+  "nodeModulesDir": "auto"
+}

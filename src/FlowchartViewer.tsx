@@ -178,6 +178,7 @@ function FlowchartCanvas({
     collapsedChapters,
     collapsedParentLabels,
     showCallReturns,
+    showAudioAssetCues,
     visibleEdgeKinds,
     focusNodeId,
     largeGraphModeOverride,
@@ -200,6 +201,7 @@ function FlowchartCanvas({
     collapsedChapters: s.collapsedChapters,
     collapsedParentLabels: s.collapsedParentLabels,
     showCallReturns: s.showCallReturns,
+    showAudioAssetCues: s.showAudioAssetCues,
     visibleEdgeKinds: s.visibleEdgeKinds,
     focusNodeId: s.focusNodeId,
     largeGraphModeOverride: s.largeGraphModeOverride,
@@ -222,6 +224,7 @@ function FlowchartCanvas({
     toggleParentLabel,
     setAllParentLabelsCollapsed,
     setShowCallReturns,
+    setShowAudioAssetCues,
     setEdgeKindVisible,
     setFocusNodeId,
     setLargeGraphModeOverride,
@@ -245,6 +248,7 @@ function FlowchartCanvas({
     toggleParentLabel: s.toggleParentLabel,
     setAllParentLabelsCollapsed: s.setAllParentLabelsCollapsed,
     setShowCallReturns: s.setShowCallReturns,
+    setShowAudioAssetCues: s.setShowAudioAssetCues,
     setEdgeKindVisible: s.setEdgeKindVisible,
     setFocusNodeId: s.setFocusNodeId,
     setLargeGraphModeOverride: s.setLargeGraphModeOverride,
@@ -500,7 +504,7 @@ function FlowchartCanvas({
     [selectedNodeId, visibleNodes],
   );
 
-  const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[] } | undefined;
+  const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[]; audioAssetCues?: import('./domain/graph').AudioAssetCue[] } | undefined;
 
   const nodeSearchMatchCount = useMemo(() => {
     if (!nodeSearchMatchIds) return 0;
@@ -636,6 +640,8 @@ function FlowchartCanvas({
             focusTargetNode={focusTargetNode}
             showCallReturns={showCallReturns}
             setShowCallReturns={setShowCallReturns}
+            showAudioAssetCues={showAudioAssetCues}
+            setShowAudioAssetCues={setShowAudioAssetCues}
             largeGraphMode={largeGraphMode}
             largeGraphModeOverride={largeGraphModeOverride}
             setLargeGraphModeOverride={setLargeGraphModeOverride}

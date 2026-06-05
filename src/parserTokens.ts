@@ -33,6 +33,14 @@ export interface ParserTokenMap {
   metaSayStatement: number;
   charWhitespace: number;
   charNewline: number;
+  kwPlay?: number;
+  kwVoice?: number;
+  kwStop?: number;
+  kwQueue?: number;
+  kwOther?: number;
+  kwDollarSign?: number;
+  metaItemAccess?: number;
+  metaFunctionCall?: number;
 }
 
 function isNumber(v: unknown): v is number {
@@ -168,6 +176,14 @@ function buildTokenMap(): ParserTokenMap {
       CharacterTokenType.Whitespace,
     ),
     charNewline: assertEnumEntry('CharacterTokenType', 'NewLine', CharacterTokenType.NewLine),
+    kwPlay: readOptionalEnumEntry(KeywordTokenType.Play),
+    kwVoice: readOptionalEnumEntry(KeywordTokenType.Voice),
+    kwStop: readOptionalEnumEntry(KeywordTokenType.Stop),
+    kwQueue: readOptionalEnumEntry(KeywordTokenType.Queue),
+    kwOther: readOptionalEnumEntry(KeywordTokenType.Other),
+    kwDollarSign: readOptionalEnumEntry(KeywordTokenType.DollarSign),
+    metaItemAccess: readOptionalEnumEntry(MetaTokenType.ItemAccess),
+    metaFunctionCall: readOptionalEnumEntry(MetaTokenType.FunctionCall),
   };
 }
 

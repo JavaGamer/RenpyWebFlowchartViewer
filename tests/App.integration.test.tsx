@@ -20,6 +20,7 @@ import * as parser from '../src/parser';
 import * as infrastructure from '../src/infrastructure';
 import { useAppStore } from '../src/application/appStore';
 import { useParserRuleSettingsStore, defaultParserRuleSettings } from '../src/application/parserRuleSettingsStore';
+import { useViewerStore } from '../src/application/viewerStore';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,7 @@ describe('App – upload → parse → render integration', () => {
     // Reset Zustand stores to initial state between tests.
     useAppStore.setState(useAppStore.getInitialState());
     useParserRuleSettingsStore.setState(defaultParserRuleSettings);
+    useViewerStore.setState(useViewerStore.getInitialState());
   });
 
   afterEach(() => {

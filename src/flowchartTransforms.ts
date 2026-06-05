@@ -20,6 +20,7 @@ export interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
   dialogueLines?: string[];
+  audioAssetCues?: FlowNode['audioAssetCues'];
   nodeType: 'LABEL' | 'MENU' | 'DECISION';
   chapter?: string;
   parentLabelId?: string;
@@ -71,10 +72,14 @@ function getLabelHeight(params: { isShadowed?: boolean; isTerminalOutcome?: bool
   return NODE_HEIGHT_LABEL;
 }
 
-function getNodeHeight(node: Pick<FlowNode, 'type' | 'isShadowed' | 'isTerminalOutcome'>): number {
+function getNodeHeight(node: Pick<FlowNode, 'type' | 'isShadowed' | 'isTerminalOutcome' | 'audioAssetCues'>): number {
   if (node.type === 'MENU') return NODE_HEIGHT_MENU;
   if (node.type === 'DECISION') return NODE_HEIGHT_DECISION;
-  return getLabelHeight(node);
+  const baseHeight = getLabelHeight(node);
+  if (node.audioAssetCues && node.audioAssetCues.length > 0) {
+    return baseHeight + 24;
+  }
+  return baseHeight;
 }
 
 function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
@@ -186,6 +191,7 @@ export function applyDagreLayout(
         label: n.label,
         dialogueCount: n.dialogueCount,
         dialogueLines: n.dialogueLines,
+        audioAssetCues: n.audioAssetCues,
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
@@ -277,6 +283,7 @@ function applyProgressiveDagreLayout(
         label: n.label,
         dialogueCount: n.dialogueCount,
         dialogueLines: n.dialogueLines,
+        audioAssetCues: n.audioAssetCues,
         nodeType: n.type,
         chapter: n.chapter,
         parentLabelId: n.parentLabelId,
@@ -382,12 +389,11 @@ export function buildVisibleNodes(params: {
         previous.hidden === hidden &&
         previous.position.x === n.position.x &&
         previous.position.y === n.position.y &&
-        previous.measured?.width === n.measured?.width &&
-        previous.measured?.height === n.measured?.height &&
         prevData.theme === theme &&
         prevData.label === nodeData.label &&
         prevData.dialogueCount === nodeData.dialogueCount &&
         prevData.dialogueLines === nodeData.dialogueLines &&
+        prevData.audioAssetCues === nodeData.audioAssetCues &&
         prevData.nodeType === nodeData.nodeType &&
         prevData.chapter === nodeData.chapter &&
         prevData.parentLabelId === nodeData.parentLabelId &&

@@ -15,6 +15,13 @@ export interface TimeoutMetadata {
   durationSeconds?: number;
 }
 
+export interface AudioAssetCue {
+  type: 'play' | 'stop' | 'queue' | 'voice' | 'scene';
+  channel?: string;
+  asset: string;
+  raw: string;
+}
+
 /** A node in the flowchart graph. */
 export interface FlowNode {
   id: string;
@@ -28,6 +35,8 @@ export interface FlowNode {
   dialogueCount: number;
   /** Dialogue line text captured from say statements in this block. */
   dialogueLines?: string[];
+  /** Optional audio and asset cues parsed in this block. */
+  audioAssetCues?: AudioAssetCue[];
   /** Source chapter inferred from the .rpy filename. */
   chapter?: string;
   /** Parent label id for MENU nodes. */

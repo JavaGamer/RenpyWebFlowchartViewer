@@ -23,6 +23,7 @@ interface HandleTokenInput {
   lineText: string;
   captureDialogueLines: boolean;
   screenActionRuleMap: Map<string, ScreenActionKind>;
+  sceneSplitDialogueThreshold?: number;
 }
 
 function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
@@ -153,12 +154,15 @@ function splitCurrentLabelOnSceneBoundary(
   chapter: string,
   meta: TokenMetaFlags,
   menuDepth: number,
+  sceneSplitDialogueThreshold?: number,
 ): void {
   const currentLabelId = scanState.currentLabelId;
   const currentLabelBaseId = scanState.currentLabelBaseId;
   const currentLabelDeclaredName = scanState.currentLabelDeclaredName;
   if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) return;
   if (!scanState.currentLabelHasContentSinceSceneBoundary) return;
+  const threshold = sceneSplitDialogueThreshold ?? 16;
+  if ((scanState.currentSceneDialogueCount ?? 0) < threshold) return;
 
   let activeSceneId = currentLabelId;
   if (!scanState.currentLabelHasSplit) {
@@ -224,6 +228,7 @@ function splitCurrentLabelOnSceneBoundary(
   scanState.currentLabelSceneIndex = sceneIndex;
   scanState.currentLabelHasContentSinceSceneBoundary = false;
   scanState.labelHasExplicitExit = false;
+  scanState.currentSceneDialogueCount = 0;
 }
 
 const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
@@ -804,6 +809,23 @@ function emitCallEdge(
   if (isInOption) state.calledFromMenuOptionTargets.add(resolvedTargetId);
 }
 
+function parseDictLiteral(expression: string): Map<string, string> | null {
+  const trimmed = expression.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+  const content = trimmed.substring(1, trimmed.length - 1);
+  const result = new Map<string, string>();
+  const pairRegex = /(?:"([^"]+)"|'([^']+)')\s*:\s*(?:"([^"]+)"|'([^']+)')/g;
+  let match;
+  while ((match = pairRegex.exec(content)) !== null) {
+    const key = match[1] || match[2];
+    const val = match[3] || match[4];
+    if (key && val) {
+      result.set(key, val);
+    }
+  }
+  return result.size > 0 ? result : null;
+}
+
 function extractLiteralTarget(expression: string): string | null {
   const trimmed = expression.trim();
   const match = QUOTED_LITERAL_PATTERN.exec(trimmed);
@@ -822,21 +844,68 @@ function resolveStaticTargetExpression(
   expression: string,
   scanState: ParseScanState,
 ): string | null {
-  const literal = extractLiteralTarget(expression);
+  const trimmed = expression.trim();
+  const literal = extractLiteralTarget(trimmed);
   if (literal) return literal;
-  const identifier = extractIdentifierTarget(expression);
-  if (!identifier) return null;
-  return scanState.labelVariableLiteralTargets.get(identifier) ?? null;
+  const identifier = extractIdentifierTarget(trimmed);
+  if (identifier) {
+    return scanState.labelVariableLiteralTargets.get(identifier) ?? null;
+  }
+  
+  const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(trimmed);
+  if (dictMatch) {
+    const dictName = dictMatch[1];
+    const keyExpr = dictMatch[2].trim();
+    const dict = scanState.labelVariableDictTargets.get(dictName);
+    if (dict) {
+      const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState);
+      if (resolvedKey) {
+        return dict.get(resolvedKey) ?? null;
+      }
+    }
+  }
+  
+  return null;
 }
 
-function resolveJumpStatementTarget(
+function resolveExpressionTargets(
   scanState: ParseScanState,
-  targetExpression: string,
-): string | null {
-  if (!scanState.waitForJumpExpressionTarget) return targetExpression;
-  const targetIdentifier = extractIdentifierTarget(targetExpression);
-  if (!targetIdentifier) return null;
-  return scanState.labelVariableLiteralTargets.get(targetIdentifier) ?? null;
+  expression: string,
+  isPythonExpression: boolean,
+): string[] {
+  const trimmed = expression.trim();
+  const isExpr = isPythonExpression || scanState.waitForJumpExpressionTarget;
+
+  if (isExpr) {
+    const literal = extractLiteralTarget(trimmed);
+    if (literal) return [literal];
+
+    const identifier = extractIdentifierTarget(trimmed);
+    if (identifier) {
+      const resolved = scanState.labelVariableLiteralTargets.get(identifier);
+      return resolved ? [resolved] : [];
+    }
+
+    const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(trimmed);
+    if (dictMatch) {
+      const dictName = dictMatch[1];
+      const keyExpr = dictMatch[2].trim();
+      const dict = scanState.labelVariableDictTargets.get(dictName);
+      if (dict) {
+        const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState);
+        if (resolvedKey) {
+          const val = dict.get(resolvedKey);
+          return val ? [val] : [];
+        } else {
+          return Array.from(dict.values());
+        }
+      }
+    }
+
+    return [];
+  } else {
+    return [trimmed];
+  }
 }
 
 type OpeningDelimiter = '(' | '[' | '{';
@@ -943,6 +1012,77 @@ function splitTopLevelArguments(argumentList: string): string[] {
   return args;
 }
 
+function stripQuotes(val: string): string {
+  const trimmed = val.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function extractSceneAsset(lineText: string): string | null {
+  const match = lineText.match(/^\s*scene\s+(.+)$/);
+  if (!match) return null;
+  let content = match[1].trim();
+  if (content.includes('#')) {
+    content = content.split('#')[0].trim();
+  }
+  const paramMatch = content.match(/^(.*?)\s*\b(?:with|at|behind|onlayer|zorder)\b/i);
+  const asset = paramMatch ? paramMatch[1].trim() : content.trim();
+  return stripQuotes(asset);
+}
+
+function extractPlayCue(lineText: string): { channel: string; asset: string } | null {
+  const match = lineText.match(/^\s*play\s+(\w+)\s+(.+)$/);
+  if (!match) return null;
+  const channel = match[1].trim();
+  let rest = match[2].trim();
+  if (rest.includes('#')) {
+    rest = rest.split('#')[0].trim();
+  }
+  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i);
+  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  return { channel, asset: stripQuotes(asset) };
+}
+
+function extractStopCue(lineText: string): { channel: string; asset?: string } | null {
+  const match = lineText.match(/^\s*stop\s+(\w+)(?:\s+(.+))?$/);
+  if (!match) return null;
+  const channel = match[1].trim();
+  let rest = (match[2] ?? '').trim();
+  if (rest.includes('#')) {
+    rest = rest.split('#')[0].trim();
+  }
+  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadeout|if)\b/i);
+  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  return { channel, asset: stripQuotes(asset) || undefined };
+}
+
+function extractQueueCue(lineText: string): { channel: string; asset: string } | null {
+  const match = lineText.match(/^\s*queue\s+(\w+)\s+(.+)$/);
+  if (!match) return null;
+  const channel = match[1].trim();
+  let rest = match[2].trim();
+  if (rest.includes('#')) {
+    rest = rest.split('#')[0].trim();
+  }
+  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i);
+  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  return { channel, asset: stripQuotes(asset) };
+}
+
+function extractVoiceCue(lineText: string): string | null {
+  const match = lineText.match(/^\s*voice\s+(.+)$/);
+  if (!match) return null;
+  let rest = match[1].trim();
+  if (rest.includes('#')) {
+    rest = rest.split('#')[0].trim();
+  }
+  const paramMatch = rest.match(/^(.*?)\s*\b(?:sustain|volume|if)\b/i);
+  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  return stripQuotes(asset);
+}
+
 // Finds the first delimiter at the current expression depth. This is used for
 // top-level argument splitting/keyword parsing (`=`), dictionary payloads (`:`),
 // and comma-separated argument handling.
@@ -970,13 +1110,13 @@ function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): n
   return -1;
 }
 
-function extractStaticTargetFromArgumentList(argumentList: string, scanState: ParseScanState): string | null {
+function extractStaticTargetsFromArgumentList(argumentList: string, scanState: ParseScanState): string[] {
   const args = splitTopLevelArguments(argumentList);
-  if (args.length === 0) return null;
+  if (args.length === 0) return [];
 
   const firstArgument = args[0];
-  const directTarget = resolveStaticTargetExpression(firstArgument, scanState);
-  if (directTarget) return directTarget;
+  const targets = resolveExpressionTargets(scanState, firstArgument, true);
+  if (targets.length > 0) return targets;
 
   const preferredKeywordNames = new Set(['label', 'target']);
   for (const arg of args) {
@@ -984,13 +1124,13 @@ function extractStaticTargetFromArgumentList(argumentList: string, scanState: Pa
     if (equalsIndex <= 0) continue;
     const keyword = arg.slice(0, equalsIndex).trim().toLowerCase();
     if (!preferredKeywordNames.has(keyword)) continue;
-    const target = resolveStaticTargetExpression(arg.slice(equalsIndex + 1), scanState);
-    if (target) return target;
+    const kwTargets = resolveExpressionTargets(scanState, arg.slice(equalsIndex + 1), true);
+    if (kwTargets.length > 0) return kwTargets;
   }
 
   const equalsIndex = findTopLevelDelimiterIndex(firstArgument, '=');
-  if (equalsIndex <= 0) return null;
-  return resolveStaticTargetExpression(firstArgument.slice(equalsIndex + 1), scanState);
+  if (equalsIndex <= 0) return [];
+  return resolveExpressionTargets(scanState, firstArgument.slice(equalsIndex + 1), true);
 }
 
 function extractNestedExpressionValue(expression: string): string {
@@ -1168,6 +1308,7 @@ interface PythonAssignmentEvent {
   index: number;
   variableName: string;
   assignedTarget: string | null;
+  assignedDict?: Map<string, string> | null;
 }
 
 interface PythonRenpyCallEvent {
@@ -1215,11 +1356,13 @@ function processDirectRenpyBlockCalls(
     if (!variableName) continue;
     const assignedExpression = stripInlineComment(match[2] ?? '');
     const assignedTarget = resolveStaticTargetExpression(assignedExpression, scanState);
+    const assignedDict = parseDictLiteral(assignedExpression);
     events.push({
       kind: 'assignment',
       index: match.index,
       variableName,
       assignedTarget,
+      assignedDict,
     });
   }
 
@@ -1229,23 +1372,30 @@ function processDirectRenpyBlockCalls(
     if (event.kind === 'assignment') {
       if (event.assignedTarget) {
         scanState.labelVariableLiteralTargets.set(event.variableName, event.assignedTarget);
+        scanState.labelVariableDictTargets.delete(event.variableName);
+      } else if (event.assignedDict) {
+        scanState.labelVariableDictTargets.set(event.variableName, event.assignedDict);
+        scanState.labelVariableLiteralTargets.delete(event.variableName);
       } else {
         scanState.labelVariableLiteralTargets.delete(event.variableName);
+        scanState.labelVariableDictTargets.delete(event.variableName);
       }
       continue;
     }
 
     const context = resolveCallContext(scanState, meta, menuDepth);
-    const target = extractStaticTargetFromArgumentList(event.targetExpression, scanState);
-    if (!target) {
+    const targets = extractStaticTargetsFromArgumentList(event.targetExpression, scanState);
+    if (targets.length === 0) {
       addDynamicTargetDiagnostic(state, chapter, event.construct, event.targetExpression, context.source ?? undefined);
       continue;
     }
 
-    if (event.callType === 'jump') {
-      emitJumpEdge(state, scanState, target, context, false);
-    } else {
-      emitCallEdge(state, scanState, target, context);
+    for (const target of targets) {
+      if (event.callType === 'jump') {
+        emitJumpEdge(state, scanState, target, context, false);
+      } else {
+        emitCallEdge(state, scanState, target, context);
+      }
     }
   }
 }
@@ -1264,23 +1414,25 @@ function processDirectScreenActionCalls(
     const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) return;
     const context = resolveCallContext(scanState, meta, menuDepth);
-    const target = extractStaticTargetFromArgumentList(targetExpression, scanState);
-    if (!target) {
+    const targets = extractStaticTargetsFromArgumentList(targetExpression, scanState);
+    if (targets.length === 0) {
       addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       return;
     }
-    const dedupeKey = [
-      construct.toLowerCase(),
-      target,
-      context.source ?? '',
-      timeout?.isTimeout ? `timeout:${timeout.durationSeconds === undefined ? 'unknown' : timeout.durationSeconds}` : 'normal',
-    ].join('|');
-    if (seenCalls.has(dedupeKey)) return;
-    seenCalls.add(dedupeKey);
-    if (callType === 'jump') {
-      emitJumpEdge(state, scanState, target, context, false, timeout);
-    } else {
-      emitCallEdge(state, scanState, target, context, timeout);
+    for (const target of targets) {
+      const dedupeKey = [
+        construct.toLowerCase(),
+        target,
+        context.source ?? '',
+        timeout?.isTimeout ? `timeout:${timeout.durationSeconds === undefined ? 'unknown' : timeout.durationSeconds}` : 'normal',
+      ].join('|');
+      if (seenCalls.has(dedupeKey)) continue;
+      seenCalls.add(dedupeKey);
+      if (callType === 'jump') {
+        emitJumpEdge(state, scanState, target, context, false, timeout);
+      } else {
+        emitCallEdge(state, scanState, target, context, timeout);
+      }
     }
   };
 
@@ -1306,6 +1458,11 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
   if (scanState.waitForJumpTarget && type !== PARSER_TOKENS.entityFunctionName) {
     if (PARSER_TOKENS.kwExpression !== undefined && type === PARSER_TOKENS.kwExpression) {
       scanState.waitForJumpExpressionTarget = true;
+    } else if (
+      (PARSER_TOKENS.metaItemAccess !== undefined && type === PARSER_TOKENS.metaItemAccess) ||
+      (PARSER_TOKENS.metaFunctionCall !== undefined && type === PARSER_TOKENS.metaFunctionCall)
+    ) {
+      // Keep waiting for target
     } else {
       scanState.waitForJumpTarget = false;
       scanState.waitForJumpExpressionTarget = false;
@@ -1396,6 +1553,12 @@ export function handleToken(
   if (!scanState.conditionalDecisionStack) {
     scanState.conditionalDecisionStack = [];
   }
+  if (!scanState.labelVariableLiteralTargets) {
+    scanState.labelVariableLiteralTargets = new Map();
+  }
+  if (!scanState.labelVariableDictTargets) {
+    scanState.labelVariableDictTargets = new Map();
+  }
   if (scanState.pendingConditionalHeader === undefined) {
     scanState.pendingConditionalHeader = null;
   }
@@ -1414,7 +1577,7 @@ export function handleToken(
   if (scanState.currentLabelHasContentSinceSceneBoundary === undefined) {
     scanState.currentLabelHasContentSinceSceneBoundary = false;
   }
-  const { type, meta, val, chapter, menuDepth, lineIndent, captureDialogueLines, screenActionRuleMap } = input;
+  const { type, meta, val, chapter, menuDepth, lineIndent, lineText, captureDialogueLines, screenActionRuleMap } = input;
   resetStaleWaitFlags(scanState, type);
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
@@ -1473,7 +1636,9 @@ export function handleToken(
     scanState.currentLabelHasSplit = false;
     scanState.currentLabelHasContentSinceSceneBoundary = false;
     scanState.currentLabelIndent = lineIndent;
+    scanState.currentSceneDialogueCount = 0;
     scanState.labelVariableLiteralTargets.clear();
+    scanState.labelVariableDictTargets.clear();
     for (const menuId of scanState.pendingMenuFallthroughIds) {
       addEdge(state, {
         id: `seq_${menuId}__${newLabelId}`,
@@ -1530,7 +1695,103 @@ export function handleToken(
   }
 
   if (PARSER_TOKENS.kwScene !== undefined && type === PARSER_TOKENS.kwScene) {
-    splitCurrentLabelOnSceneBoundary(state, scanState, chapter, meta, menuDepth);
+    splitCurrentLabelOnSceneBoundary(state, scanState, chapter, meta, menuDepth, input.sceneSplitDialogueThreshold);
+    if (scanState.currentLabelId) {
+      const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+      if (ownerNode) {
+        const sceneAsset = extractSceneAsset(lineText);
+        if (sceneAsset) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: 'scene',
+            asset: sceneAsset,
+            raw: lineText.trim(),
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  if (PARSER_TOKENS.kwPlay !== undefined && type === PARSER_TOKENS.kwPlay) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
+    if (scanState.currentLabelId) {
+      const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+      if (ownerNode) {
+        const cue = extractPlayCue(lineText);
+        if (cue) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: 'play',
+            channel: cue.channel,
+            asset: cue.asset,
+            raw: lineText.trim(),
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  if (PARSER_TOKENS.kwStop !== undefined && type === PARSER_TOKENS.kwStop) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
+    if (scanState.currentLabelId) {
+      const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+      if (ownerNode) {
+        const cue = extractStopCue(lineText);
+        if (cue) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: 'stop',
+            channel: cue.channel,
+            asset: cue.asset ?? '',
+            raw: lineText.trim(),
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  if (PARSER_TOKENS.kwQueue !== undefined && type === PARSER_TOKENS.kwQueue) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
+    if (scanState.currentLabelId) {
+      const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+      if (ownerNode) {
+        const cue = extractQueueCue(lineText);
+        if (cue) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: 'queue',
+            channel: cue.channel,
+            asset: cue.asset,
+            raw: lineText.trim(),
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  const isVoiceToken = (PARSER_TOKENS.kwVoice !== undefined && type === PARSER_TOKENS.kwVoice) ||
+    (PARSER_TOKENS.kwOther !== undefined && type === PARSER_TOKENS.kwOther && val().trim().toLowerCase() === 'voice');
+
+  if (isVoiceToken) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
+    if (scanState.currentLabelId) {
+      const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+      if (ownerNode) {
+        const voiceAsset = extractVoiceCue(lineText);
+        if (voiceAsset) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: 'voice',
+            asset: voiceAsset,
+            raw: lineText.trim(),
+          });
+        }
+      }
+    }
     return;
   }
 
@@ -1538,6 +1799,14 @@ export function handleToken(
     if (handleConditionalHeader(state, scanState, meta, menuDepth, chapter)) {
       scanState.currentLabelHasContentSinceSceneBoundary = true;
     }
+  }
+
+  if (PARSER_TOKENS.kwDollarSign !== undefined && type === PARSER_TOKENS.kwDollarSign) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
+    const rawText = lineText.trim();
+    const cleanStmt = rawText.startsWith('$') ? rawText.slice(1).trim() : rawText;
+    processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, cleanStmt);
+    return;
   }
 
   if (type === PARSER_TOKENS.metaPythonBlock) {
@@ -1651,15 +1920,20 @@ export function handleToken(
     return;
   }
 
+  const isJumpTargetToken =
+    type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.metaItemAccess !== undefined && type === PARSER_TOKENS.metaItemAccess) ||
+    (PARSER_TOKENS.metaFunctionCall !== undefined && type === PARSER_TOKENS.metaFunctionCall);
+
   if (
-    type === PARSER_TOKENS.entityFunctionName &&
+    isJumpTargetToken &&
     scanState.waitForJumpTarget &&
     meta.hasJumpStatement
   ) {
     const targetExpression = val();
-    const target = resolveJumpStatementTarget(scanState, targetExpression);
+    const targets = resolveExpressionTargets(scanState, targetExpression, false);
     const context = resolveCallContext(scanState, meta, menuDepth);
-    if (!target) {
+    if (targets.length === 0) {
       addDynamicTargetDiagnostic(state, chapter, 'jump expression', targetExpression, context.source ?? undefined);
       const isReliableJumpExit =
         scanState.conditionalIndentStack.length === 0 &&
@@ -1671,7 +1945,9 @@ export function handleToken(
       scanState.waitForJumpExpressionTarget = false;
       return;
     }
-    emitJumpEdge(state, scanState, target, context, true);
+    for (const target of targets) {
+      emitJumpEdge(state, scanState, target, context, true);
+    }
     scanState.waitForJumpTarget = false;
     scanState.waitForJumpExpressionTarget = false;
     return;
@@ -1716,6 +1992,7 @@ export function handleToken(
 
     if (isSay && !isMenuOption) {
       scanState.currentLabelHasContentSinceSceneBoundary = true;
+      scanState.currentSceneDialogueCount = (scanState.currentSceneDialogueCount ?? 0) + 1;
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
       const ownerId =
         meta.hasMenuOptionBlock && menu

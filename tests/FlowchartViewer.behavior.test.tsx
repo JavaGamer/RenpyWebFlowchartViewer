@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -8,6 +8,7 @@ import FlowchartViewer from '../src/FlowchartViewer';
 import type { FlowNode, FlowEdge } from '../src/domain';
 import * as ReactFlowLib from '@xyflow/react';
 import type { ParseService } from '../src/application/parseService';
+import { useViewerStore } from '../src/application/viewerStore';
 
 vi.mock('@xyflow/react', () => {
   const flowApi: {
@@ -147,6 +148,11 @@ vi.mock('@xyflow/react', () => {
 });
 
 describe('FlowchartViewer behavior coverage', () => {
+  beforeEach(() => {
+    globalThis.localStorage.clear();
+    useViewerStore.setState(useViewerStore.getInitialState());
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
