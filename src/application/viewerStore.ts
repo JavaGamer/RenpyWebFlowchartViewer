@@ -15,14 +15,17 @@ import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
 import type { DialogueSearchResult } from '../infrastructure';
-import type { ConditionVisibilityMode, EdgeKindFilter } from '../flowchartTransforms';
-import type { ThemeName, LayoutDirection } from '../ui';
+import type { ConditionVisibilityMode, EdgeKindFilter, ThemeName, LayoutDirection } from '../domain';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import type { DialogueSearchMode } from './appStore';
-import type { MockFlagValue } from '../conditionLogic';
+import type { MockFlagValue } from '../domain';
 
 // ─── Persisted slice ──────────────────────────────────────────────────────────
 
+/**
+ * State that is persisted to localStorage and restored between sessions.
+ * Contains only display preferences that should survive a page refresh.
+ */
 export interface ViewerPersistedState {
   theme: ThemeName;
   showCallReturns: boolean;
@@ -32,6 +35,11 @@ export interface ViewerPersistedState {
 
 // ─── Session slice (reset on each new import) ─────────────────────────────────
 
+/**
+ * Transient UI state that is reset whenever `FlowchartViewer` unmounts.
+ * Because `App` renders `<FlowchartViewer key={importRevision}>`, each
+ * successful import effectively resets all session state automatically.
+ */
 export interface ViewerSessionState {
   layoutDirection: LayoutDirection;
   searchInput: string;
@@ -95,12 +103,18 @@ export type ViewerStore = ViewerPersistedState & ViewerSessionState & ViewerActi
 
 // ─── Default values ───────────────────────────────────────────────────────────
 
+/**
+ * Set of property names forbidden as mock-flag keys to prevent prototype pollution
+ * when user-supplied flag strings are written to the flags record.
+ */
 const UNSAFE_MOCK_FLAG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+/** Creates an empty mock-flags object with a null prototype to avoid pollution. */
 function createEmptyMockFlags(): Record<string, MockFlagValue> {
   return Object.create(null) as Record<string, MockFlagValue>;
 }
 
+/** Returns `true` when `flag` is safe to use as a mock-flags record key. */
 function isSafeMockFlagKey(flag: string): boolean {
   return !UNSAFE_MOCK_FLAG_KEYS.has(flag);
 }
@@ -154,6 +168,11 @@ const viewerPersistedStateSchema = z.object({
     .catch(defaultPersistedState.visibleEdgeKinds),
 });
 
+/**
+ * Validates and merges the raw persisted object from localStorage into the
+ * current store state. Unknown or malformed keys are silently replaced with
+ * their schema defaults via Zod `.catch()` clauses.
+ */
 function mergePersistedState(persisted: unknown, current: ViewerStore): ViewerStore {
   const parsed = viewerPersistedStateSchema.parse(
     persisted && typeof persisted === 'object' ? persisted : {},
@@ -178,6 +197,17 @@ const LEGACY_KEYS = [
   STORAGE_KEYS.edgeCallReturn,
 ] as const;
 
+/**
+ * One-time migration from the pre-consolidation per-key storage format.
+ *
+ * Previous versions stored each preference individually (`rfv.theme`,
+ * `rfv.showCallReturns`, `rfv.edge.*`). After migrating to the consolidated
+ * `rfv.viewer` key, this function reads the old keys on first load, constructs a
+ * Zustand-compatible serialised payload, and removes the legacy keys so the
+ * migration only runs once per browser profile.
+ *
+ * Returns `null` if no legacy keys are found.
+ */
 function migrateLegacyKeys(): string | null {
   try {
     const rawTheme = globalThis.localStorage.getItem(STORAGE_KEYS.theme);

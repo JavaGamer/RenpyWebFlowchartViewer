@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from '../config/viewerConfig';
-import { type CanvasNode } from '../flowchartTransforms';
+import { type CanvasNode } from '../domain';
 import type { DialogueSearchResult } from '../infrastructure';
 import { renderHighlightedText, truncateForAria } from './viewerText';
 

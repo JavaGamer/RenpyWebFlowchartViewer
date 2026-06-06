@@ -6,8 +6,8 @@ import React from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
-import FlowchartViewer from '../src/FlowchartViewer';
-import { parseRenpyFiles } from '../src/parser';
+import FlowchartViewer from '../src/ui/FlowchartViewer';
+import { parseRenpyFiles } from '../src/parser/parser';
 
 vi.mock('@xyflow/react', () => {
   const ReactFlow = ({

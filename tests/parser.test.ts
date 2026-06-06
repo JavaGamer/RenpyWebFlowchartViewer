@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseRenpyFiles } from '../src/parser';
+import { parseRenpyFiles } from '../src/parser/parser';
 
 function loadFixture(name: string): string {
   const fixturesDir = resolve(import.meta.dirname, 'fixtures');
@@ -2537,6 +2537,22 @@ describe('parseRenpyFiles', () => {
     // Dynamic lookup mapping to all target values in the dict: target_a and target_b
     expect(result.edges).toContainEqual(
       expect.objectContaining({ source: 'start', target: 'target_b', kind: 'jump' })
+    );
+  });
+
+  it('parses triple-quoted strings containing escaped quotes without premature termination', async () => {
+    const script = [
+      'label start:',
+      '    if """test escaped triple quote \\""" inside string""":',
+      '        jump target_a',
+      '',
+      'label target_a:',
+      '    return',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'triple_quoted_escaped.rpy', content: script }]);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'target_a', kind: 'jump' })
     );
   });
 });

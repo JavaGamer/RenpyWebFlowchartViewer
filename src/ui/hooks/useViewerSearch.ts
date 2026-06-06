@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Fuse from 'fuse.js';
 import debounce from 'lodash.debounce';
-import type { CanvasNode } from '../flowchartTransforms';
-import type { ParseService } from '../application';
-import type { DialogueSearchResult } from '../infrastructure';
+import type { CanvasNode } from '../../domain';
+import type { ParseService } from '../../application';
+import type { DialogueSearchResult } from '../../infrastructure';
 import {
   DIALOGUE_FUSE_OPTIONS,
   NODE_FUSE_OPTIONS,
   type DialogueSearchDocument,
   type NodeSearchDocument,
-} from '../config/searchConfig';
-import { SEARCH_DEBOUNCE_MS, DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
+} from '../../config/searchConfig';
+import { SEARCH_DEBOUNCE_MS, DIALOGUE_SEARCH_MAX_RESULTS } from '../../config/viewerConfig';
 
 interface UseViewerSearchParams {
   nodes: CanvasNode[];

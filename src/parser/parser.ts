@@ -1,21 +1,21 @@
 /**
- * src/parser.ts
+ * src/parser/parser.ts
  *
  * Client-side Ren'Py script parser.
  */
 
 import pLimit from 'p-limit';
-import { createPerfTracker } from './perf';
-import { compareDeterministicStrings } from './sortUtils';
-import { createGraphState } from './parser/pipelineState';
-import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './parser/filePipeline';
-import { finalizeRoles } from './parser/roleFinalization';
+import { createPerfTracker } from '../infrastructure';
+import { compareDeterministicStrings } from '../domain';
+import { createGraphState } from './pipelineState';
+import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './filePipeline';
+import { finalizeRoles } from './roleFinalization';
 import type {
   ParseInputFile,
   ParseResult,
   ParseProgress,
   ParseOptions,
-} from './parser/pipelineTypes';
+} from './pipelineTypes';
 
 export type { ParseResult, ParseProgress, ParseOptions };
 

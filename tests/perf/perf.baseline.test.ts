@@ -9,8 +9,8 @@ import {
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
-import { parseRenpyFiles } from '../../src/parser';
-import { applyDagreLayout, buildVisibleNodes, buildVisibleEdges } from '../../src/flowchartTransforms';
+import { parseRenpyFiles } from '../../src/parser/parser';
+import { applyDagreLayout, buildVisibleNodes, buildVisibleEdges } from '../../src/domain';
 
 const thisDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(thisDir, '../..');

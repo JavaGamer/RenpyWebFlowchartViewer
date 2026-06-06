@@ -1,5 +1,5 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
-import type { LabeledEdgeType } from '../flowchartTransforms';
+import type { LabeledEdgeType } from '../domain';
 
 export function LabeledEdge({
   id,

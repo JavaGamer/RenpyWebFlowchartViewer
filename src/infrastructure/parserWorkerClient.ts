@@ -16,7 +16,7 @@ let worker: Worker | null = null;
 
 function getParserWorker(): Worker {
   if (!worker) {
-    worker = new Worker(new URL('../parserWorker.ts', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./parserWorker.ts', import.meta.url), { type: 'module' });
   }
   return worker;
 }

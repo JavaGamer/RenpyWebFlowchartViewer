@@ -1,9 +1,8 @@
 import { LayoutGrid, Palette, LocateFixed } from 'lucide-react';
-import type { CanvasNode } from '../flowchartTransforms';
-import type { ConditionVisibilityMode, EdgeKindFilter } from '../flowchartTransforms';
-import type { LayoutDirection, ThemeName } from './viewerTypes';
+import type { CanvasNode, ConditionVisibilityMode, EdgeKindFilter, LayoutDirection, ThemeName } from '../domain';
+
 import { CONTROL_INPUT_CLASS, CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
-import type { MockFlagValue } from '../conditionLogic';
+import type { MockFlagValue } from '../domain';
 
 export interface ViewerAdvancedControlsProps {
   layoutDirection: LayoutDirection;

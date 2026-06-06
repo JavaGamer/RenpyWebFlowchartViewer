@@ -1,4 +1,4 @@
-import { PARSER_TOKENS, isMenuKeywordTokenType } from '../parserTokens';
+import { PARSER_TOKENS, isMenuKeywordTokenType } from './parserTokens';
 import type {
   ParseGraphState,
   ParseScanState,
@@ -10,8 +10,7 @@ import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
 import { assertInvariant } from './pipelineInvariants';
 import type { ScreenActionKind } from '../config/parserRules';
 import { addParseDiagnostic } from './diagnostics';
-import { extractConditionFlagRefs } from '../conditionLogic';
-import type { ConditionMetadata, FlowEdge } from '../domain';
+import { extractConditionFlagRefs, type ConditionMetadata, type FlowEdge } from '../domain';
 
 interface HandleTokenInput {
   type: number;
@@ -26,10 +25,15 @@ interface HandleTokenInput {
   sceneSplitDialogueThreshold?: number;
 }
 
+/** Checks if a label node has any registered outgoing sequence or jump edges. */
 function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
   return state.outgoingByLabel.has(sourceId);
 }
 
+/**
+ * Determines whether the current scanner position lies within the indentation scope
+ * of the currently active label block.
+ */
 function isWithinCurrentLabelScope(scanState: ParseScanState, meta: TokenMetaFlags, lineIndent: number): boolean {
   if (meta.hasLabelStatement) {
     return true;
@@ -78,6 +82,10 @@ function rebuildGraphFromState(state: ParseGraphState): void {
   }
 }
 
+/**
+ * Re-maps all incoming references, outgoing connections, and label definition indices
+ * from an old label ID to a new label ID. Used when a label is split into scenes.
+ */
 function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: string): void {
   if (fromId === toId) return;
   const node = state.nodeMap.get(fromId);
@@ -148,6 +156,11 @@ function connectSceneSplitFromSource(
   addIncoming(state, nextSceneId, 'sequence');
 }
 
+/**
+ * Automatically splits a label into consecutive scenes (e.g. "LabelName: Scene 2")
+ * if the dialogue line count within the scene boundaries exceeds the specified threshold.
+ * This ensures large linear label blocks are broken down into digestible nodes.
+ */
 function splitCurrentLabelOnSceneBoundary(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -266,6 +279,11 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
   while (index < matchIndex) {
     const char = text[index];
     if (activeQuote) {
+      if (char === '\\') {
+        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
+        index += escapeSequenceLength;
+        continue;
+      }
       if (tripleQuoted) {
         if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
           index += 3;
@@ -274,11 +292,6 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
         } else {
           index += 1;
         }
-        continue;
-      }
-      if (char === '\\') {
-        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
-        index += escapeSequenceLength;
         continue;
       }
       if (char === activeQuote) {
@@ -376,6 +389,10 @@ class TopLevelPythonAssignmentPattern extends RegExp {
 
 const PYTHON_ASSIGNMENT_PATTERN = new TopLevelPythonAssignmentPattern();
 
+/**
+ * Scans a python-like parameter or argument list enclosed in parentheses,
+ * keeping track of delimiter depth and string literals, and returns the balance index.
+ */
 function readParenthesizedArgument(
   text: string,
   argumentStartIndex: number,
@@ -449,6 +466,11 @@ function readBalancedSegment(
     }
 
     if (activeQuote) {
+      if (char === '\\') {
+        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
+        index += escapeSequenceLength;
+        continue;
+      }
       if (tripleQuoted) {
         if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
           index += 3;
@@ -457,11 +479,6 @@ function readBalancedSegment(
         } else {
           index += 1;
         }
-        continue;
-      }
-      if (char === '\\') {
-        const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
-        index += escapeSequenceLength;
         continue;
       }
       if (char === activeQuote) activeQuote = null;
@@ -582,6 +599,10 @@ function getLineRange(text: string, index: number): { start: number; end: number
   return { start, end };
 }
 
+/**
+ * Parses screen action lines (e.g. `action Jump("label")`) within a screen block.
+ * Extracts call/jump targets, parameter expressions, and timeout durations for timers.
+ */
 function extractScreenActionExpressions(blockText: string): ExtractedScreenActionExpression[] {
   const ignoredMask = buildIgnoredPositionMask(blockText);
   const expressions: ExtractedScreenActionExpression[] = [];
@@ -868,6 +889,11 @@ function resolveStaticTargetExpression(
   return null;
 }
 
+/**
+ * Resolves static targets for python or renpy jump/call expressions.
+ * Tracks assignments and dictionary key mappings (e.g. `jump expression var_name`)
+ * using the scanState's variable binding cache.
+ */
 function resolveExpressionTargets(
   scanState: ParseScanState,
   expression: string,
@@ -938,6 +964,10 @@ function forEachCodeCharacterOutsideStringsAndComments(
     }
 
     if (activeQuote) {
+      if (char === '\\') {
+        index += (index + 1 < text.length) ? 2 : 1;
+        continue;
+      }
       if (tripleQuoted) {
         if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
           index += 3;
@@ -946,10 +976,6 @@ function forEachCodeCharacterOutsideStringsAndComments(
         } else {
           index += 1;
         }
-        continue;
-      }
-      if (char === '\\') {
-        index += (index + 1 < text.length) ? 2 : 1;
         continue;
       }
       if (char === activeQuote) {
@@ -1208,7 +1234,7 @@ function buildIgnoredPositionMask(text: string): boolean[] {
 
     if (activeQuote) {
       ignored[i] = true;
-      if (!tripleQuoted && char === '\\') {
+      if (char === '\\') {
         if (i + 1 < text.length) {
           ignored[i + 1] = true;
           i += 1;
@@ -1261,6 +1287,10 @@ function stripInlineComment(value: string): string {
   for (let i = 0; i < value.length; i += 1) {
     const char = value[i];
     if (activeQuote) {
+      if (char === '\\') {
+        i += 1;
+        continue;
+      }
       if (tripleQuoted) {
         if (
           i + 2 < value.length &&
@@ -1272,10 +1302,6 @@ function stripInlineComment(value: string): string {
           activeQuote = null;
           tripleQuoted = false;
         }
-        continue;
-      }
-      if (char === '\\') {
-        i += 1;
         continue;
       }
       if (char === activeQuote) activeQuote = null;
@@ -1319,6 +1345,10 @@ interface PythonRenpyCallEvent {
   targetExpression: string;
 }
 
+/**
+ * Analyzes direct Python code blocks or inline statements (e.g., `$ renpy.jump("lbl")`)
+ * to resolve variable assignments and register control flow jumps/calls.
+ */
 function processDirectRenpyBlockCalls(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -1400,6 +1430,9 @@ function processDirectRenpyBlockCalls(
   }
 }
 
+/**
+ * Extracts action methods from Ren'Py screen blocks and generates corresponding flowchart edges.
+ */
 function processDirectScreenActionCalls(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -1443,6 +1476,9 @@ function processDirectScreenActionCalls(
   }
 }
 
+/**
+ * Resets wait flags to prevent dangling parsing rules on malformed script streams.
+ */
 function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
   // Wait flags are transient parser intents (e.g. "next function-name is a jump target").
   // On malformed or mixed token streams, these intents can leak into later tokens and create
@@ -1484,6 +1520,10 @@ function resolveConditionalSource(scanState: ParseScanState, meta: TokenMetaFlag
   return scanState.currentLabelId;
 }
 
+/**
+ * Processes conditional keyword transitions (if, elif, else), creating
+ * a decision node in the graph and managing the conditional decision stack.
+ */
 function handleConditionalHeader(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -1545,6 +1585,15 @@ function handleConditionalHeader(
   return true;
 }
 
+/**
+ * The main dispatch router for individual tokens in the parser pipeline.
+ * Evaluates token types (labels, jumps, calls, returns, menus, dialogue strings)
+ * and mutates the flowchart graph topology accordingly.
+ *
+ * @param state Global graph assembly accumulator.
+ * @param scanState File-local scanning track.
+ * @param input Evaluated token data.
+ */
 export function handleToken(
   state: ParseGraphState,
   scanState: ParseScanState,

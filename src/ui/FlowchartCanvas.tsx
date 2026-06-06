@@ -1,11 +1,4 @@
-/**
- * src/FlowchartViewer.tsx
- *
- * Renders the parsed Ren'Py flowchart using React Flow + dagre.
- * Exports a high-resolution PNG via html-to-image.
- */
-
-import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -14,131 +7,42 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { toBlob, toSvg } from 'html-to-image';
-import { saveAs } from 'file-saver';
-import { ErrorBoundary } from 'react-error-boundary';
 import { useShallow } from 'zustand/react/shallow';
-import type { FlowNode, FlowEdge } from './domain';
 import {
-  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
-  type DialogueSearchMode,
-  type ParseService,
-  type DebugBundlePrivacyOptions,
-  useViewerStore,
-  workerParseService,
-} from './application';
-import {
-  LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
-  INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
-  LARGE_GRAPH_EDGE_THRESHOLD,
-  LARGE_GRAPH_NODE_THRESHOLD,
-} from './config/viewerConfig';
-
-import {
+  type FlowNode,
+  type FlowEdge,
   type CanvasNode,
   type CanvasEdge,
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
-} from './flowchartTransforms';
-import { createPerfTracker } from './perf';
-import { THEMES } from './ui/viewerTheme';
-import { nodeTypes, edgeTypes } from './ui/viewerReactFlowRegistry';
-import type { DialogueSearchResult } from './infrastructure';
+} from '../domain';
+import {
+  type DialogueSearchMode,
+  type ParseService,
+  useViewerStore,
+} from '../application';
+import {
+  LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
+  INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
+  LARGE_GRAPH_EDGE_THRESHOLD,
+  LARGE_GRAPH_NODE_THRESHOLD,
+} from '../config/viewerConfig';
+
+import type { createPerfTracker } from '../infrastructure';
+import { THEMES } from './viewerTheme';
+import { nodeTypes, edgeTypes } from './viewerReactFlowRegistry';
+import type { DialogueSearchResult } from '../infrastructure';
 import { useViewerLayout } from './hooks/useViewerLayout';
 import { useViewerSearch } from './hooks/useViewerSearch';
-import { ViewerToolbar } from './ui/ViewerToolbar';
-import { ViewerAdvancedControls } from './ui/ViewerAdvancedControls';
-import { ViewerInspector } from './ui/viewerInspector';
-import { CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './ui/viewerConstants';
+import { ViewerAdvancedControls } from './ViewerAdvancedControls';
+import { ViewerInspector } from './viewerInspector';
+import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
+import type { CanvasMetrics, CanvasCallbacksRegistry } from './canvasTypes';
+import { deriveCollapsedLabelChildren } from './canvasHelpers';
 
-// --- Canvas error fallback ---------------------------------------------------
-
-function CanvasErrorFallback({
-  error,
-  resetErrorBoundary,
-}: {
-  error: unknown;
-  resetErrorBoundary: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center min-h-[320px]"
-    >
-      <p className="text-sm font-medium text-red-700">The chart view encountered an error.</p>
-      {error instanceof Error && (
-        <pre className="text-xs text-left bg-gray-100 rounded p-3 max-w-md overflow-auto">
-          {error.message}
-        </pre>
-      )}
-      <button type="button" className={CONTROL_BUTTON_CLASS} onClick={resetErrorBoundary}>
-        Try again
-      </button>
-    </div>
-  );
-}
-
-// --- Shared types ------------------------------------------------------------
-
-interface CanvasMetrics {
-  visibleNodeCount: number;
-  visibleEdgeCount: number;
-  dialogueLineSearchEnabled: boolean;
-  isLargeExportTarget: boolean;
-}
-
-// The inner component writes its current onSearchInputKeyDown to this registry
-// on each render so the outer stable wrapper always calls the latest version.
-interface CanvasCallbacksRegistry {
-  onSearchInputKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>) => void;
-}
-
-// --- Helpers -----------------------------------------------------------------
-
-function deriveCollapsedLabelChildren(
-  nodes: FlowNode[],
-  collapsedParentLabels: Record<string, boolean>,
-): Set<string> {
-  const collapsedChildren = new Set<string>();
-  for (const node of nodes) {
-    if (node.type !== 'MENU') continue;
-    if (!node.parentLabelId) continue;
-    if (!collapsedParentLabels[node.parentLabelId]) continue;
-    collapsedChildren.add(node.id);
-  }
-  return collapsedChildren;
-}
-
-function dataUrlToBlob(dataUrl: string): Blob {
-  const commaIdx = dataUrl.indexOf(',');
-  const meta = commaIdx >= 0 ? dataUrl.slice(0, commaIdx) : dataUrl;
-  const data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : '';
-  const isBase64 = meta.includes(';base64');
-  const mimeMatch = meta.match(/data:([^;]+)/);
-  const mimeType = mimeMatch?.[1] ?? 'application/octet-stream';
-  if (isBase64) {
-    const decoded = atob(data);
-    const bytes = new Uint8Array(decoded.length);
-    for (let i = 0; i < decoded.length; i += 1) {
-      bytes[i] = decoded.charCodeAt(i);
-    }
-    return new Blob([bytes], { type: mimeType });
-  }
-  try {
-    return new Blob([decodeURIComponent(data)], { type: mimeType });
-  } catch {
-    return new Blob([data], { type: mimeType });
-  }
-}
-
-// --- Inner canvas component --------------------------------------------------
-// This component is wrapped in ErrorBoundary by FlowchartViewer, so any error
-// thrown by layout hooks, graph-derivation, or ReactFlow rendering is contained
-// here. The outer toolbar survives any such failure.
-
-interface FlowchartCanvasProps {
+export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
   flowRef: React.RefObject<HTMLDivElement | null>;
@@ -154,7 +58,7 @@ interface FlowchartCanvasProps {
   onMetrics: (metrics: CanvasMetrics) => void;
 }
 
-function FlowchartCanvas({
+export function FlowchartCanvas({
   flowNodes,
   flowEdges,
   flowRef,
@@ -504,7 +408,7 @@ function FlowchartCanvas({
     [selectedNodeId, visibleNodes],
   );
 
-  const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[]; audioAssetCues?: import('./domain/graph').AudioAssetCue[] } | undefined;
+  const selectedNodeData = selectedNode?.data as { label?: string; dialogueCount?: number; dialogueLines?: string[]; audioAssetCues?: import('../domain/graph').AudioAssetCue[] } | undefined;
 
   const nodeSearchMatchCount = useMemo(() => {
     if (!nodeSearchMatchIds) return 0;
@@ -570,7 +474,7 @@ function FlowchartCanvas({
     focusVisibleNode(result.nodeId);
   }, [focusVisibleNode, setSelectedNodeId, setSelectedDialogueLineIndex, setShowAllInspectorLines, visibleNodes]);
 
-  const onSearchInputKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
+  const onSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (activeDialogueSearchResults.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -725,247 +629,5 @@ function FlowchartCanvas({
         />
       </div>
     </>
-  );
-}
-
-// --- Outer shell -------------------------------------------------------------
-// The toolbar lives outside the ErrorBoundary so it continues to function
-// even when FlowchartCanvas (layout, derivation, rendering) crashes.
-
-interface FlowchartViewerProps {
-  flowNodes: FlowNode[];
-  flowEdges: FlowEdge[];
-  dialogueSearchMode?: DialogueSearchMode;
-  onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
-  parseService?: ParseService;
-  debugPrivacyOptions?: DebugBundlePrivacyOptions;
-  onDebugPrivacyOptionsChange?: (options: DebugBundlePrivacyOptions) => void;
-  onExportDebugBundle?: (options: DebugBundlePrivacyOptions) => void;
-  onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
-}
-
-export default function FlowchartViewer({
-  flowNodes,
-  flowEdges,
-  dialogueSearchMode = 'auto',
-  onDialogueSearchModeChange,
-  parseService = workerParseService,
-  debugPrivacyOptions = DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
-  onDebugPrivacyOptionsChange,
-  onExportDebugBundle,
-  onOpenIssue,
-}: FlowchartViewerProps) {
-  const perf = useMemo(() => createPerfTracker('viewer'), []);
-  const flowRef = useRef<HTMLDivElement>(null);
-  const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Issue 10: useRef instead of useState for identity-preserving cache maps
-  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(new Map());
-  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(new Map());
-
-  // Registry ref: inner component writes current onSearchInputKeyDown here;
-  // outer provides a stable wrapper that calls it.
-  const canvasCallbacksRef = useRef<CanvasCallbacksRegistry>({
-    onSearchInputKeyDown: () => {},
-  });
-  const onSearchInputKeyDown = useCallback(
-    (e: ReactKeyboardEvent<HTMLInputElement>) => canvasCallbacksRef.current.onSearchInputKeyDown(e),
-    [],
-  );
-
-  // -- Minimal store reads for toolbar ----------------------------------------
-  const {
-    searchInput,
-    minDialogue,
-    theme,
-    showAdvancedControls,
-    standaloneDialogueSearchMode,
-  } = useViewerStore(useShallow((s) => ({
-    searchInput: s.searchInput,
-    minDialogue: s.minDialogue,
-    theme: s.theme,
-    showAdvancedControls: s.showAdvancedControls,
-    standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
-  })));
-  const {
-    setSearchInput,
-    setMinDialogue,
-    toggleShowAdvancedControls,
-    setStandaloneDialogueSearchMode,
-  } = useViewerStore(useShallow((s) => ({
-    setSearchInput: s.setSearchInput,
-    setMinDialogue: s.setMinDialogue,
-    toggleShowAdvancedControls: s.toggleShowAdvancedControls,
-    setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
-  })));
-
-  // -- Canvas metrics ---------------------------------------------------------
-  // Seeded with totals; refined once FlowchartCanvas reports its first render.
-  const [canvasMetrics, setCanvasMetrics] = useState<CanvasMetrics>({
-    visibleNodeCount: flowNodes.length,
-    visibleEdgeCount: flowEdges.length,
-    dialogueLineSearchEnabled: false,
-    isLargeExportTarget: false,
-  });
-
-  // -- Dialogue mode ----------------------------------------------------------
-  const selectedDialogueSearchMode = onDialogueSearchModeChange
-    ? dialogueSearchMode
-    : standaloneDialogueSearchMode;
-
-  const handleDialogueModeChange = useCallback(
-    (mode: DialogueSearchMode) => {
-      if (onDialogueSearchModeChange) {
-        onDialogueSearchModeChange(mode);
-      } else {
-        setStandaloneDialogueSearchMode(mode);
-      }
-    },
-    [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
-  );
-
-  // -- Toolbar callbacks ------------------------------------------------------
-  const onExportJson = useCallback(() => {
-    const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
-    const blob = new Blob([graphJson], { type: 'application/json' });
-    saveAs(blob, 'renpy-flowchart.json');
-  }, [flowEdges, flowNodes]);
-
-  const onExport = useCallback(() => {
-    if (!flowRef.current) return;
-    const startedAt = performance.now();
-    const { isLargeExportTarget, visibleNodeCount, visibleEdgeCount } = canvasMetrics;
-    const pixelRatio = isLargeExportTarget ? 1 : 2;
-    toBlob(flowRef.current, {
-      backgroundColor: THEMES[theme].pageBg,
-      pixelRatio,
-      width: flowRef.current.offsetWidth,
-      height: flowRef.current.offsetHeight,
-    })
-      .then((blob) => {
-        if (!blob) return;
-        saveAs(blob, 'renpy-flowchart.png');
-        perf.log('export_png_ms', performance.now() - startedAt, {
-          nodeCount: visibleNodeCount,
-          edgeCount: visibleEdgeCount,
-        });
-      })
-      .catch((err: unknown) => {
-        console.error('Export failed:', err);
-      });
-  }, [canvasMetrics, perf, theme]);
-
-  const onExportSvg = useCallback(() => {
-    if (!flowRef.current) return;
-    const startedAt = performance.now();
-    const { visibleNodeCount, visibleEdgeCount } = canvasMetrics;
-    toSvg(flowRef.current, {
-      backgroundColor: THEMES[theme].pageBg,
-      width: flowRef.current.offsetWidth,
-      height: flowRef.current.offsetHeight,
-    })
-      .then((svgDataUrl) => {
-        const svgBlob = dataUrlToBlob(svgDataUrl);
-        saveAs(svgBlob, 'renpy-flowchart.svg');
-        perf.log('export_svg_ms', performance.now() - startedAt, {
-          nodeCount: visibleNodeCount,
-          edgeCount: visibleEdgeCount,
-        });
-      })
-      .catch((err: unknown) => {
-        console.error('SVG export failed:', err);
-      });
-  }, [canvasMetrics, perf, theme]);
-
-  const onFitView = useCallback(() => {
-    flowInstanceRef.current?.fitView({ padding: 0.2 });
-  }, []);
-
-  const onDebugOptionChange = useCallback(
-    (patch: Partial<DebugBundlePrivacyOptions>) => {
-      if (!onDebugPrivacyOptionsChange) return;
-      onDebugPrivacyOptionsChange({ ...debugPrivacyOptions, ...patch });
-    },
-    [debugPrivacyOptions, onDebugPrivacyOptionsChange],
-  );
-
-  // -- Global keyboard shortcuts ----------------------------------------------
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
-        event.preventDefault();
-        onExport();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
-        event.preventDefault();
-        flowInstanceRef.current?.fitView({ padding: 0.2 });
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onExport]);
-
-  // -- Render -----------------------------------------------------------------
-  return (
-    <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
-      {/* Toolbar - always rendered, even when the canvas has errored */}
-      <ViewerToolbar
-        theme={theme}
-        visibleNodeCount={canvasMetrics.visibleNodeCount}
-        totalNodeCount={flowNodes.length}
-        visibleEdgeCount={canvasMetrics.visibleEdgeCount}
-        totalEdgeCount={flowEdges.length}
-        searchInput={searchInput}
-        setSearchInput={setSearchInput}
-        searchInputRef={searchInputRef}
-        onSearchInputKeyDown={onSearchInputKeyDown}
-        dialogueLineSearchEnabled={canvasMetrics.dialogueLineSearchEnabled}
-        minDialogue={minDialogue}
-        setMinDialogue={setMinDialogue}
-        selectedDialogueSearchMode={selectedDialogueSearchMode}
-        onDialogueSearchModeChange={handleDialogueModeChange}
-        isLargeExportTarget={canvasMetrics.isLargeExportTarget}
-        onExport={onExport}
-        onExportSvg={onExportSvg}
-        onExportJson={onExportJson}
-        onExportDebugBundle={onExportDebugBundle}
-        onOpenIssue={onOpenIssue}
-        debugPrivacyOptions={debugPrivacyOptions}
-        onDebugOptionChange={onDebugOptionChange}
-        onFitView={onFitView}
-        onZoomTo={(preset) => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
-        showAdvancedControls={showAdvancedControls}
-        toggleShowAdvancedControls={toggleShowAdvancedControls}
-      />
-
-      {/* ErrorBoundary wraps FlowchartCanvas so errors from layout hooks,
-          graph-derivation, or ReactFlow rendering are all contained here.
-          The toolbar above continues to function after any such error. */}
-      <ErrorBoundary FallbackComponent={CanvasErrorFallback}>
-        <FlowchartCanvas
-          flowNodes={flowNodes}
-          flowEdges={flowEdges}
-          flowRef={flowRef}
-          flowInstanceRef={flowInstanceRef}
-          searchInputRef={searchInputRef}
-          previousVisibleNodesByIdRef={previousVisibleNodesByIdRef}
-          previousVisibleEdgesByIdRef={previousVisibleEdgesByIdRef}
-          canvasCallbacksRef={canvasCallbacksRef}
-          parseService={parseService}
-          dialogueSearchMode={dialogueSearchMode}
-          onDialogueSearchModeChange={onDialogueSearchModeChange}
-          perf={perf}
-          onMetrics={setCanvasMetrics}
-        />
-      </ErrorBoundary>
-    </div>
   );
 }

@@ -1,14 +1,23 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNodesState, useEdgesState } from '@xyflow/react';
-import type { FlowNode, FlowEdge } from '../domain';
-import type { LayoutDirection, ThemeName } from '../ui';
 import {
+  type FlowNode,
+  type FlowEdge,
   type CanvasNode,
   type CanvasEdge,
+  type LayoutDirection,
+  type ThemeName,
   applyDagreLayout,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-} from '../flowchartTransforms';
-import type { createPerfTracker } from '../perf';
+} from '../../domain';
+import type { createPerfTracker } from '../../infrastructure';
+import { runLayoutInWorker, terminateLayoutWorker } from '../../infrastructure';
+
+const globalRecord = globalThis as Record<string, unknown>;
+const isTestEnv =
+  typeof globalRecord['process'] !== 'undefined' &&
+  (globalRecord['process'] as { env?: { NODE_ENV?: string } } | undefined)?.env?.NODE_ENV === 'test';
+const isWorkerSupported = typeof globalThis.Worker !== 'undefined';
 
 type PerfTracker = ReturnType<typeof createPerfTracker>;
 
@@ -58,17 +67,42 @@ export function useViewerLayout({
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
 
   const relayout = useCallback(() => {
-    const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
-      progressive: false,
-      previousPositions: nodePositionsRef.current,
-      theme,
-    });
-    nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
-    setNodes(next.nodes);
-    setEdges(next.edges);
-    if (onRelayoutComplete) {
-      requestAnimationFrame(onRelayoutComplete);
+    if (isTestEnv || !isWorkerSupported) {
+      const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
+        progressive: false,
+        previousPositions: nodePositionsRef.current,
+        theme,
+      });
+      nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
+      setNodes(next.nodes);
+      setEdges(next.edges);
+      if (onRelayoutComplete) {
+        requestAnimationFrame(onRelayoutComplete);
+      }
+      return;
     }
+
+    runLayoutInWorker(
+      flowNodes,
+      flowEdges,
+      layoutDirection,
+      {
+        progressive: false,
+        previousPositions: nodePositionsRef.current,
+        theme,
+      },
+      (next) => {
+        nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
+        setNodes(next.nodes);
+        setEdges(next.edges);
+        if (onRelayoutComplete) {
+          requestAnimationFrame(onRelayoutComplete);
+        }
+      },
+      (error) => {
+        console.error('Layout worker error during manual relayout:', error);
+      }
+    );
   }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, theme]);
 
   useEffect(() => {
@@ -78,7 +112,8 @@ export function useViewerLayout({
     });
     nodePositionsRef.current = new Map(layoutNodes.map((n) => [n.id, n.position]));
     if (!shouldProgressiveLayout) return;
-    const refineId = window.setTimeout(() => {
+
+    if (isTestEnv || !isWorkerSupported) {
       const refined = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
         progressive: false,
         previousPositions: nodePositionsRef.current,
@@ -89,9 +124,40 @@ export function useViewerLayout({
         setNodes(refined.nodes);
         setEdges(refined.edges);
       });
-    }, 0);
-    return () => window.clearTimeout(refineId);
+      return;
+    }
+
+    const cancelLayout = runLayoutInWorker(
+      flowNodes,
+      flowEdges,
+      layoutDirection,
+      {
+        progressive: false,
+        previousPositions: nodePositionsRef.current,
+        theme,
+      },
+      (refined) => {
+        nodePositionsRef.current = new Map(refined.nodes.map((n) => [n.id, n.position]));
+        startTransition(() => {
+          setNodes(refined.nodes);
+          setEdges(refined.edges);
+        });
+      },
+      (error) => {
+        console.error('Layout worker error:', error);
+      }
+    );
+
+    return () => {
+      cancelLayout();
+    };
   }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout, theme]);
+
+  useEffect(() => {
+    return () => {
+      terminateLayoutWorker();
+    };
+  }, []);
 
   return { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, nodePositionsRef, relayout };
 }

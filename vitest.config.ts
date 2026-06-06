@@ -10,7 +10,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/parser.ts', 'src/parserTokens.ts'],
+      include: ['src/parser/parser.ts', 'src/parser/parserTokens.ts'],
       thresholds: {
         lines: 85,
         functions: 85,

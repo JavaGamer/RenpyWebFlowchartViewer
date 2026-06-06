@@ -47,7 +47,7 @@ vi.mock('@renpy/ast/out/tokenizer/renpy-tokens', () => ({
   MetaTokenType: metaEnum,
 }));
 
-const modulePath = '../src/parserTokens';
+const modulePath = '../src/parser/parserTokens';
 
 describe('parserTokens runtime guards', () => {
   beforeEach(() => {

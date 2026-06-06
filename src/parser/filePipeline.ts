@@ -4,7 +4,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { ParseGraphState } from './pipelineTypes';
 import { createScanState } from './pipelineState';
 import { processTokenTreeStream } from './tokenScanStage';
-import { createPerfTracker } from '../perf';
+import { createPerfTracker } from '../infrastructure';
 import type { ParseInputFile, ParseOptions } from './pipelineTypes';
 
 let _docVersion = 0;

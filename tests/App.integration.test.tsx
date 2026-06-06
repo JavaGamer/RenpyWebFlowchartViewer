@@ -16,7 +16,7 @@ import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
 import { toBlob, toSvg } from 'html-to-image';
 import { saveAs } from 'file-saver';
 import App from '../src/App';
-import * as parser from '../src/parser';
+import * as parser from '../src/parser/parser';
 import * as infrastructure from '../src/infrastructure';
 import { useAppStore } from '../src/application/appStore';
 import { useParserRuleSettingsStore, defaultParserRuleSettings } from '../src/application/parserRuleSettingsStore';

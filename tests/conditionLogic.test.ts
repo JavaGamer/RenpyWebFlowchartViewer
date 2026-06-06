@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateConditionExpression } from '../src/conditionLogic';
+import { evaluateConditionExpression } from '../src/domain/conditionLogic';
 
 describe('conditionLogic', () => {
   it('returns unknown when unsupported tokens remain after tokenization', () => {

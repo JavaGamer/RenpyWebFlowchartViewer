@@ -1,43 +1,82 @@
+/**
+ * src/application/processUpload.ts
+ *
+ * Upload orchestrator that converts a raw browser FileList into a fully parsed
+ * FlowGraph. Responsibilities:
+ * 1. Validates the file selection (rpy files only).
+ * 2. Reads files in read-batches to avoid blocking the main thread.
+ * 3. Dispatches parse chunks to the `ParseService` (web worker bridge).
+ * 4. Emits intermediate partial results so the UI can progressively render.
+ * 5. Cancels stale runs when a new upload begins before the previous one completes.
+ *
+ * Two scheduling strategies are used depending on project size:
+ * - **Small projects** (<{@link LARGE_PROJECT_THRESHOLD} files): read all batches
+ *   first, then parse incrementally.
+ * - **Large projects**: interleave read and parse at a finer granularity
+ *   (`PARSE_BATCH_SIZE` per read batch) to reduce peak memory.
+ */
+
 import type { RefObject } from 'react';
-import type { FlowEdge, FlowNode } from '../domain';
-import { readFileAsText } from '../infrastructure';
+import { compareDeterministicStrings, type FlowEdge, type FlowNode } from '../domain';
+import { readFileAsText, type ParseDiagnosticPayload } from '../infrastructure';
 
 import { validateRpyUpload } from './uploadValidation';
 import type { AppActions, DialogueSearchMode } from './appStore';
 import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
 import type { ParseService } from './parseService';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import type { ParseDiagnosticPayload } from '../infrastructure';
-import { compareDeterministicStrings } from '../sortUtils';
 
+/**
+ * Dependency bag injected into `createProcessUpload`.
+ * All external I/O (parsing, store dispatch, progress hooks) is accessed
+ * through this bag to keep the orchestrator logic testable without a DOM.
+ */
 export interface ProcessUploadDeps {
   parseService: ParseService;
   actions: Pick<AppActions, 'startReading' | 'startParsing' | 'setProgress' | 'partialParseSuccess' | 'parseSuccess' | 'fail'>;
+  /** Active run ID ref used to abort stale upload sequences when a new upload begins. */
   activeRunIdRef: RefObject<number>;
+  /** Ref holding the AbortController passed to the parse worker so it can be cancelled. */
   parseAbortControllerRef: RefObject<AbortController | null>;
+  /** Called after each read batch completes; useful for instrumentation/logging. */
   onReadMeasured?: (fileCount: number) => void;
+  /** Called once the first parse batch is dispatched. */
   onParseStarted?: () => void;
+  /** Called after the final parse result is committed; useful for analytics. */
   onParseMeasured?: (data: { fileCount: number; nodeCount: number; edgeCount: number }) => void;
   dialogueSearchMode?: DialogueSearchMode;
   parserVariant?: ParserVariant;
   customScreenActionRules?: ScreenActionRule[];
 }
 
+/** Maximum number of files to read concurrently per read pass. */
 const READ_BATCH_SIZE = 24;
+/** Maximum number of files dispatched to the parse worker per chunk. */
 const PARSE_BATCH_SIZE = 32;
+/** Projects with at least this many .rpy files switch to the chunked parse strategy. */
 const LARGE_PROJECT_THRESHOLD = 200;
 
+/** Extracts the folder-relative path from a `File` created by a folder picker input. */
 function getFileRelativePath(file: File): string | undefined {
   const relativePath = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
   return relativePath ? relativePath.replace(/\\/g, '/') : undefined;
 }
 
+/** Deterministic sort comparator for uploaded files; prefers relative path, falls back to filename. */
 function compareUploadFiles(a: File, b: File): number {
   const aIdentity = getFileRelativePath(a) ?? a.name;
   const bIdentity = getFileRelativePath(b) ?? b.name;
   return compareDeterministicStrings(aIdentity, bIdentity) || compareDeterministicStrings(a.name, b.name);
 }
 
+/**
+ * Factory function that creates a `processUpload` closure bound to the supplied
+ * dependencies. The returned async function is the entry point called whenever
+ * the user selects files via the drag-and-drop or file picker UI.
+ *
+ * Each invocation increments `activeRunIdRef` so that any prior in-flight upload
+ * is detected as stale and returns early at its next `isActiveRun()` check.
+ */
 export function createProcessUpload(deps: ProcessUploadDeps) {
   const {
     parseService,

@@ -16,3 +16,5 @@ export function RootErrorFallback({ error }: { error: unknown }) {
     </div>
   );
 }
+
+export default RootErrorFallback;

@@ -3,12 +3,24 @@ import type { ParseGraphState, EdgeKind } from './pipelineTypes';
 import { addParseDiagnostic } from './diagnostics';
 import { MultiDirectedGraph } from 'graphology';
 
+/** Supported categories of directed edges within the flowchart graph */
 const VALID_EDGE_KINDS = new Set<EdgeKind>(['sequence', 'jump', 'call', 'call_return']);
 
+/**
+ * Standardizes identifier strings by trimming excess whitespaces.
+ * Fallbacks to empty string if input is null or undefined.
+ */
 function normalizeIdentifier(value: string | undefined | null): string {
   return (value ?? '').trim();
 }
 
+/**
+ * Derives and normalizes the edge kind semantic classification based on edge structure.
+ * Checks prefix fallback rules if the explicit `kind` field is absent or invalid.
+ *
+ * @param edge The flowchart edge being normalized.
+ * @returns A validated EdgeKind string.
+ */
 function normalizeEdgeKind(edge: FlowEdge): EdgeKind {
   if (edge.kind && VALID_EDGE_KINDS.has(edge.kind)) return edge.kind;
   if (edge.id.startsWith('jump_')) return 'jump';
@@ -17,6 +29,10 @@ function normalizeEdgeKind(edge: FlowEdge): EdgeKind {
   return 'sequence';
 }
 
+/**
+ * Generates a stable key string representing the semantic attributes of an edge.
+ * Used to detect and deduplicate parallel edges that have identical structure.
+ */
 function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
   const timeoutKey = edge.timeout?.isTimeout
     ? `timeout:${edge.timeout.durationSeconds === undefined ? 'unknown' : edge.timeout.durationSeconds}`
@@ -24,10 +40,17 @@ function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
   return `${kind}|${edge.source}|${edge.target}|${edge.label ?? ''}|${timeoutKey}`;
 }
 
+/**
+ * Fallback generator for edge identifiers when ID is undefined.
+ */
 function resolveNormalizedEdgeId(edge: FlowEdge, kind: EdgeKind): string {
   return edge.id || `${kind}_${edge.source}__${edge.target}`;
 }
 
+/**
+ * Registers incoming or outgoing edge kind traffic to a label bucket map.
+ * Used for role classification algorithms during subsequent finalization stages.
+ */
 function addLabelTraffic(
   bucket: Map<string, Set<EdgeKind>>,
   labelId: string,
@@ -41,14 +64,31 @@ function addLabelTraffic(
   bucket.set(labelId, new Set([kind]));
 }
 
+/**
+ * Filters the return-tracking set to only retain valid active node IDs.
+ */
 function rebuildReturnTrackingSet(existing: Set<string>, validNodeIds: Set<string>): Set<string> {
   return new Set(Array.from(existing).filter((labelId) => validNodeIds.has(labelId)));
 }
 
+/**
+ * Standardizes the compiled parser graph state.
+ * Performs critical validation, validation repair, and semantic mapping:
+ * 1. Sanitizes, validates, and deduplicates all nodes; drops empty IDs.
+ * 2. Sanitizes and validates all edges (source, target, kind validity).
+ * 3. Registers structured diagnostics for empty, duplicate, or unresolved targets.
+ * 4. Prunes duplicate semantic edges with identical source, target, label, and timeout keys.
+ * 5. Rebuilds fast-lookup state indexes (nodeMap, edgeMap, allLabelIds).
+ * 6. Computes label traffic arrays (incomingByLabel, outgoingByLabel) and call sets.
+ * 7. Constructs a fresh Graphology MultiDirectedGraph representing the processed network.
+ *
+ * @param state The global parser graph state containing raw scanned elements.
+ */
 export function normalizeGraphState(state: ParseGraphState): void {
   const normalizedNodes: FlowNode[] = [];
   const nodeMap = new Map<string, FlowNode>();
 
+  // Validate and deduplicate nodes
   for (const node of state.nodes) {
     const normalizedNodeId = normalizeIdentifier(node.id);
     if (!normalizedNodeId) {
@@ -97,6 +137,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
   const semanticEdgeKeys = new Set<string>();
   const nodeIds = new Set(normalizedNodes.map((node) => node.id));
 
+  // Validate, normalize and deduplicate edges
   for (const edge of state.edges) {
     const normalizedSource = normalizeIdentifier(edge.source);
     const normalizedTarget = normalizeIdentifier(edge.target);
@@ -192,6 +233,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
       );
     }
 
+    // Flag unresolved target endpoints (unresolved jump/calls remain in graph as warnings)
     if (!nodeIds.has(normalizedTarget)) {
       addParseDiagnostic(
         state,
@@ -242,6 +284,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
     normalizedEdges.push(normalizedEdge);
   }
 
+  // Bind normalized variables to global state
   state.nodes = normalizedNodes;
   state.edges = normalizedEdges;
   state.nodeMap = new Map(normalizedNodes.map((node) => [node.id, node]));
@@ -250,6 +293,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
   state.edgeIds = new Set(normalizedEdges.map((edge) => edge.id));
   state.allLabelIds = new Set(normalizedNodes.filter((node) => node.type === 'LABEL').map((node) => node.id));
 
+  // Initialize and populate traffic trackers
   state.incomingByLabel = new Map();
   state.outgoingByLabel = new Map();
   state.calledLabels = new Set();
@@ -273,6 +317,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
     }
   }
 
+  // Re-instantiate Graphology instance representation
   state.graph = new MultiDirectedGraph<FlowNode, FlowEdge>();
   state.pendingGraphEdgeIds = new Set();
   for (const node of normalizedNodes) {
@@ -286,3 +331,4 @@ export function normalizeGraphState(state: ParseGraphState): void {
     state.pendingGraphEdgeIds.add(edge.id);
   }
 }
+

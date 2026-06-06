@@ -4,18 +4,31 @@ import type { ParseGraphState, ParseScanState } from './pipelineTypes';
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from './tokenMeta';
 import { maybeUpdateConditionalState } from './scanTransitions';
 import { handleToken } from './tokenHandling';
-import { PARSER_TOKENS } from '../parserTokens';
+import { PARSER_TOKENS } from './parserTokens';
 import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
 import { toScreenActionRuleMap, type ScreenActionKind } from '../config/parserRules';
 
+/**
+ * Represents a flattened token-like structure extracted from the AST tree.
+ * Used during parsing to process token information uniformly.
+ */
 interface FlatTokenLike {
+  /** The type of token (corresponds to PARSER_TOKENS numbers) */
   type: number;
+  /** Meta token IDs representing scope details (e.g. within menu, python, etc.) */
   metaTokens: Iterable<number>;
+  /** Start position of the token in the text document */
   startPos: { line: number; character: number };
+  /** Optional character offset of the token from the beginning of the file */
   startOffset?: number;
+  /** Callback function to retrieve the raw string value of the token from the document */
   getValue: (document: TextDocument) => string;
 }
 
+/**
+ * A set of token type identifiers that the parser is interested in tracking.
+ * Other token types (like generic punctuation or comments) are ignored to optimize parsing.
+ */
 const RELEVANT_TOKEN_TYPES = new Set<number>([
   ...PARSER_TOKENS.menuKeywordTypes,
   PARSER_TOKENS.kwLabel,
@@ -39,6 +52,15 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.metaFunctionCall,
 ].filter((t): t is number => typeof t === 'number'));
 
+/**
+ * Computes and caches the indent of a specific line in the TextDocument.
+ * Indent is measured in terms of character length of leading space and tab characters.
+ *
+ * @param document The text document being parsed.
+ * @param lineNumber The 0-indexed line number.
+ * @param cache Map containing cached line indent results.
+ * @returns The length of the leading whitespace characters on the line.
+ */
 function getLineIndent(
   document: TextDocument,
   lineNumber: number,
@@ -58,6 +80,14 @@ function getLineIndent(
   return indent;
 }
 
+/**
+ * Retrieves and caches the raw text content of a line in the TextDocument.
+ *
+ * @param document The text document being parsed.
+ * @param lineNumber The 0-indexed line number.
+ * @param cache Map containing cached line texts.
+ * @returns The full string content of the line.
+ */
 function getLineText(
   document: TextDocument,
   lineNumber: number,
@@ -75,6 +105,18 @@ function getLineText(
   return line;
 }
 
+/**
+ * Reconstructs a multiline logical python line for conditionals (if, elif, etc.).
+ * Ren'Py/Python allow conditional expressions to span multiple lines using backslashes
+ * or unclosed parenthesis/brackets/braces. This function tracks quotes, comments,
+ * and brackets to join consecutive lines into a single logical expression.
+ *
+ * @param document The text document being parsed.
+ * @param lineNumber The 0-indexed start line of the conditional.
+ * @param lineTextCache A cache map of raw line content.
+ * @param logicalLineCache A cache map of parsed logical lines.
+ * @returns The complete multiline conditional statement text.
+ */
 function getConditionalLogicalLine(
   document: TextDocument,
   lineNumber: number,
@@ -95,6 +137,7 @@ function getConditionalLogicalLine(
   let inComment = false;
   let explicitContinuation = false;
 
+  // Process a line character by character to maintain quote/delimiter state
   const processLine = (lineText: string) => {
     let lastSignificantCharOutsideComment: string | null = null;
     for (let i = 0; i < lineText.length; i += 1) {
@@ -104,17 +147,17 @@ function getConditionalLogicalLine(
       }
 
       if (activeQuote) {
+        if (char === '\\') {
+          if (i + 1 < lineText.length) {
+            i += 1; // Skip escaped character
+          }
+          continue;
+        }
         if (tripleQuoted) {
           if (char === activeQuote && lineText[i + 1] === activeQuote && lineText[i + 2] === activeQuote) {
             i += 2;
             activeQuote = null;
             tripleQuoted = false;
-          }
-          continue;
-        }
-        if (char === '\\') {
-          if (i + 1 < lineText.length) {
-            i += 1;
           }
           continue;
         }
@@ -156,11 +199,13 @@ function getConditionalLogicalLine(
         lastSignificantCharOutsideComment = char;
       }
     }
+    // Check if the line ends with an explicit backslash continuation character
     explicitContinuation = lastSignificantCharOutsideComment === '\\';
     inComment = false;
   };
 
   processLine(logicalText);
+  // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
   while ((explicitContinuation || delimiterStack.length > 0) && currentLine + 1 < document.lineCount) {
     currentLine += 1;
     const nextLine = getLineText(document, currentLine, lineTextCache);
@@ -169,12 +214,17 @@ function getConditionalLogicalLine(
     maxLine = currentLine;
   }
 
+  // Populate logical line cache for all lines spanned by this logical statement
   for (let i = lineNumber; i <= maxLine; i += 1) {
     logicalLineCache.set(i, logicalText);
   }
   return logicalText;
 }
 
+/**
+ * Pre-processes and dispatches a single flat token to token handling logic.
+ * Also monitors and handles transition states like block levels and conditionals.
+ */
 export function processFlatToken(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -223,6 +273,10 @@ export function processFlatToken(
   });
 }
 
+/**
+ * Generator function that traverses the hierarchical tokenizer TreeNode structure
+ * in pre-order (respecting the character offset positions) to yield flat tokens.
+ */
 function* iterateStreamTokens(
   node: TreeNode,
   inheritedMeta: number[],
@@ -235,6 +289,7 @@ function* iterateStreamTokens(
     | { kind: 'child'; startOffset: number; child: TreeNode }
   > = [];
 
+  // Register the current node's token if it is relevant to the parser
   if (token && RELEVANT_TOKEN_TYPES.has(token.type as number)) {
     orderedItems.push({
       kind: 'token',
@@ -243,6 +298,7 @@ function* iterateStreamTokens(
     });
   }
 
+  // Register all children
   for (const child of node.children) {
     orderedItems.push({
       kind: 'child',
@@ -251,8 +307,10 @@ function* iterateStreamTokens(
     });
   }
 
+  // Sort tokens and sub-trees chronologically by starting character offset
   orderedItems.sort((a, b) => a.startOffset - b.startOffset);
 
+  // Traverse/yield sorted items
   for (const item of orderedItems) {
     if (item.kind === 'token') {
       yield {
@@ -268,6 +326,10 @@ function* iterateStreamTokens(
   }
 }
 
+/**
+ * Computes and caches the minimum starting character offset of a tokenizer TreeNode
+ * by finding the leftmost leaf token offset.
+ */
 function getNodeStartOffset(node: TreeNode, cache: WeakMap<TreeNode, number>): number {
   const cached = cache.get(node);
   if (cached !== undefined) return cached;
@@ -280,6 +342,10 @@ function getNodeStartOffset(node: TreeNode, cache: WeakMap<TreeNode, number>): n
   return minOffset;
 }
 
+/**
+ * Normalizes literal python/renpy string quotes (single, double, or triple) by
+ * stripping prefix modifiers and surrounding quote markers.
+ */
 function normalizeLiteralString(raw: string): string {
   const match = /^(?:[rR]|[uU]|[bB]|[fF]|[rR][bB]|[bB][rR]|[rR][fF]|[fF][rR]|[rR][uU]|[uU][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/.exec(raw);
   if (match) {
@@ -288,6 +354,20 @@ function normalizeLiteralString(raw: string): string {
   return raw;
 }
 
+/**
+ * Traverses a hierarchical AST TokenTree, flattens, sorts, and processes
+ * all tokens sequentially to build the flowchart graph state.
+ *
+ * @param state The global multi-file parser graph assembler.
+ * @param scanState The file-local state tracks scope, indentations, and block hierarchies.
+ * @param tokenTree The raw AST token tree parsed from a single Ren'Py script file.
+ * @param document VS Code languageserver document wrapper of the script file.
+ * @param chapter Inferred chapter/filename string for grouping and naming labels.
+ * @param captureDialogueLines Whether to index dialogue strings in node data.
+ * @param parserVariant Parser rules presets ('renpy' or 'st').
+ * @param screenActionRules Optional user custom rules mappings for screen actions.
+ * @param sceneSplitDialogueThreshold Dialogue line threshold for automatic scene divisions.
+ */
 export function processTokenTreeStream(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -338,6 +418,10 @@ export function processTokenTreeStream(
   }
 }
 
+/**
+ * Processes a sequence of already flattened tokens sequentially.
+ * Useful when working with flattened/pre-processed token logs or arrays.
+ */
 export function processFlatTokens(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -392,3 +476,4 @@ export function processFlatTokens(
     });
   }
 }
+

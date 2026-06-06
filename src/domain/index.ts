@@ -1,9 +1,43 @@
 export type {
-  ConditionBranchKind,
   ConditionMetadata,
-  EdgeKind,
   FlowEdge,
   FlowNode,
-  NodeRole,
-  NodeType,
 } from './graph';
+
+export type {
+  CanvasNode,
+  CanvasEdge,
+  NodeData,
+  EdgeData,
+  ConditionReachability,
+  ConditionVisibilityMode,
+  EdgeKindFilter,
+  LabelNodeType,
+  MenuNodeType,
+  DecisionNodeType,
+  LabeledEdgeType,
+  ThemeName,
+  LayoutDirection,
+} from './canvas';
+
+export {
+  applyDagreLayout,
+  getNodeCenter,
+  buildVisibleNodes,
+  buildVisibleEdges,
+  buildConditionalVisibility,
+  PROGRESSIVE_LAYOUT_NODE_LIMIT,
+} from './transforms';
+
+export {
+  extractConditionFlagRefs,
+} from './conditionLogic';
+
+export type {
+  MockFlagValue,
+} from './conditionLogic';
+
+export {
+  compareDeterministicStrings,
+} from './sortUtils';
+

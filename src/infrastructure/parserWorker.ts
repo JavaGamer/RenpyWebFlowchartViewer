@@ -1,19 +1,20 @@
-import { parseRenpyFiles } from './parser';
+import { parseRenpyFiles } from '../parser/parser';
 import Fuse from 'fuse.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
-import { createGraphState } from './parser/pipelineState';
-import { parseOneFile } from './parser/filePipeline';
-import { finalizeRoles } from './parser/roleFinalization';
-import { DIALOGUE_FUSE_OPTIONS, type DialogueSearchDocument } from './config/searchConfig';
-import { DIALOGUE_SEARCH_MAX_RESULTS } from './config/viewerConfig';
+import { createGraphState } from '../parser/pipelineState';
+import pLimit from 'p-limit';
+import { tokenizeOneFile, processTokenizedFile, type TokenizedFile } from '../parser/filePipeline';
+import { finalizeRoles } from '../parser/roleFinalization';
+import { DIALOGUE_FUSE_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
+import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerRequestMessage,
   type WorkerResponseMessage,
   type ProgressResponseMessage,
   type DialogueSearchResult,
-} from './infrastructure/workerProtocol';
+} from './workerProtocol';
 
 type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
 
@@ -177,6 +178,33 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         dialogueSearchDocs = [];
         dialogueSearchFuse = null;
       }
+
+      const hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1;
+      const defaultMaxParallel = Math.max(1, Math.min(4, hardwareConcurrency));
+      const effectiveMaxParallel = maxParallelFiles ?? defaultMaxParallel;
+
+      let tokenizedFiles: Array<TokenizedFile | undefined> = [];
+      if (files.length > 1 && effectiveMaxParallel > 1) {
+        const limit = pLimit(effectiveMaxParallel);
+        tokenizedFiles = await Promise.all(
+          files.map((file, idx) =>
+            limit(async () => {
+              if (activeRequestId !== requestId || cancelledRequests.has(requestId)) {
+                return undefined;
+              }
+              return tokenizeOneFile(
+                file,
+                {
+                  tokenizedCache,
+                  fileCacheKeys,
+                },
+                idx,
+              );
+            }),
+          ),
+        );
+      }
+
       for (let idx = 0; idx < files.length; idx += 1) {
         if (activeRequestId !== requestId) {
           return;
@@ -185,18 +213,22 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           throw new Error('Parsing cancelled');
         }
         const file = files[idx];
-        await parseOneFile(
-          accumulatedState,
-          file,
-          {
-            captureDialogueLines: message.captureDialogueLines !== false,
-            tokenizedCache,
-            fileCacheKeys,
-            parserVariant: message.parserVariant,
-            screenActionRules: message.screenActionRules,
-          },
-          idx,
-        );
+        let tokenized = tokenizedFiles[idx];
+        if (!tokenized) {
+          tokenized = await tokenizeOneFile(
+            file,
+            {
+              tokenizedCache,
+              fileCacheKeys,
+            },
+            idx,
+          );
+        }
+        processTokenizedFile(accumulatedState, tokenized, {
+          captureDialogueLines: message.captureDialogueLines !== false,
+          parserVariant: message.parserVariant,
+          screenActionRules: message.screenActionRules,
+        });
         if (wantsProgress) {
           const now = performance.now();
           const nextProgress: ProgressResponseMessage = {

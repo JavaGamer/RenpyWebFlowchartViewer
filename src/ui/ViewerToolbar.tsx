@@ -2,7 +2,7 @@ import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Download, Search, ZoomIn } from 'lucide-react';
 import type { DialogueSearchMode } from '../application';
 import type { DebugBundlePrivacyOptions } from '../application';
-import type { ThemeName } from './viewerTypes';
+import type { ThemeName } from '../domain';
 import { THEMES } from './viewerTheme';
 import { ZOOM_PRESETS } from '../config/viewerConfig';
 import {

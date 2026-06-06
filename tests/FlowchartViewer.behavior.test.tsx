@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import FlowchartViewer from '../src/FlowchartViewer';
+import FlowchartViewer from '../src/ui/FlowchartViewer';
 import type { FlowNode, FlowEdge } from '../src/domain';
 import * as ReactFlowLib from '@xyflow/react';
 import type { ParseService } from '../src/application/parseService';
@@ -156,6 +156,7 @@ describe('FlowchartViewer behavior coverage', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   const flowNodes: FlowNode[] = [

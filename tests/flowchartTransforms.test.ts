@@ -6,10 +6,8 @@ import {
   buildVisibleNodes,
   getNodeCenter,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-  type CanvasEdge,
-  type CanvasNode,
-} from '../src/flowchartTransforms';
-import type { FlowNode, FlowEdge } from '../src/domain';
+} from '../src/domain';
+import type { CanvasEdge, CanvasNode, FlowNode, FlowEdge } from '../src/domain';
 
 describe('flowchartTransforms', () => {
   const flowNodes: FlowNode[] = [

@@ -7,7 +7,7 @@ type FilePipelineMocks = {
 };
 
 async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
-  vi.doMock('../src/perf', () => ({
+  vi.doMock('../src/infrastructure', () => ({
     createPerfTracker: () => ({
       mark: vi.fn(),
       measure: vi.fn(),
@@ -25,7 +25,7 @@ async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
   vi.doMock('../src/parser/filePipeline', () => filePipelineMocks);
   vi.doMock('../src/parser/roleFinalization', () => ({ finalizeRoles: vi.fn() }));
 
-  return import('../src/parser');
+  return import('../src/parser/parser');
 }
 
 describe('parseRenpyFiles coverage gaps', () => {

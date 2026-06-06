@@ -23,7 +23,7 @@ export function addNode(state: ParseGraphState, node: FlowNode) {
   state.nodeMap.set(node.id, node);
 
   if (state.pendingGraphEdgeIds.size === 0) return;
-  for (const edgeId of state.pendingGraphEdgeIds) {
+  for (const edgeId of Array.from(state.pendingGraphEdgeIds)) {
     const edge = state.edgeMap.get(edgeId);
     if (!edge) {
       state.pendingGraphEdgeIds.delete(edgeId);

@@ -1,4 +1,4 @@
-import { PARSER_TOKENS } from '../parserTokens';
+import { PARSER_TOKENS } from './parserTokens';
 import type { TokenMetaFlags } from './pipelineTypes';
 
 function resetMetaFlags(meta: TokenMetaFlags): TokenMetaFlags {

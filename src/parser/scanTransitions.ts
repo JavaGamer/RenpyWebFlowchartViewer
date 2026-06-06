@@ -1,11 +1,18 @@
-import { PARSER_TOKENS } from '../parserTokens';
+import { PARSER_TOKENS } from './parserTokens';
 import type { ParseScanState } from './pipelineTypes';
 import type { ConditionalBranchKind } from './pipelineTypes';
 
+/**
+ * Calculates the index of the parent menu block in the menu stack based on menu depth.
+ */
 export function parentMenuStackLength(menuDepth: number): number {
   return Math.max(0, menuDepth - 1);
 }
 
+/**
+ * Safely retrieves the menu context definition located at the specified stack depth.
+ * Returns null if the depth is out of bounds or invalid.
+ */
 export function menuAtDepth(
   menuStack: { id: string; optionText: string | null }[],
   depth: number,
@@ -13,10 +20,27 @@ export function menuAtDepth(
   return depth > 0 ? (menuStack[depth - 1] ?? null) : null;
 }
 
+/**
+ * Appends the menu option text slug to the base edge ID to guarantee identifier uniqueness.
+ */
 export function edgeIdWithOption(base: string, optionText: string | null | undefined): string {
   return optionText ? `${base}_${optionText}` : base;
 }
 
+/**
+ * Evaluates block indentation changes to manage the conditional logic stack during scanning.
+ * Triggers on non-whitespace tokens:
+ * 1. Pops out-of-scope blocks from the conditional indentation stack (`conditionalIndentStack`).
+ * 2. Pops closed decision scopes from the conditional decision stack (`conditionalDecisionStack`)
+ *    when indentation decreases or stays equal on a non-conditional token.
+ * 3. Registers a new pending conditional header when a conditional token (`if`, `elif`, `else`) is encountered.
+ *
+ * @param scanState The file-local scanner state track.
+ * @param type The current token type integer.
+ * @param getTokenText Callback returning raw token string content.
+ * @param indent The leading whitespace indent level of the current line.
+ * @param lineText Raw or logical multiline text contents of the line.
+ */
 export function maybeUpdateConditionalState(
   scanState: ParseScanState,
   type: number,
@@ -30,18 +54,21 @@ export function maybeUpdateConditionalState(
   if (scanState.pendingConditionalHeader === undefined) {
     scanState.pendingConditionalHeader = null;
   }
+  // Ignore purely whitespace or newline tokens
   if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) {
     return;
   }
 
   scanState.pendingConditionalHeader = null;
 
+  // Pop all conditional blocks that are deeper than the current indentation
   while (
     scanState.conditionalIndentStack.length > 0 &&
     indent <= scanState.conditionalIndentStack[scanState.conditionalIndentStack.length - 1]
   ) {
     scanState.conditionalIndentStack.pop();
   }
+  // Pop out-of-scope decisions from the stack
   while (scanState.conditionalDecisionStack.length > 0) {
     const top = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1]!;
     if (indent < top.indent) {
@@ -65,6 +92,10 @@ export function maybeUpdateConditionalState(
   scanState.pendingConditionalHeader = { ...parsedHeader, indent };
 }
 
+/**
+ * Extracts the conditional keyword (if, elif, else) and the evaluated expression
+ * from a raw statement line (e.g. "if x == 5:").
+ */
 function parseConditionalHeader(lineText: string): {
   kind: ConditionalBranchKind;
   expression: string | null;
@@ -87,6 +118,11 @@ function parseConditionalHeader(lineText: string): {
   return { kind, expression };
 }
 
+/**
+ * Locates the Python statement colon suffix (":") at the root nesting level.
+ * Correctly bypasses colons found within string literals or parenthesized expressions.
+ * Returns -1 if no valid root-level colon can be found.
+ */
 function findTopLevelHeaderColon(text: string): number {
   const delimiterStack: Array<')' | ']' | '}'> = [];
   let activeQuote: '"' | '\'' | null = null;
@@ -103,19 +139,19 @@ function findTopLevelHeaderColon(text: string): number {
     }
 
     if (activeQuote) {
-      if (tripleQuoted) {
-        if (i + 2 < text.length && char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
-          i += 2;
-          activeQuote = null;
-          tripleQuoted = false;
-        }
-        continue;
-      }
       if (char === '\\') {
         if (i + 1 < text.length) {
           i += 1;
         } else {
           break;
+        }
+        continue;
+      }
+      if (tripleQuoted) {
+        if (i + 2 < text.length && char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+          i += 2;
+          activeQuote = null;
+          tripleQuoted = false;
         }
         continue;
       }
@@ -161,3 +197,4 @@ function findTopLevelHeaderColon(text: string): number {
 
   return -1;
 }
+

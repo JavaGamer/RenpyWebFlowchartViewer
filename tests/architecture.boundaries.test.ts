@@ -30,12 +30,11 @@ function relativeFromSrc(file: string): string {
 }
 
 const legacyTypesImportPattern = /from ['"](?:\.\.?\/)+(?:src\/)?types(?:\/index)?['"]/;
-const infraForbiddenImportPattern = /from ['"](?:\.\.?\/)+(?:ui|application)\//;
-const parserUiForbiddenImportPattern = /from ['"](?:\.\.?\/)+ui\//;
+const infraForbiddenImportPattern = new RegExp("from ['\"](?:\\.\\.?/)+(?:ui|application)(?:['\"/]|$)");
+const parserUiForbiddenImportPattern = new RegExp("from ['\"](?:\\.\\.?/)+ui(?:['\"/]|$)");
 const layerImportPattern = /from ['"]((?:\.\.?\/)+(domain|application|infrastructure|ui)(?:\/[^'"]+)?)['"]/g;
 
 function detectLayer(relativePath: string): 'domain' | 'application' | 'infrastructure' | 'ui' | 'parser' | 'config' | 'other' {
-  if (relativePath === 'parserWorker.ts') return 'infrastructure';
   if (relativePath.startsWith('domain/')) return 'domain';
   if (relativePath.startsWith('application/')) return 'application';
   if (relativePath.startsWith('infrastructure/')) return 'infrastructure';

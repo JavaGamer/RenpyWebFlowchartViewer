@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { DecisionNodeType, LabelNodeType, MenuNodeType } from '../flowchartTransforms';
+import type { DecisionNodeType, LabelNodeType, MenuNodeType } from '../domain';
 import { THEMES } from './viewerTheme';
 import { useViewerStore } from '../application';
 import { Image as ImageIcon, Music as MusicIcon, Volume2 as Volume2Icon, Mic as MicIcon } from 'lucide-react';

@@ -1,4 +1,4 @@
-import type { ThemeName } from './viewerTypes';
+import type { ThemeName } from '../domain';
 
 export interface ThemeColors {
   pageBg: string;
