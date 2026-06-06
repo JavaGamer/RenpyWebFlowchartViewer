@@ -80,10 +80,6 @@ export function useViewerSearch({
     return JSON.stringify(ids);
   }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes]);
 
-  const dialogueSearchCandidateNodeIds = useMemo(() => {
-    return JSON.parse(dialogueSearchCandidateNodeIdsKey) as string[];
-  }, [dialogueSearchCandidateNodeIdsKey]);
-
   // ── Worker-backed search (large graph mode) ───────────────────────────────
   useEffect(() => {
     if (!largeGraphMode) return;
@@ -97,10 +93,11 @@ export function useViewerSearch({
     searchAbortControllerRef.current?.abort();
     const controller = new AbortController();
     searchAbortControllerRef.current = controller;
+    const nodeIds = JSON.parse(dialogueSearchCandidateNodeIdsKey) as string[];
     void parseService
       .searchDialogueLines({
         query,
-        nodeIds: dialogueSearchCandidateNodeIds,
+        nodeIds,
         maxResults: 500,
         signal: controller.signal,
       })
@@ -115,7 +112,7 @@ export function useViewerSearch({
     return () => controller.abort();
   }, [
     dialogueLineSearchEnabled,
-    dialogueSearchCandidateNodeIds,
+    dialogueSearchCandidateNodeIdsKey,
     effectiveSearch,
     largeGraphMode,
     parseService,

@@ -69,7 +69,7 @@ export function useViewerLayout({
   const relayout = useCallback(() => {
     if (isTestEnv || !isWorkerSupported) {
       const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
-        progressive: false,
+        progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         theme,
       });
@@ -87,7 +87,7 @@ export function useViewerLayout({
       flowEdges,
       layoutDirection,
       {
-        progressive: false,
+        progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         theme,
       },
@@ -103,7 +103,7 @@ export function useViewerLayout({
         console.error('Layout worker error during manual relayout:', error);
       }
     );
-  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, theme]);
+  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, theme]);
 
   useEffect(() => {
     startTransition(() => {

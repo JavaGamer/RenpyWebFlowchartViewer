@@ -161,6 +161,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 parserVariant,
                 screenActionRules: customScreenActionRules,
                 signal: controller.signal,
+                maxParallelFiles: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4,
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
                   actions.setProgress({
@@ -199,6 +200,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               parserVariant,
               screenActionRules: customScreenActionRules,
               signal: controller.signal,
+              maxParallelFiles: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4,
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
                 actions.setProgress({

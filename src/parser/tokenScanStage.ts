@@ -274,72 +274,41 @@ export function processFlatToken(
 }
 
 /**
- * Generator function that traverses the hierarchical tokenizer TreeNode structure
- * in pre-order (respecting the character offset positions) to yield flat tokens.
+ * Visitor function that traverses the hierarchical tokenizer TreeNode structure
+ * in pre-order (respecting the character offset positions) to find and emit flat tokens.
  */
-function* iterateStreamTokens(
+function traverseStreamTokens(
   node: TreeNode,
-  inheritedMeta: number[],
-  startOffsetCache: WeakMap<TreeNode, number>,
-): Generator<FlatTokenLike> {
+  metaStack: number[],
+  onToken: (token: FlatTokenLike) => void,
+): void {
   const token = node.token;
-  const nextMeta = token ? [...inheritedMeta, token.type as number] : inheritedMeta;
-  const orderedItems: Array<
-    | { kind: 'token'; startOffset: number; token: NonNullable<TreeNode['token']> }
-    | { kind: 'child'; startOffset: number; child: TreeNode }
-  > = [];
 
-  // Register the current node's token if it is relevant to the parser
+  // Emit current node's token first if it is relevant to the parser
   if (token && RELEVANT_TOKEN_TYPES.has(token.type as number)) {
-    orderedItems.push({
-      kind: 'token',
-      startOffset: token.startPos.charStartOffset ?? Number.MAX_SAFE_INTEGER,
-      token,
+    onToken({
+      type: token.type as number,
+      metaTokens: metaStack,
+      startPos: token.startPos,
+      startOffset: token.startPos.charStartOffset,
+      getValue: token.getValue.bind(token),
     });
   }
 
-  // Register all children
+  // Push current token type to metaStack before recursing children
+  if (token) {
+    metaStack.push(token.type as number);
+  }
+
+  // Children are already in chronological order, process them sequentially
   for (const child of node.children) {
-    orderedItems.push({
-      kind: 'child',
-      startOffset: getNodeStartOffset(child, startOffsetCache),
-      child,
-    });
+    traverseStreamTokens(child, metaStack, onToken);
   }
 
-  // Sort tokens and sub-trees chronologically by starting character offset
-  orderedItems.sort((a, b) => a.startOffset - b.startOffset);
-
-  // Traverse/yield sorted items
-  for (const item of orderedItems) {
-    if (item.kind === 'token') {
-      yield {
-        type: item.token.type as number,
-        metaTokens: inheritedMeta,
-        startPos: item.token.startPos,
-        startOffset: item.startOffset,
-        getValue: item.token.getValue.bind(item.token),
-      };
-    } else {
-      yield* iterateStreamTokens(item.child, nextMeta, startOffsetCache);
-    }
+  // Pop token type from stack on exit
+  if (token) {
+    metaStack.pop();
   }
-}
-
-/**
- * Computes and caches the minimum starting character offset of a tokenizer TreeNode
- * by finding the leftmost leaf token offset.
- */
-function getNodeStartOffset(node: TreeNode, cache: WeakMap<TreeNode, number>): number {
-  const cached = cache.get(node);
-  if (cached !== undefined) return cached;
-  let minOffset = node.token?.startPos.charStartOffset ?? Number.MAX_SAFE_INTEGER;
-  for (const child of node.children) {
-    const childOffset = getNodeStartOffset(child, cache);
-    if (childOffset < minOffset) minOffset = childOffset;
-  }
-  cache.set(node, minOffset);
-  return minOffset;
 }
 
 /**
@@ -381,11 +350,11 @@ export function processTokenTreeStream(
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
-  const startOffsetCache = new WeakMap<TreeNode, number>();
   const lineIndentCache = new Map<number, number>();
   const lineTextCache = new Map<number, string>();
   const conditionalLogicalLineCache = new Map<number, string>();
-  for (const token of iterateStreamTokens(tokenTree.root, [], startOffsetCache)) {
+
+  traverseStreamTokens(tokenTree.root, [], (token) => {
     const type = token.type as number;
     analyzeTokenMetaInto(token.metaTokens as Iterable<number>, meta);
     let tokenText: string | undefined;
@@ -415,7 +384,7 @@ export function processTokenTreeStream(
       screenActionRuleMap,
       sceneSplitDialogueThreshold,
     });
-  }
+  });
 }
 
 /**

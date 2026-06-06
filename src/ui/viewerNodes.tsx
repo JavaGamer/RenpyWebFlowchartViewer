@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { DecisionNodeType, LabelNodeType, MenuNodeType } from '../domain';
 import { THEMES } from './viewerTheme';
@@ -11,7 +12,7 @@ function getTheme(themeName: unknown) {
   return THEMES.violet;
 }
 
-export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
+export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
   const theme = getTheme(data.theme);
   const isShadowed = data.isShadowed === true;
   const isTerminalOutcome = data.isTerminalOutcome === true;
@@ -119,9 +120,9 @@ export function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
-}
+});
 
-export function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
+export const MenuNodeComponent = memo(function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
   const theme = getTheme(data.theme);
   return (
     <div
@@ -141,9 +142,9 @@ export function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
-}
+});
 
-export function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
+export const DecisionNodeComponent = memo(function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
   const theme = getTheme(data.theme);
   const expression = data.conditionExpression ?? data.label;
   return (
@@ -168,4 +169,4 @@ export function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
-}
+});

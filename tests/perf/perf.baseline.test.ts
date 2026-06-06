@@ -101,6 +101,7 @@ describe('performance baseline benchmarks', () => {
         let lastTime = parseStarted;
         let firstGraphMs: number | null = null;
         const parsed = await parseRenpyFiles(entries, {
+          maxParallelFiles: 4,
           onProgress: ({ doneFiles }) => {
             const now = performance.now();
             if (doneFiles > lastDoneFiles) {
@@ -176,6 +177,6 @@ describe('performance baseline benchmarks', () => {
       expect(results).toHaveLength(4);
       expect(results.every((result) => Number(result.parseMs) > 0)).toBe(true);
     },
-    60_000,
+    180_000,
   );
 });

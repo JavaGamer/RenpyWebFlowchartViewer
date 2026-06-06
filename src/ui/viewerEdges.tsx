@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
 import type { LabeledEdgeType } from '../domain';
 
-export function LabeledEdge({
+export const LabeledEdge = memo(function LabeledEdge({
   id,
   sourceX,
   sourceY,
@@ -42,4 +43,4 @@ export function LabeledEdge({
       )}
     </>
   );
-}
+});
