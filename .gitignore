@@ -1,17 +1,68 @@
-# Node / Vite
+# Dependency directories
 node_modules/
+/jspm_packages/
+
+# Deno cache / build
+.deno/
+
+# Build outputs
 dist/
 dist-ssr/
-coverage/
-*.local
+out/
+build/
 
-# TypeScript build cache
-*.tsbuildinfo
-
-# Editor / OS
-.DS_Store
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 *.sw[op]
 
-# Generated benchmark artifacts
-perf-data/generated/
-perf-data/baseline-results.json
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Test and coverage
+coverage/
+.nyc_output/
+.vitest-cache/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Vite/Bundler Cache and temporary files
+.vite/
+*.timestamp-*
+
+# Environment variables / local configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+
+# Benchmark/Performance Data
+perf-data/
+
+# AI Agents
+.agents/
+
