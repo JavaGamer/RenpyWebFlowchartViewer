@@ -1,5 +1,6 @@
-import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Download, Search, ZoomIn } from 'lucide-react';
+import { type RefObject, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { Download, Search, ZoomIn, Undo, Redo } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import type { DialogueSearchMode } from '../application';
 import type { DebugBundlePrivacyOptions } from '../application';
 import type { ThemeName } from '../domain';
@@ -10,6 +11,30 @@ import {
   CONTROL_BUTTON_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from './viewerConstants';
+
+interface TooltipWrapperProps {
+  content: ReactNode;
+  children: ReactNode;
+}
+
+function TooltipWrapper({ content, children }: TooltipWrapperProps) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        {children}
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+          sideOffset={5}
+        >
+          {content}
+          <Tooltip.Arrow className="fill-gray-900" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+}
 
 export interface ViewerToolbarProps {
   theme: ThemeName;
@@ -42,6 +67,11 @@ export interface ViewerToolbarProps {
 
   showAdvancedControls: boolean;
   toggleShowAdvancedControls: () => void;
+
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function ViewerToolbar({
@@ -71,10 +101,15 @@ export function ViewerToolbar({
   onZoomTo,
   showAdvancedControls,
   toggleShowAdvancedControls,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: ViewerToolbarProps) {
   return (
-    <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0" role="toolbar" aria-label="Viewer controls">
-      <div className="flex flex-col gap-3">
+    <Tooltip.Provider>
+      <div className="px-3 sm:px-4 py-3 border-b border-gray-200 bg-white shrink-0" role="toolbar" aria-label="Viewer controls">
+        <div className="flex flex-col gap-3">
         <div className="text-sm" style={{ color: THEMES[theme].subtleText }} aria-live="off">
           {visibleNodeCount} / {totalNodeCount} node{totalNodeCount !== 1 ? 's' : ''} ·{' '}
           {visibleEdgeCount} / {totalEdgeCount} edge{totalEdgeCount !== 1 ? 's' : ''}
@@ -133,15 +168,43 @@ export function ViewerToolbar({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onFitView}
-            className={CONTROL_BUTTON_CLASS}
-            aria-label="Fit graph to view"
-            aria-keyshortcuts="Control+L Meta+L"
-          >
-            Fit view
-          </button>
+          <TooltipWrapper content="Fit graph to view (Ctrl/Cmd+L)">
+            <button
+              type="button"
+              onClick={onFitView}
+              className={CONTROL_BUTTON_CLASS}
+              aria-label="Fit graph to view"
+              aria-keyshortcuts="Control+L Meta+L"
+            >
+              Fit view
+            </button>
+          </TooltipWrapper>
+          <TooltipWrapper content="Undo last action (Ctrl/Cmd+Z)">
+            <button
+              type="button"
+              disabled={!canUndo}
+              onClick={onUndo}
+              className={`${CONTROL_BUTTON_CLASS} disabled:opacity-40 disabled:cursor-not-allowed`}
+              aria-label="Undo last action"
+              aria-keyshortcuts="Control+Z Meta+Z"
+            >
+              <Undo size={12} className="inline mr-1" aria-hidden="true" />
+              Undo
+            </button>
+          </TooltipWrapper>
+          <TooltipWrapper content="Redo last action (Ctrl/Cmd+Y)">
+            <button
+              type="button"
+              disabled={!canRedo}
+              onClick={onRedo}
+              className={`${CONTROL_BUTTON_CLASS} disabled:opacity-40 disabled:cursor-not-allowed`}
+              aria-label="Redo last action"
+              aria-keyshortcuts="Control+Y Meta+Y"
+            >
+              <Redo size={12} className="inline mr-1" aria-hidden="true" />
+              Redo
+            </button>
+          </TooltipWrapper>
         </div>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Export controls">
           {isLargeExportTarget && (
@@ -149,46 +212,56 @@ export function ViewerToolbar({
               Large graph export: PNG quality reduced for responsiveness
             </span>
           )}
-          <button
-            onClick={onExport}
-            aria-label="Export flowchart as PNG"
-            aria-keyshortcuts="Control+E Meta+E"
-            className={`${PRIMARY_BUTTON_CLASS} text-white bg-violet-600 hover:bg-violet-700`}
-          >
-            <Download size={14} aria-hidden="true" />
-            Export PNG
-          </button>
-          <button
-            onClick={onExportSvg}
-            aria-label="Export flowchart as SVG"
-            className={`${PRIMARY_BUTTON_CLASS} text-violet-700 border border-violet-300 bg-white hover:bg-violet-50`}
-          >
-            <Download size={14} aria-hidden="true" />
-            Export SVG
-          </button>
-          <button
-            onClick={onExportJson}
-            aria-label="Export graph as JSON"
-            className={`${PRIMARY_BUTTON_CLASS} text-gray-700 border border-gray-300 bg-white hover:bg-gray-50`}
-          >
-            <Download size={14} aria-hidden="true" />
-            Export JSON
-          </button>
-          <button
-            onClick={() => onExportDebugBundle?.(debugPrivacyOptions)}
-            aria-label="Export debug bundle"
-            className={`${PRIMARY_BUTTON_CLASS} text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100`}
-          >
-            <Download size={14} aria-hidden="true" />
-            Export Debug Bundle
-          </button>
-          <button
-            onClick={() => onOpenIssue?.(debugPrivacyOptions)}
-            aria-label="Open new GitHub issue"
-            className={`${PRIMARY_BUTTON_CLASS} text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100`}
-          >
-            Open new GitHub issue
-          </button>
+          <TooltipWrapper content="Export flowchart as PNG (Ctrl/Cmd+E)">
+            <button
+              onClick={onExport}
+              aria-label="Export flowchart as PNG"
+              aria-keyshortcuts="Control+E Meta+E"
+              className={`${PRIMARY_BUTTON_CLASS} text-white bg-violet-600 hover:bg-violet-700`}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export PNG
+            </button>
+          </TooltipWrapper>
+          <TooltipWrapper content="Export flowchart as SVG">
+            <button
+              onClick={onExportSvg}
+              aria-label="Export flowchart as SVG"
+              className={`${PRIMARY_BUTTON_CLASS} text-violet-700 border border-violet-300 bg-white hover:bg-violet-50`}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export SVG
+            </button>
+          </TooltipWrapper>
+          <TooltipWrapper content="Export graph as JSON">
+            <button
+              onClick={onExportJson}
+              aria-label="Export graph as JSON"
+              className={`${PRIMARY_BUTTON_CLASS} text-gray-700 border border-gray-300 bg-white hover:bg-gray-50`}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export JSON
+            </button>
+          </TooltipWrapper>
+          <TooltipWrapper content="Export debug bundle for troubleshooting">
+            <button
+              onClick={() => onExportDebugBundle?.(debugPrivacyOptions)}
+              aria-label="Export debug bundle"
+              className={`${PRIMARY_BUTTON_CLASS} text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100`}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export Debug Bundle
+            </button>
+          </TooltipWrapper>
+          <TooltipWrapper content="Create a pre-filled GitHub issue with diagnostics">
+            <button
+              onClick={() => onOpenIssue?.(debugPrivacyOptions)}
+              aria-label="Open new GitHub issue"
+              className={`${PRIMARY_BUTTON_CLASS} text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100`}
+            >
+              Open new GitHub issue
+            </button>
+          </TooltipWrapper>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-600" role="group" aria-label="Debug bundle privacy options">
           <label className="inline-flex items-center gap-1.5">
@@ -229,7 +302,7 @@ export function ViewerToolbar({
             </button>
           ))}
           <span className="text-[11px] text-gray-500">
-            Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG
+            Shortcuts: Ctrl/Cmd+F search · Ctrl/Cmd+L fit · Ctrl/Cmd+E export PNG · Ctrl/Cmd+Z undo · Ctrl/Cmd+Y redo
           </span>
           <button
             type="button"
@@ -244,5 +317,6 @@ export function ViewerToolbar({
         </div>
       </div>
     </div>
+    </Tooltip.Provider>
   );
 }

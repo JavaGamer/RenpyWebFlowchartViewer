@@ -36,6 +36,7 @@ import { nodeTypes, edgeTypes } from './viewerReactFlowRegistry';
 import type { DialogueSearchResult } from '../infrastructure';
 import { useViewerLayout } from './hooks/useViewerLayout';
 import { useViewerSearch } from './hooks/useViewerSearch';
+import * as Dialog from '@radix-ui/react-dialog';
 import { ViewerAdvancedControls } from './ViewerAdvancedControls';
 import { ViewerInspector } from './viewerInspector';
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
@@ -138,6 +139,7 @@ export function FlowchartCanvas({
     setShowAllInspectorLines,
     setActiveDialogueResultIndex,
     setDialogueSearchResults,
+    setShowAdvancedControls,
     toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode,
     setMockFlag,
@@ -162,6 +164,7 @@ export function FlowchartCanvas({
     setShowAllInspectorLines: s.setShowAllInspectorLines,
     setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
     setDialogueSearchResults: s.setDialogueSearchResults,
+    setShowAdvancedControls: s.setShowAdvancedControls,
     toggleShowAllLabelSubgraphToggles: s.toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
     setMockFlag: s.setMockFlag,
@@ -529,51 +532,80 @@ export function FlowchartCanvas({
   // -- Render -----------------------------------------------------------------
   return (
     <>
-      {showAdvancedControls && (
-        <div id="viewer-advanced-controls" className="px-3 sm:px-4 pb-3 bg-white border-b border-gray-200 shrink-0">
-          <ViewerAdvancedControls
-            layoutDirection={layoutDirection}
-            setLayoutDirection={setLayoutDirection}
-            onRelayout={relayout}
-            theme={theme}
-            setTheme={setTheme}
-            focusNodeId={focusNodeId}
-            setFocusNodeId={setFocusNodeId}
-            labels={labels}
-            onFocusSelectedNode={onFocusSelectedNode}
-            focusTargetNode={focusTargetNode}
-            showCallReturns={showCallReturns}
-            setShowCallReturns={setShowCallReturns}
-            showAudioAssetCues={showAudioAssetCues}
-            setShowAudioAssetCues={setShowAudioAssetCues}
-            largeGraphMode={largeGraphMode}
-            largeGraphModeOverride={largeGraphModeOverride}
-            setLargeGraphModeOverride={setLargeGraphModeOverride}
-            largeGraphModeStatusText={largeGraphModeStatusText}
-            visibleEdgeKinds={visibleEdgeKinds}
-            setEdgeKindVisible={setEdgeKindVisible}
-            chapters={chapters}
-            collapsedChapters={collapsedChapters}
-            toggleChapter={toggleChapter}
-            collapsedLabelCount={collapsedLabelCount}
-            labelSubgraphSearchInput={labelSubgraphSearchInput}
-            setLabelSubgraphSearchInput={setLabelSubgraphSearchInput}
-            visibleSubgraphLabels={visibleSubgraphLabels}
-            visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
-            shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
-            collapsedParentLabels={collapsedParentLabels}
-            toggleParentLabel={toggleParentLabel}
-            setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
-            toggleShowAllLabelSubgraphToggles={toggleShowAllLabelSubgraphToggles}
-            discoveredFlags={conditionalVisibility.discoveredFlags}
-            mockFlags={mockFlags}
-            setMockFlag={setMockFlag}
-            resetMockFlags={resetMockFlags}
-            conditionVisibilityMode={conditionVisibilityMode}
-            setConditionVisibilityMode={setConditionVisibilityMode}
-          />
-        </div>
-      )}
+      <Dialog.Root open={showAdvancedControls} onOpenChange={setShowAdvancedControls} modal={false}>
+        <Dialog.Portal>
+          {/* Radix does not render Dialog.Overlay in non-modal mode — use a plain div instead */}
+          <div className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in" aria-hidden="true" />
+          <Dialog.Content
+            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col focus:outline-none animate-slide-in"
+            aria-modal="true"
+            onInteractOutside={(e) => e.preventDefault()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
+              <div>
+                <Dialog.Title className="text-base font-semibold text-gray-900">Advanced Settings</Dialog.Title>
+                <Dialog.Description className="text-xs text-gray-500 mt-0.5">
+                  Configure graph layouts, filters, themes, and path simulations.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  aria-label="Close advanced controls"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </Dialog.Close>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <ViewerAdvancedControls
+                layoutDirection={layoutDirection}
+                setLayoutDirection={setLayoutDirection}
+                onRelayout={relayout}
+                theme={theme}
+                setTheme={setTheme}
+                focusNodeId={focusNodeId}
+                setFocusNodeId={setFocusNodeId}
+                labels={labels}
+                onFocusSelectedNode={onFocusSelectedNode}
+                focusTargetNode={focusTargetNode}
+                showCallReturns={showCallReturns}
+                setShowCallReturns={setShowCallReturns}
+                showAudioAssetCues={showAudioAssetCues}
+                setShowAudioAssetCues={setShowAudioAssetCues}
+                largeGraphMode={largeGraphMode}
+                largeGraphModeOverride={largeGraphModeOverride}
+                setLargeGraphModeOverride={setLargeGraphModeOverride}
+                largeGraphModeStatusText={largeGraphModeStatusText}
+                visibleEdgeKinds={visibleEdgeKinds}
+                setEdgeKindVisible={setEdgeKindVisible}
+                chapters={chapters}
+                collapsedChapters={collapsedChapters}
+                toggleChapter={toggleChapter}
+                collapsedLabelCount={collapsedLabelCount}
+                labelSubgraphSearchInput={labelSubgraphSearchInput}
+                setLabelSubgraphSearchInput={setLabelSubgraphSearchInput}
+                visibleSubgraphLabels={visibleSubgraphLabels}
+                visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
+                shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
+                collapsedParentLabels={collapsedParentLabels}
+                toggleParentLabel={toggleParentLabel}
+                setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
+                toggleShowAllLabelSubgraphToggles={toggleShowAllLabelSubgraphToggles}
+                discoveredFlags={conditionalVisibility.discoveredFlags}
+                mockFlags={mockFlags}
+                setMockFlag={setMockFlag}
+                resetMockFlags={resetMockFlags}
+                conditionVisibilityMode={conditionVisibilityMode}
+                setConditionVisibilityMode={setConditionVisibilityMode}
+              />
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
         <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>

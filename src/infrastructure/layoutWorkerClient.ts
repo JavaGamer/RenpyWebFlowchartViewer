@@ -70,13 +70,21 @@ export function runLayoutInWorker(
   let completed = false;
 
   const messageHandler = (event: MessageEvent) => {
-    const { requestId: responseId, result } = event.data;
+    const { requestId: responseId, result, error } = event.data;
     if (responseId === requestId) {
       completed = true;
       isWorkerRunning = false;
       layoutWorker.removeEventListener('message', messageHandler);
       layoutWorker.removeEventListener('error', errorHandler);
-      onResult(result);
+      if (error) {
+        if (onError) {
+          onError(new Error(error));
+        } else {
+          console.error(error);
+        }
+      } else {
+        onResult(result);
+      }
     }
   };
 

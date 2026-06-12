@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, cleanup, within, fireEvent, createEvent } from '@testing-library/react';
+import { render, waitFor, cleanup, within, screen, fireEvent, createEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tokenizer } from '@renpy/ast/out/tokenizer/tokenizer';
@@ -595,7 +595,7 @@ describe('App – upload → parse → render integration', () => {
     expect(edgeCountWithoutReturns).toBe(2);
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    const toggle = view.getByRole('checkbox', { name: /Show call returns/i });
+    const toggle = screen.getByRole('checkbox', { name: /Show call returns/i });
     await user.click(toggle);
 
     await waitFor(() => {
@@ -664,7 +664,7 @@ describe('App – upload → parse → render integration', () => {
 
     await user.clear(searchInput);
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    const chapterToggle = view.getByRole('button', { name: /Collapse chapter chapter1/i });
+    const chapterToggle = screen.getByRole('button', { name: /Collapse chapter chapter1/i });
     await user.click(chapterToggle);
 
     await waitFor(() => {
@@ -685,7 +685,7 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    const themeSelect = view.getByRole('combobox', { name: /Color theme/i });
+    const themeSelect = screen.getByRole('combobox', { name: /Color theme/i });
     await user.selectOptions(themeSelect, 'highContrast');
     expect(themeSelect).toHaveValue('highContrast');
     await user.selectOptions(themeSelect, 'colorblind');
@@ -721,7 +721,7 @@ describe('App – upload → parse → render integration', () => {
     expect(before).toBeGreaterThanOrEqual(2);
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    await user.click(view.getByRole('checkbox', { name: /Show jump edges/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Show jump edges/i }));
 
     await waitFor(() => {
       const after = parseInt(view.getByTestId('rf-edge-count').textContent ?? '0', 10);
@@ -907,9 +907,9 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    const searchMode = view.getByRole('combobox', { name: /Dialogue search mode/i });
+    const searchMode = screen.getByRole('combobox', { name: /Dialogue search mode/i });
     expect(searchMode).toHaveValue('auto');
-    const minDialogueInput = view.getByRole('spinbutton', { name: /Minimum dialogue lines/i });
+    const minDialogueInput = screen.getByRole('spinbutton', { name: /Minimum dialogue lines/i });
     await user.clear(minDialogueInput);
     await user.type(minDialogueInput, '2');
     await waitFor(() => {
@@ -923,11 +923,11 @@ describe('App – upload → parse → render integration', () => {
       expect(count).toBeGreaterThan(0);
     });
 
-    const layoutSelect = view.getByRole('combobox', { name: /Auto layout direction/i });
+    const layoutSelect = screen.getByRole('combobox', { name: /Auto layout direction/i });
     await user.selectOptions(layoutSelect, 'LR');
     expect(layoutSelect).toHaveValue('LR');
 
-    const relayoutBtn = view.getByRole('button', { name: /Re-run auto layout/i });
+    const relayoutBtn = screen.getByRole('button', { name: /Re-run auto layout/i });
     await user.click(relayoutBtn);
 
     const zoomBtn = view.getByRole('button', { name: /Zoom to 100 percent/i });
@@ -941,27 +941,27 @@ describe('App – upload → parse → render integration', () => {
     });
 
     const beforeCollapse = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
-    const collapseLabel = view.getByRole('button', { name: /Collapse label start/i });
+    const collapseLabel = screen.getByRole('button', { name: /Collapse label start/i });
     await user.click(collapseLabel);
     await waitFor(() => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
       expect(count).toBeLessThan(beforeCollapse);
     });
 
-    const labelFilter = view.getByRole('searchbox', { name: /Filter label subgraphs/i });
+    const labelFilter = screen.getByRole('searchbox', { name: /Filter label subgraphs/i });
     await user.clear(labelFilter);
     await user.type(labelFilter, 'start');
-    expect(view.getByRole('button', { name: /Expand label start/i })).toBeInTheDocument();
-    expect(view.queryByRole('button', { name: /Collapse label end/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Expand label start/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Collapse label end/i })).not.toBeInTheDocument();
 
-    await user.click(view.getByRole('button', { name: /Expand all visible label subgraphs/i }));
+    await user.click(screen.getByRole('button', { name: /Expand all visible label subgraphs/i }));
     await waitFor(() => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
       expect(count).toBeGreaterThanOrEqual(beforeCollapse);
     });
 
     await user.clear(labelFilter);
-    await user.click(view.getByRole('button', { name: /Collapse all visible label subgraphs/i }));
+    await user.click(screen.getByRole('button', { name: /Collapse all visible label subgraphs/i }));
     await waitFor(() => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
       expect(count).toBeLessThan(beforeCollapse);
@@ -991,7 +991,7 @@ describe('App – upload → parse → render integration', () => {
 
     const initialCount = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    await user.click(view.getByRole('button', { name: /Collapse label start/i }));
+    await user.click(screen.getByRole('button', { name: /Collapse label start/i }));
     await waitFor(() => {
       const count = parseInt(view.getByTestId('rf-node-count').textContent ?? '0', 10);
       expect(count).toBeLessThan(initialCount);
@@ -1006,8 +1006,8 @@ describe('App – upload → parse → render integration', () => {
     });
 
     await user.click(view.getByRole('button', { name: /Show advanced controls/i }));
-    expect(view.getByText(/0 collapsed/i)).toBeInTheDocument();
-    expect(view.getByRole('button', { name: /Collapse label start/i })).toBeInTheDocument();
+    expect(screen.getByText(/0 collapsed/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Collapse label start/i })).toBeInTheDocument();
   });
 
   it('handles PNG and SVG export failures without crashing', async () => {

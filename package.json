@@ -32,9 +32,17 @@
     "tailwindcss": "^4.3.0",
     "vscode-languageserver-textdocument": "^1.0.12",
     "zod": "^4.4.3",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.13",
+    "elkjs": "^0.9.3",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-dropdown-menu": "^2.1.6",
+    "@radix-ui/react-tooltip": "^1.1.8",
+    "minisearch": "^7.1.1",
+    "expr-eval": "^2.0.2",
+    "zundo": "^2.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

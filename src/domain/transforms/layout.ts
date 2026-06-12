@@ -2,6 +2,33 @@ import dagre from '@dagrejs/dagre';
 import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, NodeData, ThemeName } from '../index';
 import { resolveGraphIntegrity } from './integrity';
 
+interface ElkNode {
+  id: string;
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+}
+
+interface ElkEdge {
+  id: string;
+  sources: string[];
+  targets: string[];
+}
+
+interface ElkGraph {
+  id: string;
+  layoutOptions: Record<string, string>;
+  children: ElkNode[];
+  edges: ElkEdge[];
+}
+
+interface ElkInstance {
+  layout(graph: ElkGraph): Promise<ElkGraph>;
+}
+
+let elkInstance: ElkInstance | null = null;
+
 /** Standard node width in pixels used across all node types in the layout. */
 export const NODE_WIDTH = 220;
 /** Base height for a standard LABEL node. */
@@ -285,4 +312,100 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
     x: node.position.x + NODE_WIDTH / 2,
     y: node.position.y + nodeHeight / 2,
   };
+}
+
+export async function applyElkLayout(
+  rawNodes: FlowNode[],
+  rawEdges: FlowEdge[],
+  direction: 'TB' | 'LR',
+  options?: {
+    theme?: ThemeName;
+  },
+): Promise<{ nodes: CanvasNode[]; edges: CanvasEdge[] }> {
+  if (!elkInstance) {
+    const ELKModule = await import('elkjs/lib/elk.bundled.js');
+    const ELK = ELKModule.default || ELKModule;
+    elkInstance = new ELK() as unknown as ElkInstance;
+  }
+  const instance = elkInstance;
+  const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
+
+  const elkNodes = normalizedNodes.map((n) => ({
+    id: n.id,
+    width: NODE_WIDTH,
+    height: getNodeHeight(n),
+  }));
+
+  const elkEdges = normalizedEdges.map((e) => ({
+    id: e.id,
+    sources: [e.source],
+    targets: [e.target],
+  }));
+
+  const layoutOptions: Record<string, string> = {
+    'elk.algorithm': 'layered',
+    'elk.direction': direction === 'TB' ? 'DOWN' : 'RIGHT',
+    'elk.spacing.nodeNode': '50',
+    'elk.layered.spacing.nodeNodeBetweenLayers': direction === 'TB' ? '80' : '110',
+    'elk.padding': '[top=20,left=20,bottom=20,right=20]',
+    'org.eclipse.elk.nodePlacement.strategy': 'SIMPLE',
+  };
+
+  const graph = {
+    id: 'root',
+    layoutOptions,
+    children: elkNodes,
+    edges: elkEdges,
+  };
+
+  const laidOutGraph = await instance.layout(graph);
+  const positionById = new Map<string, { x: number; y: number }>();
+  laidOutGraph.children?.forEach((child: ElkNode) => {
+    if (child.id && child.x !== undefined && child.y !== undefined) {
+      positionById.set(child.id, { x: child.x, y: child.y });
+    }
+  });
+
+  const resolvedTheme: ThemeName = options?.theme ?? 'violet';
+  const nodes: CanvasNode[] = normalizedNodes.map((n) => {
+    const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
+    const h = getNodeHeight(n);
+    return {
+      id: n.id,
+      type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
+      position: { x: pos.x, y: pos.y },
+      data: {
+        label: n.label,
+        dialogueCount: n.dialogueCount,
+        dialogueLines: n.dialogueLines,
+        audioAssetCues: n.audioAssetCues,
+        nodeType: n.type,
+        chapter: n.chapter,
+        parentLabelId: n.parentLabelId,
+        role: n.role,
+        isShadowed: n.isShadowed,
+        shadowOfId: n.shadowOfId,
+        isTerminalOutcome: n.isTerminalOutcome,
+        conditionExpression: n.condition?.expression,
+        conditionReferences: n.condition?.references,
+        theme: resolvedTheme,
+      },
+      draggable: true,
+      measured: { width: NODE_WIDTH, height: h },
+    };
+  });
+
+  const edges: CanvasEdge[] = normalizedEdges
+    .filter((e) => positionById.has(e.source) && positionById.has(e.target))
+    .map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: 'labeled',
+      data: { label: e.label ?? '', kind: e.kind, condition: e.condition, timeout: e.timeout },
+      markerEnd: { type: 'arrowclosed' as const },
+      style: { stroke: '#6b7280', strokeWidth: 1.5 },
+    }));
+
+  return { nodes, edges };
 }

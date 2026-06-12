@@ -1,6 +1,7 @@
-import type { IFuseOptions } from 'fuse.js';
+import type { Options } from 'minisearch';
 
 export interface DialogueSearchDocument {
+  id: string; // Unique ID: `${nodeId}::${lineIndex}`
   nodeId: string;
   nodeLabel: string;
   lineIndex: number;
@@ -8,23 +9,29 @@ export interface DialogueSearchDocument {
 }
 
 export interface NodeSearchDocument {
+  id: string; // Unique ID: nodeId
   nodeId: string;
   label: string;
   dialogueCountText: string;
 }
 
-export const DIALOGUE_FUSE_OPTIONS: IFuseOptions<DialogueSearchDocument> = {
-  keys: ['lineText', 'nodeLabel'],
-  threshold: 0.35,
-  ignoreLocation: true,
-  includeScore: true,
-  minMatchCharLength: 2,
+export const DIALOGUE_MINISEARCH_OPTIONS: Options<DialogueSearchDocument> = {
+  fields: ['lineText', 'nodeLabel'],
+  storeFields: ['nodeId', 'nodeLabel', 'lineIndex', 'lineText'],
+  searchOptions: {
+    boost: { lineText: 2, nodeLabel: 1 },
+    prefix: true,
+    fuzzy: 0.25,
+  },
 };
 
-export const NODE_FUSE_OPTIONS: IFuseOptions<NodeSearchDocument> = {
-  keys: ['label', 'dialogueCountText'],
-  threshold: 0.3,
-  ignoreLocation: true,
-  includeScore: true,
-  minMatchCharLength: 1,
+export const NODE_MINISEARCH_OPTIONS: Options<NodeSearchDocument> = {
+  fields: ['label', 'dialogueCountText'],
+  storeFields: ['nodeId'],
+  searchOptions: {
+    boost: { label: 2, dialogueCountText: 1 },
+    prefix: true,
+    fuzzy: 0.25,
+  },
 };
+

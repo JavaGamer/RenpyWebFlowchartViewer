@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Fuse from 'fuse.js';
+import MiniSearch from 'minisearch';
 import debounce from 'lodash.debounce';
 import type { CanvasNode } from '../../domain';
 import type { ParseService } from '../../application';
 import type { DialogueSearchResult } from '../../infrastructure';
 import {
-  DIALOGUE_FUSE_OPTIONS,
-  NODE_FUSE_OPTIONS,
+  DIALOGUE_MINISEARCH_OPTIONS,
+  NODE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
   type NodeSearchDocument,
 } from '../../config/searchConfig';
@@ -136,6 +136,7 @@ export function useViewerSearch({
       const lines = nodeData.dialogueLines ?? [];
       lines.forEach((line, idx) => {
         docs.push({
+          id: `${node.id}::${idx + 1}`,
           nodeId: node.id,
           nodeLabel: nodeData.label,
           lineIndex: idx + 1,
@@ -146,20 +147,22 @@ export function useViewerSearch({
     return docs;
   }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, hasActiveQuery, largeGraphMode, minDialogue, nodes]);
 
-  const localDialogueFuse = useMemo(
-    () => (searchableDocs.length > 0 && hasActiveQuery ? new Fuse(searchableDocs, DIALOGUE_FUSE_OPTIONS) : null),
-    [hasActiveQuery, searchableDocs],
-  );
+  const localDialogueMiniSearch = useMemo(() => {
+    if (searchableDocs.length === 0 || !hasActiveQuery) return null;
+    const mini = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
+    mini.addAll(searchableDocs);
+    return mini;
+  }, [hasActiveQuery, searchableDocs]);
 
   const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
-    if (!localDialogueFuse) return [];
-    return localDialogueFuse.search(trimmedSearch, { limit: DIALOGUE_SEARCH_MAX_RESULTS }).map((entry) => ({
-      nodeId: entry.item.nodeId,
-      nodeLabel: entry.item.nodeLabel,
-      lineIndex: entry.item.lineIndex,
-      lineText: entry.item.lineText,
-    }));
-  }, [localDialogueFuse, trimmedSearch]);
+    if (!localDialogueMiniSearch) return [];
+    return localDialogueMiniSearch.search(trimmedSearch).slice(0, DIALOGUE_SEARCH_MAX_RESULTS).map((entry) => ({
+      nodeId: entry.nodeId,
+      nodeLabel: entry.nodeLabel,
+      lineIndex: entry.lineIndex,
+      lineText: entry.lineText,
+    })) as DialogueSearchResult[];
+  }, [localDialogueMiniSearch, trimmedSearch]);
 
   const activeDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
 
@@ -175,6 +178,7 @@ export function useViewerSearch({
       return nodes.map((node) => {
         const nodeData = node.data as { label?: string; dialogueCount?: number };
         return {
+          id: node.id,
           nodeId: node.id,
           label: nodeData.label ?? '',
           dialogueCountText: String(nodeData.dialogueCount ?? 0),
@@ -184,17 +188,17 @@ export function useViewerSearch({
     [hasActiveQuery, nodes],
   );
 
-  // Same hasActiveQuery boolean gates construction so the index is built once
-  // on the first keystroke and reused until the query is cleared.
-  const nodeFuse = useMemo(
-    () => (hasActiveQuery ? new Fuse(nodeSearchDocs, NODE_FUSE_OPTIONS) : null),
-    [hasActiveQuery, nodeSearchDocs],
-  );
+  const nodeMiniSearch = useMemo(() => {
+    if (!hasActiveQuery || nodeSearchDocs.length === 0) return null;
+    const mini = new MiniSearch(NODE_MINISEARCH_OPTIONS);
+    mini.addAll(nodeSearchDocs);
+    return mini;
+  }, [hasActiveQuery, nodeSearchDocs]);
 
   const nodeSearchMatchIds = useMemo(() => {
-    if (!nodeFuse || !hasActiveQuery) return null;
-    return new Set(nodeFuse.search(trimmedSearch).map((entry) => entry.item.nodeId));
-  }, [hasActiveQuery, nodeFuse, trimmedSearch]);
+    if (!nodeMiniSearch || !hasActiveQuery) return null;
+    return new Set(nodeMiniSearch.search(trimmedSearch).map((entry) => entry.nodeId));
+  }, [hasActiveQuery, nodeMiniSearch, trimmedSearch]);
 
   const searchMatchNodeIds = useMemo(() => {
     if (!nodeSearchMatchIds) return null;

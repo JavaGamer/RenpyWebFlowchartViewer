@@ -1,12 +1,12 @@
 import { parseRenpyFiles } from '../parser/parser';
-import Fuse from 'fuse.js';
+import MiniSearch from 'minisearch';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import { createGraphState } from '../parser/pipelineState';
 import pLimit from 'p-limit';
 import { tokenizeOneFile, processTokenizedFile, type TokenizedFile } from '../parser/filePipeline';
 import { finalizeRoles } from '../parser/roleFinalization';
-import { DIALOGUE_FUSE_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
+import { DIALOGUE_MINISEARCH_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
 import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
@@ -56,7 +56,7 @@ const cancelledRequests = new Set<number>();
 const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
 let accumulatedState = createGraphState();
 let dialogueSearchDocs: DialogueSearchDocument[] = [];
-let dialogueSearchFuse: Fuse<DialogueSearchDocument> | null = null;
+let dialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null = null;
 
 function buildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLines?: string[] }[]) {
   dialogueSearchDocs = [];
@@ -64,6 +64,7 @@ function buildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLi
     if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
     for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
       dialogueSearchDocs.push({
+        id: `${node.id}::${idx + 1}`,
         nodeId: node.id,
         nodeLabel: node.label,
         lineIndex: idx + 1,
@@ -71,7 +72,12 @@ function buildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLi
       });
     }
   }
-  dialogueSearchFuse = dialogueSearchDocs.length > 0 ? new Fuse(dialogueSearchDocs, DIALOGUE_FUSE_OPTIONS) : null;
+  if (dialogueSearchDocs.length > 0) {
+    dialogueSearchMiniSearch = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
+    dialogueSearchMiniSearch.addAll(dialogueSearchDocs);
+  } else {
+    dialogueSearchMiniSearch = null;
+  }
 }
 
 function postMessageSafe(message: WorkerResponseMessage) {
@@ -124,25 +130,17 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
     const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
-    if (dialogueSearchFuse) {
-      // When allowedIds is provided, search without a global top-N limit first so
-      // that the best matches within the scoped node set are never cut off before
-      // the per-node filter is applied.  Use a heuristic bound (50 dialogue lines
-      // per allowed node, at least DIALOGUE_SEARCH_MAX_RESULTS) to keep memory
-      // use bounded on very large indices while still covering the scoped set.
-      const scopedLimit = allowedIds
-        ? Math.max(allowedIds.size * 50, DIALOGUE_SEARCH_MAX_RESULTS)
-        : maxResults;
-      const rawResults = dialogueSearchFuse.search(query, { limit: scopedLimit });
+    if (dialogueSearchMiniSearch) {
+      const rawResults = dialogueSearchMiniSearch.search(query);
       const filtered = allowedIds
-        ? rawResults.filter((entry) => allowedIds.has(entry.item.nodeId))
+        ? rawResults.filter((entry) => allowedIds.has(entry.nodeId))
         : rawResults;
       results = filtered.slice(0, maxResults).map((entry) => ({
-        nodeId: entry.item.nodeId,
-        nodeLabel: entry.item.nodeLabel,
-        lineIndex: entry.item.lineIndex,
-        lineText: entry.item.lineText,
-      }));
+        nodeId: entry.nodeId,
+        nodeLabel: entry.nodeLabel,
+        lineIndex: entry.lineIndex,
+        lineText: entry.lineText,
+      })) as DialogueSearchResult[];
     }
     if (!cancelledRequests.has(requestId)) {
       postMessageSafe({
@@ -176,7 +174,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
       if (resetActiveGraph) {
         accumulatedState = createGraphState();
         dialogueSearchDocs = [];
-        dialogueSearchFuse = null;
+        dialogueSearchMiniSearch = null;
       }
 
       const hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1;
@@ -337,7 +335,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     }
     if (wasCancelled) {
       dialogueSearchDocs = [];
-      dialogueSearchFuse = null;
+      dialogueSearchMiniSearch = null;
     }
   }
 };

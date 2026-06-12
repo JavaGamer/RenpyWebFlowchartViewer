@@ -4,6 +4,7 @@ import '@xyflow/react/dist/style.css';
 import { toBlob, toSvg } from 'html-to-image';
 import { saveAs } from 'file-saver';
 import { ErrorBoundary } from 'react-error-boundary';
+import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge } from '../domain';
 import {
@@ -83,13 +84,27 @@ export default function FlowchartViewer({
     setSearchInput,
     setMinDialogue,
     toggleShowAdvancedControls,
+    setShowAdvancedControls,
     setStandaloneDialogueSearchMode,
   } = useViewerStore(useShallow((s) => ({
     setSearchInput: s.setSearchInput,
     setMinDialogue: s.setMinDialogue,
     toggleShowAdvancedControls: s.toggleShowAdvancedControls,
+    setShowAdvancedControls: s.setShowAdvancedControls,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
   })));
+
+  const { undo, redo, pastStates, futureStates } = useStore(
+    useViewerStore.temporal,
+    useShallow((s) => ({
+      undo: s.undo,
+      redo: s.redo,
+      pastStates: s.pastStates,
+      futureStates: s.futureStates,
+    }))
+  );
+  const canUndo = pastStates.length > 0;
+  const canRedo = futureStates.length > 0;
 
   // -- Canvas metrics ---------------------------------------------------------
   // Seeded with totals; refined once FlowchartCanvas reports its first render.
@@ -186,8 +201,11 @@ export default function FlowchartViewer({
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        setShowAdvancedControls(false);
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        }, 0);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
@@ -198,11 +216,21 @@ export default function FlowchartViewer({
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
         event.preventDefault();
         flowInstanceRef.current?.fitView({ padding: 0.2 });
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (canUndo) undo();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        if (canRedo) redo();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onExport]);
+  }, [onExport, canUndo, canRedo, undo, redo, setShowAdvancedControls]);
 
   // -- Render -----------------------------------------------------------------
   return (
@@ -235,6 +263,10 @@ export default function FlowchartViewer({
         onZoomTo={(preset) => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
         showAdvancedControls={showAdvancedControls}
         toggleShowAdvancedControls={toggleShowAdvancedControls}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
       />
 
       {/* ErrorBoundary wraps FlowchartCanvas so errors from layout hooks,

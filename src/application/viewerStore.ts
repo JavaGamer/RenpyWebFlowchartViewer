@@ -13,6 +13,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { temporal } from 'zundo';
 import { z } from 'zod';
 import type { DialogueSearchResult } from '../infrastructure';
 import type { ConditionVisibilityMode, EdgeKindFilter, ThemeName, LayoutDirection } from '../domain';
@@ -87,6 +88,7 @@ export interface ViewerActions {
   setActiveDialogueResultIndex: (index: number) => void;
   setDialogueSearchResults: (results: DialogueSearchResult[]) => void;
   toggleShowAdvancedControls: () => void;
+  setShowAdvancedControls: (show: boolean) => void;
   toggleShowAllLabelSubgraphToggles: () => void;
   setStandaloneDialogueSearchMode: (mode: DialogueSearchMode) => void;
   setMockFlag: (flag: string, value: MockFlagValue) => void;
@@ -248,8 +250,9 @@ function migrateLegacyKeys(): string | null {
 
 export const useViewerStore = create<ViewerStore>()(
   persist(
-    immer((set) => ({
-      ...defaultPersistedState,
+    temporal(
+      immer((set) => ({
+        ...defaultPersistedState,
       ...defaultSessionState,
 
       // ── Persisted actions ─────────────────────────────────────────────────
@@ -356,6 +359,11 @@ export const useViewerStore = create<ViewerStore>()(
           draft.showAdvancedControls = !draft.showAdvancedControls;
         }),
 
+      setShowAdvancedControls: (show) =>
+        set((draft) => {
+          draft.showAdvancedControls = show;
+        }),
+
       toggleShowAllLabelSubgraphToggles: () =>
         set((draft) => {
           draft.showAllLabelSubgraphToggles = !draft.showAllLabelSubgraphToggles;
@@ -387,7 +395,20 @@ export const useViewerStore = create<ViewerStore>()(
         set((draft) => {
           Object.assign(draft, defaultSessionState);
         }),
-    })),
+      })),
+      {
+        partialize: (state) => ({
+          layoutDirection: state.layoutDirection,
+          searchInput: state.searchInput,
+          minDialogue: state.minDialogue,
+          collapsedChapters: state.collapsedChapters,
+          collapsedParentLabels: state.collapsedParentLabels,
+          selectedNodeId: state.selectedNodeId,
+          mockFlags: state.mockFlags,
+          conditionVisibilityMode: state.conditionVisibilityMode,
+        }),
+      }
+    ),
     {
       name: STORAGE_KEYS.viewer,
       storage: createJSONStorage(() => ({

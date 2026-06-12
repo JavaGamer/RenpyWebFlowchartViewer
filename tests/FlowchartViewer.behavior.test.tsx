@@ -317,7 +317,11 @@ describe('FlowchartViewer behavior coverage', () => {
     const user = userEvent.setup();
     render(<FlowchartViewer flowNodes={flowNodes} flowEdges={flowEdges} />);
 
+    // Open the advanced controls drawer
     await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
+
+    // Verify the dialog is open and its contents are visible
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     const edgeToggle = screen.getByRole('checkbox', { name: /Show sequence edges/i });
     expect(edgeToggle).toBeChecked();
     await user.click(edgeToggle);
@@ -338,13 +342,16 @@ describe('FlowchartViewer behavior coverage', () => {
 
     expect(reactFlowTestUtils.__test.flowApi.setCenter).toHaveBeenCalled();
 
+    // Ctrl+F closes the dialog and focuses the search input
     fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
-    expect(
-      screen.getByRole('textbox', {
-        name: /Search/i,
-      }),
-    ).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('textbox', { name: /Search/i }),
+      ).toHaveFocus();
+    });
 
+    // Verify static toolbar elements (dialog is now closed, no aria-hidden)
     fireEvent.keyDown(window, { key: 'l', ctrlKey: true });
     expect(reactFlowTestUtils.__test.flowApi.fitView).toHaveBeenCalledWith({ padding: 0.2 });
 
@@ -352,12 +359,18 @@ describe('FlowchartViewer behavior coverage', () => {
     expect(screen.getByRole('toolbar', { name: /Viewer controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Primary controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Search and filters/i })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: /Layout and focus controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Export controls/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /Search/i })).toHaveAttribute('aria-keyshortcuts', 'Control+F Meta+F');
     expect(screen.getByRole('button', { name: /Fit graph to view/i })).toHaveAttribute('aria-keyshortcuts', 'Control+L Meta+L');
     expect(screen.getByRole('button', { name: /Export flowchart as PNG/i })).toHaveAttribute('aria-keyshortcuts', 'Control+E Meta+E');
-    expect(screen.getByRole('button', { name: /Hide advanced controls/i })).toHaveAttribute('aria-controls', 'viewer-advanced-controls');
+    expect(screen.getByRole('button', { name: /Show advanced controls/i })).toHaveAttribute('aria-controls', 'viewer-advanced-controls');
+
+    // Reopen drawer to verify its internal group structure
+    await user.click(screen.getByRole('button', { name: /Show advanced controls/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('group', { name: /Layout and focus controls/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Layout and focus controls/i }).closest('#viewer-advanced-controls')).toBeTruthy();
   });
 
