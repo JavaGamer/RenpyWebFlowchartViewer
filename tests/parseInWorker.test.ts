@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { PARSER_WORKER_PROTOCOL_VERSION, type ParseChunkRequestMessage, type FinalizeRequestMessage, type CancelRequestMessage } from '../src/infrastructure/workerProtocol';
+import { PARSER_WORKER_PROTOCOL_VERSION, type ParseChunkRequestMessage, type FinalizeRequestMessage } from '../src/infrastructure/workerProtocol';
 
 class SyncPromise {
   private value: any;

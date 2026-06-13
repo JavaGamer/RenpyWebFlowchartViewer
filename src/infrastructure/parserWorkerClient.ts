@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { wrap, proxy, releaseProxy, type Remote } from 'comlink';
 import MiniSearch from 'minisearch';
 import { createGraphState } from '../parser/pipelineState';

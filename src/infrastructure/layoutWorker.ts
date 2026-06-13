@@ -23,4 +23,6 @@ const layoutApi = {
 expose(layoutApi);
 
 export type LayoutWorkerApi = typeof layoutApi;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default null as any;
+

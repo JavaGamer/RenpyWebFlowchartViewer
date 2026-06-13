@@ -477,4 +477,6 @@ const parserApi = {
 expose(parserApi);
 
 export type ParserWorkerApi = typeof parserApi;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default null as any;
+

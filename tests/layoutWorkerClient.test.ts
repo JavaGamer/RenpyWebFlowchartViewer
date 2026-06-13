@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowNode, FlowEdge } from '../src/domain';
 
@@ -149,7 +150,6 @@ let mockWorkerInstance: MockWorkerInstance;
  * that object rather than the implicit `this`.
  */
 function createMockWorkerClass() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return vi.fn().mockImplementation(function MockWorkerImpl(this: any) {
     const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
 

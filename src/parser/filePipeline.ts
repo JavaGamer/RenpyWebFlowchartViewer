@@ -5,9 +5,10 @@ import type { ParseGraphState } from './pipelineTypes';
 import { createScanState } from './pipelineState';
 import { processTokenTreeStream } from './tokenScanStage';
 import type { ParseInputFile, ParseOptions } from './pipelineTypes';
+import type { createPerfTracker } from '../infrastructure';
 
 let _docVersion = 0;
-let parserPerf: any = null;
+let parserPerf: ReturnType<typeof createPerfTracker> | null = null;
 
 async function initParserPerf() {
   if (!parserPerf) {
