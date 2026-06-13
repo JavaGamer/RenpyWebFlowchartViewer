@@ -11,6 +11,7 @@ import {
   CONTROL_BUTTON_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from './viewerConstants';
+import { cn } from './utils/cn';
 
 interface TooltipWrapperProps {
   content: ReactNode;
@@ -128,7 +129,10 @@ export function ViewerToolbar({
                 placeholder="Search labels, dialogue lines, or dialogue count"
                 aria-describedby="viewer-search-help"
                 aria-keyshortcuts="Control+F Meta+F"
-                className={`pl-7 pr-2 w-full sm:w-[16rem] max-w-[90vw] ${CONTROL_INPUT_CLASS}`}
+                className={cn(
+                  "pl-7 pr-2 w-full sm:w-[16rem] max-w-[90vw]",
+                  CONTROL_INPUT_CLASS
+                )}
               />
             </div>
             <span id="viewer-search-help" className="sr-only">
@@ -145,7 +149,7 @@ export function ViewerToolbar({
                 value={minDialogue}
                 onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
                 aria-label="Minimum dialogue lines"
-                className={`w-16 ${CONTROL_INPUT_CLASS}`}
+                className={cn("w-16", CONTROL_INPUT_CLASS)}
               />
             </label>
             <label className="text-xs flex items-center gap-1" htmlFor="dialogue-search-mode-input">
@@ -184,7 +188,10 @@ export function ViewerToolbar({
               type="button"
               disabled={!canUndo}
               onClick={onUndo}
-              className={`${CONTROL_BUTTON_CLASS} disabled:opacity-40 disabled:cursor-not-allowed`}
+              className={cn(
+                CONTROL_BUTTON_CLASS,
+                "disabled:opacity-40 disabled:cursor-not-allowed"
+              )}
               aria-label="Undo last action"
               aria-keyshortcuts="Control+Z Meta+Z"
             >
@@ -197,7 +204,10 @@ export function ViewerToolbar({
               type="button"
               disabled={!canRedo}
               onClick={onRedo}
-              className={`${CONTROL_BUTTON_CLASS} disabled:opacity-40 disabled:cursor-not-allowed`}
+              className={cn(
+                CONTROL_BUTTON_CLASS,
+                "disabled:opacity-40 disabled:cursor-not-allowed"
+              )}
               aria-label="Redo last action"
               aria-keyshortcuts="Control+Y Meta+Y"
             >
@@ -217,7 +227,10 @@ export function ViewerToolbar({
               onClick={onExport}
               aria-label="Export flowchart as PNG"
               aria-keyshortcuts="Control+E Meta+E"
-              className={`${PRIMARY_BUTTON_CLASS} text-white bg-violet-600 hover:bg-violet-700`}
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                "text-white bg-violet-600 hover:bg-violet-700"
+              )}
             >
               <Download size={14} aria-hidden="true" />
               Export PNG
@@ -227,7 +240,10 @@ export function ViewerToolbar({
             <button
               onClick={onExportSvg}
               aria-label="Export flowchart as SVG"
-              className={`${PRIMARY_BUTTON_CLASS} text-violet-700 border border-violet-300 bg-white hover:bg-violet-50`}
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                "text-violet-700 border border-violet-300 bg-white hover:bg-violet-50"
+              )}
             >
               <Download size={14} aria-hidden="true" />
               Export SVG
@@ -237,7 +253,10 @@ export function ViewerToolbar({
             <button
               onClick={onExportJson}
               aria-label="Export graph as JSON"
-              className={`${PRIMARY_BUTTON_CLASS} text-gray-700 border border-gray-300 bg-white hover:bg-gray-50`}
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50"
+              )}
             >
               <Download size={14} aria-hidden="true" />
               Export JSON
@@ -247,7 +266,10 @@ export function ViewerToolbar({
             <button
               onClick={() => onExportDebugBundle?.(debugPrivacyOptions)}
               aria-label="Export debug bundle"
-              className={`${PRIMARY_BUTTON_CLASS} text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100`}
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                "text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100"
+              )}
             >
               <Download size={14} aria-hidden="true" />
               Export Debug Bundle
@@ -257,7 +279,10 @@ export function ViewerToolbar({
             <button
               onClick={() => onOpenIssue?.(debugPrivacyOptions)}
               aria-label="Open new GitHub issue"
-              className={`${PRIMARY_BUTTON_CLASS} text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100`}
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                "text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100"
+              )}
             >
               Open new GitHub issue
             </button>

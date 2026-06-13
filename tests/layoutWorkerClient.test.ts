@@ -1,6 +1,130 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowNode, FlowEdge } from '../src/domain';
 
+class SyncPromise {
+  private value: any;
+  private error: any;
+  private state: 'pending' | 'resolved' | 'rejected' = 'pending';
+  private resolveCallbacks: Array<(v: any) => void> = [];
+  private rejectCallbacks: Array<(e: any) => void> = [];
+
+  constructor(executor: (resolve: (v: any) => void, reject: (e: any) => void) => void) {
+    const resolve = (val: any) => {
+      if (this.state !== 'pending') return;
+      this.state = 'resolved';
+      this.value = val;
+      for (const cb of this.resolveCallbacks) cb(val);
+    };
+    const reject = (err: any) => {
+      if (this.state !== 'pending') return;
+      this.state = 'rejected';
+      this.error = err;
+      for (const cb of this.rejectCallbacks) cb(err);
+    };
+    try {
+      executor(resolve, reject);
+    } catch (e) {
+      reject(e);
+    }
+  }
+
+  then(onResolve: (v: any) => any, onReject?: (e: any) => any) {
+    if (this.state === 'resolved') {
+      try {
+        const nextVal = onResolve(this.value);
+        return SyncPromise.resolve(nextVal);
+      } catch (e) {
+        return SyncPromise.reject(e);
+      }
+    }
+    if (this.state === 'rejected') {
+      if (onReject) {
+        try {
+          const nextVal = onReject(this.error);
+          return SyncPromise.resolve(nextVal);
+        } catch (e) {
+          return SyncPromise.reject(e);
+        }
+      }
+      return SyncPromise.reject(this.error);
+    }
+    return new SyncPromise((resolve, reject) => {
+      this.resolveCallbacks.push((val) => {
+        try {
+          const res = onResolve(val);
+          resolve(res);
+        } catch (e) {
+          reject(e);
+        }
+      });
+      if (onReject) {
+        this.rejectCallbacks.push((err) => {
+          try {
+            const res = onReject(err);
+            resolve(res);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      } else {
+        this.rejectCallbacks.push(reject);
+      }
+    });
+  }
+
+  catch(onReject: (e: any) => any) {
+    return this.then((v) => v, onReject);
+  }
+
+  static resolve(val: any) {
+    return new SyncPromise((resolve) => resolve(val));
+  }
+
+  static reject(err: any) {
+    return new SyncPromise((_, reject) => reject(err));
+  }
+}
+
+vi.mock('comlink', () => {
+  let activeRequestId = 0;
+  return {
+    wrap: (worker: any) => {
+      return {
+        runLayout: (rawNodes: any, rawEdges: any, direction: any, options: any) => {
+          const requestId = ++activeRequestId;
+          worker.postMessage({
+            requestId,
+            rawNodes,
+            rawEdges,
+            direction,
+            options,
+          });
+          return new SyncPromise((resolve, reject) => {
+            const listener = (event: any) => {
+              const msg = event.data;
+              if (msg.requestId !== requestId) return;
+              worker.removeEventListener('message', listener);
+              worker.removeEventListener('error', errorListener);
+              if (msg.error) {
+                reject(new Error(msg.error));
+              } else {
+                resolve(msg.result);
+              }
+            };
+            const errorListener = (event: any) => {
+              worker.removeEventListener('error', errorListener);
+              worker.removeEventListener('message', listener);
+              reject(event.error || new Error(event.message || 'worker crashed'));
+            };
+            worker.addEventListener('message', listener);
+            worker.addEventListener('error', errorListener);
+          });
+        }
+      };
+    }
+  };
+});
+
 // ---------------------------------------------------------------------------
 // Worker mock infrastructure
 // ---------------------------------------------------------------------------

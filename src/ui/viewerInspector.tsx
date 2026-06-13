@@ -4,6 +4,7 @@ import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from '../config/viewerConfig';
 import { type CanvasNode } from '../domain';
 import type { DialogueSearchResult } from '../infrastructure';
 import { renderHighlightedText, truncateForAria } from './viewerText';
+import { cn } from './utils/cn';
 
 import { Image as ImageIcon, Music as MusicIcon, Volume2 as Volume2Icon, Mic as MicIcon, VolumeX as VolumeXIcon } from 'lucide-react';
 
@@ -132,11 +133,12 @@ export function ViewerInspector({
                               onSetActiveDialogueResultIndex(virtualItem.index);
                               onSelectDialogueSearchResult(result);
                             }}
-                            className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
+                            className={cn(
+                              "w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
                               virtualItem.index === resolvedActiveDialogueResultIndex
-                                ? 'border-violet-400 bg-violet-50'
-                                : 'border-gray-200'
-                            }`}
+                                ? "border-violet-400 bg-violet-50"
+                                : "border-gray-200"
+                            )}
                           >
                             <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
                             <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
@@ -147,6 +149,7 @@ export function ViewerInspector({
                   </ul>
                 ) : (
                   <ul className="space-y-1">
+
                     {activeDialogueSearchResults.map((result, resultIndex) => (
                       <li key={`${result.nodeId}-${result.lineIndex}`}>
                         <button
@@ -157,11 +160,12 @@ export function ViewerInspector({
                             onSetActiveDialogueResultIndex(resultIndex);
                             onSelectDialogueSearchResult(result);
                           }}
-                          className={`w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
+                          className={cn(
+                            "w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
                             resultIndex === resolvedActiveDialogueResultIndex
-                              ? 'border-violet-400 bg-violet-50'
-                              : 'border-gray-200'
-                          }`}
+                              ? "border-violet-400 bg-violet-50"
+                              : "border-gray-200"
+                          )}
                         >
                           <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
                           <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
@@ -274,7 +278,10 @@ export function ViewerInspector({
                       key={`${selectedNodeId}-${virtualItem.key}`}
                       ref={inspectorLinesVirtualizer.measureElement}
                       data-index={virtualItem.index}
-                      className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                      className={cn(
+                        "text-xs border rounded px-2 py-1",
+                        isSelectedLine ? "border-violet-400 bg-violet-50" : "border-gray-200"
+                      )}
                       style={{ position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
                     >
                       <span className="font-medium mr-1">{absoluteIndex}.</span>
@@ -291,7 +298,10 @@ export function ViewerInspector({
                   return (
                     <div
                       key={`${selectedNodeId}-${idx}`}
-                      className={`text-xs border rounded px-2 py-1 ${isSelectedLine ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
+                      className={cn(
+                        "text-xs border rounded px-2 py-1",
+                        isSelectedLine ? "border-violet-400 bg-violet-50" : "border-gray-200"
+                      )}
                     >
                       <span className="font-medium mr-1">{absoluteIndex}.</span>
                       {renderHighlightedText(line, effectiveSearch)}

@@ -1,5 +1,225 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { PARSER_WORKER_PROTOCOL_VERSION, type ParseChunkRequestMessage, type FinalizeRequestMessage } from '../src/infrastructure/workerProtocol';
+import { PARSER_WORKER_PROTOCOL_VERSION, type ParseChunkRequestMessage, type FinalizeRequestMessage, type CancelRequestMessage } from '../src/infrastructure/workerProtocol';
+
+class SyncPromise {
+  private value: any;
+  private error: any;
+  private state: 'pending' | 'resolved' | 'rejected' = 'pending';
+  private resolveCallbacks: Array<(v: any) => void> = [];
+  private rejectCallbacks: Array<(e: any) => void> = [];
+
+  constructor(executor: (resolve: (v: any) => void, reject: (e: any) => void) => void) {
+    const resolve = (val: any) => {
+      if (this.state !== 'pending') return;
+      this.state = 'resolved';
+      this.value = val;
+      for (const cb of this.resolveCallbacks) cb(val);
+    };
+    const reject = (err: any) => {
+      if (this.state !== 'pending') return;
+      this.state = 'rejected';
+      this.error = err;
+      for (const cb of this.rejectCallbacks) cb(err);
+    };
+    try {
+      executor(resolve, reject);
+    } catch (e) {
+      reject(e);
+    }
+  }
+
+  then(onResolve: (v: any) => any, onReject?: (e: any) => any) {
+    if (this.state === 'resolved') {
+      try {
+        const nextVal = onResolve(this.value);
+        return SyncPromise.resolve(nextVal);
+      } catch (e) {
+        return SyncPromise.reject(e);
+      }
+    }
+    if (this.state === 'rejected') {
+      if (onReject) {
+        try {
+          const nextVal = onReject(this.error);
+          return SyncPromise.resolve(nextVal);
+        } catch (e) {
+          return SyncPromise.reject(e);
+        }
+      }
+      return SyncPromise.reject(this.error);
+    }
+    return new SyncPromise((resolve, reject) => {
+      this.resolveCallbacks.push((val) => {
+        try {
+          const res = onResolve(val);
+          resolve(res);
+        } catch (e) {
+          reject(e);
+        }
+      });
+      if (onReject) {
+        this.rejectCallbacks.push((err) => {
+          try {
+            const res = onReject(err);
+            resolve(res);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      } else {
+        this.rejectCallbacks.push(reject);
+      }
+    });
+  }
+
+  catch(onReject: (e: any) => any) {
+    return this.then((v) => v, onReject);
+  }
+
+  static resolve(val: any) {
+    return new SyncPromise((resolve) => resolve(val));
+  }
+
+  static reject(err: any) {
+    return new SyncPromise((_, reject) => reject(err));
+  }
+}
+
+vi.mock('comlink', () => {
+  return {
+    wrap: (worker: any) => {
+      return {
+        parse: (requestId: any, files: any, options: any, progressProxy: any) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'parse',
+            requestId,
+            files,
+            fileCacheKeys: options.fileCacheKeys,
+            wantsProgress: options.wantsProgress,
+            maxParallelFiles: options.maxParallelFiles,
+            captureDialogueLines: options.captureDialogueLines,
+            parserVariant: options.parserVariant,
+            screenActionRules: options.screenActionRules,
+            appendToActiveGraph: options.appendToActiveGraph,
+            resetActiveGraph: options.resetActiveGraph,
+            isFinalChunk: options.isFinalChunk,
+          });
+          return new SyncPromise((resolve, reject) => {
+            const listener = (event: any) => {
+              const msg = event.data;
+              if (msg.requestId !== requestId) return;
+              if (msg.type === 'progress' && progressProxy) {
+                progressProxy(msg);
+              }
+              if (msg.type === 'result') {
+                worker.removeEventListener('message', listener);
+                resolve({ nodes: msg.nodes, edges: msg.edges, diagnostics: msg.diagnostics });
+              }
+              if (msg.type === 'error') {
+                worker.removeEventListener('message', listener);
+                reject(new Error(msg.message));
+              }
+            };
+            worker.addEventListener('message', listener);
+          });
+        },
+        parseChunk: (requestId: any, files: any, options: any) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'parse_chunk',
+            requestId,
+            files,
+            fileCacheKeys: options.fileCacheKeys,
+            captureDialogueLines: options.captureDialogueLines,
+            parserVariant: options.parserVariant,
+            screenActionRules: options.screenActionRules,
+          });
+          return new SyncPromise((resolve, reject) => {
+            const listener = (event: any) => {
+              const msg = event.data;
+              if (msg.requestId !== requestId) return;
+              if (msg.type === 'chunk_result') {
+                worker.removeEventListener('message', listener);
+                resolve({
+                  nodes: msg.nodes,
+                  edges: msg.edges,
+                  diagnostics: msg.diagnostics,
+                  pendingCallReturns: msg.pendingCallReturns,
+                  hasReliableReturnInLabel: msg.hasReliableReturnInLabel,
+                  globalScreens: msg.globalScreens,
+                  labelDefinitionCount: msg.labelDefinitionCount,
+                  canonicalLabelIds: msg.canonicalLabelIds,
+                });
+              }
+              if (msg.type === 'error') {
+                worker.removeEventListener('message', listener);
+                reject(new Error(msg.message));
+              }
+            };
+            worker.addEventListener('message', listener);
+          });
+        },
+        finalize: (requestId: any, options: any) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'finalize',
+            requestId,
+            ...options,
+          });
+          return new SyncPromise((resolve, reject) => {
+            const listener = (event: any) => {
+              const msg = event.data;
+              if (msg.requestId !== requestId) return;
+              if (msg.type === 'finalize_result') {
+                worker.removeEventListener('message', listener);
+                resolve({ nodes: msg.nodes, edges: msg.edges, diagnostics: msg.diagnostics });
+              }
+              if (msg.type === 'error') {
+                worker.removeEventListener('message', listener);
+                reject(new Error(msg.message));
+              }
+            };
+            worker.addEventListener('message', listener);
+          });
+        },
+        search: (requestId: any, query: any, options: any) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'search',
+            requestId,
+            query,
+            ...options,
+          });
+          return new SyncPromise((resolve, reject) => {
+            const listener = (event: any) => {
+              const msg = event.data;
+              if (msg.requestId !== requestId) return;
+              if (msg.type === 'search_result') {
+                worker.removeEventListener('message', listener);
+                resolve(msg.results);
+              }
+              if (msg.type === 'error') {
+                worker.removeEventListener('message', listener);
+                reject(new Error(msg.message));
+              }
+            };
+            worker.addEventListener('message', listener);
+          });
+        },
+        cancel: (requestId: any) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'cancel',
+            requestId,
+          });
+        }
+      };
+    },
+    proxy: (fn: any) => fn,
+    releaseProxy: Symbol('releaseProxy'),
+  };
+});
 
 let workerMessageHandlers = new Set<(event: MessageEvent) => void>();
 let postedMessages: unknown[] = [];

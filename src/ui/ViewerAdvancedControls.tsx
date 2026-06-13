@@ -3,6 +3,7 @@ import type { CanvasNode, ConditionVisibilityMode, EdgeKindFilter, LayoutDirecti
 
 import { CONTROL_INPUT_CLASS, CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
 import type { MockFlagValue } from '../domain';
+import { cn } from './utils/cn';
 
 export interface ViewerAdvancedControlsProps {
   layoutDirection: LayoutDirection;
@@ -156,7 +157,7 @@ export function ViewerAdvancedControls({
                 value={focusNodeId}
                 onChange={(e) => setFocusNodeId(e.target.value)}
                 aria-label="Focus label"
-                className={`flex-1 min-w-0 ${CONTROL_INPUT_CLASS}`}
+                className={cn("flex-1 min-w-0", CONTROL_INPUT_CLASS)}
               >
                 <option value="">Select label</option>
                 {labels.map((label) => (
@@ -169,7 +170,7 @@ export function ViewerAdvancedControls({
                 type="button"
                 onClick={onFocusSelectedNode}
                 disabled={!focusNodeId}
-                className={`${CONTROL_BUTTON_CLASS} px-3 py-1 cursor-pointer`}
+                className={cn(CONTROL_BUTTON_CLASS, "px-3 py-1 cursor-pointer")}
                 aria-label="Center selected label"
               >
                 <LocateFixed size={12} className="inline mr-1" aria-hidden="true" />
@@ -180,7 +181,7 @@ export function ViewerAdvancedControls({
           <div className="col-span-2 flex justify-between items-center pt-1">
             <button
               onClick={onRelayout}
-              className={`${CONTROL_BUTTON_CLASS} px-3 py-1 cursor-pointer`}
+              className={cn(CONTROL_BUTTON_CLASS, "px-3 py-1 cursor-pointer")}
               aria-label="Re-run auto layout"
             >
               Re-run layout
@@ -233,7 +234,7 @@ export function ViewerAdvancedControls({
               {largeGraphModeOverride !== null && (
                 <button
                   type="button"
-                  className={`${CONTROL_BUTTON_CLASS} py-0.5 px-1.5 ml-auto text-[10px] cursor-pointer`}
+                  className={cn(CONTROL_BUTTON_CLASS, "py-0.5 px-1.5 ml-auto text-[10px] cursor-pointer")}
                   onClick={() => setLargeGraphModeOverride(null)}
                   aria-label="Use automatic large graph mode"
                 >
@@ -280,7 +281,7 @@ export function ViewerAdvancedControls({
                     <button
                       key={chapter}
                       onClick={() => toggleChapter(chapter)}
-                      className={`${CONTROL_BUTTON_CLASS} cursor-pointer hover:bg-gray-100 transition-colors`}
+                      className={cn(CONTROL_BUTTON_CLASS, "cursor-pointer hover:bg-gray-100 transition-colors")}
                       aria-label={`${collapsedChapters[chapter] ? 'Expand' : 'Collapse'} chapter ${chapter}`}
                     >
                       {collapsedChapters[chapter] ? '▸' : '▾'} {chapter}
@@ -305,13 +306,13 @@ export function ViewerAdvancedControls({
                     onChange={(e) => setLabelSubgraphSearchInput(e.target.value)}
                     placeholder="Filter labels"
                     aria-label="Filter label subgraphs"
-                    className={`flex-1 min-w-0 ${CONTROL_INPUT_CLASS}`}
+                    className={cn("flex-1 min-w-0", CONTROL_INPUT_CLASS)}
                   />
                   <button
                     type="button"
                     onClick={() => setAllVisibleSubgraphLabelsCollapsed(true)}
                     disabled={visibleSubgraphLabels.length === 0}
-                    className={`${CONTROL_BUTTON_CLASS} cursor-pointer`}
+                    className={cn(CONTROL_BUTTON_CLASS, "cursor-pointer")}
                     aria-label="Collapse all visible label subgraphs"
                   >
                     Collapse all
@@ -320,7 +321,7 @@ export function ViewerAdvancedControls({
                     type="button"
                     onClick={() => setAllVisibleSubgraphLabelsCollapsed(false)}
                     disabled={visibleSubgraphLabels.length === 0}
-                    className={`${CONTROL_BUTTON_CLASS} cursor-pointer`}
+                    className={cn(CONTROL_BUTTON_CLASS, "cursor-pointer")}
                     aria-label="Expand all visible label subgraphs"
                   >
                     Expand all
@@ -335,7 +336,7 @@ export function ViewerAdvancedControls({
                         <button
                           key={label}
                           onClick={() => toggleParentLabel(label)}
-                          className={`${CONTROL_BUTTON_CLASS} cursor-pointer`}
+                          className={cn(CONTROL_BUTTON_CLASS, "cursor-pointer")}
                           aria-label={`${collapsedParentLabels[label] ? 'Expand' : 'Collapse'} label ${label}`}
                         >
                           {collapsedParentLabels[label] ? '▸' : '▾'} {label}
@@ -345,7 +346,10 @@ export function ViewerAdvancedControls({
                         <button
                           type="button"
                           onClick={toggleShowAllLabelSubgraphToggles}
-                          className={`${CONTROL_BUTTON_CLASS} bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200 cursor-pointer`}
+                          className={cn(
+                            CONTROL_BUTTON_CLASS,
+                            "bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200 cursor-pointer"
+                          )}
                           aria-label={
                             shouldShowAllLabelSubgraphToggles
                               ? 'Show fewer label subgraph toggles'
@@ -388,7 +392,7 @@ export function ViewerAdvancedControls({
               <button
                 type="button"
                 onClick={resetMockFlags}
-                className={`${CONTROL_BUTTON_CLASS} cursor-pointer w-full py-1.5`}
+                className={cn(CONTROL_BUTTON_CLASS, "cursor-pointer w-full py-1.5")}
                 aria-label="Reset mock flag state"
               >
                 Reset flags

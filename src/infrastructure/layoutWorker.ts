@@ -1,23 +1,26 @@
+import { expose } from 'comlink';
 import { applyElkLayout } from '../domain';
+import type { FlowNode, FlowEdge, ThemeName, LayoutDensity } from '../domain';
 
-
-self.onmessage = async (event: MessageEvent) => {
-  const { requestId, rawNodes, rawEdges, direction, options } = event.data;
-
-  try {
-    const result = await applyElkLayout(rawNodes, rawEdges, direction, {
+const layoutApi = {
+  async runLayout(
+    rawNodes: FlowNode[],
+    rawEdges: FlowEdge[],
+    direction: 'TB' | 'LR',
+    options?: {
+      theme?: ThemeName;
+      layoutDensity?: LayoutDensity;
+      previousPositions?: Array<[string, { x: number; y: number }]>;
+    }
+  ) {
+    return applyElkLayout(rawNodes, rawEdges, direction, {
       theme: options?.theme,
       layoutDensity: options?.layoutDensity,
     });
-
-    self.postMessage({
-      requestId,
-      result,
-    });
-  } catch (error: unknown) {
-    self.postMessage({
-      requestId,
-      error: error instanceof Error ? error.message : String(error),
-    });
   }
 };
+
+expose(layoutApi);
+
+export type LayoutWorkerApi = typeof layoutApi;
+export default null as any;

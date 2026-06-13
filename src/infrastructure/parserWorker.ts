@@ -1,20 +1,21 @@
+import { expose } from 'comlink';
 import { parseRenpyFiles } from '../parser/parser';
 import MiniSearch from 'minisearch';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import { createGraphState } from '../parser/pipelineState';
-import type { ParseDiagnostic } from '../parser/pipelineTypes';
+import type { ParseDiagnostic, ParseInputFile } from '../parser/pipelineTypes';
 import pLimit from 'p-limit';
 import { tokenizeOneFile, processTokenizedFile, type TokenizedFile } from '../parser/filePipeline';
 import { finalizeRoles } from '../parser/roleFinalization';
 import { DIALOGUE_MINISEARCH_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
 import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
-import {
-  PARSER_WORKER_PROTOCOL_VERSION,
-  type WorkerRequestMessage,
-  type WorkerResponseMessage,
-  type ProgressResponseMessage,
-  type DialogueSearchResult,
+import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
+import type { FlowNode, FlowEdge } from '../domain';
+import type {
+  DialogueSearchResult,
+  ParseDiagnosticPayload,
+  ParseWorkerClientResult,
 } from './workerProtocol';
 
 type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
@@ -81,158 +82,53 @@ function buildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLi
   }
 }
 
-function postMessageSafe(message: WorkerResponseMessage) {
-  self.postMessage(message);
+export interface ProgressPayload {
+  doneFiles: number;
+  totalFiles: number;
+  currentFile: string;
+  elapsedMs?: number;
 }
 
-self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
-  const message = event.data;
-  if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) {
-    const raw = event.data as { requestId?: unknown; protocolVersion?: unknown };
-    if (typeof raw.requestId === 'number') {
-      self.postMessage({
-        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-        type: 'error',
-        requestId: raw.requestId,
-        message:
-          `Worker protocol version mismatch: expected ${PARSER_WORKER_PROTOCOL_VERSION}, received ${String(raw.protocolVersion)}. ` +
-          'Please reload the page to use the latest worker version.',
-      });
-    }
-    return;
-  }
+export interface InternalChunkResult {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  hasReliableReturnInLabel: string[];
+  globalScreens: string[];
+  labelDefinitionCount: Array<[string, number]>;
+  canonicalLabelIds: Array<[string, string]>;
+}
 
-  if (message.type === 'cancel') {
-    cancelledRequests.add(message.requestId);
-    return;
-  }
-
-  if (message.type === 'search') {
+const parserApi = {
+  async parse(
+    requestId: number,
+    files: ParseInputFile[],
+    options: {
+      fileCacheKeys?: string[];
+      wantsProgress?: boolean;
+      maxParallelFiles?: number;
+      captureDialogueLines?: boolean;
+      parserVariant?: ParserVariant;
+      screenActionRules?: ScreenActionRule[];
+      appendToActiveGraph?: boolean;
+      resetActiveGraph?: boolean;
+      isFinalChunk?: boolean;
+    },
+    onProgress?: (progress: ProgressPayload) => void
+  ): Promise<ParseWorkerClientResult> {
+    activeRequestId = requestId;
     const startedAt = performance.now();
-    const requestId = message.requestId;
-    if (cancelledRequests.has(requestId)) {
-      cancelledRequests.delete(requestId);
-      return;
-    }
-    const query = message.query.trim();
-    if (!query) {
-      if (!cancelledRequests.has(requestId)) {
-        postMessageSafe({
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'search_result',
-          requestId,
-          results: [],
-          elapsedMs: performance.now() - startedAt,
-        });
-      }
-      cancelledRequests.delete(requestId);
-      return;
-    }
-    const maxResults = Math.max(1, Math.min(message.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
-    const allowedIds = message.nodeIds ? new Set(message.nodeIds) : null;
-    let results: DialogueSearchResult[] = [];
-    if (dialogueSearchMiniSearch) {
-      const rawResults = dialogueSearchMiniSearch.search(query);
-      const filtered = allowedIds
-        ? rawResults.filter((entry) => allowedIds.has(entry.nodeId))
-        : rawResults;
-      results = filtered.slice(0, maxResults).map((entry) => ({
-        nodeId: entry.nodeId,
-        nodeLabel: entry.nodeLabel,
-        lineIndex: entry.lineIndex,
-        lineText: entry.lineText,
-      })) as DialogueSearchResult[];
-    }
-    if (!cancelledRequests.has(requestId)) {
-      postMessageSafe({
-        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-        type: 'search_result',
-        requestId,
-        results,
-        elapsedMs: performance.now() - startedAt,
-      });
-    }
-    cancelledRequests.delete(requestId);
-    return;
-  }
+    const wantsProgress = options.wantsProgress !== false && !!onProgress;
+    const appendToActiveGraph = options.appendToActiveGraph === true;
+    const resetActiveGraph = options.resetActiveGraph === true;
+    const isFinalChunk = options.isFinalChunk !== false;
+    const progressThrottleMs = files.length > 40 ? 30 : 0;
+    let lastProgressAt = 0;
+    let pendingProgress: ProgressPayload | null = null;
 
-  if (message.type === 'parse_chunk') {
-    const { requestId, files, fileCacheKeys } = message;
-    const startedAt = performance.now();
-    if (cancelledRequests.has(requestId)) {
-      cancelledRequests.delete(requestId);
-      return;
-    }
     try {
-      const chunkState = createGraphState();
-      for (let idx = 0; idx < files.length; idx += 1) {
-        if (cancelledRequests.has(requestId)) {
-          throw new Error('Chunk parsing cancelled');
-        }
-        const tokenized = await tokenizeOneFile(
-          files[idx],
-          { tokenizedCache, fileCacheKeys },
-          idx,
-        );
-        processTokenizedFile(chunkState, tokenized, {
-          captureDialogueLines: message.captureDialogueLines !== false,
-          parserVariant: message.parserVariant,
-          screenActionRules: message.screenActionRules,
-        });
-      }
-      if (!cancelledRequests.has(requestId)) {
-        postMessageSafe({
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'chunk_result' as const,
-          requestId,
-          nodes: chunkState.nodes,
-          edges: chunkState.edges,
-          diagnostics: chunkState.diagnostics.length > 0 ? chunkState.diagnostics : undefined,
-          pendingCallReturns: chunkState.pendingCallReturns,
-          hasReliableReturnInLabel: Array.from(chunkState.hasReliableReturnInLabel),
-          globalScreens: Array.from(chunkState.globalScreens),
-          labelDefinitionCount: Array.from(chunkState.labelDefinitionCountByName.entries()),
-          canonicalLabelIds: Array.from(chunkState.canonicalLabelIdByName.entries()),
-          elapsedMs: performance.now() - startedAt,
-        } as WorkerResponseMessage);
-      }
-    } catch (error: unknown) {
-      if (!cancelledRequests.has(requestId)) {
-        postMessageSafe({
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'error',
-          requestId,
-          message: error instanceof Error ? error.message : String(error),
-          elapsedMs: performance.now() - startedAt,
-        });
-      }
-    } finally {
-      cancelledRequests.delete(requestId);
-    }
-    return;
-  }
-
-  if (message.type === 'finalize') {
-    const {
-      requestId,
-      nodes,
-      edges,
-      diagnostics,
-      pendingCallReturns,
-      hasReliableReturnInLabel,
-      globalScreens,
-      labelDefinitionCount,
-      canonicalLabelIds,
-      appendToActiveGraph,
-      resetActiveGraph,
-      isFinalChunk,
-    } = message;
-    const startedAt = performance.now();
-    if (cancelledRequests.has(requestId)) {
-      cancelledRequests.delete(requestId);
-      return;
-    }
-    try {
+      let result;
       if (appendToActiveGraph) {
         if (resetActiveGraph) {
           accumulatedState = createGraphState();
@@ -240,83 +136,134 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
           dialogueSearchMiniSearch = null;
         }
 
-        // Merge chunk data into accumulatedState
-        accumulatedState.nodes.push(...nodes);
-        accumulatedState.edges.push(...edges);
-        if (diagnostics) {
-          accumulatedState.diagnostics.push(...(diagnostics as ParseDiagnostic[]));
-        }
-        accumulatedState.pendingCallReturns.push(...pendingCallReturns);
-        for (const label of hasReliableReturnInLabel) {
-          accumulatedState.hasReliableReturnInLabel.add(label);
-        }
-        for (const screen of globalScreens) {
-          accumulatedState.globalScreens.add(screen);
-        }
-        for (const [name, count] of labelDefinitionCount) {
-          accumulatedState.labelDefinitionCountByName.set(
-            name,
-            (accumulatedState.labelDefinitionCountByName.get(name) ?? 0) + count,
+        const hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1;
+        const defaultMaxParallel = Math.max(1, Math.min(4, hardwareConcurrency));
+        const effectiveMaxParallel = options.maxParallelFiles ?? defaultMaxParallel;
+
+        let tokenizedFiles: Array<TokenizedFile | undefined> = [];
+        if (files.length > 1 && effectiveMaxParallel > 1) {
+          const limit = pLimit(effectiveMaxParallel);
+          tokenizedFiles = await Promise.all(
+            files.map((file, idx) =>
+              limit(async () => {
+                if (activeRequestId !== requestId || cancelledRequests.has(requestId)) {
+                  return undefined;
+                }
+                return tokenizeOneFile(
+                  file,
+                  {
+                    tokenizedCache,
+                    fileCacheKeys: options.fileCacheKeys,
+                  },
+                  idx
+                );
+              })
+            )
           );
         }
-        for (const [name, id] of canonicalLabelIds) {
-          accumulatedState.canonicalLabelIdByName.set(name, id);
-        }
 
+        for (let idx = 0; idx < files.length; idx += 1) {
+          if (activeRequestId !== requestId) {
+            throw new Error('Parsing superceded by another request');
+          }
+          if (cancelledRequests.has(requestId)) {
+            throw new Error('Parsing cancelled');
+          }
+          const file = files[idx];
+          let tokenized = tokenizedFiles[idx];
+          if (!tokenized) {
+            tokenized = await tokenizeOneFile(
+              file,
+              {
+                tokenizedCache,
+                fileCacheKeys: options.fileCacheKeys,
+              },
+              idx
+            );
+          }
+          processTokenizedFile(accumulatedState, tokenized, {
+            captureDialogueLines: options.captureDialogueLines !== false,
+            parserVariant: options.parserVariant,
+            screenActionRules: options.screenActionRules,
+          });
+
+          if (wantsProgress) {
+            const now = performance.now();
+            const nextProgress: ProgressPayload = {
+              doneFiles: idx + 1,
+              totalFiles: files.length,
+              currentFile: file.relativePath ?? file.name,
+              elapsedMs: performance.now() - startedAt,
+            };
+            pendingProgress = nextProgress;
+            if (
+              progressThrottleMs <= 0 ||
+              now - lastProgressAt >= progressThrottleMs ||
+              idx + 1 === files.length
+            ) {
+              onProgress(nextProgress);
+              lastProgressAt = now;
+              pendingProgress = null;
+            }
+          }
+        }
         if (isFinalChunk) {
           finalizeRoles(accumulatedState);
           buildDialogueSearchIndex(accumulatedState.nodes);
         }
-
-        if (!cancelledRequests.has(requestId)) {
-          postMessageSafe({
-            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-            type: 'finalize_result',
-            requestId,
-            nodes: accumulatedState.nodes,
-            edges: accumulatedState.edges,
-            diagnostics: accumulatedState.diagnostics.length > 0 ? accumulatedState.diagnostics : undefined,
-            elapsedMs: performance.now() - startedAt,
-            partial: !isFinalChunk,
-          } as WorkerResponseMessage);
-        }
+        result = {
+          nodes: accumulatedState.nodes,
+          edges: accumulatedState.edges,
+          diagnostics: accumulatedState.diagnostics.length > 0 ? accumulatedState.diagnostics : undefined,
+        };
       } else {
-        // Stateless finalize
-        const state = createGraphState();
-        state.nodes = nodes;
-        state.edges = edges;
-        state.diagnostics = diagnostics ? (diagnostics as ParseDiagnostic[]) : [];
-        state.pendingCallReturns = pendingCallReturns;
-        state.hasReliableReturnInLabel = new Set(hasReliableReturnInLabel);
-        state.globalScreens = new Set(globalScreens);
-        state.labelDefinitionCountByName = new Map(labelDefinitionCount);
-        state.canonicalLabelIdByName = new Map(canonicalLabelIds);
-
-        finalizeRoles(state);
-        buildDialogueSearchIndex(state.nodes);
-
-        if (!cancelledRequests.has(requestId)) {
-          postMessageSafe({
-            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-            type: 'finalize_result',
-            requestId,
-            nodes: state.nodes,
-            edges: state.edges,
-            diagnostics: state.diagnostics.length > 0 ? state.diagnostics : undefined,
-            elapsedMs: performance.now() - startedAt,
-          } as WorkerResponseMessage);
-        }
-      }
-    } catch (error: unknown) {
-      if (!cancelledRequests.has(requestId)) {
-        postMessageSafe({
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'error',
-          requestId,
-          message: error instanceof Error ? error.message : String(error),
-          elapsedMs: performance.now() - startedAt,
+        result = await parseRenpyFiles(files, {
+          maxParallelFiles: options.maxParallelFiles,
+          tokenizedCache,
+          fileCacheKeys: options.fileCacheKeys,
+          captureDialogueLines: options.captureDialogueLines !== false,
+          parserVariant: options.parserVariant,
+          screenActionRules: options.screenActionRules,
+          onProgress: ({ doneFiles, totalFiles, currentFile }) => {
+            if (cancelledRequests.has(requestId)) {
+              throw new Error('Parsing cancelled');
+            }
+            if (!wantsProgress) return;
+            const now = performance.now();
+            const nextProgress: ProgressPayload = {
+              doneFiles,
+              totalFiles,
+              currentFile,
+              elapsedMs: performance.now() - startedAt,
+            };
+            pendingProgress = nextProgress;
+            if (progressThrottleMs <= 0 || now - lastProgressAt >= progressThrottleMs || doneFiles === totalFiles) {
+              onProgress(nextProgress);
+              lastProgressAt = now;
+              pendingProgress = null;
+            }
+          },
         });
+        accumulatedState = createGraphState();
+        accumulatedState.nodes = result.nodes;
+        accumulatedState.edges = result.edges;
+        buildDialogueSearchIndex(result.nodes);
       }
+
+      if (wantsProgress && pendingProgress) {
+        onProgress(pendingProgress);
+        pendingProgress = null;
+      }
+
+      if (cancelledRequests.has(requestId)) {
+        throw new Error('Parsing cancelled');
+      }
+
+      return {
+        nodes: result.nodes,
+        edges: result.edges,
+        diagnostics: result.diagnostics as ParseDiagnosticPayload[] | undefined,
+      };
     } finally {
       const wasCancelled = cancelledRequests.has(requestId);
       if (activeRequestId === requestId) {
@@ -331,190 +278,203 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         dialogueSearchMiniSearch = null;
       }
     }
-    return;
-  }
+  },
 
-  if (message.type !== 'parse') return;
+  async parseChunk(
+    requestId: number,
+    files: ParseInputFile[],
+    options: {
+      fileCacheKeys?: string[];
+      captureDialogueLines?: boolean;
+      parserVariant?: ParserVariant;
+      screenActionRules?: ScreenActionRule[];
+    }
+  ): Promise<InternalChunkResult> {
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      throw new Error('Chunk parsing cancelled');
+    }
+    try {
+      const chunkState = createGraphState();
+      for (let idx = 0; idx < files.length; idx += 1) {
+        if (cancelledRequests.has(requestId)) {
+          throw new Error('Chunk parsing cancelled');
+        }
+        const tokenized = await tokenizeOneFile(
+          files[idx],
+          { tokenizedCache, fileCacheKeys: options.fileCacheKeys },
+          idx
+        );
+        processTokenizedFile(chunkState, tokenized, {
+          captureDialogueLines: options.captureDialogueLines !== false,
+          parserVariant: options.parserVariant,
+          screenActionRules: options.screenActionRules,
+        });
+      }
+      if (cancelledRequests.has(requestId)) {
+        throw new Error('Chunk parsing cancelled');
+      }
+      return {
+        nodes: chunkState.nodes,
+        edges: chunkState.edges,
+        diagnostics: chunkState.diagnostics.length > 0 ? (chunkState.diagnostics as ParseDiagnosticPayload[]) : undefined,
+        pendingCallReturns: chunkState.pendingCallReturns,
+        hasReliableReturnInLabel: Array.from(chunkState.hasReliableReturnInLabel),
+        globalScreens: Array.from(chunkState.globalScreens),
+        labelDefinitionCount: Array.from(chunkState.labelDefinitionCountByName.entries()),
+        canonicalLabelIds: Array.from(chunkState.canonicalLabelIdByName.entries()),
+      };
+    } finally {
+      cancelledRequests.delete(requestId);
+    }
+  },
 
-  const { requestId, files, maxParallelFiles, fileCacheKeys } = message;
-  activeRequestId = requestId;
-  const startedAt = performance.now();
-  const wantsProgress = message.wantsProgress !== false;
-  const appendToActiveGraph = message.appendToActiveGraph === true;
-  const resetActiveGraph = message.resetActiveGraph === true;
-  const isFinalChunk = message.isFinalChunk !== false;
-  const progressThrottleMs = files.length > 40 ? 30 : 0;
-  let lastProgressAt = 0;
-  let pendingProgress: ProgressResponseMessage | null = null;
+  async finalize(
+    requestId: number,
+    options: {
+      nodes: FlowNode[];
+      edges: FlowEdge[];
+      diagnostics?: ParseDiagnosticPayload[];
+      pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+      hasReliableReturnInLabel: string[];
+      globalScreens: string[];
+      labelDefinitionCount: Array<[string, number]>;
+      canonicalLabelIds: Array<[string, string]>;
+      appendToActiveGraph?: boolean;
+      resetActiveGraph?: boolean;
+      isFinalChunk?: boolean;
+    }
+  ): Promise<ParseWorkerClientResult> {
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      throw new Error('Finalize cancelled');
+    }
+    const appendToActiveGraph = options.appendToActiveGraph === true;
+    const isFinalChunk = options.isFinalChunk !== false;
 
-  try {
-    let result;
-    if (appendToActiveGraph) {
-      if (resetActiveGraph) {
+    try {
+      if (appendToActiveGraph) {
+        if (options.resetActiveGraph) {
+          accumulatedState = createGraphState();
+          dialogueSearchDocs = [];
+          dialogueSearchMiniSearch = null;
+        }
+
+        accumulatedState.nodes.push(...options.nodes);
+        accumulatedState.edges.push(...options.edges);
+        if (options.diagnostics) {
+          accumulatedState.diagnostics.push(...(options.diagnostics as ParseDiagnostic[]));
+        }
+        accumulatedState.pendingCallReturns.push(...options.pendingCallReturns);
+        for (const label of options.hasReliableReturnInLabel) {
+          accumulatedState.hasReliableReturnInLabel.add(label);
+        }
+        for (const screen of options.globalScreens) {
+          accumulatedState.globalScreens.add(screen);
+        }
+        for (const [name, count] of options.labelDefinitionCount) {
+          accumulatedState.labelDefinitionCountByName.set(
+            name,
+            (accumulatedState.labelDefinitionCountByName.get(name) ?? 0) + count
+          );
+        }
+        for (const [name, id] of options.canonicalLabelIds) {
+          accumulatedState.canonicalLabelIdByName.set(name, id);
+        }
+
+        if (isFinalChunk) {
+          finalizeRoles(accumulatedState);
+          buildDialogueSearchIndex(accumulatedState.nodes);
+        }
+
+        if (cancelledRequests.has(requestId)) {
+          throw new Error('Finalize cancelled');
+        }
+
+        return {
+          nodes: accumulatedState.nodes,
+          edges: accumulatedState.edges,
+          diagnostics: accumulatedState.diagnostics.length > 0 ? (accumulatedState.diagnostics as ParseDiagnosticPayload[]) : undefined,
+        };
+      } else {
+        const state = createGraphState();
+        state.nodes = options.nodes;
+        state.edges = options.edges;
+        state.diagnostics = options.diagnostics ? (options.diagnostics as ParseDiagnostic[]) : [];
+        state.pendingCallReturns = options.pendingCallReturns;
+        state.hasReliableReturnInLabel = new Set(options.hasReliableReturnInLabel);
+        state.globalScreens = new Set(options.globalScreens);
+        state.labelDefinitionCountByName = new Map(options.labelDefinitionCount);
+        state.canonicalLabelIdByName = new Map(options.canonicalLabelIds);
+
+        finalizeRoles(state);
+        buildDialogueSearchIndex(state.nodes);
+
+        if (cancelledRequests.has(requestId)) {
+          throw new Error('Finalize cancelled');
+        }
+
+        return {
+          nodes: state.nodes,
+          edges: state.edges,
+          diagnostics: state.diagnostics.length > 0 ? (state.diagnostics as ParseDiagnosticPayload[]) : undefined,
+        };
+      }
+    } finally {
+      const wasCancelled = cancelledRequests.has(requestId);
+      cancelledRequests.delete(requestId);
+      if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
         accumulatedState = createGraphState();
+      }
+      if (wasCancelled) {
         dialogueSearchDocs = [];
         dialogueSearchMiniSearch = null;
       }
-
-      const hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1;
-      const defaultMaxParallel = Math.max(1, Math.min(4, hardwareConcurrency));
-      const effectiveMaxParallel = maxParallelFiles ?? defaultMaxParallel;
-
-      let tokenizedFiles: Array<TokenizedFile | undefined> = [];
-      if (files.length > 1 && effectiveMaxParallel > 1) {
-        const limit = pLimit(effectiveMaxParallel);
-        tokenizedFiles = await Promise.all(
-          files.map((file, idx) =>
-            limit(async () => {
-              if (activeRequestId !== requestId || cancelledRequests.has(requestId)) {
-                return undefined;
-              }
-              return tokenizeOneFile(
-                file,
-                {
-                  tokenizedCache,
-                  fileCacheKeys,
-                },
-                idx,
-              );
-            }),
-          ),
-        );
-      }
-
-      for (let idx = 0; idx < files.length; idx += 1) {
-        if (activeRequestId !== requestId) {
-          return;
-        }
-        if (cancelledRequests.has(requestId)) {
-          throw new Error('Parsing cancelled');
-        }
-        const file = files[idx];
-        let tokenized = tokenizedFiles[idx];
-        if (!tokenized) {
-          tokenized = await tokenizeOneFile(
-            file,
-            {
-              tokenizedCache,
-              fileCacheKeys,
-            },
-            idx,
-          );
-        }
-        processTokenizedFile(accumulatedState, tokenized, {
-          captureDialogueLines: message.captureDialogueLines !== false,
-          parserVariant: message.parserVariant,
-          screenActionRules: message.screenActionRules,
-        });
-        if (wantsProgress) {
-          const now = performance.now();
-          const nextProgress: ProgressResponseMessage = {
-            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-            type: 'progress',
-            requestId,
-            doneFiles: idx + 1,
-            totalFiles: files.length,
-            currentFile: file.relativePath ?? file.name,
-            elapsedMs: performance.now() - startedAt,
-          };
-          pendingProgress = nextProgress;
-          if (
-            progressThrottleMs <= 0 ||
-            now - lastProgressAt >= progressThrottleMs ||
-            idx + 1 === files.length
-          ) {
-            postMessageSafe(nextProgress);
-            lastProgressAt = now;
-            pendingProgress = null;
-          }
-        }
-      }
-      if (isFinalChunk) {
-        finalizeRoles(accumulatedState);
-        buildDialogueSearchIndex(accumulatedState.nodes);
-      }
-      result = {
-        nodes: accumulatedState.nodes,
-        edges: accumulatedState.edges,
-        diagnostics: accumulatedState.diagnostics.length > 0 ? accumulatedState.diagnostics : undefined,
-      };
-    } else {
-      result = await parseRenpyFiles(files, {
-        maxParallelFiles,
-        tokenizedCache,
-        fileCacheKeys,
-        captureDialogueLines: message.captureDialogueLines !== false,
-        parserVariant: message.parserVariant,
-        screenActionRules: message.screenActionRules,
-        onProgress: ({ doneFiles, totalFiles, currentFile }) => {
-          if (cancelledRequests.has(requestId)) {
-            throw new Error('Parsing cancelled');
-          }
-          if (!wantsProgress) return;
-          const now = performance.now();
-          const nextProgress: ProgressResponseMessage = {
-            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-            type: 'progress',
-            requestId,
-            doneFiles,
-            totalFiles,
-            currentFile,
-            elapsedMs: performance.now() - startedAt,
-          };
-          pendingProgress = nextProgress;
-          if (progressThrottleMs <= 0 || now - lastProgressAt >= progressThrottleMs || doneFiles === totalFiles) {
-            postMessageSafe(nextProgress);
-            lastProgressAt = now;
-            pendingProgress = null;
-          }
-        },
-      });
-      accumulatedState = createGraphState();
-      accumulatedState.nodes = result.nodes;
-      accumulatedState.edges = result.edges;
-      buildDialogueSearchIndex(result.nodes);
     }
+  },
 
-    if (wantsProgress && pendingProgress) {
-      postMessageSafe(pendingProgress);
-      pendingProgress = null;
+  async search(
+    requestId: number,
+    query: string,
+    options: {
+      nodeIds?: string[];
+      maxResults?: number;
     }
-
-    if (!cancelledRequests.has(requestId)) {
-      postMessageSafe({
-        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-        type: 'result',
-        requestId,
-        nodes: result.nodes,
-        edges: result.edges,
-        diagnostics: result.diagnostics,
-        elapsedMs: performance.now() - startedAt,
-        partial: appendToActiveGraph && !isFinalChunk,
-      });
+  ): Promise<DialogueSearchResult[]> {
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      return [];
     }
-  } catch (error: unknown) {
-    if (!cancelledRequests.has(requestId)) {
-      const messageText = error instanceof Error ? error.message : String(error);
-      postMessageSafe({
-        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-        type: 'error',
-        requestId,
-        message: messageText,
-        elapsedMs: performance.now() - startedAt,
-      });
+    const q = query.trim();
+    if (!q) {
+      cancelledRequests.delete(requestId);
+      return [];
     }
-  } finally {
-    const wasCancelled = cancelledRequests.has(requestId);
-    if (activeRequestId === requestId) {
-      activeRequestId = null;
+    const maxResults = Math.max(1, Math.min(options.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
+    const allowedIds = options.nodeIds ? new Set(options.nodeIds) : null;
+    let results: DialogueSearchResult[] = [];
+    if (dialogueSearchMiniSearch) {
+      const rawResults = dialogueSearchMiniSearch.search(q);
+      const filtered = allowedIds
+        ? rawResults.filter((entry) => allowedIds.has(entry.nodeId))
+        : rawResults;
+      results = filtered.slice(0, maxResults).map((entry) => ({
+        nodeId: entry.nodeId,
+        nodeLabel: entry.nodeLabel,
+        lineIndex: entry.lineIndex,
+        lineText: entry.lineText,
+      })) as DialogueSearchResult[];
     }
     cancelledRequests.delete(requestId);
-    if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
-      accumulatedState = createGraphState();
-    }
-    if (wasCancelled) {
-      dialogueSearchDocs = [];
-      dialogueSearchMiniSearch = null;
-    }
-  }
+    return results;
+  },
+
+  cancel(requestId: number) {
+    cancelledRequests.add(requestId);
+  },
 };
+
+expose(parserApi);
+
+export type ParserWorkerApi = typeof parserApi;
+export default null as any;

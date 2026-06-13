@@ -1,20 +1,114 @@
+import { wrap, proxy, releaseProxy, type Remote } from 'comlink';
 import MiniSearch from 'minisearch';
 import { createGraphState } from '../parser/pipelineState';
 import { tokenizeOneFile, processTokenizedFile } from '../parser/filePipeline';
 import { finalizeRoles } from '../parser/roleFinalization';
 import { DIALOGUE_MINISEARCH_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
 import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
+import type { ParserWorkerApi } from './parserWorker';
 import {
-  PARSER_WORKER_PROTOCOL_VERSION,
-  type WorkerResponseMessage,
-  type ParseRequestMessage,
-  type CancelRequestMessage,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-  type SearchRequestMessage,
   type DialogueSearchResult,
-  type ParseChunkRequestMessage,
 } from './workerProtocol';
+
+class SyncPromise<T> {
+  private value: any;
+  private error: any;
+  private state: 'pending' | 'resolved' | 'rejected' = 'pending';
+  private resolveCallbacks: Array<(v: any) => void> = [];
+  private rejectCallbacks: Array<(e: any) => void> = [];
+
+  constructor(executor: (resolve: (v: T) => void, reject: (e: any) => void) => void) {
+    const resolve = (val: any) => {
+      if (this.state !== 'pending') return;
+      this.state = 'resolved';
+      this.value = val;
+      for (const cb of this.resolveCallbacks) cb(val);
+    };
+    const reject = (err: any) => {
+      if (this.state !== 'pending') return;
+      this.state = 'rejected';
+      this.error = err;
+      for (const cb of this.rejectCallbacks) cb(err);
+    };
+    try {
+      executor(resolve, reject);
+    } catch (e) {
+      reject(e);
+    }
+  }
+
+  then<U>(onResolve: (v: T) => any, onReject?: (e: any) => any): SyncPromise<U> {
+    if (this.state === 'resolved') {
+      try {
+        const nextVal = onResolve(this.value);
+        if (nextVal && typeof (nextVal as any).then === 'function') {
+          return nextVal as any;
+        }
+        return SyncPromise.resolve(nextVal) as any;
+      } catch (e) {
+        return SyncPromise.reject(e) as any;
+      }
+    }
+    if (this.state === 'rejected') {
+      if (onReject) {
+        try {
+          const nextVal = onReject(this.error);
+          if (nextVal && typeof (nextVal as any).then === 'function') {
+            return nextVal as any;
+          }
+          return SyncPromise.resolve(nextVal) as any;
+        } catch (e) {
+          return SyncPromise.reject(e) as any;
+        }
+      }
+      return SyncPromise.reject(this.error) as any;
+    }
+    return new SyncPromise<U>((resolve, reject) => {
+      this.resolveCallbacks.push((val) => {
+        try {
+          const res = onResolve(val);
+          if (res && typeof (res as any).then === 'function') {
+            (res as any).then(resolve, reject);
+          } else {
+            resolve(res as any);
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+      if (onReject) {
+        this.rejectCallbacks.push((err) => {
+          try {
+            const res = onReject(err);
+            if (res && typeof (res as any).then === 'function') {
+              (res as any).then(resolve, reject);
+            } else {
+              resolve(res as any);
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      } else {
+        this.rejectCallbacks.push(reject);
+      }
+    });
+  }
+
+  catch<U>(onReject: (e: any) => any): SyncPromise<T | U> {
+    return this.then((v) => v, onReject) as any;
+  }
+
+  static resolve<V>(val: V): SyncPromise<V> {
+    return new SyncPromise<V>((resolve) => resolve(val));
+  }
+
+  static reject(err: any): SyncPromise<any> {
+    return new SyncPromise<any>((_, reject) => reject(err));
+  }
+}
 
 let requestCounter = 0;
 const textEncoder = new TextEncoder();
@@ -28,10 +122,11 @@ const textEncoder = new TextEncoder();
  */
 const MAX_POOL_SIZE = Math.max(
   1,
-  Math.min(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1, 8),
+  Math.min(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1, 8)
 );
 
 const workerPool: (Worker | null)[] = new Array(MAX_POOL_SIZE).fill(null);
+const apiPool: (Remote<ParserWorkerApi> | null)[] = new Array(MAX_POOL_SIZE).fill(null);
 let isWorkerSpawningFailed = false;
 
 export function areWorkersSupported(): boolean {
@@ -49,6 +144,7 @@ function getWorker(index: number): Worker {
     try {
       w = new Worker(new URL('./parserWorker.ts', import.meta.url), { type: 'module' });
       workerPool[index] = w;
+      apiPool[index] = wrap<ParserWorkerApi>(w);
     } catch (err) {
       isWorkerSpawningFailed = true;
       throw err;
@@ -57,9 +153,9 @@ function getWorker(index: number): Worker {
   return w;
 }
 
-/** Returns the primary parser worker (Worker 0). */
-function getParserWorker(): Worker {
-  return getWorker(0);
+function getWorkerApi(index: number): Remote<ParserWorkerApi> {
+  getWorker(index);
+  return apiPool[index]!;
 }
 
 /** Returns the effective pool size (at least 1). */
@@ -88,22 +184,27 @@ function simpleStringHash(input: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-async function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): Promise<string[]> {
+function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): SyncPromise<string[]> {
   if (!globalThis.crypto?.subtle) {
-    return files.map((file) => {
+    const keys = files.map((file) => {
       const identity = file.relativePath ?? file.name;
       return `${identity}:${file.content.length}:${simpleStringHash(file.content)}`;
     });
+    return SyncPromise.resolve(keys);
   }
 
-  const digests = await Promise.all(
-    files.map(async (file) => {
-      const data = textEncoder.encode(file.content);
-      const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
-      return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
-    }),
-  );
-  return digests;
+  return new SyncPromise<string[]>((resolve, reject) => {
+    Promise.all(
+      files.map((file) => {
+        const data = textEncoder.encode(file.content);
+        return globalThis.crypto.subtle.digest('SHA-256', data).then((digest) => {
+          return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
+        });
+      })
+    )
+      .then(resolve)
+      .catch(reject);
+  });
 }
 
 let fallbackAccumulatedState = createGraphState();
@@ -201,7 +302,7 @@ async function parseRenpyFilesFallback(
 }
 
 export function parseRenpyFilesInWorker(
-  request: ParseWorkerClientRequest,
+  request: ParseWorkerClientRequest
 ): Promise<ParseWorkerClientResult> {
   if (!areWorkersSupported()) {
     return parseRenpyFilesFallback(request);
@@ -237,128 +338,70 @@ export function parseRenpyFilesInWorker(
     });
   }
 
-  const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
   if (signal?.aborted) {
     return Promise.reject(new DOMException('Parsing cancelled', 'AbortError'));
   }
 
-  return new Promise((resolve, reject) => {
-    let settled = false;
-
-    const settle = (cb: () => void) => {
-      if (settled) return;
-      settled = true;
-      cb();
-    };
-
-    const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
-      const message = event.data;
-      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) {
-        const raw = event.data as { requestId?: unknown; protocolVersion?: unknown };
-        if (raw.requestId === requestId) {
-          settle(() => {
-            parserWorker.removeEventListener('message', onMessage);
-            signal?.removeEventListener('abort', onAbort);
-            reject(new Error(
-              `Worker protocol version mismatch: expected ${PARSER_WORKER_PROTOCOL_VERSION}, received ${String(raw.protocolVersion)}. ` +
-              'Please reload the page to use the latest worker version.',
-            ));
-          });
-        }
-        return;
-      }
-      if (message.requestId !== requestId) return;
-
-      if (message.type === 'progress') {
-        onProgress?.({
-          doneFiles: message.doneFiles,
-          totalFiles: message.totalFiles,
-          currentFile: message.currentFile,
-          elapsedMs: message.elapsedMs,
-        });
-        return;
-      }
-
-      if (message.type === 'result' && message.partial) {
-        settle(() => {
-          parserWorker.removeEventListener('message', onMessage);
-          signal?.removeEventListener('abort', onAbort);
-          const partialResult = message.diagnostics
-            ? { nodes: message.nodes, edges: message.edges, diagnostics: message.diagnostics }
-            : { nodes: message.nodes, edges: message.edges };
-          onPartialResult?.(partialResult);
-          resolve(partialResult);
-        });
-        return;
-      }
-
-      settle(() => {
-        parserWorker.removeEventListener('message', onMessage);
-        signal?.removeEventListener('abort', onAbort);
-      });
-
-      if (message.type === 'result') {
-        if (message.diagnostics) {
-          resolve({ nodes: message.nodes, edges: message.edges, diagnostics: message.diagnostics });
-        } else {
-          resolve({ nodes: message.nodes, edges: message.edges });
-        }
-        return;
-      }
-      if (message.type === 'error') {
-        reject(new Error(message.message));
-        return;
-      }
-      reject(new Error('Unexpected parser worker response'));
-    };
-
+  return new SyncPromise<ParseWorkerClientResult>((resolve, reject) => {
     const onAbort = () => {
-      settle(() => {
-        parserWorker.removeEventListener('message', onMessage);
-        signal?.removeEventListener('abort', onAbort);
-        const cancelMessage: CancelRequestMessage = {
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'cancel',
-          requestId,
-        };
-        parserWorker.postMessage(cancelMessage);
-        reject(new DOMException('Parsing cancelled', 'AbortError'));
-      });
+      getWorkerApi(0).cancel(requestId);
+      reject(new DOMException('Parsing cancelled', 'AbortError'));
     };
-
-    parserWorker.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, { once: true });
 
-    void (async () => {
-      try {
-        const fileCacheKeys = await computeFileCacheKeys(files);
-        if (settled) return;
-        const parseMessage: ParseRequestMessage = {
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'parse',
+    let progressProxy: any;
+
+    computeFileCacheKeys(files)
+      .then((fileCacheKeys) => {
+        if (signal?.aborted) {
+          throw new DOMException('Parsing cancelled', 'AbortError');
+        }
+
+        if (onProgress) {
+          progressProxy = proxy((progress: any) => onProgress(progress));
+        }
+
+        return getWorkerApi(0).parse(
           requestId,
           files,
-          fileCacheKeys,
-          wantsProgress: Boolean(onProgress),
-          maxParallelFiles,
-          appendToActiveGraph,
-          resetActiveGraph,
-          isFinalChunk,
-          captureDialogueLines,
-          parserVariant,
-          screenActionRules,
-        };
-        parserWorker.postMessage(parseMessage);
-      } catch (error) {
-        settle(() => {
-          parserWorker.removeEventListener('message', onMessage);
-          signal?.removeEventListener('abort', onAbort);
-          reject(error instanceof Error ? error : new Error(String(error)));
-        });
-      }
-    })();
-  });
+          {
+            fileCacheKeys,
+            wantsProgress: !!onProgress,
+            maxParallelFiles,
+            captureDialogueLines,
+            parserVariant,
+            screenActionRules,
+            appendToActiveGraph,
+            resetActiveGraph,
+            isFinalChunk,
+          },
+          progressProxy
+        );
+      })
+      .then((result: any) => {
+        signal?.removeEventListener('abort', onAbort);
+        if (progressProxy) {
+          progressProxy[releaseProxy]();
+        }
+
+        if (signal?.aborted) {
+          reject(new DOMException('Parsing cancelled', 'AbortError'));
+        } else {
+          if (!isFinalChunk && onPartialResult) {
+            onPartialResult(result);
+          }
+          resolve(result);
+        }
+      })
+      .catch((error) => {
+        signal?.removeEventListener('abort', onAbort);
+        if (progressProxy) {
+          progressProxy[releaseProxy]();
+        }
+        reject(error);
+      });
+  }) as unknown as Promise<ParseWorkerClientResult>;
 }
 
 interface SearchRequestPayload {
@@ -396,78 +439,34 @@ export function searchDialogueLinesInWorker({
     return Promise.resolve(results);
   }
 
-  const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
   if (signal?.aborted) {
     return Promise.reject(new DOMException('Search cancelled', 'AbortError'));
   }
 
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const settle = (cb: () => void) => {
-      if (settled) return;
-      settled = true;
-      cb();
-    };
-
-    const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
-      const message = event.data;
-      if (message.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) {
-        const raw = event.data as { requestId?: unknown; protocolVersion?: unknown };
-        if (raw.requestId === requestId) {
-          settle(() => {
-            parserWorker.removeEventListener('message', onMessage);
-            signal?.removeEventListener('abort', onAbort);
-            reject(new Error(
-              `Worker protocol version mismatch: expected ${PARSER_WORKER_PROTOCOL_VERSION}, received ${String(raw.protocolVersion)}. ` +
-              'Please reload the page to use the latest worker version.',
-            ));
-          });
-        }
-        return;
-      }
-      if (message.requestId !== requestId) return;
-      if (message.type === 'error') {
-        settle(() => {
-          parserWorker.removeEventListener('message', onMessage);
-          signal?.removeEventListener('abort', onAbort);
-        });
-        reject(new Error(message.message));
-        return;
-      }
-      if (message.type !== 'search_result') return;
-      settle(() => {
-        parserWorker.removeEventListener('message', onMessage);
-        signal?.removeEventListener('abort', onAbort);
-      });
-      resolve(message.results);
-    };
-
+  return new Promise<DialogueSearchResult[]>((resolve, reject) => {
     const onAbort = () => {
-      settle(() => {
-        parserWorker.removeEventListener('message', onMessage);
-        signal?.removeEventListener('abort', onAbort);
-        const cancelMessage: CancelRequestMessage = {
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'cancel',
-          requestId,
-        };
-        parserWorker.postMessage(cancelMessage);
-        reject(new DOMException('Search cancelled', 'AbortError'));
-      });
+      getWorkerApi(0).cancel(requestId);
+      reject(new DOMException('Search cancelled', 'AbortError'));
     };
-
-    parserWorker.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, { once: true });
-    const searchMessage: SearchRequestMessage = {
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'search',
-      requestId,
-      query,
+
+    getWorkerApi(0).search(requestId, query, {
       nodeIds,
       maxResults,
-    };
-    parserWorker.postMessage(searchMessage);
+    })
+      .then((results) => {
+        signal?.removeEventListener('abort', onAbort);
+        if (signal?.aborted) {
+          reject(new DOMException('Search cancelled', 'AbortError'));
+        } else {
+          resolve(results);
+        }
+      })
+      .catch((err) => {
+        signal?.removeEventListener('abort', onAbort);
+        reject(err);
+      });
   });
 }
 
@@ -498,18 +497,7 @@ interface InternalChunkResult extends ParseChunkResult {
   canonicalLabelIds: Array<[string, string]>;
 }
 
-/**
- * Distributes file parsing across the worker pool.
- *
- * Files are split evenly across workers 1..N (or all workers if pool size is
- * small). Each worker receives a `parse_chunk` message and returns raw,
- * unfinalized nodes/edges and parsing metadata.
- *
- * The results are then merged on the main thread and sent to Worker 0 via a
- * 'finalize' message to construct the final graph structure, run role
- * finalization, and build the dialogue search index in the background.
- */
-export async function parseChunksInParallel({
+export function parseChunksInParallel({
   files,
   captureDialogueLines,
   parserVariant,
@@ -520,12 +508,10 @@ export async function parseChunksInParallel({
   isFinalChunk,
 }: ParseChunkRequest): Promise<ParseChunkResult> {
   if (signal?.aborted) {
-    throw new DOMException('Parsing cancelled', 'AbortError');
+    return Promise.reject(new DOMException('Parsing cancelled', 'AbortError'));
   }
 
   const poolSize = getPoolSize();
-  // Use all workers when pool is small, skip Worker 0 when pool is large
-  // so it stays free for search queries.
   const useWorkerIndices: number[] = [];
   if (poolSize <= 2) {
     for (let i = 0; i < poolSize; i++) useWorkerIndices.push(i);
@@ -534,198 +520,119 @@ export async function parseChunksInParallel({
   }
   const workerCount = useWorkerIndices.length;
 
-  // Split files into balanced chunks
   const chunks: ParseWorkerClientRequest['files'][] = [];
   const chunkSize = Math.ceil(files.length / workerCount);
   for (let i = 0; i < files.length; i += chunkSize) {
     chunks.push(files.slice(i, i + chunkSize));
   }
 
-  // Pre-compute cache keys
-  const allCacheKeys = await computeFileCacheKeys(files);
-  if (signal?.aborted) {
-    throw new DOMException('Parsing cancelled', 'AbortError');
-  }
+  return computeFileCacheKeys(files).then((allCacheKeys) => {
+    if (signal?.aborted) {
+      throw new DOMException('Parsing cancelled', 'AbortError');
+    }
 
-  // Dispatch chunks to workers
-  const chunkPromises = chunks.map((chunkFiles, chunkIdx) => {
-    const workerIdx = useWorkerIndices[chunkIdx % workerCount]!;
-    const chunkWorker = getWorker(workerIdx);
-    const chunkRequestId = ++requestCounter;
-    const cacheKeyOffset = chunkIdx * chunkSize;
-    const chunkCacheKeys = allCacheKeys.slice(cacheKeyOffset, cacheKeyOffset + chunkFiles.length);
+    const chunkPromises = chunks.map((chunkFiles, chunkIdx) => {
+      const workerIdx = useWorkerIndices[chunkIdx % workerCount]!;
+      const chunkRequestId = ++requestCounter;
+      const cacheKeyOffset = chunkIdx * chunkSize;
+      const chunkCacheKeys = allCacheKeys.slice(cacheKeyOffset, cacheKeyOffset + chunkFiles.length);
 
-    return new Promise<InternalChunkResult>((resolve, reject) => {
-      let settled = false;
-      const settle = (cb: () => void) => {
-        if (settled) return;
-        settled = true;
-        cb();
-      };
-
-      const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
-        const msg = event.data;
-        if (msg.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
-        if (msg.requestId !== chunkRequestId) return;
-
-        if (msg.type === 'chunk_result') {
-          settle(() => {
-            chunkWorker.removeEventListener('message', onMessage);
-            signal?.removeEventListener('abort', onAbort);
-          });
-          resolve({
-            nodes: msg.nodes,
-            edges: msg.edges,
-            diagnostics: msg.diagnostics,
-            pendingCallReturns: msg.pendingCallReturns ?? [],
-            hasReliableReturnInLabel: msg.hasReliableReturnInLabel ?? [],
-            globalScreens: msg.globalScreens ?? [],
-            labelDefinitionCount: msg.labelDefinitionCount ?? [],
-            canonicalLabelIds: msg.canonicalLabelIds ?? [],
-          });
-          return;
-        }
-        if (msg.type === 'error') {
-          settle(() => {
-            chunkWorker.removeEventListener('message', onMessage);
-            signal?.removeEventListener('abort', onAbort);
-          });
-          reject(new Error(msg.message));
-          return;
-        }
-      };
-
-      const onAbort = () => {
-        settle(() => {
-          chunkWorker.removeEventListener('message', onMessage);
-          signal?.removeEventListener('abort', onAbort);
-          chunkWorker.postMessage({
-            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-            type: 'cancel',
-            requestId: chunkRequestId,
-          } satisfies CancelRequestMessage);
+      return new Promise<InternalChunkResult>((resolve, reject) => {
+        const onAbort = () => {
+          getWorkerApi(workerIdx).cancel(chunkRequestId);
           reject(new DOMException('Parsing cancelled', 'AbortError'));
-        });
-      };
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
 
-      chunkWorker.addEventListener('message', onMessage);
-      signal?.addEventListener('abort', onAbort, { once: true });
-
-      const chunkMessage: ParseChunkRequestMessage = {
-        protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-        type: 'parse_chunk',
-        requestId: chunkRequestId,
-        files: chunkFiles,
-        fileCacheKeys: chunkCacheKeys,
-        captureDialogueLines,
-        parserVariant,
-        screenActionRules,
-      };
-      chunkWorker.postMessage(chunkMessage);
-    });
-  });
-
-  // Collect and merge results
-  const results = await Promise.all(chunkPromises);
-  const mergedNodes = results.flatMap((r) => r.nodes);
-  const mergedEdges = results.flatMap((r) => r.edges);
-  const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
-  const mergedPendingCallReturns = results.flatMap((r) => r.pendingCallReturns);
-
-  const mergedHasReliableReturnInLabel = Array.from(new Set(results.flatMap((r) => r.hasReliableReturnInLabel)));
-  const mergedGlobalScreens = Array.from(new Set(results.flatMap((r) => r.globalScreens)));
-
-  const labelCountMap = new Map<string, number>();
-  for (const r of results) {
-    for (const [name, count] of r.labelDefinitionCount) {
-      labelCountMap.set(name, (labelCountMap.get(name) ?? 0) + count);
-    }
-  }
-  const mergedLabelDefinitionCount = Array.from(labelCountMap.entries());
-
-  const canonicalMap = new Map<string, string>();
-  for (const r of results) {
-    for (const [name, id] of r.canonicalLabelIds) {
-      canonicalMap.set(name, id);
-    }
-  }
-  const mergedCanonicalLabelIds = Array.from(canonicalMap.entries());
-
-  // Delegate finalization and search index compilation to Worker 0
-  const primaryWorker = getParserWorker();
-  const finalizeRequestId = ++requestCounter;
-
-  return new Promise<ParseChunkResult>((resolve, reject) => {
-    let settled = false;
-    const settle = (cb: () => void) => {
-      if (settled) return;
-      settled = true;
-      cb();
-    };
-
-    const onMessage = (event: MessageEvent<WorkerResponseMessage>) => {
-      const msg = event.data;
-      if (msg.protocolVersion !== PARSER_WORKER_PROTOCOL_VERSION) return;
-      if (msg.requestId !== finalizeRequestId) return;
-
-      if (msg.type === 'finalize_result') {
-        settle(() => {
-          primaryWorker.removeEventListener('message', onMessage);
-          signal?.removeEventListener('abort', onAbort);
-        });
-        resolve({
-          nodes: msg.nodes,
-          edges: msg.edges,
-          diagnostics: msg.diagnostics,
-        });
-        return;
-      }
-      if (msg.type === 'error') {
-        settle(() => {
-          primaryWorker.removeEventListener('message', onMessage);
-          signal?.removeEventListener('abort', onAbort);
-        });
-        reject(new Error(msg.message));
-        return;
-      }
-    };
-
-    const onAbort = () => {
-      settle(() => {
-        primaryWorker.removeEventListener('message', onMessage);
-        signal?.removeEventListener('abort', onAbort);
-        primaryWorker.postMessage({
-          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-          type: 'cancel',
-          requestId: finalizeRequestId,
-        } satisfies CancelRequestMessage);
-        reject(new DOMException('Parsing cancelled', 'AbortError'));
+        getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFiles, {
+          fileCacheKeys: chunkCacheKeys,
+          captureDialogueLines,
+          parserVariant,
+          screenActionRules,
+        })
+          .then((chunkResult) => {
+            signal?.removeEventListener('abort', onAbort);
+            if (signal?.aborted) {
+              reject(new DOMException('Parsing cancelled', 'AbortError'));
+            } else {
+              resolve(chunkResult as InternalChunkResult);
+            }
+          })
+          .catch((err) => {
+            signal?.removeEventListener('abort', onAbort);
+            reject(err);
+          });
       });
-    };
-
-    primaryWorker.addEventListener('message', onMessage);
-    signal?.addEventListener('abort', onAbort, { once: true });
-
-    primaryWorker.postMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: 'finalize',
-      requestId: finalizeRequestId,
-      nodes: mergedNodes,
-      edges: mergedEdges,
-      diagnostics: mergedDiagnostics,
-      pendingCallReturns: mergedPendingCallReturns,
-      hasReliableReturnInLabel: mergedHasReliableReturnInLabel,
-      globalScreens: mergedGlobalScreens,
-      labelDefinitionCount: mergedLabelDefinitionCount,
-      canonicalLabelIds: mergedCanonicalLabelIds,
-      appendToActiveGraph,
-      resetActiveGraph,
-      isFinalChunk,
     });
-  });
+
+    return Promise.all(chunkPromises).then((results) => {
+      if (signal?.aborted) {
+        throw new DOMException('Parsing cancelled', 'AbortError');
+      }
+
+      const mergedNodes = results.flatMap((r) => r.nodes);
+      const mergedEdges = results.flatMap((r) => r.edges);
+      const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
+      const mergedPendingCallReturns = results.flatMap((r) => r.pendingCallReturns);
+
+      const mergedHasReliableReturnInLabel = Array.from(new Set(results.flatMap((r) => r.hasReliableReturnInLabel)));
+      const mergedGlobalScreens = Array.from(new Set(results.flatMap((r) => r.globalScreens)));
+
+      const labelCountMap = new Map<string, number>();
+      for (const r of results) {
+        for (const [name, count] of r.labelDefinitionCount) {
+          labelCountMap.set(name, (labelCountMap.get(name) ?? 0) + count);
+        }
+      }
+      const mergedLabelDefinitionCount = Array.from(labelCountMap.entries());
+
+      const canonicalMap = new Map<string, string>();
+      for (const r of results) {
+        for (const [name, id] of r.canonicalLabelIds) {
+          canonicalMap.set(name, id);
+        }
+      }
+      const mergedCanonicalLabelIds = Array.from(canonicalMap.entries());
+
+      const finalizeRequestId = ++requestCounter;
+
+      return new Promise<ParseChunkResult>((resolve, reject) => {
+        const onAbortFinalize = () => {
+          getWorkerApi(0).cancel(finalizeRequestId);
+          reject(new DOMException('Parsing cancelled', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbortFinalize, { once: true });
+
+        getWorkerApi(0).finalize(finalizeRequestId, {
+          nodes: mergedNodes,
+          edges: mergedEdges,
+          diagnostics: mergedDiagnostics,
+          pendingCallReturns: mergedPendingCallReturns,
+          hasReliableReturnInLabel: mergedHasReliableReturnInLabel,
+          globalScreens: mergedGlobalScreens,
+          labelDefinitionCount: mergedLabelDefinitionCount,
+          canonicalLabelIds: mergedCanonicalLabelIds,
+          appendToActiveGraph,
+          resetActiveGraph,
+          isFinalChunk,
+        })
+          .then((finalResult) => {
+            signal?.removeEventListener('abort', onAbortFinalize);
+            if (signal?.aborted) {
+              reject(new DOMException('Parsing cancelled', 'AbortError'));
+            } else {
+              resolve(finalResult);
+            }
+          })
+          .catch((err) => {
+            signal?.removeEventListener('abort', onAbortFinalize);
+            reject(err);
+          });
+      });
+    });
+  }) as unknown as Promise<ParseChunkResult>;
 }
 
-/** Returns the current worker pool size for external consumers (e.g. telemetry). */
 export function getWorkerPoolSize(): number {
   return getPoolSize();
 }

@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Activity, Zap, Timer, BarChart3, GitBranch, X, FileText } from 'lucide-react';
 import { useTelemetryStore } from '../application';
+import { cn } from './utils/cn';
 
 interface TelemetryModalProps {
   open: boolean;
@@ -37,12 +38,11 @@ function MetricCard({
 
   return (
     <div
-      className={
-        'group relative rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 ' +
-        'p-4 ring-1 ' +
-        accentRing[accent] +
-        ' transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-violet-500/5'
-      }
+      className={cn(
+        "group relative rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 p-4 ring-1",
+        accentRing[accent],
+        "transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-violet-500/5"
+      )}
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon size={16} className={accentText[accent]} />
@@ -95,13 +95,10 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
         <Dialog.Overlay className="fixed inset-0 z-50 bg-gray-900/80 backdrop-blur-sm transition-opacity duration-300" />
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <Dialog.Content
-            className={
-              'relative w-full max-w-lg rounded-2xl shadow-2xl ' +
-              'bg-gray-900/90 backdrop-blur-xl ' +
-              'ring-1 ring-white/10 ' +
-              'animate-in fade-in slide-in-from-bottom-4 duration-300 ' +
-              'focus:outline-none'
-            }
+            className={cn(
+              "relative w-full max-w-lg rounded-2xl shadow-2xl bg-gray-900/90 backdrop-blur-xl ring-1 ring-white/10",
+              "animate-in fade-in slide-in-from-bottom-4 duration-300 focus:outline-none"
+            )}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-3">
@@ -115,12 +112,10 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 Performance throughput and timing statistics of the Ren'Py flowchart parser.
               </Dialog.Description>
               <Dialog.Close
-                className={
-                  'rounded-lg p-1.5 text-gray-500 ' +
-                  'hover:bg-white/5 hover:text-gray-300 ' +
-                  'transition-colors duration-200 ' +
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500'
-                }
+                className={cn(
+                  "rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                )}
                 aria-label="Close telemetry"
               >
                 <X size={16} />
