@@ -270,4 +270,70 @@ describe('parseRenpyFilesInWorker', () => {
     expect(cancelMessage?.protocolVersion).toBe(PARSER_WORKER_PROTOCOL_VERSION);
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('runs parallel chunk parsing and finalizes when files count > 1 and multiple workers available', async () => {
+    vi.stubGlobal('navigator', { hardwareConcurrency: 4 });
+    const { parseRenpyFilesInWorker } = await import('../src/infrastructure');
+
+    const promise = parseRenpyFilesInWorker({
+      files: [
+        { name: 'a.rpy', content: 'label a:' },
+        { name: 'b.rpy', content: 'label b:' },
+      ],
+      maxParallelFiles: 4,
+    });
+
+    await waitForPostedMessages(2);
+    const parseChunks = postedMessages.filter((m: any) => m.type === 'parse_chunk');
+    expect(parseChunks.length).toBe(2);
+    expect(parseChunks[0].files[0].name).toBe('a.rpy');
+    expect(parseChunks[1].files[0].name).toBe('b.rpy');
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'chunk_result',
+      requestId: parseChunks[0].requestId,
+      nodes: [{ id: 'a' }],
+      edges: [],
+      pendingCallReturns: [],
+      hasReliableReturnInLabel: [],
+      globalScreens: [],
+      labelDefinitionCount: [],
+      canonicalLabelIds: [],
+    });
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'chunk_result',
+      requestId: parseChunks[1].requestId,
+      nodes: [{ id: 'b' }],
+      edges: [],
+      pendingCallReturns: [],
+      hasReliableReturnInLabel: [],
+      globalScreens: [],
+      labelDefinitionCount: [],
+      canonicalLabelIds: [],
+    });
+
+    await waitForPostedMessages(3);
+    const finalizeMsg = postedMessages.find((m: any) => m.type === 'finalize') as any;
+    expect(finalizeMsg).toBeDefined();
+    expect(finalizeMsg.nodes).toEqual([{ id: 'a' }, { id: 'b' }]);
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: 'finalize_result',
+      requestId: finalizeMsg.requestId,
+      nodes: [{ id: 'a', role: 'story' }, { id: 'b', role: 'story' }],
+      edges: [],
+    });
+
+    await expect(promise).resolves.toEqual({
+      nodes: [{ id: 'a', role: 'story' }, { id: 'b', role: 'story' }],
+      edges: [],
+      diagnostics: undefined,
+    });
+
+    vi.unstubAllGlobals();
+  });
 });

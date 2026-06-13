@@ -47,6 +47,7 @@ export function maybeUpdateConditionalState(
   getTokenText: () => string,
   indent: number,
   lineText?: string,
+  lineNumber?: number,
 ) {
   if (!scanState.conditionalDecisionStack) {
     scanState.conditionalDecisionStack = [];
@@ -57,6 +58,12 @@ export function maybeUpdateConditionalState(
   // Ignore purely whitespace or newline tokens
   if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) {
     return;
+  }
+
+  if (lineNumber !== undefined && scanState.lastConditionalLine === lineNumber) {
+    // We are on the same line as the conditional statement keyword itself.
+    // Do not pop.
+    if (type !== PARSER_TOKENS.kwConditional) return;
   }
 
   scanState.pendingConditionalHeader = null;
@@ -83,6 +90,7 @@ export function maybeUpdateConditionalState(
   }
 
   if (type !== PARSER_TOKENS.kwConditional) return;
+  scanState.lastConditionalLine = lineNumber;
   const tokenText = getTokenText();
   if (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else' || tokenText === 'while') {
     scanState.conditionalIndentStack.push(indent);

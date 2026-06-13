@@ -24,6 +24,10 @@ export function createGraphState(): ParseGraphState {
     pendingCallReturns: [],
     canonicalLabelIdByName: new Map<string, string>(),
     labelDefinitionCountByName: new Map<string, number>(),
+    globalLabelVariableLiteralTargets: new Map<string, string>(),
+    globalLabelVariableDictTargets: new Map<string, Map<string, string>>(),
+    globalScreens: new Set<string>(),
+    globalCharacters: new Set<string>(),
     diagnostics: [],
     diagnosticIds: new Set<string>(),
   };
@@ -52,5 +56,6 @@ export function createScanState(): ParseScanState {
     waitForJumpExpressionTarget: false,
     waitForCallTarget: false,
     waitForMenuNameForId: null,
+    lastConditionalLine: undefined,
   };
 }

@@ -29,6 +29,23 @@ export {
   type ViewerStore,
 } from './viewerStore';
 export {
+  type ThemeSlice,
+  type ThemeSliceState,
+  type ThemeSliceActions,
+  type FilterSlice,
+  type FilterSliceState,
+  type FilterSliceActions,
+  type SearchSlice,
+  type SearchSliceState,
+  type SearchSliceActions,
+  type SelectionSlice,
+  type SelectionSliceState,
+  type SelectionSliceActions,
+  type SimulationSlice,
+  type SimulationSliceState,
+  type SimulationSliceActions,
+} from './viewerStoreSlices';
+export {
   DEBUG_BUNDLE_SCHEMA_VERSION,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   buildDebugBundle,
@@ -37,3 +54,9 @@ export {
   type DebugBundlePrivacyOptions,
   type BuildDebugBundleInput,
 } from './debugBundle';
+export {
+  useTelemetryStore,
+  type TelemetryMetrics,
+  type TelemetryActions,
+  type TelemetryStore,
+} from './telemetryStore';

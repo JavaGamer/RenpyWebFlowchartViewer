@@ -155,6 +155,184 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
     return;
   }
 
+  if (message.type === 'parse_chunk') {
+    const { requestId, files, fileCacheKeys } = message;
+    const startedAt = performance.now();
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      return;
+    }
+    try {
+      const chunkState = createGraphState();
+      for (let idx = 0; idx < files.length; idx += 1) {
+        if (cancelledRequests.has(requestId)) {
+          throw new Error('Chunk parsing cancelled');
+        }
+        const tokenized = await tokenizeOneFile(
+          files[idx],
+          { tokenizedCache, fileCacheKeys },
+          idx,
+        );
+        processTokenizedFile(chunkState, tokenized, {
+          captureDialogueLines: message.captureDialogueLines !== false,
+          parserVariant: message.parserVariant,
+          screenActionRules: message.screenActionRules,
+        });
+      }
+      if (!cancelledRequests.has(requestId)) {
+        postMessageSafe({
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'chunk_result' as const,
+          requestId,
+          nodes: chunkState.nodes,
+          edges: chunkState.edges,
+          diagnostics: chunkState.diagnostics.length > 0 ? chunkState.diagnostics : undefined,
+          pendingCallReturns: chunkState.pendingCallReturns,
+          hasReliableReturnInLabel: Array.from(chunkState.hasReliableReturnInLabel),
+          globalScreens: Array.from(chunkState.globalScreens),
+          labelDefinitionCount: Array.from(chunkState.labelDefinitionCountByName.entries()),
+          canonicalLabelIds: Array.from(chunkState.canonicalLabelIdByName.entries()),
+          elapsedMs: performance.now() - startedAt,
+        } as WorkerResponseMessage);
+      }
+    } catch (error: unknown) {
+      if (!cancelledRequests.has(requestId)) {
+        postMessageSafe({
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'error',
+          requestId,
+          message: error instanceof Error ? error.message : String(error),
+          elapsedMs: performance.now() - startedAt,
+        });
+      }
+    } finally {
+      cancelledRequests.delete(requestId);
+    }
+    return;
+  }
+
+  if (message.type === 'finalize') {
+    const {
+      requestId,
+      nodes,
+      edges,
+      diagnostics,
+      pendingCallReturns,
+      hasReliableReturnInLabel,
+      globalScreens,
+      labelDefinitionCount,
+      canonicalLabelIds,
+      appendToActiveGraph,
+      resetActiveGraph,
+      isFinalChunk,
+    } = message;
+    const startedAt = performance.now();
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      return;
+    }
+    try {
+      if (appendToActiveGraph) {
+        if (resetActiveGraph) {
+          accumulatedState = createGraphState();
+          dialogueSearchDocs = [];
+          dialogueSearchMiniSearch = null;
+        }
+
+        // Merge chunk data into accumulatedState
+        accumulatedState.nodes.push(...nodes);
+        accumulatedState.edges.push(...edges);
+        if (diagnostics) {
+          accumulatedState.diagnostics.push(...(diagnostics as any));
+        }
+        accumulatedState.pendingCallReturns.push(...pendingCallReturns);
+        for (const label of hasReliableReturnInLabel) {
+          accumulatedState.hasReliableReturnInLabel.add(label);
+        }
+        for (const screen of globalScreens) {
+          accumulatedState.globalScreens.add(screen);
+        }
+        for (const [name, count] of labelDefinitionCount) {
+          accumulatedState.labelDefinitionCountByName.set(
+            name,
+            (accumulatedState.labelDefinitionCountByName.get(name) ?? 0) + count,
+          );
+        }
+        for (const [name, id] of canonicalLabelIds) {
+          accumulatedState.canonicalLabelIdByName.set(name, id);
+        }
+
+        if (isFinalChunk) {
+          finalizeRoles(accumulatedState);
+          buildDialogueSearchIndex(accumulatedState.nodes);
+        }
+
+        if (!cancelledRequests.has(requestId)) {
+          postMessageSafe({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'finalize_result',
+            requestId,
+            nodes: accumulatedState.nodes,
+            edges: accumulatedState.edges,
+            diagnostics: accumulatedState.diagnostics.length > 0 ? accumulatedState.diagnostics : undefined,
+            elapsedMs: performance.now() - startedAt,
+            partial: !isFinalChunk,
+          } as WorkerResponseMessage);
+        }
+      } else {
+        // Stateless finalize
+        const state = createGraphState();
+        state.nodes = nodes;
+        state.edges = edges;
+        state.diagnostics = diagnostics ? (diagnostics as any) : [];
+        state.pendingCallReturns = pendingCallReturns;
+        state.hasReliableReturnInLabel = new Set(hasReliableReturnInLabel);
+        state.globalScreens = new Set(globalScreens);
+        state.labelDefinitionCountByName = new Map(labelDefinitionCount);
+        state.canonicalLabelIdByName = new Map(canonicalLabelIds);
+
+        finalizeRoles(state);
+        buildDialogueSearchIndex(state.nodes);
+
+        if (!cancelledRequests.has(requestId)) {
+          postMessageSafe({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: 'finalize_result',
+            requestId,
+            nodes: state.nodes,
+            edges: state.edges,
+            diagnostics: state.diagnostics.length > 0 ? state.diagnostics : undefined,
+            elapsedMs: performance.now() - startedAt,
+          } as WorkerResponseMessage);
+        }
+      }
+    } catch (error: unknown) {
+      if (!cancelledRequests.has(requestId)) {
+        postMessageSafe({
+          protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+          type: 'error',
+          requestId,
+          message: error instanceof Error ? error.message : String(error),
+          elapsedMs: performance.now() - startedAt,
+        });
+      }
+    } finally {
+      const wasCancelled = cancelledRequests.has(requestId);
+      if (activeRequestId === requestId) {
+        activeRequestId = null;
+      }
+      cancelledRequests.delete(requestId);
+      if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
+        accumulatedState = createGraphState();
+      }
+      if (wasCancelled) {
+        dialogueSearchDocs = [];
+        dialogueSearchMiniSearch = null;
+      }
+    }
+    return;
+  }
+
   if (message.type !== 'parse') return;
 
   const { requestId, files, maxParallelFiles, fileCacheKeys } = message;

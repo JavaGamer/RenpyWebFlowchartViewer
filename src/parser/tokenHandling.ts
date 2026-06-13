@@ -2,6 +2,7 @@ import { PARSER_TOKENS, isMenuKeywordTokenType } from './parserTokens';
 import type {
   ParseGraphState,
   ParseScanState,
+  ResolveTargetScanState,
   TokenMetaFlags,
   ExtractedScreenActionExpression,
 } from './pipelineTypes';
@@ -244,7 +245,6 @@ function splitCurrentLabelOnSceneBoundary(
   scanState.currentSceneDialogueCount = 0;
 }
 
-const QUOTED_LITERAL_PATTERN = /^(?:[rR]|[uU]|[bB]|[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/;
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const IDENTIFIER_START_PATTERN = /[A-Za-z_]/;
@@ -732,7 +732,7 @@ function resolveCallContext(
   const isInOption = meta.hasMenuOptionBlock;
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   const decisionContext = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
-  const source = isInOption && menu ? menu.id : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
+  const source = isInOption ? (menu ? menu.id : null) : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
   const condition: ConditionMetadata | undefined = decisionContext
     ? {
       branchKind: decisionContext.branchKind,
@@ -830,56 +830,158 @@ function emitCallEdge(
   if (isInOption) state.calledFromMenuOptionTargets.add(resolvedTargetId);
 }
 
-function parseDictLiteral(expression: string): Map<string, string> | null {
+export function parseDictLiteral(expression: string): Map<string, string> | null {
   const trimmed = expression.trim();
   if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
   const content = trimmed.substring(1, trimmed.length - 1);
   const result = new Map<string, string>();
-  const pairRegex = /(?:"([^"]+)"|'([^']+)')\s*:\s*(?:"([^"]+)"|'([^']+)')/g;
-  let match;
-  while ((match = pairRegex.exec(content)) !== null) {
-    const key = match[1] || match[2];
-    const val = match[3] || match[4];
-    if (key && val) {
-      result.set(key, val);
+
+  let i = 0;
+  function skipWhitespace() {
+    while (i < content.length && /\s/.test(content[i])) {
+      i++;
     }
   }
+
+  function parseStringLiteral(): string | null {
+    if (i >= content.length) return null;
+    const quoteChar = content[i];
+    if (quoteChar !== '"' && quoteChar !== "'") return null;
+    i++; // consume quote
+    let str = '';
+    while (i < content.length) {
+      const char = content[i];
+      if (char === '\\') {
+        i++;
+        if (i < content.length) {
+          const nextChar = content[i];
+          if (nextChar === 'n') str += '\n';
+          else if (nextChar === 't') str += '\t';
+          else if (nextChar === 'r') str += '\r';
+          else str += nextChar;
+          i++;
+        }
+      } else if (char === quoteChar) {
+        i++; // consume closing quote
+        return str;
+      } else {
+        str += char;
+        i++;
+      }
+    }
+    return null; // unclosed string
+  }
+
+  while (i < content.length) {
+    skipWhitespace();
+    if (i >= content.length) break;
+    const key = parseStringLiteral();
+    if (key === null) return null;
+
+    skipWhitespace();
+    if (i >= content.length || content[i] !== ':') return null;
+    i++; // consume ':'
+
+    skipWhitespace();
+    const val = parseStringLiteral();
+    if (val === null) return null;
+
+    result.set(key, val);
+
+    skipWhitespace();
+    if (i < content.length) {
+      if (content[i] !== ',') return null;
+      i++; // consume ','
+    }
+  }
+
   return result.size > 0 ? result : null;
 }
 
-function extractLiteralTarget(expression: string): string | null {
+export function extractLiteralTarget(expression: string): string | null {
   const trimmed = expression.trim();
-  const match = QUOTED_LITERAL_PATTERN.exec(trimmed);
-  if (!match) return null;
-  const value = match[2] ?? null;
-  if (value !== null && value.trim().length === 0) return null;
-  return value;
+  const prefixMatch = /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[rR]|[uU]|[bB])?/.exec(trimmed);
+  const prefix = prefixMatch ? prefixMatch[0] : '';
+  const rest = trimmed.substring(prefix.length);
+
+  let quote: string;
+  if (rest.startsWith('"""')) {
+    quote = '"""';
+  } else if (rest.startsWith("'''")) {
+    quote = "'''";
+  } else if (rest.startsWith('"')) {
+    quote = '"';
+  } else if (rest.startsWith("'")) {
+    quote = "'";
+  } else {
+    return null;
+  }
+
+  if (!rest.endsWith(quote) || rest.length < quote.length * 2) {
+    return null;
+  }
+
+  const inner = rest.substring(quote.length, rest.length - quote.length);
+  const isRaw = prefix.toLowerCase().includes('r');
+  let result = '';
+  let i = 0;
+  while (i < inner.length) {
+    const char = inner[i];
+    if (char === '\\' && !isRaw) {
+      i++;
+      if (i < inner.length) {
+        const nextChar = inner[i];
+        if (nextChar === 'n') result += '\n';
+        else if (nextChar === 't') result += '\t';
+        else if (nextChar === 'r') result += '\r';
+        else result += nextChar;
+        i++;
+      } else {
+        result += '\\';
+      }
+    } else {
+      result += char;
+      i++;
+    }
+  }
+
+  if (result.trim().length === 0) return null;
+  return result;
 }
 
-function extractIdentifierTarget(expression: string): string | null {
+export function extractIdentifierTarget(expression: string): string | null {
   const trimmed = expression.trim();
   return IDENTIFIER_PATTERN.test(trimmed) ? trimmed : null;
 }
 
-function resolveStaticTargetExpression(
+export function resolveStaticTargetExpression(
   expression: string,
-  scanState: ParseScanState,
+  scanState: ResolveTargetScanState,
+  state?: ParseGraphState,
 ): string | null {
   const trimmed = expression.trim();
   const literal = extractLiteralTarget(trimmed);
   if (literal) return literal;
   const identifier = extractIdentifierTarget(trimmed);
   if (identifier) {
-    return scanState.labelVariableLiteralTargets.get(identifier) ?? null;
+    const localVal = scanState.labelVariableLiteralTargets.get(identifier);
+    if (localVal !== undefined) return localVal;
+    if (state) {
+      const globalVal = state.globalLabelVariableLiteralTargets.get(identifier);
+      if (globalVal !== undefined) return globalVal;
+    }
+    return null;
   }
   
   const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(trimmed);
   if (dictMatch) {
     const dictName = dictMatch[1];
     const keyExpr = dictMatch[2].trim();
-    const dict = scanState.labelVariableDictTargets.get(dictName);
+    const localDict = scanState.labelVariableDictTargets.get(dictName);
+    const globalDict = state?.globalLabelVariableDictTargets.get(dictName);
+    const dict = localDict || globalDict;
     if (dict) {
-      const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState);
+      const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState, state);
       if (resolvedKey) {
         return dict.get(resolvedKey) ?? null;
       }
@@ -894,31 +996,45 @@ function resolveStaticTargetExpression(
  * Tracks assignments and dictionary key mappings (e.g. `jump expression var_name`)
  * using the scanState's variable binding cache.
  */
-function resolveExpressionTargets(
+export function resolveExpressionTargets(
   scanState: ParseScanState,
   expression: string,
   isPythonExpression: boolean,
+  state?: ParseGraphState,
 ): string[] {
   const trimmed = expression.trim();
   const isExpr = isPythonExpression || scanState.waitForJumpExpressionTarget;
 
   if (isExpr) {
     const literal = extractLiteralTarget(trimmed);
-    if (literal) return [literal];
+    if (literal) {
+      return [literal];
+    }
 
     const identifier = extractIdentifierTarget(trimmed);
     if (identifier) {
-      const resolved = scanState.labelVariableLiteralTargets.get(identifier);
-      return resolved ? [resolved] : [];
+      const localVal = scanState.labelVariableLiteralTargets.get(identifier);
+      if (localVal !== undefined) {
+        return [localVal];
+      }
+      if (state) {
+        const globalVal = state.globalLabelVariableLiteralTargets.get(identifier);
+        if (globalVal !== undefined) {
+          return [globalVal];
+        }
+      }
+      return [];
     }
 
     const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(trimmed);
     if (dictMatch) {
       const dictName = dictMatch[1];
       const keyExpr = dictMatch[2].trim();
-      const dict = scanState.labelVariableDictTargets.get(dictName);
+      const localDict = scanState.labelVariableDictTargets.get(dictName);
+      const globalDict = state?.globalLabelVariableDictTargets.get(dictName);
+      const dict = localDict || globalDict;
       if (dict) {
-        const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState);
+        const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState, state);
         if (resolvedKey) {
           const val = dict.get(resolvedKey);
           return val ? [val] : [];
@@ -1136,12 +1252,12 @@ function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): n
   return -1;
 }
 
-function extractStaticTargetsFromArgumentList(argumentList: string, scanState: ParseScanState): string[] {
+function extractStaticTargetsFromArgumentList(state: ParseGraphState | undefined, argumentList: string, scanState: ParseScanState): string[] {
   const args = splitTopLevelArguments(argumentList);
   if (args.length === 0) return [];
 
   const firstArgument = args[0];
-  const targets = resolveExpressionTargets(scanState, firstArgument, true);
+  const targets = resolveExpressionTargets(scanState, firstArgument, true, state);
   if (targets.length > 0) return targets;
 
   const preferredKeywordNames = new Set(['label', 'target']);
@@ -1150,13 +1266,13 @@ function extractStaticTargetsFromArgumentList(argumentList: string, scanState: P
     if (equalsIndex <= 0) continue;
     const keyword = arg.slice(0, equalsIndex).trim().toLowerCase();
     if (!preferredKeywordNames.has(keyword)) continue;
-    const kwTargets = resolveExpressionTargets(scanState, arg.slice(equalsIndex + 1), true);
+    const kwTargets = resolveExpressionTargets(scanState, arg.slice(equalsIndex + 1), true, state);
     if (kwTargets.length > 0) return kwTargets;
   }
 
   const equalsIndex = findTopLevelDelimiterIndex(firstArgument, '=');
   if (equalsIndex <= 0) return [];
-  return resolveExpressionTargets(scanState, firstArgument.slice(equalsIndex + 1), true);
+  return resolveExpressionTargets(scanState, firstArgument.slice(equalsIndex + 1), true, state);
 }
 
 function extractNestedExpressionValue(expression: string): string {
@@ -1281,7 +1397,7 @@ function buildIgnoredPositionMask(text: string): boolean[] {
   return ignored;
 }
 
-function stripInlineComment(value: string): string {
+export function stripInlineComment(value: string): string {
   let activeQuote: '"' | '\'' | null = null;
   let tripleQuoted = false;
   for (let i = 0; i < value.length; i += 1) {
@@ -1385,7 +1501,7 @@ function processDirectRenpyBlockCalls(
     const variableName = (match[1] ?? '').trim();
     if (!variableName) continue;
     const assignedExpression = stripInlineComment(match[2] ?? '');
-    const assignedTarget = resolveStaticTargetExpression(assignedExpression, scanState);
+    const assignedTarget = resolveStaticTargetExpression(assignedExpression, scanState, state);
     const assignedDict = parseDictLiteral(assignedExpression);
     events.push({
       kind: 'assignment',
@@ -1414,7 +1530,7 @@ function processDirectRenpyBlockCalls(
     }
 
     const context = resolveCallContext(scanState, meta, menuDepth);
-    const targets = extractStaticTargetsFromArgumentList(event.targetExpression, scanState);
+    const targets = extractStaticTargetsFromArgumentList(state, event.targetExpression, scanState);
     if (targets.length === 0) {
       addDynamicTargetDiagnostic(state, chapter, event.construct, event.targetExpression, context.source ?? undefined);
       continue;
@@ -1447,7 +1563,7 @@ function processDirectScreenActionCalls(
     const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) return;
     const context = resolveCallContext(scanState, meta, menuDepth);
-    const targets = extractStaticTargetsFromArgumentList(targetExpression, scanState);
+    const targets = extractStaticTargetsFromArgumentList(state, targetExpression, scanState);
     if (targets.length === 0) {
       addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
       return;
@@ -1491,7 +1607,11 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
     scanState.waitForMenuNameForId = null;
     return;
   }
-  if (scanState.waitForJumpTarget && type !== PARSER_TOKENS.entityFunctionName) {
+  const isJumpTargetTokenCheck =
+    type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined && type === PARSER_TOKENS.entityIdentifier);
+
+  if (scanState.waitForJumpTarget && !isJumpTargetTokenCheck) {
     if (PARSER_TOKENS.kwExpression !== undefined && type === PARSER_TOKENS.kwExpression) {
       scanState.waitForJumpExpressionTarget = true;
     } else if (
@@ -1504,7 +1624,11 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
       scanState.waitForJumpExpressionTarget = false;
     }
   }
-  if (scanState.waitForCallTarget && type !== PARSER_TOKENS.entityFunctionName) {
+  const isCallTargetTokenCheck =
+    type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined && type === PARSER_TOKENS.entityIdentifier);
+
+  if (scanState.waitForCallTarget && !isCallTargetTokenCheck) {
     scanState.waitForCallTarget = false;
   }
   if (scanState.waitForMenuNameForId && type !== PARSER_TOKENS.entityFunctionName) {
@@ -1962,6 +2086,12 @@ export function handleToken(
     return;
   }
 
+  if (PARSER_TOKENS.kwScreen !== undefined && type === PARSER_TOKENS.kwScreen) {
+    scanState.waitForCallTarget = false;
+    scanState.waitForJumpTarget = false;
+    return;
+  }
+
   if (type === PARSER_TOKENS.kwJump && meta.hasJumpStatement) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     scanState.waitForJumpTarget = true;
@@ -1971,6 +2101,7 @@ export function handleToken(
 
   const isJumpTargetToken =
     type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined && type === PARSER_TOKENS.entityIdentifier) ||
     (PARSER_TOKENS.metaItemAccess !== undefined && type === PARSER_TOKENS.metaItemAccess) ||
     (PARSER_TOKENS.metaFunctionCall !== undefined && type === PARSER_TOKENS.metaFunctionCall);
 
@@ -1980,7 +2111,7 @@ export function handleToken(
     meta.hasJumpStatement
   ) {
     const targetExpression = val();
-    const targets = resolveExpressionTargets(scanState, targetExpression, false);
+    const targets = resolveExpressionTargets(scanState, targetExpression, false, state);
     const context = resolveCallContext(scanState, meta, menuDepth);
     if (targets.length === 0) {
       addDynamicTargetDiagnostic(state, chapter, 'jump expression', targetExpression, context.source ?? undefined);
@@ -2024,11 +2155,13 @@ export function handleToken(
   if (type === PARSER_TOKENS.kwReturn && !meta.hasMenuOptionBlock) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     const isReliableReturn = scanState.conditionalIndentStack.length === 0;
-    if (isReliableReturn) {
+    if (isReliableReturn && scanState.currentLabelId !== null) {
       scanState.labelHasExplicitExit = true;
       state.hasReliableReturnInLabel.add(scanState.currentLabelId);
     }
-    state.hasReturnInLabel.add(scanState.currentLabelId);
+    if (scanState.currentLabelId !== null) {
+      state.hasReturnInLabel.add(scanState.currentLabelId);
+    }
     return;
   }
 

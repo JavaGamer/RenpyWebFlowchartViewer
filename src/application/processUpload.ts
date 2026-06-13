@@ -152,6 +152,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               const parseChunk = inputs.slice(parseOffset, parseOffset + PARSE_BATCH_SIZE);
               const isLastParseChunkInBatch = parseOffset + parseChunk.length >= inputs.length;
               const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
+              const baseCount = parsedFileCount;
               const result = await parseService.parse({
                 files: parseChunk,
                 appendToActiveGraph: true,
@@ -165,7 +166,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
                   actions.setProgress({
-                    doneFiles: Math.min(parsedFileCount + progress.doneFiles, orderedRpyFiles.length),
+                    doneFiles: Math.min(baseCount + progress.doneFiles, orderedRpyFiles.length),
                     totalFiles: orderedRpyFiles.length,
                     currentFile: progress.currentFile,
                   });
@@ -191,6 +192,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               onParseStarted?.();
               actions.startParsing();
             }
+            const baseCount = parsedFileCount;
             const result = await parseService.parse({
               files: inputs,
               appendToActiveGraph: true,
@@ -204,7 +206,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
                 actions.setProgress({
-                  doneFiles: Math.min(parsedFileCount + progress.doneFiles, orderedRpyFiles.length),
+                  doneFiles: Math.min(baseCount + progress.doneFiles, orderedRpyFiles.length),
                   totalFiles: orderedRpyFiles.length,
                   currentFile: progress.currentFile,
                 });

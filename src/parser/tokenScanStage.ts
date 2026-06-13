@@ -34,6 +34,7 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.kwLabel,
   PARSER_TOKENS.kwScene,
   PARSER_TOKENS.entityFunctionName,
+  PARSER_TOKENS.entityIdentifier,
   PARSER_TOKENS.kwJump,
   PARSER_TOKENS.kwExpression,
   PARSER_TOKENS.kwCall,
@@ -48,6 +49,7 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.kwQueue,
   PARSER_TOKENS.kwOther,
   PARSER_TOKENS.kwDollarSign,
+  PARSER_TOKENS.kwScreen,
   PARSER_TOKENS.metaItemAccess,
   PARSER_TOKENS.metaFunctionCall,
 ].filter((t): t is number => typeof t === 'number'));
@@ -258,7 +260,7 @@ export function processFlatToken(
     ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache)
     : lineText;
 
-  maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText);
+  maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
   handleToken(state, scanState, {
     type,
     meta,
@@ -371,7 +373,7 @@ export function processTokenTreeStream(
     const conditionalText = type === PARSER_TOKENS.kwConditional
       ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache)
       : lineText;
-    maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText);
+    maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
     handleToken(state, scanState, {
       type,
       meta,
@@ -430,7 +432,7 @@ export function processFlatTokens(
       ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache)
       : lineText;
 
-    maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText);
+    maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
     handleToken(state, scanState, {
       type,
       meta,

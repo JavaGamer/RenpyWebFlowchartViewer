@@ -18,6 +18,7 @@ export interface ParserTokenMap {
   kwMenuFallback?: number;
   menuKeywordTypes: number[];
   entityFunctionName: number;
+  entityIdentifier?: number;
   literalString: number;
   metaLabelStatement: number;
   metaMenuStatement: number;
@@ -39,6 +40,7 @@ export interface ParserTokenMap {
   kwQueue?: number;
   kwOther?: number;
   kwDollarSign?: number;
+  kwScreen?: number;
   metaItemAccess?: number;
   metaFunctionCall?: number;
 }
@@ -125,6 +127,7 @@ function buildTokenMap(): ParserTokenMap {
       'FunctionName',
       EntityTokenType.FunctionName,
     ),
+    entityIdentifier: readOptionalEnumEntry(EntityTokenType.Identifier),
     literalString: assertEnumEntry('LiteralTokenType', 'String', LiteralTokenType.String),
     metaLabelStatement: assertEnumEntry(
       'MetaTokenType',
@@ -182,6 +185,7 @@ function buildTokenMap(): ParserTokenMap {
     kwQueue: readOptionalEnumEntry(KeywordTokenType.Queue),
     kwOther: readOptionalEnumEntry(KeywordTokenType.Other),
     kwDollarSign: readOptionalEnumEntry(KeywordTokenType.DollarSign),
+    kwScreen: readOptionalEnumEntry(KeywordTokenType.Screen),
     metaItemAccess: readOptionalEnumEntry(MetaTokenType.ItemAccess),
     metaFunctionCall: readOptionalEnumEntry(MetaTokenType.FunctionCall),
   };

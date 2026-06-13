@@ -23,13 +23,36 @@ import {
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   toDebugBundleBlob,
   type DebugBundlePrivacyOptions,
+  useTelemetryStore,
 } from './application';
 import {
   getParserVariantPlugins,
 } from './config/parserRules';
 
 export default function App() {
-  const perf = useMemo(() => createPerfTracker('app'), []);
+  const perf = useMemo(() => createPerfTracker('app', {
+    onEvent: (event) => {
+      const store = useTelemetryStore.getState();
+      if (event.metric === 'read_files_ms') {
+        store.recordRead(event.ms);
+        if (typeof event.detail?.files === 'number') {
+          store.setFileCount(event.detail.files);
+        }
+      } else if (event.metric === 'parse_ms') {
+        store.recordParse(event.ms, event.detail as any);
+        if (typeof event.detail?.nodes === 'number') {
+          store.setGraphMetrics(
+            event.detail.nodes as number,
+            (event.detail.edges as number) ?? 0,
+          );
+        }
+      } else if (event.metric === 'layout_ms') {
+        store.recordLayout(event.ms);
+      } else if (event.metric === 'render_commit_ms') {
+        store.recordRender(event.ms);
+      }
+    },
+  }), []);
 
   // ── App state (Zustand store) ───────────────────────────────────────────────
   const {

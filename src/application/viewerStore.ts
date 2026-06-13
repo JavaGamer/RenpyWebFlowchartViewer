@@ -21,6 +21,20 @@ import { STORAGE_KEYS } from '../config/storageKeys';
 import type { DialogueSearchMode } from './appStore';
 import type { MockFlagValue } from '../domain';
 
+import {
+  createThemeSlice,
+  defaultThemeState,
+  createFilterSlice,
+  defaultFilterState,
+  createSearchSlice,
+  defaultSearchState,
+  createSelectionSlice,
+  defaultSelectionState,
+  createSimulationSlice,
+  defaultSimulationState,
+  createEmptyMockFlags,
+} from './viewerStoreSlices';
+
 // ─── Persisted slice ──────────────────────────────────────────────────────────
 
 /**
@@ -105,53 +119,13 @@ export type ViewerStore = ViewerPersistedState & ViewerSessionState & ViewerActi
 
 // ─── Default values ───────────────────────────────────────────────────────────
 
-/**
- * Set of property names forbidden as mock-flag keys to prevent prototype pollution
- * when user-supplied flag strings are written to the flags record.
- */
-const UNSAFE_MOCK_FLAG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-/** Creates an empty mock-flags object with a null prototype to avoid pollution. */
-function createEmptyMockFlags(): Record<string, MockFlagValue> {
-  return Object.create(null) as Record<string, MockFlagValue>;
-}
-
-/** Returns `true` when `flag` is safe to use as a mock-flags record key. */
-function isSafeMockFlagKey(flag: string): boolean {
-  return !UNSAFE_MOCK_FLAG_KEYS.has(flag);
-}
-
-const defaultPersistedState: ViewerPersistedState = {
-  theme: 'violet',
-  showCallReturns: false,
-  showAudioAssetCues: true,
-  visibleEdgeKinds: {
-    sequence: true,
-    jump: true,
-    call: true,
-    call_return: true,
-  },
-};
+const defaultPersistedState: ViewerPersistedState = { ...defaultThemeState };
 
 const defaultSessionState: ViewerSessionState = {
-  layoutDirection: 'TB',
-  searchInput: '',
-  labelSubgraphSearchInput: '',
-  minDialogue: 0,
-  collapsedChapters: {},
-  collapsedParentLabels: {},
-  focusNodeId: '',
-  largeGraphModeOverride: null,
-  selectedNodeId: '',
-  selectedDialogueLineIndex: null,
-  showAllInspectorLines: false,
-  activeDialogueResultIndex: -1,
-  dialogueSearchResults: [],
-  showAdvancedControls: false,
-  showAllLabelSubgraphToggles: false,
-  standaloneDialogueSearchMode: 'auto',
-  mockFlags: createEmptyMockFlags(),
-  conditionVisibilityMode: 'fade',
+  ...defaultFilterState,
+  ...defaultSearchState,
+  ...defaultSelectionState,
+  ...defaultSimulationState,
 };
 
 // ─── Persist merge/validation helpers ────────────────────────────────────────
@@ -251,159 +225,26 @@ function migrateLegacyKeys(): string | null {
 export const useViewerStore = create<ViewerStore>()(
   persist(
     temporal(
-      immer((set) => ({
-        ...defaultPersistedState,
-      ...defaultSessionState,
+      immer((set, get, api) => ({
+        ...createThemeSlice(set, get, api),
+        ...createFilterSlice(set, get, api),
+        ...createSearchSlice(set, get, api),
+        ...createSelectionSlice(set, get, api),
+        ...createSimulationSlice(set, get, api),
 
-      // ── Persisted actions ─────────────────────────────────────────────────
-      setTheme: (theme) =>
-        set((draft) => {
-          draft.theme = theme;
-        }),
-
-      setShowCallReturns: (show) =>
-        set((draft) => {
-          draft.showCallReturns = show;
-        }),
-
-      setShowAudioAssetCues: (show) =>
-        set((draft) => {
-          draft.showAudioAssetCues = show;
-        }),
-
-      setEdgeKindVisible: (kind, visible) =>
-        set((draft) => {
-          draft.visibleEdgeKinds[kind] = visible;
-        }),
-
-      // ── Session actions ───────────────────────────────────────────────────
-      setLayoutDirection: (direction) =>
-        set((draft) => {
-          draft.layoutDirection = direction;
-        }),
-
-      setSearchInput: (value) =>
-        set((draft) => {
-          draft.searchInput = value;
-        }),
-
-      setLabelSubgraphSearchInput: (value) =>
-        set((draft) => {
-          draft.labelSubgraphSearchInput = value;
-        }),
-
-      setMinDialogue: (value) =>
-        set((draft) => {
-          draft.minDialogue = value;
-        }),
-
-      toggleChapter: (chapter) =>
-        set((draft) => {
-          draft.collapsedChapters[chapter] = !draft.collapsedChapters[chapter];
-        }),
-
-      toggleParentLabel: (label) =>
-        set((draft) => {
-          draft.collapsedParentLabels[label] = !draft.collapsedParentLabels[label];
-        }),
-
-      setAllParentLabelsCollapsed: (labels, collapsed) =>
-        set((draft) => {
-          for (const label of labels) {
-            draft.collapsedParentLabels[label] = collapsed;
-          }
-        }),
-
-      setFocusNodeId: (id) =>
-        set((draft) => {
-          draft.focusNodeId = id;
-        }),
-
-      setLargeGraphModeOverride: (value) =>
-        set((draft) => {
-          draft.largeGraphModeOverride = value;
-        }),
-
-      setSelectedNodeId: (id) =>
-        set((draft) => {
-          draft.selectedNodeId = id;
-        }),
-
-      setSelectedDialogueLineIndex: (index) =>
-        set((draft) => {
-          draft.selectedDialogueLineIndex = index;
-        }),
-
-      toggleShowAllInspectorLines: () =>
-        set((draft) => {
-          draft.showAllInspectorLines = !draft.showAllInspectorLines;
-        }),
-
-      setShowAllInspectorLines: (show) =>
-        set((draft) => {
-          draft.showAllInspectorLines = show;
-        }),
-
-      setActiveDialogueResultIndex: (index) =>
-        set((draft) => {
-          draft.activeDialogueResultIndex = index;
-        }),
-
-      setDialogueSearchResults: (results) =>
-        set((draft) => {
-          draft.dialogueSearchResults = results;
-        }),
-
-      toggleShowAdvancedControls: () =>
-        set((draft) => {
-          draft.showAdvancedControls = !draft.showAdvancedControls;
-        }),
-
-      setShowAdvancedControls: (show) =>
-        set((draft) => {
-          draft.showAdvancedControls = show;
-        }),
-
-      toggleShowAllLabelSubgraphToggles: () =>
-        set((draft) => {
-          draft.showAllLabelSubgraphToggles = !draft.showAllLabelSubgraphToggles;
-        }),
-
-      setStandaloneDialogueSearchMode: (mode) =>
-        set((draft) => {
-          draft.standaloneDialogueSearchMode = mode;
-        }),
-
-      setMockFlag: (flag, value) =>
-        set((draft) => {
-          if (!isSafeMockFlagKey(flag)) return;
-          draft.mockFlags[flag] = value;
-        }),
-
-      resetMockFlags: () =>
-        set((draft) => {
-          draft.mockFlags = createEmptyMockFlags();
-        }),
-
-      setConditionVisibilityMode: (mode) =>
-        set((draft) => {
-          draft.conditionVisibilityMode = mode;
-        }),
-
-      // ── Reset ─────────────────────────────────────────────────────────────
-      resetSession: () =>
-        set((draft) => {
-          Object.assign(draft, defaultSessionState);
-        }),
+        // ── Reset ─────────────────────────────────────────────────────────────
+        resetSession: () =>
+          set((draft) => {
+            Object.assign(draft, defaultSessionState);
+            draft.mockFlags = createEmptyMockFlags();
+          }),
       })),
       {
         partialize: (state) => ({
           layoutDirection: state.layoutDirection,
-          searchInput: state.searchInput,
           minDialogue: state.minDialogue,
           collapsedChapters: state.collapsedChapters,
           collapsedParentLabels: state.collapsedParentLabels,
-          selectedNodeId: state.selectedNodeId,
           mockFlags: state.mockFlags,
           conditionVisibilityMode: state.conditionVisibilityMode,
         }),

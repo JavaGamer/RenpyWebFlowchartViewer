@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNodesState, useEdgesState } from '@xyflow/react';
 import {
   type FlowNode,
@@ -46,11 +46,39 @@ export function useViewerLayout({
   onEdgesChange: ReturnType<typeof useEdgesState<CanvasEdge>>[2];
   nodePositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
   relayout: () => void;
+  isCalculatingLayout: boolean;
 } {
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+  const isLargeWorkerEnabled = shouldProgressiveLayout && !isTestEnv && isWorkerSupported;
+  const [isCalculatingLayout, setIsCalculatingLayout] = useState(isLargeWorkerEnabled);
+
+  // Sync state with props changes during render phase to avoid effect layout shifts
+  const [prevFlowNodes, setPrevFlowNodes] = useState(flowNodes);
+  const [prevFlowEdges, setPrevFlowEdges] = useState(flowEdges);
+  const [prevDirection, setPrevDirection] = useState(layoutDirection);
+  const [prevTheme, setPrevTheme] = useState(theme);
+
+  if (
+    flowNodes !== prevFlowNodes ||
+    flowEdges !== prevFlowEdges ||
+    layoutDirection !== prevDirection ||
+    theme !== prevTheme
+  ) {
+    setPrevFlowNodes(flowNodes);
+    setPrevFlowEdges(flowEdges);
+    setPrevDirection(layoutDirection);
+    setPrevTheme(theme);
+    setIsCalculatingLayout(
+      flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT && !isTestEnv && isWorkerSupported
+    );
+  }
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
+    if (shouldProgressiveLayout) {
+      // Immediately bypass synchronous layout for large projects
+      return { nodes: [], edges: [] };
+    }
     perf.mark('layout');
     const progressive = shouldProgressiveLayout;
     const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive, theme });
@@ -67,6 +95,7 @@ export function useViewerLayout({
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
 
   const relayout = useCallback(() => {
+    setIsCalculatingLayout(true);
     if (isTestEnv || !isWorkerSupported) {
       const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
         progressive: shouldProgressiveLayout,
@@ -76,6 +105,7 @@ export function useViewerLayout({
       nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
       setNodes(next.nodes);
       setEdges(next.edges);
+      setIsCalculatingLayout(false);
       if (onRelayoutComplete) {
         requestAnimationFrame(onRelayoutComplete);
       }
@@ -95,12 +125,14 @@ export function useViewerLayout({
         nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
         setNodes(next.nodes);
         setEdges(next.edges);
+        setIsCalculatingLayout(false);
         if (onRelayoutComplete) {
           requestAnimationFrame(onRelayoutComplete);
         }
       },
       (error) => {
         console.error('Layout worker error during manual relayout:', error);
+        setIsCalculatingLayout(false);
       }
     );
   }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, theme]);
@@ -111,19 +143,7 @@ export function useViewerLayout({
       setEdges(layoutEdges);
     });
     nodePositionsRef.current = new Map(layoutNodes.map((n) => [n.id, n.position]));
-    if (!shouldProgressiveLayout) return;
-
-    if (isTestEnv || !isWorkerSupported) {
-      const refined = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
-        progressive: false,
-        previousPositions: nodePositionsRef.current,
-        theme,
-      });
-      nodePositionsRef.current = new Map(refined.nodes.map((n) => [n.id, n.position]));
-      startTransition(() => {
-        setNodes(refined.nodes);
-        setEdges(refined.edges);
-      });
+    if (!shouldProgressiveLayout || isTestEnv || !isWorkerSupported) {
       return;
     }
 
@@ -142,9 +162,11 @@ export function useViewerLayout({
           setNodes(refined.nodes);
           setEdges(refined.edges);
         });
+        setIsCalculatingLayout(false);
       },
       (error) => {
         console.error('Layout worker error:', error);
+        setIsCalculatingLayout(false);
       }
     );
 
@@ -159,5 +181,6 @@ export function useViewerLayout({
     };
   }, []);
 
-  return { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, nodePositionsRef, relayout };
+  return { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, nodePositionsRef, relayout, isCalculatingLayout };
 }
+

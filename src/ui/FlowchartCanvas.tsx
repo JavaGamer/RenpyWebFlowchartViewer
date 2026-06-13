@@ -210,6 +210,7 @@ export function FlowchartCanvas({
     onNodesChange,
     onEdgesChange,
     relayout,
+    isCalculatingLayout,
   } = useViewerLayout({
     flowNodes,
     flowEdges,
@@ -608,7 +609,24 @@ export function FlowchartCanvas({
       </Dialog.Root>
 
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
-        <div ref={flowRef} className="flex-1 min-h-[320px]" style={{ backgroundColor: THEMES[theme].pageBg }}>
+        <div ref={flowRef} className="flex-1 min-h-[320px] relative" style={{ backgroundColor: THEMES[theme].pageBg }}>
+          {isCalculatingLayout && (
+            <div className="absolute inset-0 bg-white/45 backdrop-blur-md z-30 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin"
+                  style={{
+                    borderColor: `${THEMES[theme].labelBorder}22`,
+                    borderTopColor: THEMES[theme].labelBorder,
+                  }}
+                />
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-gray-950" style={{ color: THEMES[theme].text }}>Generating Flowchart Layout</p>
+                  <p className="text-xs text-gray-500 mt-1" style={{ color: THEMES[theme].subtleText }}>Optimizing nodes and branching paths...</p>
+                </div>
+              </div>
+            </div>
+          )}
           <ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseRenpyFiles } from '../src/parser/parser';
+import { createGraphState } from '../src/parser/pipelineState';
+import { preParseInitialization } from '../src/parser/initMapper';
 
 function loadFixture(name: string): string {
   const fixturesDir = resolve(import.meta.dirname, 'fixtures');
@@ -2551,9 +2553,235 @@ describe('parseRenpyFiles', () => {
     ].join('\n');
 
     const result = await parseRenpyFiles([{ name: 'triple_quoted_escaped.rpy', content: script }]);
+    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    expect(decisionNode).toBeDefined();
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'target_a', kind: 'jump' })
+      expect.objectContaining({ source: decisionNode?.id, target: 'target_a', kind: 'jump' })
     );
+  });
+
+  // ── Multi-pass Initialization Mapping tests ─────────────────
+
+  it('resolves variables from python early and prioritized init blocks in the correct priority order', async () => {
+    const files = [
+      {
+        name: 'priority_init.rpy',
+        content: [
+          'init 10 python:',
+          '    target_val = "target_high"',
+          '',
+          'python early:',
+          '    target_val = "target_early"',
+          '',
+          'init -5 python:',
+          '    target_val = "target_low"',
+        ].join('\n'),
+      },
+      {
+        name: 'main.rpy',
+        content: [
+          'label start:',
+          '    jump expression target_val',
+          '',
+          'label target_high:',
+          '    return',
+        ].join('\n'),
+      },
+    ];
+
+    const result = await parseRenpyFiles(files);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'target_high', kind: 'jump' })
+    );
+  });
+
+  it('supports init offset for local file offset adjustment and priority calculation', async () => {
+    const files = [
+      {
+        name: 'offset_file.rpy',
+        content: [
+          'init offset = 20',
+          'init -5 python:',
+          '    target_val = "target_offset_fifteen"', // 20 - 5 = 15
+        ].join('\n'),
+      },
+      {
+        name: 'another_file.rpy',
+        content: [
+          'init 10 python:',
+          '    target_val = "target_ten"', // 10
+        ].join('\n'),
+      },
+      {
+        name: 'main.rpy',
+        content: [
+          'label start:',
+          '    jump expression target_val',
+          '',
+          'label target_offset_fifteen:',
+          '    return',
+        ].join('\n'),
+      },
+    ];
+
+    const result = await parseRenpyFiles(files);
+    // target_val should resolve to "target_offset_fifteen" since priority 15 > 10
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'target_offset_fifteen', kind: 'jump' })
+    );
+  });
+
+  it('resolves variables globally across different files', async () => {
+    const files = [
+      {
+        name: 'definitions.rpy',
+        content: [
+          'define global_target = "dest_label"',
+          'default global_dict = {"choice": "dest_label_choice"}',
+        ].join('\n'),
+      },
+      {
+        name: 'story.rpy',
+        content: [
+          'label start:',
+          '    jump expression global_target',
+          '    jump expression global_dict["choice"]',
+          '',
+          'label dest_label:',
+          '    return',
+          '',
+          'label dest_label_choice:',
+          '    return',
+        ].join('\n'),
+      },
+    ];
+
+    const result = await parseRenpyFiles(files);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'dest_label', kind: 'jump' })
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'dest_label_choice', kind: 'jump' })
+    );
+  });
+
+  it('ignores screen calls and does not emit navigation edges', async () => {
+    const script = [
+      'label start:',
+      '    call screen custom_selector',
+      '    jump next_label',
+      '',
+      'label next_label:',
+      '    return',
+    ].join('\n');
+
+    const result = await parseRenpyFiles([{ name: 'screen_call.rpy', content: script }]);
+    // Should have jump start -> next_label, but NO call to custom_selector
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'next_label', kind: 'jump' })
+    );
+    expect(result.edges.find((e) => e.target === 'custom_selector')).toBeUndefined();
+  });
+
+  it('registers character definitions in globalCharacters set', async () => {
+    const files = [
+      {
+        name: 'init.rpy',
+        content: [
+          'define e = Character("Eileen")',
+          'define character.m = Character("Monica")',
+          'init python:',
+          '    narrator = Character(None)',
+        ].join('\n'),
+      },
+      {
+        name: 'main.rpy',
+        content: [
+          'label start:',
+          '    e "Hello!"',
+        ].join('\n'),
+      },
+    ];
+
+    const state = createGraphState();
+    preParseInitialization(files, state);
+    expect(state.globalCharacters.has('e')).toBe(true);
+    expect(state.globalCharacters.has('character.m')).toBe(true);
+    expect(state.globalCharacters.has('narrator')).toBe(true);
+  });
+
+  it('supports define and default priority correctly', async () => {
+    const files = [
+      {
+        name: 'priority_defs.rpy',
+        content: [
+          'define 10 my_val = "high"',
+          'define -5 my_val = "low"',
+          'default 20 my_val = "highest"',
+          'default my_val = "default_zero"',
+        ].join('\n'),
+      },
+      {
+        name: 'main.rpy',
+        content: [
+          'label start:',
+          '    jump expression my_val',
+          '',
+          'label highest:',
+          '    return',
+        ].join('\n'),
+      },
+    ];
+
+    const result = await parseRenpyFiles(files);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'start', target: 'highest', kind: 'jump' })
+    );
+  });
+
+  it('correctly strips comments in triple-quoted strings without mangling', async () => {
+    const files = [
+      {
+        name: 'triple_comments.rpy',
+        content: [
+          'define my_val = """',
+          'hello # not a comment!',
+          '"""',
+          'label start:',
+          '    jump expression my_val',
+          '',
+          'label test_label:',
+          '    return',
+        ].join('\n'),
+      },
+    ];
+
+    const state = createGraphState();
+    preParseInitialization(files, state);
+    const resolved = state.globalLabelVariableLiteralTargets.get('my_val');
+    expect(resolved).toContain('not a comment!');
+  });
+
+  it('handles multiline dictionary declarations with column-0 lines inside python blocks', async () => {
+    const files = [
+      {
+        name: 'multiline_dict.rpy',
+        content: [
+          'init python:',
+          '    choices = {',
+          '        "1": "label1",',
+          '"2": "label2"',
+          '    }',
+        ].join('\n'),
+      },
+    ];
+
+    const state = createGraphState();
+    preParseInitialization(files, state);
+    const resolvedDict = state.globalLabelVariableDictTargets.get('choices');
+    expect(resolvedDict).toBeDefined();
+    expect(resolvedDict?.get('1')).toBe('label1');
+    expect(resolvedDict?.get('2')).toBe('label2');
   });
 });
 

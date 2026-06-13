@@ -10,6 +10,7 @@ import { compareDeterministicStrings } from '../domain';
 import { createGraphState } from './pipelineState';
 import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './filePipeline';
 import { finalizeRoles } from './roleFinalization';
+import { preParseInitialization } from './initMapper';
 import type {
   ParseInputFile,
   ParseResult,
@@ -20,7 +21,7 @@ import type {
 export type { ParseResult, ParseProgress, ParseOptions };
 
 function getMaxParallelFiles(requested: number | undefined, fileCount: number): number {
-  if (!Number.isFinite(requested) || requested === undefined) return 1;
+  if (requested === undefined || !Number.isFinite(requested)) return 1;
   const normalized = Math.floor(requested);
   if (normalized <= 1) return 1;
   return Math.max(1, Math.min(normalized, fileCount));
@@ -44,6 +45,11 @@ export async function parseRenpyFiles(
   perf.mark('total');
   const state = createGraphState();
   const orderedFiles = [...files].sort(compareFiles);
+
+  perf.mark('pre-parse');
+  preParseInitialization(orderedFiles, state);
+  perf.measure('pre-parse', 'pre_parse_init_ms', { files: orderedFiles.length });
+
   const maxParallelFiles = getMaxParallelFiles(options.maxParallelFiles, orderedFiles.length);
 
   if (maxParallelFiles === 1) {

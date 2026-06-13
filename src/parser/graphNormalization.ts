@@ -234,7 +234,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
     }
 
     // Flag unresolved target endpoints (unresolved jump/calls remain in graph as warnings)
-    if (!nodeIds.has(normalizedTarget)) {
+    if (!nodeIds.has(normalizedTarget) && !state.globalScreens.has(normalizedTarget)) {
       addParseDiagnostic(
         state,
         {

@@ -72,13 +72,46 @@ export interface SearchRequestMessage {
   maxResults?: number;
 }
 
+export interface ParseChunkRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: 'parse_chunk';
+  requestId: number;
+  files: ParseInputFile[];
+  fileCacheKeys?: string[];
+  captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
+}
+
+export interface FinalizeRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: 'finalize';
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  hasReliableReturnInLabel: string[];
+  globalScreens: string[];
+  labelDefinitionCount: Array<[string, number]>;
+  canonicalLabelIds: Array<[string, string]>;
+  appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+}
+
 export interface CancelRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
   type: 'cancel';
   requestId: number;
 }
 
-export type WorkerRequestMessage = ParseRequestMessage | SearchRequestMessage | CancelRequestMessage;
+export type WorkerRequestMessage =
+  | ParseRequestMessage
+  | ParseChunkRequestMessage
+  | FinalizeRequestMessage
+  | SearchRequestMessage
+  | CancelRequestMessage;
 
 export interface ProgressResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
@@ -189,8 +222,36 @@ export interface SearchResultResponseMessage {
   elapsedMs?: number;
 }
 
+export interface ChunkResultResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: 'chunk_result';
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  pendingCallReturns?: Array<{ returnTargetId: string; callTargetId: string }>;
+  hasReliableReturnInLabel?: string[];
+  globalScreens?: string[];
+  labelDefinitionCount?: Array<[string, number]>;
+  canonicalLabelIds?: Array<[string, string]>;
+  elapsedMs?: number;
+}
+
+export interface FinalizeResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: 'finalize_result';
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  elapsedMs?: number;
+  partial?: boolean;
+}
+
 export type WorkerResponseMessage =
   | ProgressResponseMessage
   | ResultResponseMessage
+  | ChunkResultResponseMessage
+  | FinalizeResponseMessage
   | ErrorResponseMessage
   | SearchResultResponseMessage;

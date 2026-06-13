@@ -17,7 +17,11 @@ function isPerfEnabled(): boolean {
   }
 }
 
-export function createPerfTracker(scope: string) {
+export interface PerfTrackerOptions {
+  onEvent?: (event: PerfEvent) => void;
+}
+
+export function createPerfTracker(scope: string, options?: PerfTrackerOptions) {
   const enabled = isPerfEnabled();
   const marks = new Map<string, number>();
 
@@ -36,6 +40,7 @@ export function createPerfTracker(scope: string) {
         `[perf:${scope}]`,
         detail === undefined ? { metric, ms } : { metric, ms, detail }
       );
+      options?.onEvent?.({ metric, ms, detail });
       return ms;
     },
     log(metric: string, ms: number, detail?: Record<string, unknown>) {
@@ -44,6 +49,7 @@ export function createPerfTracker(scope: string) {
         `[perf:${scope}]`,
         detail === undefined ? { metric, ms } : { metric, ms, detail }
       );
+      options?.onEvent?.({ metric, ms, detail });
     },
   };
 }

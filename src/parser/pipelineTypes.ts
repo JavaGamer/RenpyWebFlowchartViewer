@@ -102,7 +102,12 @@ export type ParseDiagnostic =
   | UnresolvedTargetParseDiagnostic
   | ShadowedLabelParseDiagnostic;
 
-export interface ParseScanState {
+export interface ResolveTargetScanState {
+  labelVariableLiteralTargets: Map<string, string>;
+  labelVariableDictTargets: Map<string, Map<string, string>>;
+}
+
+export interface ParseScanState extends ResolveTargetScanState {
   currentLabelId: string | null;
   currentLabelIndent: number | null;
   currentLabelDeclaredName?: string | null;
@@ -111,8 +116,6 @@ export interface ParseScanState {
   currentLabelHasSplit?: boolean;
   currentLabelHasContentSinceSceneBoundary?: boolean;
   currentSceneDialogueCount?: number;
-  labelVariableLiteralTargets: Map<string, string>;
-  labelVariableDictTargets: Map<string, Map<string, string>>;
   menuStack: Array<{ id: string; optionText: string | null }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
@@ -124,6 +127,7 @@ export interface ParseScanState {
   waitForJumpExpressionTarget: boolean;
   waitForCallTarget: boolean;
   waitForMenuNameForId: string | null;
+  lastConditionalLine?: number;
 }
 
 export interface ParseGraphState {
@@ -147,6 +151,10 @@ export interface ParseGraphState {
   pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
   canonicalLabelIdByName: Map<string, string>;
   labelDefinitionCountByName: Map<string, number>;
+  globalLabelVariableLiteralTargets: Map<string, string>;
+  globalLabelVariableDictTargets: Map<string, Map<string, string>>;
+  globalScreens: Set<string>;
+  globalCharacters: Set<string>;
   diagnostics: ParseDiagnostic[];
   diagnosticIds: Set<string>;
 }
