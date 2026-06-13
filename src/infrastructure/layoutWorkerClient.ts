@@ -1,4 +1,4 @@
-import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, ThemeName } from '../domain';
+import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, ThemeName, LayoutDensity } from '../domain';
 
 
 let worker: Worker | null = null;
@@ -32,6 +32,7 @@ export function runLayoutInWorker(
     progressive?: boolean;
     previousPositions?: Map<string, { x: number; y: number }> | Array<[string, { x: number; y: number }]>;
     theme?: ThemeName;
+    layoutDensity?: LayoutDensity;
   } | undefined,
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
   onError?: (error: Error) => void

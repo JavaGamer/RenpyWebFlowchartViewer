@@ -1,5 +1,5 @@
-import { LayoutGrid, Palette, LocateFixed } from 'lucide-react';
-import type { CanvasNode, ConditionVisibilityMode, EdgeKindFilter, LayoutDirection, ThemeName } from '../domain';
+import { LayoutGrid, Palette, LocateFixed, SlidersHorizontal } from 'lucide-react';
+import type { CanvasNode, ConditionVisibilityMode, EdgeKindFilter, LayoutDirection, ThemeName, LayoutDensity } from '../domain';
 
 import { CONTROL_INPUT_CLASS, CONTROL_BUTTON_CLASS, MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
 import type { MockFlagValue } from '../domain';
@@ -7,6 +7,8 @@ import type { MockFlagValue } from '../domain';
 export interface ViewerAdvancedControlsProps {
   layoutDirection: LayoutDirection;
   setLayoutDirection: (dir: LayoutDirection) => void;
+  layoutDensity: LayoutDensity;
+  setLayoutDensity: (density: LayoutDensity) => void;
   onRelayout: () => void;
 
   theme: ThemeName;
@@ -54,6 +56,8 @@ export interface ViewerAdvancedControlsProps {
 export function ViewerAdvancedControls({
   layoutDirection,
   setLayoutDirection,
+  layoutDensity,
+  setLayoutDensity,
   onRelayout,
   theme,
   setTheme,
@@ -97,7 +101,7 @@ export function ViewerAdvancedControls({
       {/* Section 1: Layout and focus controls */}
       <div className="flex flex-col gap-2" role="group" aria-label="Layout and focus controls">
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Layout & Focus</h3>
-        <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50/50 rounded-lg border border-gray-100">
+        <div className="grid grid-cols-3 gap-2 p-3 bg-gray-50/50 rounded-lg border border-gray-100">
           <label className="text-xs flex flex-col gap-1 font-medium text-gray-700">
             <span className="flex items-center gap-1 text-gray-600">
               <LayoutGrid size={13} aria-hidden="true" />
@@ -109,8 +113,24 @@ export function ViewerAdvancedControls({
               aria-label="Auto layout direction"
               className={CONTROL_INPUT_CLASS}
             >
-              <option value="TB">Top to bottom</option>
-              <option value="LR">Left to right</option>
+              <option value="TB">Top-Bottom</option>
+              <option value="LR">Left-Right</option>
+            </select>
+          </label>
+          <label className="text-xs flex flex-col gap-1 font-medium text-gray-700">
+            <span className="flex items-center gap-1 text-gray-600">
+              <SlidersHorizontal size={13} aria-hidden="true" />
+              Density
+            </span>
+            <select
+              value={layoutDensity}
+              onChange={(e) => setLayoutDensity(e.target.value as LayoutDensity)}
+              aria-label="Layout density"
+              className={CONTROL_INPUT_CLASS}
+            >
+              <option value="compact">Compact</option>
+              <option value="normal">Normal</option>
+              <option value="spacious">Spacious</option>
             </select>
           </label>
           <label className="text-xs flex flex-col gap-1 font-medium text-gray-700">
@@ -125,11 +145,11 @@ export function ViewerAdvancedControls({
               className={CONTROL_INPUT_CLASS}
             >
               <option value="violet">Default</option>
-              <option value="highContrast">High contrast</option>
-              <option value="colorblind">Colorblind-safe</option>
+              <option value="highContrast">Contrast</option>
+              <option value="colorblind">Colorblind</option>
             </select>
           </label>
-          <label className="text-xs flex flex-col gap-1 font-medium text-gray-700 col-span-2">
+          <label className="text-xs flex flex-col gap-1 font-medium text-gray-700 col-span-3">
             Focus label
             <div className="flex gap-2">
               <select

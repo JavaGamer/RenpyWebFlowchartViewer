@@ -11,6 +11,7 @@ export {
   searchDialogueLinesInWorker,
   parseChunksInParallel,
   getWorkerPoolSize,
+  areWorkersSupported,
   type ParseChunkRequest,
   type ParseChunkResult,
 } from './parserWorkerClient';

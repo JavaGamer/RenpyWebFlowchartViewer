@@ -97,6 +97,7 @@ export function FlowchartCanvas({
     standaloneDialogueSearchMode,
     mockFlags,
     conditionVisibilityMode,
+    layoutDensity,
   } = useViewerStore(useShallow((s) => ({
     layoutDirection: s.layoutDirection,
     searchInput: s.searchInput,
@@ -120,6 +121,7 @@ export function FlowchartCanvas({
     standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
     mockFlags: s.mockFlags,
     conditionVisibilityMode: s.conditionVisibilityMode,
+    layoutDensity: s.layoutDensity,
   })));
   const {
     setLayoutDirection,
@@ -146,6 +148,7 @@ export function FlowchartCanvas({
     resetMockFlags,
     setConditionVisibilityMode,
     resetSession,
+    setLayoutDensity,
   } = useViewerStore(useShallow((s) => ({
     setLayoutDirection: s.setLayoutDirection,
     setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
@@ -171,6 +174,7 @@ export function FlowchartCanvas({
     resetMockFlags: s.resetMockFlags,
     setConditionVisibilityMode: s.setConditionVisibilityMode,
     resetSession: s.resetSession,
+    setLayoutDensity: s.setLayoutDensity,
   })));
 
   // Reset session state when this component unmounts (e.g. on new import).
@@ -216,6 +220,7 @@ export function FlowchartCanvas({
     flowEdges,
     layoutDirection,
     theme,
+    layoutDensity,
     perf,
     onRelayoutComplete,
   });
@@ -363,6 +368,9 @@ export function FlowchartCanvas({
         visibleEdgeKinds,
         visibleNodeIds,
         edgeColor: THEMES[theme].edge,
+        decisionColor: THEMES[theme].decisionBorder,
+        labelColor: THEMES[theme].labelBorder,
+        menuColor: THEMES[theme].menuBorder,
         largeGraphMode,
         conditionVisibilityMode,
         edgeConditionStateById: conditionalVisibility.edgeConditionStateById,
@@ -565,6 +573,8 @@ export function FlowchartCanvas({
               <ViewerAdvancedControls
                 layoutDirection={layoutDirection}
                 setLayoutDirection={setLayoutDirection}
+                layoutDensity={layoutDensity}
+                setLayoutDensity={setLayoutDensity}
                 onRelayout={relayout}
                 theme={theme}
                 setTheme={setTheme}

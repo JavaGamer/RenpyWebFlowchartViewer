@@ -6,13 +6,14 @@
  */
 
 import type { StateCreator } from 'zustand';
-import type { EdgeKindFilter, ThemeName } from '../../domain';
+import type { EdgeKindFilter, ThemeName, LayoutDensity } from '../../domain';
 import type { ViewerStore } from '../viewerStore';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
 export interface ThemeSliceState {
   theme: ThemeName;
+  layoutDensity: LayoutDensity;
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
@@ -22,6 +23,7 @@ export interface ThemeSliceState {
 
 export interface ThemeSliceActions {
   setTheme: (theme: ThemeName) => void;
+  setLayoutDensity: (density: LayoutDensity) => void;
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
@@ -33,6 +35,7 @@ export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
 
 export const defaultThemeState: ThemeSliceState = {
   theme: 'violet',
+  layoutDensity: 'normal',
   showCallReturns: false,
   showAudioAssetCues: true,
   visibleEdgeKinds: {
@@ -56,6 +59,11 @@ export const createThemeSlice: StateCreator<
   setTheme: (theme) =>
     set((draft) => {
       draft.theme = theme;
+    }),
+
+  setLayoutDensity: (density) =>
+    set((draft) => {
+      draft.layoutDensity = density;
     }),
 
   setShowCallReturns: (show) =>

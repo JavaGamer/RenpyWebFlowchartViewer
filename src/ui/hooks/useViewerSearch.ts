@@ -119,7 +119,7 @@ export function useViewerSearch({
     setDialogueSearchResults,
   ]);
 
-  // ── Local dialogue Fuse index (lazy: only built when there is an active query
+  // ── Local dialogue MiniSearch index (lazy: only built when there is an active query
   // and we are in small-graph mode; gated via hasActiveQuery to avoid rebuilding
   // on every keystroke) ─────────────────────────────────────────────────────────
   const searchableDocs = useMemo<DialogueSearchDocument[]>(() => {
@@ -171,7 +171,7 @@ export function useViewerSearch({
     [activeDialogueSearchResults],
   );
 
-  // ── Node Fuse index (lazy: only built when there is an active query) ─────────
+  // ── Node MiniSearch index (lazy: only built when there is an active query) ─────────
   const nodeSearchDocs = useMemo<NodeSearchDocument[]>(
     () => {
       if (!hasActiveQuery) return [];

@@ -7,17 +7,18 @@ import {
   type CanvasEdge,
   type LayoutDirection,
   type ThemeName,
+  type LayoutDensity,
   applyDagreLayout,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from '../../domain';
 import type { createPerfTracker } from '../../infrastructure';
-import { runLayoutInWorker, terminateLayoutWorker } from '../../infrastructure';
+import { runLayoutInWorker, terminateLayoutWorker, areWorkersSupported } from '../../infrastructure';
 
 const globalRecord = globalThis as Record<string, unknown>;
 const isTestEnv =
   typeof globalRecord['process'] !== 'undefined' &&
   (globalRecord['process'] as { env?: { NODE_ENV?: string } } | undefined)?.env?.NODE_ENV === 'test';
-const isWorkerSupported = typeof globalThis.Worker !== 'undefined';
+const isWorkerSupported = areWorkersSupported();
 
 type PerfTracker = ReturnType<typeof createPerfTracker>;
 
@@ -26,6 +27,7 @@ interface UseViewerLayoutParams {
   flowEdges: FlowEdge[];
   layoutDirection: LayoutDirection;
   theme: ThemeName;
+  layoutDensity: LayoutDensity;
   perf: PerfTracker;
   onRelayoutComplete?: () => void;
 }
@@ -35,6 +37,7 @@ export function useViewerLayout({
   flowEdges,
   layoutDirection,
   theme,
+  layoutDensity,
   perf,
   onRelayoutComplete,
 }: UseViewerLayoutParams): {
@@ -58,17 +61,20 @@ export function useViewerLayout({
   const [prevFlowEdges, setPrevFlowEdges] = useState(flowEdges);
   const [prevDirection, setPrevDirection] = useState(layoutDirection);
   const [prevTheme, setPrevTheme] = useState(theme);
+  const [prevDensity, setPrevDensity] = useState(layoutDensity);
 
   if (
     flowNodes !== prevFlowNodes ||
     flowEdges !== prevFlowEdges ||
     layoutDirection !== prevDirection ||
-    theme !== prevTheme
+    theme !== prevTheme ||
+    layoutDensity !== prevDensity
   ) {
     setPrevFlowNodes(flowNodes);
     setPrevFlowEdges(flowEdges);
     setPrevDirection(layoutDirection);
     setPrevTheme(theme);
+    setPrevDensity(layoutDensity);
     setIsCalculatingLayout(
       flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT && !isTestEnv && isWorkerSupported
     );
@@ -81,7 +87,7 @@ export function useViewerLayout({
     }
     perf.mark('layout');
     const progressive = shouldProgressiveLayout;
-    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive, theme });
+    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive, theme, layoutDensity });
     perf.measure('layout', 'layout_ms', {
       nodes: flowNodes.length,
       edges: flowEdges.length,
@@ -89,7 +95,7 @@ export function useViewerLayout({
       progressive,
     });
     return laidOut;
-  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout, theme]);
+  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout, theme, layoutDensity]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
@@ -101,6 +107,7 @@ export function useViewerLayout({
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         theme,
+        layoutDensity,
       });
       nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
       setNodes(next.nodes);
@@ -111,7 +118,7 @@ export function useViewerLayout({
       }
       return;
     }
-
+ 
     runLayoutInWorker(
       flowNodes,
       flowEdges,
@@ -120,6 +127,7 @@ export function useViewerLayout({
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         theme,
+        layoutDensity,
       },
       (next) => {
         nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
@@ -135,7 +143,7 @@ export function useViewerLayout({
         setIsCalculatingLayout(false);
       }
     );
-  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, theme]);
+  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, theme, layoutDensity]);
 
   useEffect(() => {
     startTransition(() => {
@@ -155,6 +163,7 @@ export function useViewerLayout({
         progressive: false,
         previousPositions: nodePositionsRef.current,
         theme,
+        layoutDensity,
       },
       (refined) => {
         nodePositionsRef.current = new Map(refined.nodes.map((n) => [n.id, n.position]));
@@ -173,7 +182,7 @@ export function useViewerLayout({
     return () => {
       cancelLayout();
     };
-  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout, theme]);
+  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout, theme, layoutDensity]);
 
   useEffect(() => {
     return () => {

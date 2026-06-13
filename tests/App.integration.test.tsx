@@ -375,8 +375,12 @@ describe('App – upload → parse → render integration', () => {
 
     await waitFor(() => {
       expect(view.getByRole('region', { name: /Parser warnings/i })).toBeInTheDocument();
-      expect(view.getByText(/Dynamic renpy\.call target cannot be resolved statically: dynamic_target/i)).toBeInTheDocument();
     });
+
+    const expandButton = view.getByRole('button', { name: /Parser Warnings/i });
+    await user.click(expandButton);
+
+    expect(view.getByText(/Dynamic renpy\.call target cannot be resolved statically: dynamic_target/i)).toBeInTheDocument();
   });
 
   it('shows a non-Error file read failure using fallback stringification', async () => {

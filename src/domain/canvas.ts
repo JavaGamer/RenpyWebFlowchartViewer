@@ -1,4 +1,6 @@
 import type { FlowNode, FlowEdge, EdgeKind } from './graph';
+import type { CSSProperties } from 'react';
+import type { Position, EdgeMarker } from '@xyflow/react';
 
 export interface NodeData extends Record<string, unknown> {
   label: string;
@@ -30,10 +32,10 @@ export interface CanvasNode {
   type?: string;
   position: { x: number; y: number };
   data: NodeData;
-  style?: any;
+  style?: CSSProperties;
   className?: string;
-  sourcePosition?: any;
-  targetPosition?: any;
+  sourcePosition?: Position;
+  targetPosition?: Position;
   hidden?: boolean;
   selected?: boolean;
   dragging?: boolean;
@@ -45,7 +47,7 @@ export interface CanvasNode {
   width?: number;
   height?: number;
   parentId?: string;
-  extent?: any;
+  extent?: 'parent' | [[number, number], [number, number]];
   expandParent?: boolean;
   ariaLabel?: string;
   focusable?: boolean;
@@ -62,18 +64,18 @@ export interface CanvasEdge {
   target: string;
   sourceHandle?: string | null;
   targetHandle?: string | null;
-  style?: any;
+  style?: CSSProperties;
   animated?: boolean;
   hidden?: boolean;
   deletable?: boolean;
   selectable?: boolean;
   data?: EdgeData;
   className?: string;
-  sourceNode?: any;
-  targetNode?: any;
+  sourceNode?: CanvasNode;
+  targetNode?: CanvasNode;
   selected?: boolean;
-  markerStart?: any;
-  markerEnd?: any;
+  markerStart?: string | EdgeMarker;
+  markerEnd?: string | EdgeMarker;
   zIndex?: number;
   ariaLabel?: string;
   interactionWidth?: number;
@@ -91,5 +93,7 @@ export type ConditionVisibilityMode = 'fade' | 'hide';
 
 export type ThemeName = 'violet' | 'highContrast' | 'colorblind';
 export type LayoutDirection = 'TB' | 'LR';
+export type LayoutDensity = 'compact' | 'normal' | 'spacious';
+
 
 

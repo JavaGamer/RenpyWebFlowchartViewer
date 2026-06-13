@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { PARSER_WORKER_PROTOCOL_VERSION } from '../src/infrastructure/workerProtocol';
+import { PARSER_WORKER_PROTOCOL_VERSION, type ParseChunkRequestMessage, type FinalizeRequestMessage } from '../src/infrastructure/workerProtocol';
 
 let workerMessageHandlers = new Set<(event: MessageEvent) => void>();
 let postedMessages: unknown[] = [];
@@ -284,10 +284,10 @@ describe('parseRenpyFilesInWorker', () => {
     });
 
     await waitForPostedMessages(2);
-    const parseChunks = postedMessages.filter((m: any) => m.type === 'parse_chunk');
+    const parseChunks = postedMessages.filter((m): m is ParseChunkRequestMessage => (m as { type: string }).type === 'parse_chunk');
     expect(parseChunks.length).toBe(2);
-    expect(parseChunks[0].files[0].name).toBe('a.rpy');
-    expect(parseChunks[1].files[0].name).toBe('b.rpy');
+    expect(parseChunks[0]!.files[0]!.name).toBe('a.rpy');
+    expect(parseChunks[1]!.files[0]!.name).toBe('b.rpy');
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
@@ -316,14 +316,14 @@ describe('parseRenpyFilesInWorker', () => {
     });
 
     await waitForPostedMessages(3);
-    const finalizeMsg = postedMessages.find((m: any) => m.type === 'finalize') as any;
+    const finalizeMsg = postedMessages.find((m): m is FinalizeRequestMessage => (m as { type: string }).type === 'finalize');
     expect(finalizeMsg).toBeDefined();
-    expect(finalizeMsg.nodes).toEqual([{ id: 'a' }, { id: 'b' }]);
+    expect(finalizeMsg!.nodes).toEqual([{ id: 'a' }, { id: 'b' }]);
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: 'finalize_result',
-      requestId: finalizeMsg.requestId,
+      requestId: finalizeMsg!.requestId,
       nodes: [{ id: 'a', role: 'story' }, { id: 'b', role: 'story' }],
       edges: [],
     });

@@ -7,6 +7,7 @@ self.onmessage = async (event: MessageEvent) => {
   try {
     const result = await applyElkLayout(rawNodes, rawEdges, direction, {
       theme: options?.theme,
+      layoutDensity: options?.layoutDensity,
     });
 
     self.postMessage({

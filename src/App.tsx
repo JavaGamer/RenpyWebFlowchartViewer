@@ -39,7 +39,7 @@ export default function App() {
           store.setFileCount(event.detail.files);
         }
       } else if (event.metric === 'parse_ms') {
-        store.recordParse(event.ms, event.detail as any);
+        store.recordParse(event.ms, event.detail as { files?: number; nodes?: number; edges?: number });
         if (typeof event.detail?.nodes === 'number') {
           store.setGraphMetrics(
             event.detail.nodes as number,

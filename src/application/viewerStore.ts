@@ -16,7 +16,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { temporal } from 'zundo';
 import { z } from 'zod';
 import type { DialogueSearchResult } from '../infrastructure';
-import type { ConditionVisibilityMode, EdgeKindFilter, ThemeName, LayoutDirection } from '../domain';
+import type { ConditionVisibilityMode, EdgeKindFilter, ThemeName, LayoutDirection, LayoutDensity } from '../domain';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import type { DialogueSearchMode } from './appStore';
 import type { MockFlagValue } from '../domain';
@@ -43,6 +43,7 @@ import {
  */
 export interface ViewerPersistedState {
   theme: ThemeName;
+  layoutDensity: LayoutDensity;
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
@@ -81,6 +82,7 @@ export interface ViewerSessionState {
 export interface ViewerActions {
   // Persisted setters
   setTheme: (theme: ThemeName) => void;
+  setLayoutDensity: (density: LayoutDensity) => void;
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
@@ -132,6 +134,7 @@ const defaultSessionState: ViewerSessionState = {
 
 const viewerPersistedStateSchema = z.object({
   theme: z.enum(['violet', 'highContrast', 'colorblind']).catch(defaultPersistedState.theme),
+  layoutDensity: z.enum(['compact', 'normal', 'spacious']).catch(defaultPersistedState.layoutDensity),
   showCallReturns: z.boolean().catch(defaultPersistedState.showCallReturns),
   showAudioAssetCues: z.boolean().catch(defaultPersistedState.showAudioAssetCues),
   visibleEdgeKinds: z
@@ -200,6 +203,7 @@ function migrateLegacyKeys(): string | null {
 
     const migratedState: ViewerPersistedState = {
       theme: viewerPersistedStateSchema.shape.theme.parse(rawTheme),
+      layoutDensity: 'normal',
       showCallReturns: rawCallReturns === 'true',
       showAudioAssetCues: true,
       visibleEdgeKinds: {
@@ -281,6 +285,7 @@ export const useViewerStore = create<ViewerStore>()(
       merge: (persisted, current) => mergePersistedState(persisted, current),
       partialize: (state): ViewerPersistedState => ({
         theme: state.theme,
+        layoutDensity: state.layoutDensity,
         showCallReturns: state.showCallReturns,
         showAudioAssetCues: state.showAudioAssetCues,
         visibleEdgeKinds: state.visibleEdgeKinds,

@@ -8,6 +8,7 @@ import { STORAGE_KEYS } from '../src/config/storageKeys';
 // Tests rely on the store's initial state rather than re-importing private symbols.
 const DEFAULTS = {
   theme: 'violet' as const,
+  layoutDensity: 'normal' as const,
   showCallReturns: false,
   visibleEdgeKinds: {
     sequence: true,

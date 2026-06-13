@@ -18,6 +18,7 @@ export type {
   LabeledEdgeType,
   ThemeName,
   LayoutDirection,
+  LayoutDensity,
 } from './canvas';
 
 export {

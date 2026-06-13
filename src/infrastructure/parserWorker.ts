@@ -3,6 +3,7 @@ import MiniSearch from 'minisearch';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
 import { createGraphState } from '../parser/pipelineState';
+import type { ParseDiagnostic } from '../parser/pipelineTypes';
 import pLimit from 'p-limit';
 import { tokenizeOneFile, processTokenizedFile, type TokenizedFile } from '../parser/filePipeline';
 import { finalizeRoles } from '../parser/roleFinalization';
@@ -243,7 +244,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         accumulatedState.nodes.push(...nodes);
         accumulatedState.edges.push(...edges);
         if (diagnostics) {
-          accumulatedState.diagnostics.push(...(diagnostics as any));
+          accumulatedState.diagnostics.push(...(diagnostics as ParseDiagnostic[]));
         }
         accumulatedState.pendingCallReturns.push(...pendingCallReturns);
         for (const label of hasReliableReturnInLabel) {
@@ -284,7 +285,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequestMessage>) => {
         const state = createGraphState();
         state.nodes = nodes;
         state.edges = edges;
-        state.diagnostics = diagnostics ? (diagnostics as any) : [];
+        state.diagnostics = diagnostics ? (diagnostics as ParseDiagnostic[]) : [];
         state.pendingCallReturns = pendingCallReturns;
         state.hasReliableReturnInLabel = new Set(hasReliableReturnInLabel);
         state.globalScreens = new Set(globalScreens);

@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, NodeData, ThemeName } from '../index';
+import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, NodeData, ThemeName, LayoutDensity } from '../index';
 import { resolveGraphIntegrity } from './integrity';
 
 interface ElkNode {
@@ -106,21 +106,34 @@ export function applyDagreLayout(
     progressive?: boolean;
     previousPositions?: Map<string, { x: number; y: number }>;
     theme?: ThemeName;
+    layoutDensity?: LayoutDensity;
   },
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
   const shouldUseProgressive =
     options?.progressive === true && normalizedNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
   if (shouldUseProgressive) {
-    return applyProgressiveDagreLayout(normalizedNodes, normalizedEdges, direction, options?.previousPositions, options?.theme);
+    return applyProgressiveDagreLayout(normalizedNodes, normalizedEdges, direction, options?.previousPositions, options?.theme, options?.layoutDensity);
   }
 
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
+
+  const density = options?.layoutDensity ?? 'normal';
+  let ranksep = direction === 'TB' ? 80 : 110;
+  let nodesep = 50;
+  if (density === 'compact') {
+    ranksep = direction === 'TB' ? 50 : 70;
+    nodesep = 30;
+  } else if (density === 'spacious') {
+    ranksep = direction === 'TB' ? 120 : 160;
+    nodesep = 80;
+  }
+
   g.setGraph({
     rankdir: direction,
-    ranksep: direction === 'TB' ? 80 : 110,
-    nodesep: 50,
+    ranksep,
+    nodesep,
     marginx: 20,
     marginy: 20,
   });
@@ -205,6 +218,7 @@ export function applyProgressiveDagreLayout(
   direction: 'TB' | 'LR',
   previousPositions?: Map<string, { x: number; y: number }>,
   theme?: ThemeName,
+  layoutDensity?: LayoutDensity,
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const orderedNodes = previousPositions
     ? rawNodes
@@ -212,7 +226,7 @@ export function applyProgressiveDagreLayout(
   const subset = orderedNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
   const subsetIds = new Set(subset.map((n) => n.id));
   const subsetEdges = rawEdges.filter((e) => subsetIds.has(e.source) && subsetIds.has(e.target));
-  const base = applyDagreLayout(subset, subsetEdges, direction, { theme });
+  const base = applyDagreLayout(subset, subsetEdges, direction, { theme, layoutDensity });
   const positionById = new Map<string, { x: number; y: number }>(
     base.nodes.map((n) => [n.id, n.position]),
   );
@@ -320,6 +334,7 @@ export async function applyElkLayout(
   direction: 'TB' | 'LR',
   options?: {
     theme?: ThemeName;
+    layoutDensity?: LayoutDensity;
   },
 ): Promise<{ nodes: CanvasNode[]; edges: CanvasEdge[] }> {
   if (!elkInstance) {
@@ -342,11 +357,22 @@ export async function applyElkLayout(
     targets: [e.target],
   }));
 
+  const density = options?.layoutDensity ?? 'normal';
+  let ranksep = direction === 'TB' ? 80 : 110;
+  let nodesep = 50;
+  if (density === 'compact') {
+    ranksep = direction === 'TB' ? 50 : 70;
+    nodesep = 30;
+  } else if (density === 'spacious') {
+    ranksep = direction === 'TB' ? 120 : 160;
+    nodesep = 80;
+  }
+
   const layoutOptions: Record<string, string> = {
     'elk.algorithm': 'layered',
     'elk.direction': direction === 'TB' ? 'DOWN' : 'RIGHT',
-    'elk.spacing.nodeNode': '50',
-    'elk.layered.spacing.nodeNodeBetweenLayers': direction === 'TB' ? '80' : '110',
+    'elk.spacing.nodeNode': String(nodesep),
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(ranksep),
     'elk.padding': '[top=20,left=20,bottom=20,right=20]',
     'org.eclipse.elk.nodePlacement.strategy': 'SIMPLE',
   };

@@ -1,3 +1,9 @@
+import MiniSearch from 'minisearch';
+import { createGraphState } from '../parser/pipelineState';
+import { tokenizeOneFile, processTokenizedFile } from '../parser/filePipeline';
+import { finalizeRoles } from '../parser/roleFinalization';
+import { DIALOGUE_MINISEARCH_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
+import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
 import {
   PARSER_WORKER_PROTOCOL_VERSION,
   type WorkerResponseMessage,
@@ -26,6 +32,13 @@ const MAX_POOL_SIZE = Math.max(
 );
 
 const workerPool: (Worker | null)[] = new Array(MAX_POOL_SIZE).fill(null);
+let isWorkerSpawningFailed = false;
+
+export function areWorkersSupported(): boolean {
+  if (typeof globalThis.Worker === 'undefined') return false;
+  if (isWorkerSpawningFailed) return false;
+  return true;
+}
 
 function getWorker(index: number): Worker {
   if (index < 0 || index >= MAX_POOL_SIZE) {
@@ -33,8 +46,13 @@ function getWorker(index: number): Worker {
   }
   let w = workerPool[index];
   if (!w) {
-    w = new Worker(new URL('./parserWorker.ts', import.meta.url), { type: 'module' });
-    workerPool[index] = w;
+    try {
+      w = new Worker(new URL('./parserWorker.ts', import.meta.url), { type: 'module' });
+      workerPool[index] = w;
+    } catch (err) {
+      isWorkerSpawningFailed = true;
+      throw err;
+    }
   }
   return w;
 }
@@ -88,9 +106,107 @@ async function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): P
   return digests;
 }
 
+let fallbackAccumulatedState = createGraphState();
+let fallbackDialogueSearchDocs: DialogueSearchDocument[] = [];
+let fallbackDialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null = null;
+
+function fallbackBuildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLines?: string[] }[]) {
+  fallbackDialogueSearchDocs = [];
+  for (const node of nodes) {
+    if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
+    for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
+      fallbackDialogueSearchDocs.push({
+        id: `${node.id}::${idx + 1}`,
+        nodeId: node.id,
+        nodeLabel: node.label,
+        lineIndex: idx + 1,
+        lineText: node.dialogueLines[idx]!,
+      });
+    }
+  }
+  if (fallbackDialogueSearchDocs.length > 0) {
+    fallbackDialogueSearchMiniSearch = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
+    fallbackDialogueSearchMiniSearch.addAll(fallbackDialogueSearchDocs);
+  } else {
+    fallbackDialogueSearchMiniSearch = null;
+  }
+}
+
+async function parseRenpyFilesFallback(
+  request: ParseWorkerClientRequest
+): Promise<ParseWorkerClientResult> {
+  const {
+    files,
+    resetActiveGraph,
+    isFinalChunk,
+    captureDialogueLines,
+    parserVariant,
+    screenActionRules,
+    onProgress,
+    onPartialResult,
+    signal,
+  } = request;
+
+  if (signal?.aborted) {
+    throw new DOMException('Parsing cancelled', 'AbortError');
+  }
+
+  try {
+    if (resetActiveGraph) {
+      fallbackAccumulatedState = createGraphState();
+      fallbackDialogueSearchDocs = [];
+      fallbackDialogueSearchMiniSearch = null;
+    }
+
+    for (let idx = 0; idx < files.length; idx += 1) {
+      if (signal?.aborted) {
+        throw new DOMException('Parsing cancelled', 'AbortError');
+      }
+      const tokenized = await tokenizeOneFile(files[idx], {}, idx);
+      processTokenizedFile(fallbackAccumulatedState, tokenized, {
+        captureDialogueLines: captureDialogueLines !== false,
+        parserVariant,
+        screenActionRules,
+      });
+
+      onProgress?.({
+        doneFiles: idx + 1,
+        totalFiles: files.length,
+        currentFile: files[idx].relativePath ?? files[idx].name,
+      });
+    }
+
+    if (isFinalChunk) {
+      finalizeRoles(fallbackAccumulatedState);
+      fallbackBuildDialogueSearchIndex(fallbackAccumulatedState.nodes);
+    }
+
+    const result: ParseWorkerClientResult = {
+      nodes: fallbackAccumulatedState.nodes,
+      edges: fallbackAccumulatedState.edges,
+      diagnostics: fallbackAccumulatedState.diagnostics.length > 0 ? fallbackAccumulatedState.diagnostics : undefined,
+    };
+
+    if (!isFinalChunk) {
+      onPartialResult?.(result);
+    }
+
+    return result;
+  } catch (error) {
+    if (resetActiveGraph || isFinalChunk) {
+      fallbackAccumulatedState = createGraphState();
+    }
+    throw error;
+  }
+}
+
 export function parseRenpyFilesInWorker(
   request: ParseWorkerClientRequest,
 ): Promise<ParseWorkerClientResult> {
+  if (!areWorkersSupported()) {
+    return parseRenpyFilesFallback(request);
+  }
+
   const {
     files,
     appendToActiveGraph,
@@ -258,6 +374,28 @@ export function searchDialogueLinesInWorker({
   maxResults,
   signal,
 }: SearchRequestPayload): Promise<DialogueSearchResult[]> {
+  if (!areWorkersSupported()) {
+    if (signal?.aborted) {
+      return Promise.reject(new DOMException('Search cancelled', 'AbortError'));
+    }
+    const maxRes = Math.max(1, Math.min(maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
+    const allowedIds = nodeIds ? new Set(nodeIds) : null;
+    let results: DialogueSearchResult[] = [];
+    if (fallbackDialogueSearchMiniSearch) {
+      const rawResults = fallbackDialogueSearchMiniSearch.search(query);
+      const filtered = allowedIds
+        ? rawResults.filter((entry) => allowedIds.has(entry.nodeId))
+        : rawResults;
+      results = filtered.slice(0, maxRes).map((entry) => ({
+        nodeId: entry.nodeId,
+        nodeLabel: entry.nodeLabel,
+        lineIndex: entry.lineIndex,
+        lineText: entry.lineText,
+      })) as DialogueSearchResult[];
+    }
+    return Promise.resolve(results);
+  }
+
   const parserWorker = getParserWorker();
   const requestId = ++requestCounter;
   if (signal?.aborted) {

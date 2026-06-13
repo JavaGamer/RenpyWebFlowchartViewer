@@ -5,7 +5,6 @@
  */
 
 import pLimit from 'p-limit';
-import { createPerfTracker } from '../infrastructure';
 import { compareDeterministicStrings } from '../domain';
 import { createGraphState } from './pipelineState';
 import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './filePipeline';
@@ -41,7 +40,8 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
-  const perf = createPerfTracker('parser');
+  const infra = await import('../infrastructure');
+  const perf = infra.createPerfTracker('parser');
   perf.mark('total');
   const state = createGraphState();
   const orderedFiles = [...files].sort(compareFiles);

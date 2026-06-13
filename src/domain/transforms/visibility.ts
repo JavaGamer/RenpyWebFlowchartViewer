@@ -132,6 +132,9 @@ export function buildVisibleEdges(params: {
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
   visibleNodeIds: Set<string>;
   edgeColor: string;
+  decisionColor?: string;
+  labelColor?: string;
+  menuColor?: string;
   largeGraphMode: boolean;
   conditionVisibilityMode?: ConditionVisibilityMode;
   edgeConditionStateById?: Map<string, ConditionReachability>;
@@ -143,12 +146,14 @@ export function buildVisibleEdges(params: {
     visibleEdgeKinds,
     visibleNodeIds,
     edgeColor,
+    decisionColor,
+    labelColor,
+    menuColor,
     largeGraphMode,
     conditionVisibilityMode = 'fade',
     edgeConditionStateById,
     previousById,
-  } =
-    params;
+  } = params;
   const visible: CanvasEdge[] = [];
   for (const edge of edges) {
     const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
@@ -159,7 +164,31 @@ export function buildVisibleEdges(params: {
     if (conditionVisibilityMode === 'hide' && conditionState === 'unreachable') continue;
     if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
     const edgeLabel = largeGraphMode && kind === 'sequence' ? '' : (edgeData.label ?? '');
-    const timeoutStyle = edgeData.timeout?.isTimeout ? { strokeDasharray: '8 4' } : {};
+
+    // Semantic edge colors and dash styles
+    let stroke = edgeColor;
+    let baseDash: string | undefined = undefined;
+
+    if (edgeData.condition) {
+      stroke = decisionColor ?? edgeColor;
+      baseDash = '5 3';
+    } else if (kind === 'call' || kind === 'call_return') {
+      stroke = labelColor ?? edgeColor;
+      baseDash = '3 3';
+    } else if (kind === 'jump') {
+      stroke = menuColor ?? edgeColor;
+      baseDash = '6 3';
+    }
+
+    const timeoutDash = edgeData.timeout?.isTimeout ? '8 4' : undefined;
+
+    const unreachableStyle =
+      conditionVisibilityMode === 'fade' && conditionState === 'unreachable'
+        ? { opacity: 0.28, strokeDasharray: timeoutDash || baseDash ? undefined : '5 4' }
+        : {};
+
+    const finalStrokeDasharray = timeoutDash || unreachableStyle.strokeDasharray || baseDash;
+
     const previous = previousById?.get(edge.id);
     const previousData = previous?.data as EdgeData | undefined;
     if (
@@ -171,20 +200,23 @@ export function buildVisibleEdges(params: {
       previousData?.conditionState === conditionState &&
       previous.source === edge.source &&
       previous.target === edge.target &&
-      previous.style?.stroke === edgeColor &&
-      previous.style?.strokeDasharray === timeoutStyle.strokeDasharray
+      previous.style?.stroke === stroke &&
+      previous.style?.strokeDasharray === finalStrokeDasharray
     ) {
       visible.push(previous);
       continue;
     }
-    const unreachableStyle =
-      conditionVisibilityMode === 'fade' && conditionState === 'unreachable'
-        ? { opacity: 0.28, ...(edgeData.timeout?.isTimeout ? {} : { strokeDasharray: '5 4' }) }
-        : {};
+
     visible.push({
       ...edge,
       data: { ...edgeData, label: edgeLabel, kind, conditionState },
-      style: { ...(edge.style || {}), ...timeoutStyle, ...unreachableStyle, stroke: edgeColor, strokeWidth: 1.5 },
+      style: {
+        ...(edge.style || {}),
+        ...unreachableStyle,
+        stroke,
+        strokeWidth: 1.5,
+        strokeDasharray: finalStrokeDasharray,
+      },
     });
   }
   return visible;

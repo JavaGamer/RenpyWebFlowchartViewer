@@ -4,11 +4,17 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { ParseGraphState } from './pipelineTypes';
 import { createScanState } from './pipelineState';
 import { processTokenTreeStream } from './tokenScanStage';
-import { createPerfTracker } from '../infrastructure';
 import type { ParseInputFile, ParseOptions } from './pipelineTypes';
 
 let _docVersion = 0;
-const parserPerf = createPerfTracker('parser:file');
+let parserPerf: any = null;
+
+async function initParserPerf() {
+  if (!parserPerf) {
+    const infra = await import('../infrastructure');
+    parserPerf = infra.createPerfTracker('parser:file');
+  }
+}
 
 async function renpyParse(content: string) {
   const document = TextDocument.create('file://my.rpy', 'rpy', ++_docVersion, content);
@@ -49,6 +55,7 @@ export async function tokenizeOneFile(
   }
 
   const tokenizeMark = `tokenize:${cacheKey ?? file.name}:${fileIndex ?? -1}`;
+  await initParserPerf();
   parserPerf.mark(tokenizeMark);
   const { document, nodes: tokenTree } = await renpyParse(file.content);
   parserPerf.measure(tokenizeMark, 'parse_tokenize_ms', { file: file.name });
