@@ -24,6 +24,8 @@ import {
   toDebugBundleBlob,
   type DebugBundlePrivacyOptions,
   useTelemetryStore,
+  type UploadFileStatus,
+  type UploadedFile,
 } from './application';
 import {
   getParserVariantPlugins,
@@ -110,10 +112,11 @@ export default function App() {
   );
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFileStatus[]>([]);
 
   // ── Process selected files ─────────────────────────────────────────────────
   const processFilesWithPerf = useCallback(
-    async (files: FileList | null) => {
+    async (files: FileList | UploadedFile[] | null) => {
       perf.mark('read');
       const processFiles = createProcessUpload({
         parseService: workerParseService,
@@ -135,6 +138,14 @@ export default function App() {
             nodes: nodeCount,
             edges: edgeCount,
           });
+        },
+        onFilesDiscovered: (files) => {
+          setUploadedFiles(files);
+        },
+        onFileStatusUpdate: (id, status, error) => {
+          setUploadedFiles((prev) =>
+            prev.map((f) => (f.id === id ? { ...f, status, error } : f))
+          );
         },
       });
       await processFiles(files);
@@ -234,6 +245,7 @@ export default function App() {
             )}
             <button
               onClick={() => {
+                setUploadedFiles([]);
                 appActions.reset();
               }}
               className="sm:ml-auto text-xs underline text-violet-600 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
@@ -267,7 +279,10 @@ export default function App() {
           setDebugPrivacyOptions={setDebugPrivacyOptions}
           processFiles={processFilesWithPerf}
           onCancelParsing={() => parseAbortControllerRef.current?.abort()}
-          onReset={() => appActions.reset()}
+          onReset={() => {
+            setUploadedFiles([]);
+            appActions.reset();
+          }}
           onExportDebugBundle={exportDebugBundle}
           onOpenIssue={openNewIssue}
           selectedVariant={selectedVariant}
@@ -275,6 +290,7 @@ export default function App() {
           parserVariantPlugins={parserVariantPlugins}
           resetParserRuleSettings={resetParserRuleSettings}
           selectedVariantCustomRules={selectedVariantCustomRules}
+          uploadedFiles={uploadedFiles}
           updateCustomRule={updateCustomRule}
           removeCustomRule={removeCustomRule}
           addCustomRule={addCustomRule}

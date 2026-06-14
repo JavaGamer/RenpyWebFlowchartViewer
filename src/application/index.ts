@@ -60,3 +60,11 @@ export {
   type TelemetryActions,
   type TelemetryStore,
 } from './telemetryStore';
+export {
+  type UploadedFile,
+  type UploadFileStatus,
+} from './uploadTypes';
+export { extractRpyFilesFromZip } from './zipExtractor';
+export { traverseFileSystemEntry, traverseDataTransferItems } from './dropTraversal';
+export { fetchFilesFromUrl, resolveGithubUrl } from './urlImporter';
+

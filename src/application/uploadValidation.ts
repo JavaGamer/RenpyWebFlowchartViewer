@@ -3,20 +3,39 @@ import {
   MAX_RPY_FILE_SIZE_BYTES,
   MAX_TOTAL_RPY_SIZE_BYTES,
 } from '../config/uploadLimits';
+import type { UploadedFile } from './uploadTypes';
 
 export interface UploadValidationResult {
-  rpyFiles: File[];
+  rpyFiles: UploadedFile[];
   errorMessage: string | null;
 }
 
-export function validateRpyUpload(files: FileList | null): UploadValidationResult {
+export function validateRpyUpload(files: FileList | UploadedFile[] | null): UploadValidationResult {
   if (!files || files.length === 0) {
     return { rpyFiles: [], errorMessage: null };
   }
 
-  const rpyFiles: File[] = [];
-  for (const file of files) {
-    if (file.name.toLowerCase().endsWith('.rpy')) rpyFiles.push(file);
+  const rpyFiles: UploadedFile[] = [];
+  if (Array.isArray(files)) {
+    for (const file of files) {
+      if (file.name.toLowerCase().endsWith('.rpy')) {
+        rpyFiles.push(file);
+      }
+    }
+  } else {
+    const fileList = files as FileList;
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList.item(i);
+      if (file && file.name.toLowerCase().endsWith('.rpy')) {
+        rpyFiles.push({
+          name: file.name,
+          size: file.size,
+          webkitRelativePath: file.webkitRelativePath ? file.webkitRelativePath.replace(/\\/g, '/') : undefined,
+          text: () => file.text(),
+          file,
+        });
+      }
+    }
   }
 
   if (rpyFiles.length === 0) {

@@ -57,9 +57,9 @@ export async function tokenizeOneFile(
 
   const tokenizeMark = `tokenize:${cacheKey ?? file.name}:${fileIndex ?? -1}`;
   await initParserPerf();
-  parserPerf.mark(tokenizeMark);
+  parserPerf?.mark(tokenizeMark);
   const { document, nodes: tokenTree } = await renpyParse(file.content);
-  parserPerf.measure(tokenizeMark, 'parse_tokenize_ms', { file: file.name });
+  parserPerf?.measure(tokenizeMark, 'parse_tokenize_ms', { file: file.name });
   if (cacheKey && tokenizedCache) {
     tokenizedCache.set(cacheKey, { document, tokenTree });
   }
@@ -72,7 +72,7 @@ export function processTokenizedFile(
   options: Pick<ParseFileOptions, 'captureDialogueLines' | 'parserVariant' | 'screenActionRules' | 'sceneSplitDialogueThreshold'> = {},
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
-  parserPerf.mark('scan');
+  parserPerf?.mark('scan');
   const scanState = createScanState();
   processTokenTreeStream(
     state,
@@ -85,7 +85,7 @@ export function processTokenizedFile(
     options.screenActionRules,
     options.sceneSplitDialogueThreshold,
   );
-  parserPerf.measure('scan', 'parse_scan_ms', { file: file.name });
+  parserPerf?.measure('scan', 'parse_scan_ms', { file: file.name });
 }
 
 export async function parseOneFile(
