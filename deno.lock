@@ -43,6 +43,7 @@
     "npm:lodash.debounce@^4.0.8": "4.0.8",
     "npm:lucide-react@^1.17.0": "1.17.0_react@19.2.5",
     "npm:minisearch@^7.1.1": "7.2.0",
+    "npm:npm@*": "11.17.0",
     "npm:p-limit@^7.3.0": "7.3.0",
     "npm:playwright@*": "1.60.0",
     "npm:react-dom@19.2.5": "19.2.5_react@19.2.5",
@@ -2177,6 +2178,10 @@
     },
     "node-releases@2.0.47": {
       "integrity": "sha512-Uzmd6LXpouKo8EUK68IjH4+E01w/hXyV3R3g/geCJo+rXLNfh1xucB+LOzYEOQPSiUK3h/xZf0cQGcSsmyL2Og=="
+    },
+    "npm@11.17.0": {
+      "integrity": "sha512-PurxiZexEHDTE4SSaLI3ZrnbAGiZfeyUcQcxcP5D+hfytNAze/D1IzDuInTn9XVLIbAQUnQuSPXJx02LHjLvQw==",
+      "bin": true
     },
     "obug@2.1.2": {
       "integrity": "sha512-AWGB9WFcRXOQs48Z/udjI5ZcZMHXwX8XPByNpOydgcGsDLIzjGizhoMWJyKAWze7AVW/2W1i+/gPX4YtKe5cyg=="
