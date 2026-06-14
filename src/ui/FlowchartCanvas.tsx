@@ -42,6 +42,7 @@ import { ViewerInspector } from './viewerInspector';
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from './viewerConstants';
 import type { CanvasMetrics, CanvasCallbacksRegistry } from './canvasTypes';
 import { deriveCollapsedLabelChildren } from './canvasHelpers';
+import { cn } from './utils/cn';
 
 export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
@@ -176,6 +177,8 @@ export function FlowchartCanvas({
     resetSession: s.resetSession,
     setLayoutDensity: s.setLayoutDensity,
   })));
+
+  const isDark = theme === 'dark';
 
   // Reset session state when this component unmounts (e.g. on new import).
   useEffect(() => () => resetSession(), [resetSession]);
@@ -546,21 +549,30 @@ export function FlowchartCanvas({
           {/* Radix does not render Dialog.Overlay in non-modal mode — use a plain div instead */}
           <div className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in" aria-hidden="true" />
           <Dialog.Content
-            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col focus:outline-none animate-slide-in"
+            className={cn(
+              "fixed right-0 top-0 bottom-0 w-full max-w-md shadow-2xl z-50 flex flex-col focus:outline-none animate-slide-in transition-colors duration-200",
+              isDark ? "bg-slate-900 border-l border-slate-800 text-slate-100" : "bg-white text-gray-900"
+            )}
             aria-modal="true"
             onInteractOutside={(e) => e.preventDefault()}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
+            <div className={cn(
+              "flex items-center justify-between px-6 py-4 border-b shrink-0 transition-colors duration-200",
+              isDark ? "border-slate-800 bg-slate-850" : "border-gray-100 bg-gray-50/50"
+            )}>
               <div>
-                <Dialog.Title className="text-base font-semibold text-gray-900">Advanced Settings</Dialog.Title>
-                <Dialog.Description className="text-xs text-gray-500 mt-0.5">
+                <Dialog.Title className={cn("text-base font-semibold", isDark ? "text-slate-100" : "text-gray-900")}>Advanced Settings</Dialog.Title>
+                <Dialog.Description className={cn("text-xs mt-0.5", isDark ? "text-slate-400" : "text-gray-500")}>
                   Configure graph layouts, filters, themes, and path simulations.
                 </Dialog.Description>
               </div>
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className={cn(
+                    "rounded-full p-1.5 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500",
+                    isDark ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                  )}
                   aria-label="Close advanced controls"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -569,7 +581,7 @@ export function FlowchartCanvas({
                 </button>
               </Dialog.Close>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className={cn("flex-1 overflow-y-auto px-6 py-4", isDark ? "bg-slate-900" : "bg-white")}>
               <ViewerAdvancedControls
                 layoutDirection={layoutDirection}
                 setLayoutDirection={setLayoutDirection}

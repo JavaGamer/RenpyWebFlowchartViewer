@@ -26,7 +26,9 @@ import {
   useTelemetryStore,
   type UploadFileStatus,
   type UploadedFile,
+  useViewerStore,
 } from './application';
+import { cn } from './ui/utils/cn';
 import {
   getParserVariantPlugins,
 } from './config/parserRules';
@@ -214,8 +216,14 @@ export default function App() {
     [selectedVariant, dialogueSearchMode, fileCount, parseDiagnostics.length, phase],
   );
 
+  const theme = useViewerStore((s) => s.theme);
+  const isDark = theme === 'dark';
+
   return (
-    <div className="flex flex-col h-full min-h-screen bg-gray-50 font-sans">
+    <div className={cn(
+      "flex flex-col h-full min-h-screen font-sans transition-colors duration-200",
+      isDark ? "bg-slate-950 text-slate-100" : "bg-gray-50 text-gray-900"
+    )}>
       <a
         href="#flowchart-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:text-violet-700 focus:shadow"
