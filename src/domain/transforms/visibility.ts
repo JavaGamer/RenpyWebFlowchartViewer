@@ -1,4 +1,4 @@
-import type { CanvasNode, CanvasEdge, NodeData, EdgeData, ConditionReachability, ConditionVisibilityMode, EdgeKindFilter } from '../index';
+import type { CanvasNode, CanvasEdge, NodeData, EdgeData, ConditionReachability, ConditionVisibilityMode, EdgeKindFilter, ThemeName } from '../index';
 import { evaluateConditionExpression, type MockFlagValue } from '../conditionLogic';
 import { normalizeEdgeKind } from './integrity';
 
@@ -34,7 +34,7 @@ export function buildVisibleNodes(params: {
   collapsedChapters: Record<string, boolean>;
   collapsedLabelChildren: Set<string>;
   conditionHiddenNodeIds?: Set<string>;
-  theme: 'violet' | 'highContrast' | 'colorblind';
+  theme: ThemeName;
   previousById?: Map<string, CanvasNode>;
 }): CanvasNode[] {
   const {

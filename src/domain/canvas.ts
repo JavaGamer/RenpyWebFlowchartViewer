@@ -16,7 +16,7 @@ export interface NodeData extends Record<string, unknown> {
   isTerminalOutcome?: boolean;
   conditionExpression?: string;
   conditionReferences?: string[];
-  theme: 'violet' | 'highContrast' | 'colorblind';
+  theme: ThemeName;
 }
 
 export interface EdgeData extends Record<string, unknown> {
@@ -91,7 +91,7 @@ export type EdgeKindFilter = EdgeKind;
 export type ConditionReachability = 'reachable' | 'unreachable' | 'unknown';
 export type ConditionVisibilityMode = 'fade' | 'hide';
 
-export type ThemeName = 'violet' | 'highContrast' | 'colorblind';
+export type ThemeName = 'violet' | 'highContrast' | 'colorblind' | 'dark';
 export type LayoutDirection = 'TB' | 'LR';
 export type LayoutDensity = 'compact' | 'normal' | 'spacious';
 

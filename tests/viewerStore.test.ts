@@ -131,6 +131,20 @@ describe('useViewerStore persistence', () => {
     expect(s.visibleEdgeKinds).toEqual({ sequence: false, jump: true, call: false, call_return: false });
   });
 
+  it('validates and preserves the dark theme value during rehydration', async () => {
+    const raw = JSON.stringify({
+      state: {
+        theme: 'dark',
+        showCallReturns: false,
+      },
+      version: 0,
+    });
+    globalThis.localStorage.setItem(STORAGE_KEYS.viewer, raw);
+    await useViewerStore.persist.rehydrate();
+    const s = useViewerStore.getState();
+    expect(s.theme).toBe('dark');
+  });
+
   // ── Legacy key migration ─────────────────────────────────────────────────────
 
   it('migrates legacy per-setting keys into rfv.viewer on rehydration', async () => {

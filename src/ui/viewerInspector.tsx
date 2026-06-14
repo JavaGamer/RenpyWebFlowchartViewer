@@ -5,6 +5,7 @@ import { type CanvasNode } from '../domain';
 import type { DialogueSearchResult } from '../infrastructure';
 import { renderHighlightedText, truncateForAria } from './viewerText';
 import { cn } from './utils/cn';
+import { useViewerStore } from '../application';
 
 import { Image as ImageIcon, Music as MusicIcon, Volume2 as Volume2Icon, Mic as MicIcon, VolumeX as VolumeXIcon } from 'lucide-react';
 
@@ -47,6 +48,9 @@ export function ViewerInspector({
   onSetActiveDialogueResultIndex,
   onSelectDialogueSearchResult,
 }: ViewerInspectorProps) {
+  const theme = useViewerStore((s) => s.theme);
+  const isDark = theme === 'dark';
+
   const dialogueResultsScrollRef = useRef<HTMLDivElement | null>(null);
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -83,22 +87,27 @@ export function ViewerInspector({
 
   return (
     <aside
-      className="w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l border-gray-200 bg-white p-3 overflow-y-auto max-h-[45vh] xl:max-h-none"
+      className={cn(
+        "w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l p-3 overflow-y-auto max-h-[45vh] xl:max-h-none transition-colors duration-200",
+        isDark
+          ? "border-slate-800 bg-slate-900 text-slate-100"
+          : "border-gray-200 bg-white text-gray-900"
+      )}
       aria-label="Inspector panel"
     >
       <div className="text-sm font-semibold mb-2">Inspector</div>
       {effectiveSearch.trim().length > 0 && (
         <div className="mb-4">
-          <div className="text-xs text-gray-700 mb-1" role="status" aria-live="polite">
+          <div className={cn("text-xs mb-1", isDark ? "text-slate-350" : "text-gray-700")} role="status" aria-live="polite">
             Node matches (label/count): {nodeSearchMatchCount}
           </div>
           {!dialogueLineSearchEnabled ? (
-            <div className="text-xs text-gray-600" role="status" aria-live="polite">
+            <div className={cn("text-xs", isDark ? "text-slate-400" : "text-gray-600")} role="status" aria-live="polite">
               Dialogue line matching is unavailable in performance mode.
             </div>
           ) : (
             <>
-              <div className="text-xs font-semibold text-gray-700 mb-1">
+              <div className={cn("text-xs font-semibold mb-1", isDark ? "text-slate-300" : "text-gray-700")}>
                 Dialogue line matches ({activeDialogueSearchResults.length})
               </div>
               <div
@@ -107,7 +116,7 @@ export function ViewerInspector({
                 aria-label="Dialogue search results"
               >
                 {activeDialogueSearchResults.length === 0 ? (
-                  <div className="text-xs text-gray-500">
+                  <div className={cn("text-xs", isDark ? "text-slate-450" : "text-gray-505")}>
                     <div role="status" aria-live="polite">
                       No dialogue lines matched “{effectiveSearch.trim()}”. Label or dialogue-count matches may still appear elsewhere.
                     </div>
@@ -134,14 +143,18 @@ export function ViewerInspector({
                               onSelectDialogueSearchResult(result);
                             }}
                             className={cn(
-                              "w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
-                              virtualItem.index === resolvedActiveDialogueResultIndex
-                                ? "border-violet-400 bg-violet-50"
-                                : "border-gray-200"
+                              "w-full text-left border rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors",
+                              isDark
+                                ? virtualItem.index === resolvedActiveDialogueResultIndex
+                                  ? "border-violet-500 bg-violet-950/50 text-violet-200"
+                                  : "border-slate-800 bg-slate-800/20 hover:bg-slate-850 text-slate-300"
+                                : virtualItem.index === resolvedActiveDialogueResultIndex
+                                  ? "border-violet-400 bg-violet-50 text-violet-900"
+                                  : "border-gray-200 bg-white hover:bg-gray-50 text-gray-755"
                             )}
                           >
                             <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                            <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
+                            <div className={cn("text-xs truncate", isDark ? "text-slate-400" : "text-gray-600")}>{renderHighlightedText(result.lineText, effectiveSearch)}</div>
                           </button>
                         </li>
                       );
@@ -149,7 +162,6 @@ export function ViewerInspector({
                   </ul>
                 ) : (
                   <ul className="space-y-1">
-
                     {activeDialogueSearchResults.map((result, resultIndex) => (
                       <li key={`${result.nodeId}-${result.lineIndex}`}>
                         <button
@@ -161,14 +173,18 @@ export function ViewerInspector({
                             onSelectDialogueSearchResult(result);
                           }}
                           className={cn(
-                            "w-full text-left border rounded px-2 py-1 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
-                            resultIndex === resolvedActiveDialogueResultIndex
-                              ? "border-violet-400 bg-violet-50"
-                              : "border-gray-200"
+                            "w-full text-left border rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors",
+                            isDark
+                              ? resultIndex === resolvedActiveDialogueResultIndex
+                                ? "border-violet-500 bg-violet-950/50 text-violet-200"
+                                : "border-slate-800 bg-slate-800/20 hover:bg-slate-850 text-slate-300"
+                              : resultIndex === resolvedActiveDialogueResultIndex
+                                ? "border-violet-400 bg-violet-50 text-violet-900"
+                                : "border-gray-200 bg-white hover:bg-gray-50 text-gray-755"
                           )}
                         >
                           <div className="text-xs font-medium">{result.nodeLabel} · line {result.lineIndex}</div>
-                          <div className="text-xs text-gray-600 truncate">{renderHighlightedText(result.lineText, effectiveSearch)}</div>
+                          <div className={cn("text-xs truncate", isDark ? "text-slate-400" : "text-gray-600")}>{renderHighlightedText(result.lineText, effectiveSearch)}</div>
                         </button>
                       </li>
                     ))}
@@ -176,7 +192,7 @@ export function ViewerInspector({
                 )}
               </div>
               {activeDialogueSearchResults.length > 0 && (
-                <div className="mt-1 text-[11px] text-gray-500" role="status" aria-live="polite">
+                <div className={cn("mt-1 text-[11px]", isDark ? "text-slate-500" : "text-gray-505")} role="status" aria-live="polite">
                   Tip: with search focused, use ↑/↓ to move results and Enter to open.
                 </div>
               )}
@@ -185,7 +201,7 @@ export function ViewerInspector({
         </div>
       )}
       {!selectedNode || !selectedNodeData ? (
-        <div className="text-xs text-gray-500">
+        <div className={cn("text-xs", isDark ? "text-slate-450" : "text-gray-505")}>
           {effectiveSearch.trim().length > 0
             ? 'Choose a search result or click a visible node to inspect dialogue lines.'
             : 'Select a node to inspect dialogue lines, or search to jump to matching dialogue.'}
@@ -193,30 +209,40 @@ export function ViewerInspector({
       ) : (
         <div className="space-y-2">
           <div className="text-xs">
-            <span className="font-semibold">Node:</span> {selectedNodeData.label}
+            <span className="font-semibold text-gray-500">Node:</span> {selectedNodeData.label}
           </div>
           <div className="text-xs">
-            <span className="font-semibold">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
+            <span className="font-semibold text-gray-500">Dialogue lines:</span> {selectedNodeData.dialogueCount ?? 0}
           </div>
 
           {selectedNodeData.audioAssetCues && selectedNodeData.audioAssetCues.length > 0 && (
-            <div className="text-xs space-y-2 mt-2 pt-2 border-t border-gray-100">
-              <div className="font-semibold text-gray-700">Media & Asset Cues</div>
+            <div className={cn("text-xs space-y-2 mt-2 pt-2 border-t", isDark ? "border-slate-800" : "border-gray-100")}>
+              <div className={cn("font-semibold", isDark ? "text-slate-300" : "text-gray-700")}>Media & Asset Cues</div>
               <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
                 {selectedNodeData.audioAssetCues.map((cue, idx) => {
                   const style = (() => {
                     switch (cue.type) {
                       case 'scene':
-                        return { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' };
+                        return isDark
+                          ? { backgroundColor: '#172554', borderColor: '#1e40af', color: '#60a5fa' }
+                          : { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' };
                       case 'play':
                       case 'queue':
                         return cue.channel === 'music'
-                          ? { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#047857' }
-                          : { backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' };
+                          ? isDark
+                            ? { backgroundColor: '#022c22', borderColor: '#065f46', color: '#34d399' }
+                            : { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#047857' }
+                          : isDark
+                            ? { backgroundColor: '#451a03', borderColor: '#78350f', color: '#fbbf24' }
+                            : { backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' };
                       case 'stop':
-                        return { backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c' };
+                        return isDark
+                          ? { backgroundColor: '#4c0519', borderColor: '#881337', color: '#f43f5e' }
+                          : { backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c' };
                       case 'voice':
-                        return { backgroundColor: '#faf5ff', borderColor: '#e9d5ff', color: '#7e22ce' };
+                        return isDark
+                          ? { backgroundColor: '#2e1065', borderColor: '#581c87', color: '#c084fc' }
+                          : { backgroundColor: '#faf5ff', borderColor: '#e9d5ff', color: '#7e22ce' };
                       default:
                         return {};
                     }
@@ -225,16 +251,16 @@ export function ViewerInspector({
                   const icon = (() => {
                     switch (cue.type) {
                       case 'scene':
-                        return <ImageIcon size={12} className="shrink-0 text-blue-700" />;
+                        return <ImageIcon size={12} className={cn("shrink-0", isDark ? "text-blue-400" : "text-blue-700")} />;
                       case 'play':
                       case 'queue':
                         return cue.channel === 'music'
-                          ? <MusicIcon size={12} className="shrink-0 text-emerald-700" />
-                          : <Volume2Icon size={12} className="shrink-0 text-amber-700" />;
+                          ? <MusicIcon size={12} className={cn("shrink-0", isDark ? "text-emerald-400" : "text-emerald-700")} />
+                          : <Volume2Icon size={12} className={cn("shrink-0", isDark ? "text-amber-400" : "text-amber-700")} />;
                       case 'stop':
-                        return <VolumeXIcon size={12} className="shrink-0 text-rose-700" />;
+                        return <VolumeXIcon size={12} className={cn("shrink-0", isDark ? "text-rose-400" : "text-rose-700")} />;
                       case 'voice':
-                        return <MicIcon size={12} className="shrink-0 text-purple-700" />;
+                        return <MicIcon size={12} className={cn("shrink-0", isDark ? "text-purple-400" : "text-purple-700")} />;
                       default:
                         return null;
                     }
@@ -243,7 +269,9 @@ export function ViewerInspector({
                   return (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border shadow-sm font-mono"
+                      className={cn(
+                        "flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border shadow-sm font-mono transition-colors duration-200"
+                      )}
                       style={style}
                       title={cue.raw}
                     >
@@ -279,8 +307,14 @@ export function ViewerInspector({
                       ref={inspectorLinesVirtualizer.measureElement}
                       data-index={virtualItem.index}
                       className={cn(
-                        "text-xs border rounded px-2 py-1",
-                        isSelectedLine ? "border-violet-400 bg-violet-50" : "border-gray-200"
+                        "text-xs border rounded px-2 py-1 transition-colors",
+                        isDark
+                          ? isSelectedLine
+                            ? "border-violet-500 bg-violet-950/50 text-violet-200"
+                            : "border-slate-800 bg-slate-800/10 text-slate-300"
+                          : isSelectedLine
+                            ? "border-violet-400 bg-violet-50 text-violet-900"
+                            : "border-gray-200 bg-white text-gray-805"
                       )}
                       style={{ position: 'absolute', left: 0, top: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
                     >
@@ -299,8 +333,14 @@ export function ViewerInspector({
                     <div
                       key={`${selectedNodeId}-${idx}`}
                       className={cn(
-                        "text-xs border rounded px-2 py-1",
-                        isSelectedLine ? "border-violet-400 bg-violet-50" : "border-gray-200"
+                        "text-xs border rounded px-2 py-1 transition-colors",
+                        isDark
+                          ? isSelectedLine
+                            ? "border-violet-500 bg-violet-950/50 text-violet-200"
+                            : "border-slate-800 bg-slate-800/10 text-slate-300"
+                          : isSelectedLine
+                            ? "border-violet-400 bg-violet-50 text-violet-900"
+                            : "border-gray-200 bg-white text-gray-805"
                       )}
                     >
                       <span className="font-medium mr-1">{absoluteIndex}.</span>
@@ -315,7 +355,12 @@ export function ViewerInspector({
             <button
               type="button"
               onClick={onToggleShowAllInspectorLines}
-              className="text-xs text-violet-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+              className={cn(
+                "text-xs hover:underline focus-visible:outline-none focus-visible:ring-2 rounded transition-colors",
+                isDark
+                  ? "text-violet-300 focus-visible:ring-violet-400"
+                  : "text-violet-700 focus-visible:ring-violet-500"
+              )}
             >
               {showAllInspectorLines ? 'Show less' : `Show more (${(selectedNodeData.dialogueLines?.length ?? 0) - INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT} more)`}
             </button>

@@ -133,7 +133,7 @@ const defaultSessionState: ViewerSessionState = {
 // ─── Persist merge/validation helpers ────────────────────────────────────────
 
 const viewerPersistedStateSchema = z.object({
-  theme: z.enum(['violet', 'highContrast', 'colorblind']).catch(defaultPersistedState.theme),
+  theme: z.enum(['violet', 'highContrast', 'colorblind', 'dark']).catch(defaultPersistedState.theme),
   layoutDensity: z.enum(['compact', 'normal', 'spacious']).catch(defaultPersistedState.layoutDensity),
   showCallReturns: z.boolean().catch(defaultPersistedState.showCallReturns),
   showAudioAssetCues: z.boolean().catch(defaultPersistedState.showAudioAssetCues),

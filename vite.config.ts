@@ -7,6 +7,11 @@ import { resolve } from 'node:path'
 export default defineConfig({
   base: '/RenpyWebFlowchartViewer/',
   plugins: [react(), tailwindcss()],
+  server: {
+    watch: {
+      ignored: ['**/node_modules/**', '**/.deno/**', '**/.git/**'],
+    },
+  },
   resolve: {
     alias: {
       // Browser stubs for Node.js built-ins used by @renpy/ast

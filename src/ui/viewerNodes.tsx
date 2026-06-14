@@ -4,6 +4,7 @@ import type { DecisionNodeType, LabelNodeType, MenuNodeType } from '../domain';
 import { THEMES } from './viewerTheme';
 import { useViewerStore } from '../application';
 import { Image as ImageIcon, Music as MusicIcon, Volume2 as Volume2Icon, Mic as MicIcon } from 'lucide-react';
+import { cn } from './utils/cn';
 
 function getTheme(themeName: unknown) {
   if (typeof themeName === 'string' && themeName in THEMES) {
@@ -14,6 +15,7 @@ function getTheme(themeName: unknown) {
 
 export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
   const theme = getTheme(data.theme);
+  const isDark = data.theme === 'dark';
   const isShadowed = data.isShadowed === true;
   const isTerminalOutcome = data.isTerminalOutcome === true;
   const showAudioAssetCues = useViewerStore((s) => s.showAudioAssetCues);
@@ -50,12 +52,22 @@ export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: Nod
         </div>
         <div className="flex items-center gap-1">
           {isTerminalOutcome && (
-            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+            <span className={cn(
+              "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border",
+              isDark
+                ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-300"
+                : "bg-emerald-100 border-transparent text-emerald-800"
+            )}>
               End of Route
             </span>
           )}
           {isShadowed && (
-            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+            <span className={cn(
+              "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border",
+              isDark
+                ? "bg-amber-950/60 border-amber-800/80 text-amber-300"
+                : "bg-amber-100 border-transparent text-amber-800"
+            )}>
               Shadowed
             </span>
           )}
@@ -78,10 +90,18 @@ export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: Nod
         </div>
       )}
       {showAudioAssetCues && cues.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5 justify-start">
+        <div
+          className="mt-2 pt-2 border-t flex flex-wrap gap-1.5 justify-start"
+          style={{ borderColor: isDark ? `${theme.labelBorder}33` : '#f3f4f6' }}
+        >
           {sceneCues.length > 0 && (
             <div
-              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-blue-50 border-blue-200 text-blue-700 cursor-help"
+              className={cn(
+                "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                isDark
+                  ? "bg-blue-950/60 border-blue-800/80 text-blue-300"
+                  : "bg-blue-50 border-blue-200 text-blue-700"
+              )}
               title={sceneTooltip}
             >
               <ImageIcon size={10} />
@@ -90,7 +110,12 @@ export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: Nod
           )}
           {musicCues.length > 0 && (
             <div
-              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 border-emerald-200 text-emerald-700 cursor-help"
+              className={cn(
+                "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                isDark
+                  ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-300"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
+              )}
               title={musicTooltip}
             >
               <MusicIcon size={10} />
@@ -99,7 +124,12 @@ export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: Nod
           )}
           {soundCues.length > 0 && (
             <div
-              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-amber-50 border-amber-200 text-amber-700 cursor-help"
+              className={cn(
+                "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                isDark
+                  ? "bg-amber-950/60 border-amber-900/80 text-amber-300"
+                  : "bg-amber-50 border-amber-200 text-amber-700"
+              )}
               title={soundTooltip}
             >
               <Volume2Icon size={10} />
@@ -108,7 +138,12 @@ export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: Nod
           )}
           {voiceCues.length > 0 && (
             <div
-              className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-purple-50 border-purple-200 text-purple-700 cursor-help"
+              className={cn(
+                "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                isDark
+                  ? "bg-purple-950/60 border-purple-800/80 text-purple-300"
+                  : "bg-purple-50 border-purple-200 text-purple-700"
+              )}
               title={voiceTooltip}
             >
               <MicIcon size={10} />
