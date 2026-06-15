@@ -37,59 +37,112 @@ export function createEmptyTokenMeta(): TokenMetaFlags {
 }
 
 export function analyzeTokenMetaInto(
-  metas: Iterable<number>,
+  metas: Iterable<number> | readonly number[],
   outMeta: TokenMetaFlags,
 ): TokenMetaFlags {
   const meta = resetMetaFlags(outMeta);
+  const metaPythonBlock = PARSER_TOKENS.metaPythonBlock;
+  const metaScreenBlock = PARSER_TOKENS.metaScreenBlock;
 
-  for (const m of metas) {
-    if (PARSER_TOKENS.metaPythonBlock !== undefined && m === PARSER_TOKENS.metaPythonBlock) {
-      meta.hasPythonBlock = true;
-      continue;
+  if (Array.isArray(metas)) {
+    const len = metas.length;
+    for (let i = 0; i < len; i++) {
+      const m = metas[i]!;
+      if (m === metaPythonBlock) {
+        meta.hasPythonBlock = true;
+        continue;
+      }
+      if (m === metaScreenBlock) {
+        meta.hasScreenBlock = true;
+        continue;
+      }
+      switch (m) {
+        case PARSER_TOKENS.metaMenuStatement:
+          meta.menuDepth += 1;
+          meta.hasMenuStatement = true;
+          break;
+        case PARSER_TOKENS.metaLabelStatement:
+          meta.hasLabelStatement = true;
+          break;
+        case PARSER_TOKENS.metaMenuBlock:
+          meta.hasMenuBlock = true;
+          break;
+        case PARSER_TOKENS.metaMenuOption:
+          meta.hasMenuOption = true;
+          break;
+        case PARSER_TOKENS.metaMenuOptionBlock:
+          meta.hasMenuOptionBlock = true;
+          break;
+        case PARSER_TOKENS.metaJumpStatement:
+          meta.hasJumpStatement = true;
+          break;
+        case PARSER_TOKENS.metaCallStatement:
+          meta.hasCallStatement = true;
+          break;
+        case PARSER_TOKENS.metaSayNarrator:
+          meta.hasSayNarrator = true;
+          break;
+        case PARSER_TOKENS.metaSayCharacter:
+          meta.hasSayCharacter = true;
+          break;
+        case PARSER_TOKENS.metaSayStatement:
+          meta.hasSayStatement = true;
+          break;
+        default:
+          break;
+      }
     }
-    if (PARSER_TOKENS.metaScreenBlock !== undefined && m === PARSER_TOKENS.metaScreenBlock) {
-      meta.hasScreenBlock = true;
-      continue;
-    }
-    switch (m) {
-      case PARSER_TOKENS.metaMenuStatement:
-        meta.menuDepth += 1;
-        meta.hasMenuStatement = true;
-        break;
-      case PARSER_TOKENS.metaLabelStatement:
-        meta.hasLabelStatement = true;
-        break;
-      case PARSER_TOKENS.metaMenuBlock:
-        meta.hasMenuBlock = true;
-        break;
-      case PARSER_TOKENS.metaMenuOption:
-        meta.hasMenuOption = true;
-        break;
-      case PARSER_TOKENS.metaMenuOptionBlock:
-        meta.hasMenuOptionBlock = true;
-        break;
-      case PARSER_TOKENS.metaJumpStatement:
-        meta.hasJumpStatement = true;
-        break;
-      case PARSER_TOKENS.metaCallStatement:
-        meta.hasCallStatement = true;
-        break;
-      case PARSER_TOKENS.metaSayNarrator:
-        meta.hasSayNarrator = true;
-        break;
-      case PARSER_TOKENS.metaSayCharacter:
-        meta.hasSayCharacter = true;
-        break;
-      case PARSER_TOKENS.metaSayStatement:
-        meta.hasSayStatement = true;
-        break;
-      default:
-        break;
+  } else {
+    for (const m of metas) {
+      if (m === metaPythonBlock) {
+        meta.hasPythonBlock = true;
+        continue;
+      }
+      if (m === metaScreenBlock) {
+        meta.hasScreenBlock = true;
+        continue;
+      }
+      switch (m) {
+        case PARSER_TOKENS.metaMenuStatement:
+          meta.menuDepth += 1;
+          meta.hasMenuStatement = true;
+          break;
+        case PARSER_TOKENS.metaLabelStatement:
+          meta.hasLabelStatement = true;
+          break;
+        case PARSER_TOKENS.metaMenuBlock:
+          meta.hasMenuBlock = true;
+          break;
+        case PARSER_TOKENS.metaMenuOption:
+          meta.hasMenuOption = true;
+          break;
+        case PARSER_TOKENS.metaMenuOptionBlock:
+          meta.hasMenuOptionBlock = true;
+          break;
+        case PARSER_TOKENS.metaJumpStatement:
+          meta.hasJumpStatement = true;
+          break;
+        case PARSER_TOKENS.metaCallStatement:
+          meta.hasCallStatement = true;
+          break;
+        case PARSER_TOKENS.metaSayNarrator:
+          meta.hasSayNarrator = true;
+          break;
+        case PARSER_TOKENS.metaSayCharacter:
+          meta.hasSayCharacter = true;
+          break;
+        case PARSER_TOKENS.metaSayStatement:
+          meta.hasSayStatement = true;
+          break;
+        default:
+          break;
+      }
     }
   }
 
   return meta;
 }
+
 
 export function analyzeTokenMeta(metas: Iterable<number>): TokenMetaFlags {
   return analyzeTokenMetaInto(metas, createEmptyTokenMeta());

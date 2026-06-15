@@ -193,6 +193,8 @@ function buildTokenMap(): ParserTokenMap {
 
 export const PARSER_TOKENS = buildTokenMap();
 
+const menuKeywordTypesSet = new Set(PARSER_TOKENS.menuKeywordTypes);
+
 export function isMenuKeywordTokenType(type: number): boolean {
-  return PARSER_TOKENS.menuKeywordTypes.includes(type);
+  return menuKeywordTypesSet.has(type);
 }

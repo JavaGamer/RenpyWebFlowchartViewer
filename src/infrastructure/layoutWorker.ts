@@ -1,8 +1,11 @@
 import { expose } from 'comlink';
-import { applyElkLayout } from '../domain';
+import { applyElkLayout, preWarmElk } from '../domain';
 import type { FlowNode, FlowEdge, ThemeName, LayoutDensity } from '../domain';
 
 const layoutApi = {
+  async preWarm() {
+    await preWarmElk();
+  },
   async runLayout(
     rawNodes: FlowNode[],
     rawEdges: FlowEdge[],

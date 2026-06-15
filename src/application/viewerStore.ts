@@ -75,6 +75,8 @@ export interface ViewerSessionState {
   standaloneDialogueSearchMode: DialogueSearchMode;
   mockFlags: Record<string, MockFlagValue>;
   conditionVisibilityMode: ConditionVisibilityMode;
+  selectedSearchChapter: string;
+  selectedSearchNodeKinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -110,6 +112,8 @@ export interface ViewerActions {
   setMockFlag: (flag: string, value: MockFlagValue) => void;
   resetMockFlags: () => void;
   setConditionVisibilityMode: (mode: ConditionVisibilityMode) => void;
+  setSelectedSearchChapter: (chapter: string) => void;
+  setSelectedSearchNodeKinds: (kinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>) => void;
 
   /** Resets all session state to defaults. Called on component unmount. */
   resetSession: () => void;

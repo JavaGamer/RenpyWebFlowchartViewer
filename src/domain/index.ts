@@ -24,6 +24,7 @@ export type {
 export {
   applyDagreLayout,
   applyElkLayout,
+  preWarmElk,
   getNodeCenter,
   buildVisibleNodes,
   buildVisibleEdges,

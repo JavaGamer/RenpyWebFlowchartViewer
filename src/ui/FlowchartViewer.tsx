@@ -73,12 +73,16 @@ export default function FlowchartViewer({
     theme,
     showAdvancedControls,
     standaloneDialogueSearchMode,
+    selectedSearchChapter,
+    selectedSearchNodeKinds,
   } = useViewerStore(useShallow((s) => ({
     searchInput: s.searchInput,
     minDialogue: s.minDialogue,
     theme: s.theme,
     showAdvancedControls: s.showAdvancedControls,
     standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
+    selectedSearchChapter: s.selectedSearchChapter,
+    selectedSearchNodeKinds: s.selectedSearchNodeKinds,
   })));
   const {
     setSearchInput,
@@ -86,13 +90,27 @@ export default function FlowchartViewer({
     toggleShowAdvancedControls,
     setShowAdvancedControls,
     setStandaloneDialogueSearchMode,
+    setSelectedSearchChapter,
+    setSelectedSearchNodeKinds,
   } = useViewerStore(useShallow((s) => ({
     setSearchInput: s.setSearchInput,
     setMinDialogue: s.setMinDialogue,
     toggleShowAdvancedControls: s.toggleShowAdvancedControls,
     setShowAdvancedControls: s.setShowAdvancedControls,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
+    setSelectedSearchChapter: s.setSelectedSearchChapter,
+    setSelectedSearchNodeKinds: s.setSelectedSearchNodeKinds,
   })));
+
+  const uniqueChapters = useMemo(() => {
+    const chapters = new Set<string>();
+    for (const node of flowNodes) {
+      if (node.chapter) {
+        chapters.add(node.chapter);
+      }
+    }
+    return Array.from(chapters).sort();
+  }, [flowNodes]);
 
   const { undo, redo, pastStates, futureStates } = useStore(
     useViewerStore.temporal,
@@ -267,6 +285,11 @@ export default function FlowchartViewer({
         canRedo={canRedo}
         onUndo={undo}
         onRedo={redo}
+        selectedSearchChapter={selectedSearchChapter}
+        setSelectedSearchChapter={setSelectedSearchChapter}
+        selectedSearchNodeKinds={selectedSearchNodeKinds}
+        setSelectedSearchNodeKinds={setSelectedSearchNodeKinds}
+        uniqueChapters={uniqueChapters}
       />
 
       {/* ErrorBoundary wraps FlowchartCanvas so errors from layout hooks,

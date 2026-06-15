@@ -16,5 +16,5 @@ export {
   type ParseChunkResult,
 } from './parserWorkerClient';
 export { FileReadError, readFileAsText } from './fileReader';
-export { runLayoutInWorker, terminateLayoutWorker } from './layoutWorkerClient';
+export { runLayoutInWorker, terminateLayoutWorker, preWarmLayoutWorker } from './layoutWorkerClient';
 export { createPerfTracker, type PerfEvent, type PerfTrackerOptions } from './perf';

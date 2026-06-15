@@ -86,11 +86,47 @@ class SyncPromise {
   }
 }
 
+export let mockWorkersSupported = true;
+vi.mock('../src/infrastructure/parserWorkerClient', async (importOriginal) => {
+  const original = await importOriginal<any>();
+  return {
+    ...original,
+    areWorkersSupported: () => mockWorkersSupported,
+  };
+});
+
 vi.mock('comlink', () => {
   let activeRequestId = 0;
   return {
     wrap: (worker: any) => {
       return {
+        preWarm: () => {
+          const requestId = ++activeRequestId;
+          worker.postMessage({
+            requestId,
+            type: 'preWarm',
+          });
+          return new SyncPromise((resolve, reject) => {
+            const listener = (event: any) => {
+              const msg = event.data;
+              if (msg.requestId !== requestId) return;
+              worker.removeEventListener('message', listener);
+              worker.removeEventListener('error', errorListener);
+              if (msg.error) {
+                reject(new Error(msg.error));
+              } else {
+                resolve(undefined);
+              }
+            };
+            const errorListener = (event: any) => {
+              worker.removeEventListener('error', errorListener);
+              worker.removeEventListener('message', listener);
+              reject(event.error || new Error(event.message || 'worker crashed'));
+            };
+            worker.addEventListener('message', listener);
+            worker.addEventListener('error', errorListener);
+          });
+        },
         runLayout: (rawNodes: any, rawEdges: any, direction: any, options: any) => {
           const requestId = ++activeRequestId;
           worker.postMessage({
@@ -359,5 +395,43 @@ describe('layoutWorkerClient', () => {
     // Now cancel should be a no-op (the requestId no longer matches activeRequestId)
     cancel();
     expect(mockWorkerInstance.terminate).not.toHaveBeenCalled();
+  });
+
+  describe('preWarmLayoutWorker', () => {
+    beforeEach(() => {
+      vi.stubEnv('NODE_ENV', 'development');
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('creates a Worker and posts the preWarm message', async () => {
+      const { preWarmLayoutWorker } = await freshClient();
+
+      preWarmLayoutWorker();
+
+      expect(vi.mocked(globalThis.Worker)).toHaveBeenCalledTimes(1);
+      expect(mockWorkerInstance.postMessage).toHaveBeenCalledTimes(1);
+      const payload = mockWorkerInstance.postMessage.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).toMatchObject({ type: 'preWarm' });
+      expect(typeof payload['requestId']).toBe('number');
+    });
+
+    it('bypasses pre-warming when workers are not supported', async () => {
+      const { preWarmLayoutWorker } = await freshClient();
+      vi.stubGlobal('Worker', undefined);
+
+      preWarmLayoutWorker();
+    });
+
+    it('bypasses pre-warming when NODE_ENV is test', async () => {
+      vi.stubEnv('NODE_ENV', 'test');
+      const { preWarmLayoutWorker } = await freshClient();
+
+      preWarmLayoutWorker();
+
+      expect(vi.mocked(globalThis.Worker)).not.toHaveBeenCalled();
+    });
   });
 });

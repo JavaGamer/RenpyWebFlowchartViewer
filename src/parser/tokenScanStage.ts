@@ -63,21 +63,42 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
  * @param cache Map containing cached line indent results.
  * @returns The length of the leading whitespace characters on the line.
  */
+
+
+/**
+ * Computes and caches the indent of a specific line in the TextDocument.
+ * Indent is measured in terms of character length of leading space and tab characters.
+ *
+ * @param document The text document being parsed.
+ * @param lineNumber The 0-indexed line number.
+ * @param cache Map containing cached line indent results.
+ * @returns The length of the leading whitespace characters on the line.
+ */
 function getLineIndent(
   document: TextDocument,
   lineNumber: number,
   cache: Map<number, number>,
+  docLines?: readonly string[],
 ): number {
   const cached = cache.get(lineNumber);
   if (cached !== undefined) {
     return cached;
   }
-  const line = document.getText({
-    start: { line: lineNumber, character: 0 },
-    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
-  });
-  const match = line.match(/^[ \t]*/);
-  const indent = match?.[0]?.length ?? 0;
+  const line = docLines
+    ? (docLines[lineNumber] ?? '')
+    : document.getText({
+        start: { line: lineNumber, character: 0 },
+        end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
+      });
+  let indent = 0;
+  const len = line.length;
+  while (indent < len) {
+    const char = line.charCodeAt(indent);
+    if (char !== 32 && char !== 9) {
+      break;
+    }
+    indent++;
+  }
   cache.set(lineNumber, indent);
   return indent;
 }
@@ -94,15 +115,18 @@ function getLineText(
   document: TextDocument,
   lineNumber: number,
   cache: Map<number, string>,
+  docLines?: readonly string[],
 ): string {
   const cached = cache.get(lineNumber);
   if (cached !== undefined) {
     return cached;
   }
-  const line = document.getText({
-    start: { line: lineNumber, character: 0 },
-    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
-  });
+  const line = docLines
+    ? (docLines[lineNumber] ?? '')
+    : document.getText({
+        start: { line: lineNumber, character: 0 },
+        end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
+      });
   cache.set(lineNumber, line);
   return line;
 }
@@ -124,13 +148,14 @@ function getConditionalLogicalLine(
   lineNumber: number,
   lineTextCache: Map<number, string>,
   logicalLineCache: Map<number, string>,
+  docLines?: readonly string[],
 ): string {
   const cached = logicalLineCache.get(lineNumber);
   if (cached !== undefined) {
     return cached;
   }
 
-  let logicalText = getLineText(document, lineNumber, lineTextCache);
+  let logicalText = getLineText(document, lineNumber, lineTextCache, docLines);
   let currentLine = lineNumber;
   let maxLine = lineNumber;
   const delimiterStack: Array<')' | ']' | '}'> = [];
@@ -197,7 +222,7 @@ function getConditionalLogicalLine(
         }
       }
 
-      if (!/\s/.test(char)) {
+      if (!(char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f' || char === '\v')) {
         lastSignificantCharOutsideComment = char;
       }
     }
@@ -210,7 +235,7 @@ function getConditionalLogicalLine(
   // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
   while ((explicitContinuation || delimiterStack.length > 0) && currentLine + 1 < document.lineCount) {
     currentLine += 1;
-    const nextLine = getLineText(document, currentLine, lineTextCache);
+    const nextLine = getLineText(document, currentLine, lineTextCache, docLines);
     logicalText += `\n${nextLine}`;
     processLine(nextLine);
     maxLine = currentLine;
@@ -241,6 +266,7 @@ export function processFlatToken(
   screenActionRules?: ScreenActionRule[],
   precomputedScreenActionRuleMap?: Map<string, ScreenActionKind>,
   sceneSplitDialogueThreshold?: number,
+  docLines?: readonly string[],
 ): void {
   const type = token.type as number;
   const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
@@ -254,10 +280,10 @@ export function processFlatToken(
     return tokenText;
   };
   const menuDepth = meta.menuDepth;
-  const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache);
-  const lineText = getLineText(document, token.startPos.line, lineTextCache);
+  const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache, docLines);
+  const lineText = getLineText(document, token.startPos.line, lineTextCache, docLines);
   const conditionalText = type === PARSER_TOKENS.kwConditional
-    ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache)
+    ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache, docLines)
     : lineText;
 
   maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
@@ -276,53 +302,139 @@ export function processFlatToken(
 }
 
 /**
- * Visitor function that traverses the hierarchical tokenizer TreeNode structure
- * in pre-order (respecting the character offset positions) to find and emit flat tokens.
- */
-function traverseStreamTokens(
-  node: TreeNode,
-  metaStack: number[],
-  onToken: (token: FlatTokenLike) => void,
-): void {
-  const token = node.token;
-
-  // Emit current node's token first if it is relevant to the parser
-  if (token && RELEVANT_TOKEN_TYPES.has(token.type as number)) {
-    onToken({
-      type: token.type as number,
-      metaTokens: metaStack,
-      startPos: token.startPos,
-      startOffset: token.startPos.charStartOffset,
-      getValue: token.getValue.bind(token),
-    });
-  }
-
-  // Push current token type to metaStack before recursing children
-  if (token) {
-    metaStack.push(token.type as number);
-  }
-
-  // Children are already in chronological order, process them sequentially
-  for (const child of node.children) {
-    traverseStreamTokens(child, metaStack, onToken);
-  }
-
-  // Pop token type from stack on exit
-  if (token) {
-    metaStack.pop();
-  }
-}
-
-/**
  * Normalizes literal python/renpy string quotes (single, double, or triple) by
  * stripping prefix modifiers and surrounding quote markers.
  */
 function normalizeLiteralString(raw: string): string {
-  const match = /^(?:[rR]|[uU]|[bB]|[fF]|[rR][bB]|[bB][rR]|[rR][fF]|[fF][rR]|[rR][uU]|[uU][rR])?(?:("""|'''|"|')([\s\S]*?)\1)$/.exec(raw);
-  if (match) {
-    return match[2] ?? '';
+  let start = 0;
+  const len = raw.length;
+  while (start < len) {
+    const char = raw[start];
+    if (char === '"' || char === "'") {
+      break;
+    }
+    start++;
   }
-  return raw;
+
+  if (start >= len) return raw;
+
+  const quoteChar = raw[start]!;
+  // Detect triple-quote
+  const isTriple = start + 2 < len && raw[start + 1] === quoteChar && raw[start + 2] === quoteChar;
+  const quoteLen = isTriple ? 3 : 1;
+  const contentStart = start + quoteLen;
+  const expectedEnd = isTriple ? quoteChar + quoteChar + quoteChar : quoteChar;
+
+  if (!raw.endsWith(expectedEnd) || len - quoteLen < contentStart) {
+    return raw;
+  }
+
+  return raw.slice(contentStart, len - quoteLen);
+}
+
+/**
+ * Traverses a hierarchical AST TreeNode and processes relevant tokens directly.
+ */
+function traverseAndProcess(
+  node: TreeNode,
+  metaStack: number[],
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  document: TextDocument,
+  docLines: readonly string[],
+  chapter: string,
+  captureDialogueLines: boolean,
+  screenActionRuleMap: Map<string, ScreenActionKind>,
+  sceneSplitDialogueThreshold: number | undefined,
+  meta: TokenMetaFlags,
+  lineIndentCache: Map<number, number>,
+  lineTextCache: Map<number, string>,
+  conditionalLogicalLineCache: Map<number, string>,
+): void {
+  const token = node.token;
+
+  if (token) {
+    const type = token.type as number;
+    if (RELEVANT_TOKEN_TYPES.has(type)) {
+      analyzeTokenMetaInto(metaStack, meta);
+      
+      let tokenText: string | undefined;
+      const val = (): string => {
+        if (tokenText === undefined) {
+          const raw = token.getValue(document);
+          tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
+        }
+        return tokenText;
+      };
+
+      const menuDepth = meta.menuDepth;
+      const lineNum = token.startPos.line;
+      
+      let lineText = lineTextCache.get(lineNum);
+      if (lineText === undefined) {
+        lineText = docLines[lineNum] ?? '';
+        lineTextCache.set(lineNum, lineText);
+      }
+      
+      let lineIndent = lineIndentCache.get(lineNum);
+      if (lineIndent === undefined) {
+        let indent = 0;
+        const len = lineText.length;
+        while (indent < len) {
+          const char = lineText.charCodeAt(indent);
+          if (char !== 32 && char !== 9) {
+            break;
+          }
+          indent++;
+        }
+        lineIndent = indent;
+        lineIndentCache.set(lineNum, lineIndent);
+      }
+
+      const conditionalText = type === PARSER_TOKENS.kwConditional
+        ? getConditionalLogicalLine(document, lineNum, lineTextCache, conditionalLogicalLineCache, docLines)
+        : lineText;
+
+      maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, lineNum);
+      handleToken(state, scanState, {
+        type,
+        meta,
+        val,
+        chapter,
+        menuDepth,
+        lineIndent,
+        lineText,
+        captureDialogueLines,
+        screenActionRuleMap,
+        sceneSplitDialogueThreshold,
+      });
+    }
+
+    metaStack.push(type);
+  }
+
+  node.children.forEach((child) => {
+    traverseAndProcess(
+      child,
+      metaStack,
+      state,
+      scanState,
+      document,
+      docLines,
+      chapter,
+      captureDialogueLines,
+      screenActionRuleMap,
+      sceneSplitDialogueThreshold,
+      meta,
+      lineIndentCache,
+      lineTextCache,
+      conditionalLogicalLineCache,
+    );
+  });
+
+  if (token) {
+    metaStack.pop();
+  }
 }
 
 /**
@@ -356,37 +468,25 @@ export function processTokenTreeStream(
   const lineTextCache = new Map<number, string>();
   const conditionalLogicalLineCache = new Map<number, string>();
 
-  traverseStreamTokens(tokenTree.root, [], (token) => {
-    const type = token.type as number;
-    analyzeTokenMetaInto(token.metaTokens as Iterable<number>, meta);
-    let tokenText: string | undefined;
-    const val = (): string => {
-      if (tokenText === undefined) {
-        const raw = token.getValue(document);
-        tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
-      }
-      return tokenText;
-    };
-    const menuDepth = meta.menuDepth;
-    const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache);
-    const lineText = getLineText(document, token.startPos.line, lineTextCache);
-    const conditionalText = type === PARSER_TOKENS.kwConditional
-      ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache)
-      : lineText;
-    maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
-    handleToken(state, scanState, {
-      type,
-      meta,
-      val,
-      chapter,
-      menuDepth,
-      lineIndent,
-      lineText,
-      captureDialogueLines,
-      screenActionRuleMap,
-      sceneSplitDialogueThreshold,
-    });
-  });
+  const docText = document.getText();
+  const docLines = docText.split(/\r?\n/);
+
+  traverseAndProcess(
+    tokenTree.root,
+    [],
+    state,
+    scanState,
+    document,
+    docLines,
+    chapter,
+    captureDialogueLines,
+    screenActionRuleMap,
+    sceneSplitDialogueThreshold,
+    meta,
+    lineIndentCache,
+    lineTextCache,
+    conditionalLogicalLineCache,
+  );
 }
 
 /**
@@ -410,6 +510,8 @@ export function processFlatTokens(
   const lineTextCache = new Map<number, string>();
   const conditionalLogicalLineCache = new Map<number, string>();
 
+  const docLines = document.getText().split(/\r?\n/);
+
   for (const token of tokens) {
     const type = token.type as number;
     if (!RELEVANT_TOKEN_TYPES.has(type)) {
@@ -426,10 +528,10 @@ export function processFlatTokens(
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
-    const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache);
-    const lineText = getLineText(document, token.startPos.line, lineTextCache);
+    const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache, docLines);
+    const lineText = getLineText(document, token.startPos.line, lineTextCache, docLines);
     const conditionalText = type === PARSER_TOKENS.kwConditional
-      ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache)
+      ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache, docLines)
       : lineText;
 
     maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
@@ -447,4 +549,5 @@ export function processFlatTokens(
     });
   }
 }
+
 

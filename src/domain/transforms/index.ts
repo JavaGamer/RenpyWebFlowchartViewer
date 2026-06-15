@@ -1,6 +1,7 @@
 export {
   applyDagreLayout,
   applyElkLayout,
+  preWarmElk,
   getNodeCenter,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from './layout';

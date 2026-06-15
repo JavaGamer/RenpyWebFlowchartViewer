@@ -18,6 +18,8 @@ export interface SearchSliceState {
   activeDialogueResultIndex: number;
   dialogueSearchResults: DialogueSearchResult[];
   standaloneDialogueSearchMode: DialogueSearchMode;
+  selectedSearchChapter: string;
+  selectedSearchNodeKinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -27,6 +29,8 @@ export interface SearchSliceActions {
   setActiveDialogueResultIndex: (index: number) => void;
   setDialogueSearchResults: (results: DialogueSearchResult[]) => void;
   setStandaloneDialogueSearchMode: (mode: DialogueSearchMode) => void;
+  setSelectedSearchChapter: (chapter: string) => void;
+  setSelectedSearchNodeKinds: (kinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>) => void;
 }
 
 export type SearchSlice = SearchSliceState & SearchSliceActions;
@@ -38,6 +42,8 @@ export const defaultSearchState: SearchSliceState = {
   activeDialogueResultIndex: -1,
   dialogueSearchResults: [],
   standaloneDialogueSearchMode: 'auto',
+  selectedSearchChapter: '',
+  selectedSearchNodeKinds: { LABEL: true, MENU: true, DECISION: true },
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -68,5 +74,15 @@ export const createSearchSlice: StateCreator<
   setStandaloneDialogueSearchMode: (mode) =>
     set((draft) => {
       draft.standaloneDialogueSearchMode = mode;
+    }),
+
+  setSelectedSearchChapter: (chapter) =>
+    set((draft) => {
+      draft.selectedSearchChapter = chapter;
+    }),
+
+  setSelectedSearchNodeKinds: (kinds) =>
+    set((draft) => {
+      draft.selectedSearchNodeKinds = kinds;
     }),
 });

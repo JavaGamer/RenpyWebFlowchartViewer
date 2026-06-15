@@ -8,11 +8,11 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { saveAs } from 'file-saver';
 import { Header, DiagnosticsSection, UploadArea, FlowchartViewer } from './ui';
-import { createPerfTracker } from './infrastructure';
+import { createPerfTracker, preWarmLayoutWorker } from './infrastructure';
 import {
   useAppStore,
   useParserRuleSettingsStore,
@@ -109,6 +109,11 @@ export default function App() {
   );
   const parserVariantPlugins = useMemo(() => getParserVariantPlugins(), []);
 
+  // Pre-warm the layout worker on boot
+  useEffect(() => {
+    preWarmLayoutWorker();
+  }, []);
+
   const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<DebugBundlePrivacyOptions>(
     DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   );
@@ -119,6 +124,8 @@ export default function App() {
   // ── Process selected files ─────────────────────────────────────────────────
   const processFilesWithPerf = useCallback(
     async (files: FileList | UploadedFile[] | null) => {
+      // Warm up worker on import initiation
+      preWarmLayoutWorker();
       perf.mark('read');
       const processFiles = createProcessUpload({
         parseService: workerParseService,

@@ -326,6 +326,14 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
   };
 }
 
+export async function preWarmElk(): Promise<void> {
+  if (!elkInstance) {
+    const ELKModule = await import('elkjs/lib/elk.bundled.js');
+    const ELK = ELKModule.default || ELKModule;
+    elkInstance = new ELK() as unknown as ElkInstance;
+  }
+}
+
 export async function applyElkLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
@@ -335,12 +343,8 @@ export async function applyElkLayout(
     layoutDensity?: LayoutDensity;
   },
 ): Promise<{ nodes: CanvasNode[]; edges: CanvasEdge[] }> {
-  if (!elkInstance) {
-    const ELKModule = await import('elkjs/lib/elk.bundled.js');
-    const ELK = ELKModule.default || ELKModule;
-    elkInstance = new ELK() as unknown as ElkInstance;
-  }
-  const instance = elkInstance;
+  await preWarmElk();
+  const instance = elkInstance!;
   const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
 
   const elkNodes = normalizedNodes.map((n) => ({

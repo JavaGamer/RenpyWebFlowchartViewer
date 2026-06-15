@@ -3,6 +3,10 @@ import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, ThemeName, LayoutDensi
 import type { LayoutWorkerApi } from './layoutWorker';
 
 let worker: Worker | null = null;
+
+function isWorkerSupported(): boolean {
+  return typeof globalThis.Worker !== 'undefined';
+}
 let apiProxy: Remote<LayoutWorkerApi> | null = null;
 let isWorkerRunning = false;
 
@@ -21,6 +25,23 @@ export function terminateLayoutWorker() {
   }
   apiProxy = null;
   isWorkerRunning = false;
+}
+
+export function preWarmLayoutWorker(): void {
+  // Skip pre-warming in test environments to prevent worker instantiation during integration tests
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+  if (isTest) {
+    return;
+  }
+
+  if (!isWorkerSupported()) return;
+
+  getLayoutWorker();
+  if (apiProxy) {
+    apiProxy.preWarm().catch((error) => {
+      console.error('Failed to pre-warm layout worker:', error);
+    });
+  }
 }
 
 export function isLayoutRunning(): boolean {

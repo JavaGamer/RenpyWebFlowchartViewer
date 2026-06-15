@@ -99,6 +99,8 @@ export function FlowchartCanvas({
     mockFlags,
     conditionVisibilityMode,
     layoutDensity,
+    selectedSearchChapter,
+    selectedSearchNodeKinds,
   } = useViewerStore(useShallow((s) => ({
     layoutDirection: s.layoutDirection,
     searchInput: s.searchInput,
@@ -123,6 +125,8 @@ export function FlowchartCanvas({
     mockFlags: s.mockFlags,
     conditionVisibilityMode: s.conditionVisibilityMode,
     layoutDensity: s.layoutDensity,
+    selectedSearchChapter: s.selectedSearchChapter,
+    selectedSearchNodeKinds: s.selectedSearchNodeKinds,
   })));
   const {
     setLayoutDirection,
@@ -318,6 +322,8 @@ export function FlowchartCanvas({
     parseService,
     dialogueSearchResults,
     setDialogueSearchResults,
+    selectedSearchChapter,
+    selectedSearchNodeKinds,
   });
 
   // -- Visible nodes/edges ----------------------------------------------------

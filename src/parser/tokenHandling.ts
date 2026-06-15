@@ -263,8 +263,27 @@ function splitCurrentLabelOnSceneBoundary(
 
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const IDENTIFIER_START_PATTERN = /[A-Za-z_]/;
-const IDENTIFIER_PART_PATTERN = /[A-Za-z0-9_.]/;
+function isIdentifierStart(char: string | undefined): boolean {
+  if (!char) return false;
+  const code = char.charCodeAt(0);
+  return (
+    (code >= 65 && code <= 90) ||  // A-Z
+    (code >= 97 && code <= 122) || // a-z
+    code === 95                    // _
+  );
+}
+
+function isIdentifierPart(char: string | undefined): boolean {
+  if (!char) return false;
+  const code = char.charCodeAt(0);
+  return (
+    (code >= 65 && code <= 90) ||  // A-Z
+    (code >= 97 && code <= 122) || // a-z
+    (code >= 48 && code <= 57) ||  // 0-9
+    code === 95 ||                 // _
+    code === 46                    // .
+  );
+}
 const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
   'if',
   'selectedif',
@@ -554,12 +573,12 @@ function readScreenActionExpression(
     return readBalancedSegment(text, expressionStart);
   }
 
-  if (!IDENTIFIER_START_PATTERN.test(firstChar ?? '')) {
+  if (!isIdentifierStart(firstChar)) {
     return null;
   }
 
   let identifierEnd = expressionStart + 1;
-  while (identifierEnd < text.length && IDENTIFIER_PART_PATTERN.test(text[identifierEnd] ?? '')) {
+  while (identifierEnd < text.length && isIdentifierPart(text[identifierEnd])) {
     identifierEnd += 1;
   }
   const afterIdentifier = skipWhitespace(text, identifierEnd);
@@ -579,13 +598,20 @@ function readScreenActionExpression(
 }
 
 function isIdentifierBoundary(char: string | undefined): boolean {
-  return !char || !/[A-Za-z0-9_]/.test(char);
+  if (!char) return true;
+  const code = char.charCodeAt(0);
+  return !(
+    (code >= 65 && code <= 90) ||  // A-Z
+    (code >= 97 && code <= 122) || // a-z
+    (code >= 48 && code <= 57) ||  // 0-9
+    code === 95                    // _
+  );
 }
 
 function readIdentifier(text: string, startIndex: number): { identifier: string; endIndex: number } | null {
-  if (!IDENTIFIER_START_PATTERN.test(text[startIndex] ?? '')) return null;
+  if (!isIdentifierStart(text[startIndex])) return null;
   let endIndex = startIndex + 1;
-  while (endIndex < text.length && IDENTIFIER_PART_PATTERN.test(text[endIndex] ?? '')) {
+  while (endIndex < text.length && isIdentifierPart(text[endIndex])) {
     endIndex += 1;
   }
   return {
@@ -1330,7 +1356,7 @@ function walkScreenActionExpression(
   }
 
   let identifierEnd = 1;
-  while (identifierEnd < trimmed.length && IDENTIFIER_PART_PATTERN.test(trimmed[identifierEnd] ?? '')) {
+  while (identifierEnd < trimmed.length && isIdentifierPart(trimmed[identifierEnd])) {
     identifierEnd += 1;
   }
   const construct = trimmed.slice(0, identifierEnd);
@@ -1725,20 +1751,7 @@ function handleConditionalHeader(
   return true;
 }
 
-/**
- * The main dispatch router for individual tokens in the parser pipeline.
- * Evaluates token types (labels, jumps, calls, returns, menus, dialogue strings)
- * and mutates the flowchart graph topology accordingly.
- *
- * @param state Global graph assembly accumulator.
- * @param scanState File-local scanning track.
- * @param input Evaluated token data.
- */
-export function handleToken(
-  state: ParseGraphState,
-  scanState: ParseScanState,
-  input: HandleTokenInput,
-): void {
+export function ensureScanStateInitialized(scanState: ParseScanState): void {
   if (!scanState.conditionalDecisionStack) {
     scanState.conditionalDecisionStack = [];
   }
@@ -1765,6 +1778,25 @@ export function handleToken(
   }
   if (scanState.currentLabelHasContentSinceSceneBoundary === undefined) {
     scanState.currentLabelHasContentSinceSceneBoundary = false;
+  }
+}
+
+/**
+ * The main dispatch router for individual tokens in the parser pipeline.
+ * Evaluates token types (labels, jumps, calls, returns, menus, dialogue strings)
+ * and mutates the flowchart graph topology accordingly.
+ *
+ * @param state Global graph assembly accumulator.
+ * @param scanState File-local scanning track.
+ * @param input Evaluated token data.
+ */
+export function handleToken(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  input: HandleTokenInput,
+): void {
+  if (!scanState.labelVariableDictTargets || !scanState.conditionalDecisionStack) {
+    ensureScanStateInitialized(scanState);
   }
   const { type, meta, val, chapter, menuDepth, lineIndent, lineText, captureDialogueLines, screenActionRuleMap } = input;
   resetStaleWaitFlags(scanState, type);

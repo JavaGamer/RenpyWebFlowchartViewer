@@ -24,6 +24,8 @@ interface UseViewerSearchParams {
   /** Worker-backed results from the Zustand store. */
   dialogueSearchResults: DialogueSearchResult[];
   setDialogueSearchResults: (results: DialogueSearchResult[]) => void;
+  selectedSearchChapter: string;
+  selectedSearchNodeKinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>;
 }
 
 export interface UseViewerSearchResult {
@@ -46,6 +48,8 @@ export function useViewerSearch({
   parseService,
   dialogueSearchResults,
   setDialogueSearchResults,
+  selectedSearchChapter,
+  selectedSearchNodeKinds,
 }: UseViewerSearchParams): UseViewerSearchResult {
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
@@ -75,10 +79,11 @@ export function useViewerSearch({
       const dialogueCount = nodeData?.dialogueCount ?? 0;
       if (chapterCollapsed || labelCollapsed) continue;
       if (dialogueCount < minDialogue) continue;
+      if (selectedSearchChapter && nodeData?.chapter !== selectedSearchChapter) continue;
       ids.push(node.id);
     }
     return JSON.stringify(ids);
-  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes]);
+  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes, selectedSearchChapter]);
 
   // ── Worker-backed search (large graph mode) ───────────────────────────────
   useEffect(() => {
@@ -133,6 +138,7 @@ export function useViewerSearch({
       const labelCollapsed = collapsedLabelChildren.has(node.id);
       if (chapterCollapsed || labelCollapsed) continue;
       if ((nodeData.dialogueCount ?? 0) < minDialogue) continue;
+      if (selectedSearchChapter && nodeData.chapter !== selectedSearchChapter) continue;
       const lines = nodeData.dialogueLines ?? [];
       lines.forEach((line, idx) => {
         docs.push({
@@ -145,7 +151,7 @@ export function useViewerSearch({
       });
     }
     return docs;
-  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, hasActiveQuery, largeGraphMode, minDialogue, nodes]);
+  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, hasActiveQuery, largeGraphMode, minDialogue, nodes, selectedSearchChapter]);
 
   const localDialogueMiniSearch = useMemo(() => {
     if (searchableDocs.length === 0 || !hasActiveQuery) return null;
@@ -164,7 +170,11 @@ export function useViewerSearch({
     })) as DialogueSearchResult[];
   }, [localDialogueMiniSearch, trimmedSearch]);
 
-  const activeDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
+  const rawDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
+  const activeDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
+    if (!selectedSearchNodeKinds.LABEL) return [];
+    return rawDialogueSearchResults;
+  }, [rawDialogueSearchResults, selectedSearchNodeKinds.LABEL]);
 
   const dialogueMatchNodeIds = useMemo(
     () => new Set(activeDialogueSearchResults.map((r) => r.nodeId)),
@@ -175,17 +185,21 @@ export function useViewerSearch({
   const nodeSearchDocs = useMemo<NodeSearchDocument[]>(
     () => {
       if (!hasActiveQuery) return [];
-      return nodes.map((node) => {
-        const nodeData = node.data as { label?: string; dialogueCount?: number };
-        return {
+      const docs: NodeSearchDocument[] = [];
+      for (const node of nodes) {
+        const nodeData = node.data as { label?: string; dialogueCount?: number; chapter?: string; nodeType: 'LABEL' | 'MENU' | 'DECISION' };
+        if (selectedSearchChapter && nodeData.chapter !== selectedSearchChapter) continue;
+        if (!selectedSearchNodeKinds[nodeData.nodeType]) continue;
+        docs.push({
           id: node.id,
           nodeId: node.id,
           label: nodeData.label ?? '',
           dialogueCountText: String(nodeData.dialogueCount ?? 0),
-        };
-      });
+        });
+      }
+      return docs;
     },
-    [hasActiveQuery, nodes],
+    [hasActiveQuery, nodes, selectedSearchChapter, selectedSearchNodeKinds],
   );
 
   const nodeMiniSearch = useMemo(() => {
