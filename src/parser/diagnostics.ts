@@ -1,4 +1,4 @@
-import type { ParseDiagnostic, ParseGraphState } from "./pipelineTypes";
+import type { ParseDiagnostic, ParseGraphState } from "./pipelineTypes.ts";
 
 export function addParseDiagnostic(
   state: ParseGraphState,

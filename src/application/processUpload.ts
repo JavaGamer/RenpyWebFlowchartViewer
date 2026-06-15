@@ -11,16 +11,16 @@ import {
   compareDeterministicStrings,
   type FlowEdge,
   type FlowNode,
-} from "../domain";
-import { type ParseDiagnosticPayload, readFileAsText } from "../infrastructure";
+} from "../domain/index.ts";
+import { type ParseDiagnosticPayload, readFileAsText } from "../infrastructure/index.ts";
 
-import { validateRpyUpload } from "./uploadValidation";
-import type { AppActions, DialogueSearchMode } from "./appStore";
-import { toFileReadErrorMessage, toParseErrorMessage } from "./errorMessages";
-import type { ParseService } from "./parseService";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
-import type { UploadedFile, UploadFileStatus } from "./uploadTypes";
-import { extractRpyFilesFromZip } from "./zipExtractor";
+import { validateRpyUpload } from "./uploadValidation.ts";
+import type { AppActions, DialogueSearchMode } from "./appStore.ts";
+import { toFileReadErrorMessage, toParseErrorMessage } from "./errorMessages.ts";
+import type { ParseService } from "./parseService.ts";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
+import { extractRpyFilesFromZip } from "./zipExtractor.ts";
 
 /**
  * Dependency bag injected into `createProcessUpload`.

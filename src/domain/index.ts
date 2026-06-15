@@ -1,4 +1,4 @@
-export type { ConditionMetadata, FlowEdge, FlowNode } from "./graph";
+export type { ConditionMetadata, FlowEdge, FlowNode } from "./graph.ts";
 
 export type {
   CanvasEdge,
@@ -15,7 +15,7 @@ export type {
   MenuNodeType,
   NodeData,
   ThemeName,
-} from "./canvas";
+} from "./canvas.ts";
 
 export {
   applyDagreLayout,
@@ -26,10 +26,10 @@ export {
   getNodeCenter,
   preWarmElk,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-} from "./transforms";
+} from "./transforms/index.ts";
 
-export { extractConditionFlagRefs } from "./conditionLogic";
+export { extractConditionFlagRefs } from "./conditionLogic.ts";
 
-export type { MockFlagValue } from "./conditionLogic";
+export type { MockFlagValue } from "./conditionLogic.ts";
 
-export { compareDeterministicStrings } from "./sortUtils";
+export { compareDeterministicStrings } from "./sortUtils.ts";

@@ -5,7 +5,7 @@ export {
   type ParseDiagnosticPayload,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-} from "./workerProtocol";
+} from "./workerProtocol.ts";
 export {
   areWorkersSupported,
   getWorkerPoolSize,
@@ -14,15 +14,15 @@ export {
   parseChunksInParallel,
   parseRenpyFilesInWorker,
   searchDialogueLinesInWorker,
-} from "./parserWorkerClient";
-export { FileReadError, readFileAsText } from "./fileReader";
+} from "./parserWorkerClient.ts";
+export { FileReadError, readFileAsText } from "./fileReader.ts";
 export {
   preWarmLayoutWorker,
   runLayoutInWorker,
   terminateLayoutWorker,
-} from "./layoutWorkerClient";
+} from "./layoutWorkerClient.ts";
 export {
   createPerfTracker,
   type PerfEvent,
   type PerfTrackerOptions,
-} from "./perf";
+} from "./perf.ts";

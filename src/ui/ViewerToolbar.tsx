@@ -13,17 +13,17 @@ import {
   ZoomIn,
 } from "lucide-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import type { DialogueSearchMode } from "../application";
-import type { DebugBundlePrivacyOptions } from "../application";
-import type { ThemeName } from "../domain";
-import { THEMES } from "./viewerTheme";
-import { ZOOM_PRESETS } from "../config/viewerConfig";
+import type { DialogueSearchMode } from "../application/index.ts";
+import type { DebugBundlePrivacyOptions } from "../application/index.ts";
+import type { ThemeName } from "../domain/index.ts";
+import { THEMES } from "./viewerTheme.ts";
+import { ZOOM_PRESETS } from "../config/viewerConfig.ts";
 import {
   CONTROL_BUTTON_CLASS,
   CONTROL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
-} from "./viewerConstants";
-import { cn } from "./utils/cn";
+} from "./viewerConstants.ts";
+import { cn } from "./utils/cn.ts";
 
 interface TooltipWrapperProps {
   content: ReactNode;

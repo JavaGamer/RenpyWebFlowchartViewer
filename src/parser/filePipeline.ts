@@ -1,11 +1,11 @@
 import { Tokenizer } from "@renpy/ast/out/tokenizer/tokenizer";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import type { ParseGraphState } from "./pipelineTypes";
-import { createScanState } from "./pipelineState";
-import { processTokenTreeStream } from "./tokenScanStage";
-import type { ParseInputFile, ParseOptions } from "./pipelineTypes";
-import { createPerfTracker } from "../infrastructure/perf";
+import type { ParseGraphState } from "./pipelineTypes.ts";
+import { createScanState } from "./pipelineState.ts";
+import { processTokenTreeStream } from "./tokenScanStage.ts";
+import type { ParseInputFile, ParseOptions } from "./pipelineTypes.ts";
+import { createPerfTracker } from "../infrastructure/perf.ts";
 
 const parserPerf = createPerfTracker("parser:file");
 

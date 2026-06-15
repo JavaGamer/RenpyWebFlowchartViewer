@@ -1,6 +1,6 @@
-import type { FlowEdge, FlowNode } from "../domain";
-import type { EdgeKind, ParseGraphState } from "./pipelineTypes";
-import { addParseDiagnostic } from "./diagnostics";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { EdgeKind, ParseGraphState } from "./pipelineTypes.ts";
+import { addParseDiagnostic } from "./diagnostics.ts";
 import { MultiDirectedGraph } from "graphology";
 
 /** Supported categories of directed edges within the flowchart graph */

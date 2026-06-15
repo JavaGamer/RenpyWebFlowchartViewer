@@ -16,13 +16,13 @@ import {
   type LayoutDensity,
   type LayoutDirection,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-} from "../../domain";
-import type { createPerfTracker } from "../../infrastructure";
+} from "../../domain/index.ts";
+import type { createPerfTracker } from "../../infrastructure/index.ts";
 import {
   areWorkersSupported,
   runLayoutInWorker,
   terminateLayoutWorker,
-} from "../../infrastructure";
+} from "../../infrastructure/index.ts";
 
 const globalRecord = globalThis as Record<string, unknown>;
 const isTestEnv = typeof globalRecord["process"] !== "undefined" &&

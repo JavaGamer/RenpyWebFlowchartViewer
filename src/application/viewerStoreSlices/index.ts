@@ -10,7 +10,7 @@ export {
   type ThemeSlice,
   type ThemeSliceActions,
   type ThemeSliceState,
-} from "./themeSlice";
+} from "./themeSlice.ts";
 
 export {
   createFilterSlice,
@@ -18,7 +18,7 @@ export {
   type FilterSlice,
   type FilterSliceActions,
   type FilterSliceState,
-} from "./filterSlice";
+} from "./filterSlice.ts";
 
 export {
   createSearchSlice,
@@ -26,7 +26,7 @@ export {
   type SearchSlice,
   type SearchSliceActions,
   type SearchSliceState,
-} from "./searchSlice";
+} from "./searchSlice.ts";
 
 export {
   createSelectionSlice,
@@ -34,7 +34,7 @@ export {
   type SelectionSlice,
   type SelectionSliceActions,
   type SelectionSliceState,
-} from "./selectionSlice";
+} from "./selectionSlice.ts";
 
 export {
   createEmptyMockFlags,
@@ -45,4 +45,4 @@ export {
   type SimulationSliceActions,
   type SimulationSliceState,
   UNSAFE_MOCK_FLAG_KEYS,
-} from "./simulationSlice";
+} from "./simulationSlice.ts";

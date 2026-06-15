@@ -1,20 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { proxy, releaseProxy, type Remote, wrap } from "comlink";
 import MiniSearch from "minisearch";
-import { createGraphState } from "../parser/pipelineState";
-import { processTokenizedFile, tokenizeOneFile } from "../parser/filePipeline";
-import { finalizeRoles } from "../parser/roleFinalization";
+import { createGraphState } from "../parser/pipelineState.ts";
+import { processTokenizedFile, tokenizeOneFile } from "../parser/filePipeline.ts";
+import { finalizeRoles } from "../parser/roleFinalization.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
-} from "../config/searchConfig";
-import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig";
-import type { ParserWorkerApi } from "./parserWorker";
+} from "../config/searchConfig.ts";
+import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
+import type { ParserWorkerApi } from "./parserWorker.ts";
 import {
   type DialogueSearchResult,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-} from "./workerProtocol";
+} from "./workerProtocol.ts";
 
 class SyncPromise<T> {
   private value: any;

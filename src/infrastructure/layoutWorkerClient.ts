@@ -6,8 +6,8 @@ import type {
   FlowNode,
   LayoutDensity,
   ThemeName,
-} from "../domain";
-import type { LayoutWorkerApi } from "./layoutWorker";
+} from "../domain/index.ts";
+import type { LayoutWorkerApi } from "./layoutWorker.ts";
 
 let worker: Worker | null = null;
 
@@ -38,8 +38,9 @@ export function terminateLayoutWorker() {
 
 export function preWarmLayoutWorker(): void {
   // Skip pre-warming in test environments to prevent worker instantiation during integration tests
-  const isTest = typeof (globalThis as any).process !== "undefined" &&
-    (globalThis as any).process.env?.NODE_ENV === "test";
+  const globalProcess = (globalThis as unknown as { process?: { env?: { NODE_ENV?: string } } }).process;
+  const isTest = typeof globalProcess !== "undefined" &&
+    globalProcess.env?.NODE_ENV === "test";
   if (isTest) {
     return;
   }

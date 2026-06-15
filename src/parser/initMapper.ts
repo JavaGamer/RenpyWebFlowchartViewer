@@ -2,14 +2,14 @@ import type {
   ParseGraphState,
   ParseInputFile,
   ResolveTargetScanState,
-} from "./pipelineTypes";
+} from "./pipelineTypes.ts";
 import {
   extractLiteralTarget,
   parseDictLiteral,
   resolveStaticTargetExpression,
   stripInlineComment,
-} from "./tokenHandling";
-import { compareDeterministicStrings } from "../domain";
+} from "./tokenHandling.ts";
+import { compareDeterministicStrings } from "../domain/index.ts";
 
 interface InitItem {
   type: "python_block" | "init_block" | "define_default" | "screen";

@@ -88,7 +88,7 @@ class SyncPromise {
   }
 }
 
-export let mockWorkersSupported = true;
+export const mockWorkersSupported = true;
 vi.mock("../src/infrastructure/parserWorkerClient", async (importOriginal) => {
   const original = await importOriginal<any>();
   return {

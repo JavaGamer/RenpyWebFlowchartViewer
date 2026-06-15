@@ -11,9 +11,9 @@
 
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import type { FlowEdge, FlowNode } from "../domain";
-import type { AppPhase } from "./appTypes";
-import type { ParseDiagnosticPayload } from "../infrastructure";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { AppPhase } from "./appTypes.ts";
+import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
 
 /**
  * Tracks how many files have been processed by the web worker,

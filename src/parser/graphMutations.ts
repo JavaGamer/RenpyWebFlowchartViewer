@@ -1,6 +1,6 @@
-import type { FlowEdge, FlowNode } from "../domain";
-import type { EdgeKind, ParseGraphState } from "./pipelineTypes";
-import { assertInvariant } from "./pipelineInvariants";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { EdgeKind, ParseGraphState } from "./pipelineTypes.ts";
+import { assertInvariant } from "./pipelineInvariants.ts";
 
 function addLabelTraffic(
   bucket: Map<string, Set<EdgeKind>>,

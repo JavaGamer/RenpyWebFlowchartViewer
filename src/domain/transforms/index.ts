@@ -4,10 +4,10 @@ export {
   getNodeCenter,
   preWarmElk,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-} from "./layout";
+} from "./layout.ts";
 
 export {
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
-} from "./visibility";
+} from "./visibility.ts";

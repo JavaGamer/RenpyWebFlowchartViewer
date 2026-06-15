@@ -11,8 +11,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { saveAs } from "file-saver";
-import { DiagnosticsSection, FlowchartViewer, Header, UploadArea } from "./ui";
-import { createPerfTracker, preWarmLayoutWorker } from "./infrastructure";
+import { DiagnosticsSection, FlowchartViewer, Header, UploadArea } from "./ui/index.ts";
+import { createPerfTracker, preWarmLayoutWorker } from "./infrastructure/index.ts";
 import {
   buildDebugBundle,
   buildIssueDraftUrl,
@@ -27,9 +27,9 @@ import {
   useTelemetryStore,
   useViewerStore,
   workerParseService,
-} from "./application";
-import { cn } from "./ui/utils/cn";
-import { getParserVariantPlugins } from "./config/parserRules";
+} from "./application/index.ts";
+import { cn } from "./ui/utils/cn.ts";
+import { getParserVariantPlugins } from "./config/parserRules.ts";
 
 export default function App() {
   const perf = useMemo(() =>

@@ -1,5 +1,5 @@
-import type { FlowNode } from "../domain";
-import type { ParseGraphState } from "./pipelineTypes";
+import type { FlowNode } from "../domain/index.ts";
+import type { ParseGraphState } from "./pipelineTypes.ts";
 
 /**
  * Assigns a specific semantic role to a flowchart node based on its AST type and graph topology.

@@ -1,29 +1,29 @@
 import { expose } from "comlink";
-import { parseRenpyFiles } from "../parser/parser";
+import { parseRenpyFiles } from "../parser/parser.ts";
 import MiniSearch from "minisearch";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
-import { createGraphState } from "../parser/pipelineState";
-import type { ParseDiagnostic, ParseInputFile } from "../parser/pipelineTypes";
+import { createGraphState } from "../parser/pipelineState.ts";
+import type { ParseDiagnostic, ParseInputFile } from "../parser/pipelineTypes.ts";
 import pLimit from "p-limit";
 import {
   processTokenizedFile,
   type TokenizedFile,
   tokenizeOneFile,
-} from "../parser/filePipeline";
-import { finalizeRoles } from "../parser/roleFinalization";
+} from "../parser/filePipeline.ts";
+import { finalizeRoles } from "../parser/roleFinalization.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
-} from "../config/searchConfig";
-import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
-import type { FlowEdge, FlowNode } from "../domain";
+} from "../config/searchConfig.ts";
+import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
 import type {
   DialogueSearchResult,
   ParseDiagnosticPayload,
   ParseWorkerClientResult,
-} from "./workerProtocol";
+} from "./workerProtocol.ts";
 
 type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
 

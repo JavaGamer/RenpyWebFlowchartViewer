@@ -3,9 +3,9 @@ import type {
   ParserVariantPlugin,
   ScreenActionKind,
   ScreenActionRule,
-} from "../config/parserRules";
-import { useViewerStore } from "../application";
-import { cn } from "./utils/cn";
+} from "../config/parserRules.ts";
+import { useViewerStore } from "../application/index.ts";
+import { cn } from "./utils/cn.ts";
 
 export interface ParserSettingsSectionProps {
   selectedVariant: ParserVariant;

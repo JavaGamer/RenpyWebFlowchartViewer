@@ -3,8 +3,8 @@ import {
   DecisionNodeComponent,
   LabelNodeComponent,
   MenuNodeComponent,
-} from "./viewerNodes";
-import { LabeledEdge } from "./viewerEdges";
+} from "./viewerNodes.tsx";
+import { LabeledEdge } from "./viewerEdges.tsx";
 
 export const nodeTypes: NodeTypes = {
   labelNode: LabelNodeComponent,

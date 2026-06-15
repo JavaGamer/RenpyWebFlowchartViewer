@@ -1,4 +1,4 @@
-import type { EdgeKindFilter, FlowEdge, FlowNode } from "../index";
+import type { EdgeKindFilter, FlowEdge, FlowNode } from "../index.ts";
 
 /**
  * The complete list of recognised edge kind strings.

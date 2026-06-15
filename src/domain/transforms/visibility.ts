@@ -7,12 +7,12 @@ import type {
   EdgeKindFilter,
   NodeData,
   ThemeName,
-} from "../index";
+} from "../index.ts";
 import {
   evaluateConditionExpression,
   type MockFlagValue,
-} from "../conditionLogic";
-import { normalizeEdgeKind } from "./integrity";
+} from "../conditionLogic.ts";
+import { normalizeEdgeKind } from "./integrity.ts";
 
 /**
  * Computes which nodes should be visible on the canvas based on the current

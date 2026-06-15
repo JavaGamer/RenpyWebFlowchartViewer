@@ -1,25 +1,25 @@
-import { isMenuKeywordTokenType, PARSER_TOKENS } from "./parserTokens";
+import { isMenuKeywordTokenType, PARSER_TOKENS } from "./parserTokens.ts";
 import type {
   ExtractedScreenActionExpression,
   ParseGraphState,
   ParseScanState,
   ResolveTargetScanState,
   TokenMetaFlags,
-} from "./pipelineTypes";
+} from "./pipelineTypes.ts";
 import {
   edgeIdWithOption,
   menuAtDepth,
   parentMenuStackLength,
-} from "./scanTransitions";
-import { addEdge, addIncoming, addNode, addOutgoing } from "./graphMutations";
-import { assertInvariant } from "./pipelineInvariants";
-import type { ScreenActionKind } from "../config/parserRules";
-import { addParseDiagnostic } from "./diagnostics";
+} from "./scanTransitions.ts";
+import { addEdge, addIncoming, addNode, addOutgoing } from "./graphMutations.ts";
+import { assertInvariant } from "./pipelineInvariants.ts";
+import type { ScreenActionKind } from "../config/parserRules.ts";
+import { addParseDiagnostic } from "./diagnostics.ts";
 import {
   type ConditionMetadata,
   extractConditionFlagRefs,
   type FlowEdge,
-} from "../domain";
+} from "../domain/index.ts";
 
 interface HandleTokenInput {
   type: number;
@@ -135,10 +135,9 @@ function remapLabelIdReferences(
   // Update state.graph incrementally
   if (state.graph.hasNode(fromId)) {
     const edges = state.graph.edges(fromId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const edgeDataMap = new Map<
       string,
-      { source: string; target: string; data: any }
+      { source: string; target: string; data: FlowEdge }
     >();
     for (const edgeId of edges) {
       const source = state.graph.source(edgeId);

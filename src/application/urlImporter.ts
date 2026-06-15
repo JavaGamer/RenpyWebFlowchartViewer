@@ -5,8 +5,8 @@
  * with automatic GitHub repository resolution.
  */
 
-import { extractRpyFilesFromZip } from "./zipExtractor";
-import type { UploadedFile } from "./uploadTypes";
+import { extractRpyFilesFromZip } from "./zipExtractor.ts";
+import type { UploadedFile } from "./uploadTypes.ts";
 
 /**
  * Automatically converts a standard GitHub repository page URL into its main branch ZIP archive download link.

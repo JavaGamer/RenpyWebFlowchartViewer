@@ -5,7 +5,7 @@
  */
 
 import { strFromU8, unzip } from "fflate";
-import type { UploadedFile } from "./uploadTypes";
+import type { UploadedFile } from "./uploadTypes.ts";
 
 export async function extractRpyFilesFromZip(
   zipFile: UploadedFile,

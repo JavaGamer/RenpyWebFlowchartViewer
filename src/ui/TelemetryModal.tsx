@@ -8,8 +8,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useTelemetryStore } from "../application";
-import { cn } from "./utils/cn";
+import { useTelemetryStore } from "../application/index.ts";
+import { cn } from "./utils/cn.ts";
 
 interface TelemetryModalProps {
   open: boolean;

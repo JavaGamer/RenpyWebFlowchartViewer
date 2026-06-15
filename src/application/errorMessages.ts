@@ -1,4 +1,4 @@
-import { FileReadError } from "../infrastructure";
+import { FileReadError } from "../infrastructure/index.ts";
 
 export function toFileReadErrorMessage(err: unknown): string {
   if (err instanceof FileReadError) {

@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MiniSearch from "minisearch";
 import debounce from "lodash.debounce";
-import type { CanvasNode } from "../../domain";
-import type { ParseService } from "../../application";
-import type { DialogueSearchResult } from "../../infrastructure";
+import type { CanvasNode } from "../../domain/index.ts";
+import type { ParseService } from "../../application/index.ts";
+import type { DialogueSearchResult } from "../../infrastructure/index.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
   NODE_MINISEARCH_OPTIONS,
   type NodeSearchDocument,
-} from "../../config/searchConfig";
+} from "../../config/searchConfig.ts";
 import {
   DIALOGUE_SEARCH_MAX_RESULTS,
   SEARCH_DEBOUNCE_MS,
-} from "../../config/viewerConfig";
+} from "../../config/viewerConfig.ts";
 
 interface UseViewerSearchParams {
   nodes: CanvasNode[];

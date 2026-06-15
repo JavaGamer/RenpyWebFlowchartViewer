@@ -17,32 +17,32 @@ import {
   type FlowEdge,
   type FlowNode,
   getNodeCenter,
-} from "../domain";
+} from "../domain/index.ts";
 import {
   type DialogueSearchMode,
   type ParseService,
   useViewerStore,
-} from "../application";
+} from "../application/index.ts";
 import {
   INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
   LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
   LARGE_GRAPH_EDGE_THRESHOLD,
   LARGE_GRAPH_NODE_THRESHOLD,
-} from "../config/viewerConfig";
+} from "../config/viewerConfig.ts";
 
-import type { createPerfTracker } from "../infrastructure";
-import { THEMES } from "./viewerTheme";
-import { edgeTypes, nodeTypes } from "./viewerReactFlowRegistry";
-import type { DialogueSearchResult } from "../infrastructure";
-import { useViewerLayout } from "./hooks/useViewerLayout";
-import { useViewerSearch } from "./hooks/useViewerSearch";
+import type { createPerfTracker } from "../infrastructure/index.ts";
+import { THEMES } from "./viewerTheme.ts";
+import { edgeTypes, nodeTypes } from "./viewerReactFlowRegistry.ts";
+import type { DialogueSearchResult } from "../infrastructure/index.ts";
+import { useViewerLayout } from "./hooks/useViewerLayout.ts";
+import { useViewerSearch } from "./hooks/useViewerSearch.ts";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ViewerAdvancedControls } from "./ViewerAdvancedControls";
-import { ViewerInspector } from "./viewerInspector";
-import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "./viewerConstants";
-import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes";
-import { deriveCollapsedLabelChildren } from "./canvasHelpers";
-import { cn } from "./utils/cn";
+import { ViewerAdvancedControls } from "./ViewerAdvancedControls.tsx";
+import { ViewerInspector } from "./viewerInspector.tsx";
+import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "./viewerConstants.ts";
+import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
+import { deriveCollapsedLabelChildren } from "./canvasHelpers.ts";
+import { cn } from "./utils/cn.ts";
 
 export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
@@ -446,7 +446,7 @@ export function FlowchartCanvas({
     label?: string;
     dialogueCount?: number;
     dialogueLines?: string[];
-    audioAssetCues?: import("../domain/graph").AudioAssetCue[];
+    audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
   } | undefined;
 
   const nodeSearchMatchCount = useMemo(() => {

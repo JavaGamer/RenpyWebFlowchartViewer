@@ -1,8 +1,8 @@
-import type { ParseGraphState } from "./pipelineTypes";
-import { materializeCallReturnEdges } from "./callReturnFinalization";
-import { classifyNodeRole } from "./roleClassification";
-import { normalizeGraphState } from "./graphNormalization";
-import { addParseDiagnostic } from "./diagnostics";
+import type { ParseGraphState } from "./pipelineTypes.ts";
+import { materializeCallReturnEdges } from "./callReturnFinalization.ts";
+import { classifyNodeRole } from "./roleClassification.ts";
+import { normalizeGraphState } from "./graphNormalization.ts";
+import { addParseDiagnostic } from "./diagnostics.ts";
 
 function emitShadowedTargetResolutionDiagnostics(state: ParseGraphState): void {
   const shadowedCanonicalIds = new Set<string>();

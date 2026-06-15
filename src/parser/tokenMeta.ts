@@ -1,5 +1,5 @@
-import { PARSER_TOKENS } from "./parserTokens";
-import type { TokenMetaFlags } from "./pipelineTypes";
+import { PARSER_TOKENS } from "./parserTokens.ts";
+import type { TokenMetaFlags } from "./pipelineTypes.ts";
 
 function resetMetaFlags(meta: TokenMetaFlags): TokenMetaFlags {
   meta.menuDepth = 0;

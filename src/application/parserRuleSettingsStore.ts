@@ -9,8 +9,8 @@ import {
   normalizeScreenActionRule,
   type ParserVariant,
   type ScreenActionRule,
-} from "../config/parserRules";
-import { STORAGE_KEYS } from "../config/storageKeys";
+} from "../config/parserRules.ts";
+import { STORAGE_KEYS } from "../config/storageKeys.ts";
 
 export type RulesByVariant = Record<string, ScreenActionRule[]>;
 

@@ -5,29 +5,29 @@ export {
   type DialogueSearchMode,
   type ParseProgress,
   useAppStore,
-} from "./appStore";
-export { createProcessUpload, type ProcessUploadDeps } from "./processUpload";
+} from "./appStore.ts";
+export { createProcessUpload, type ProcessUploadDeps } from "./processUpload.ts";
 export {
   type ParseService,
   type ParseServiceRequest,
   type ParseServiceResult,
   workerParseService,
-} from "./parseService";
+} from "./parseService.ts";
 export {
   defaultParserRuleSettings,
   type ParserRuleSettings,
   type ParserRuleSettingsStore,
   type RulesByVariant,
   useParserRuleSettingsStore,
-} from "./parserRuleSettingsStore";
-export { toFileReadErrorMessage, toParseErrorMessage } from "./errorMessages";
+} from "./parserRuleSettingsStore.ts";
+export { toFileReadErrorMessage, toParseErrorMessage } from "./errorMessages.ts";
 export {
   useViewerStore,
   type ViewerActions,
   type ViewerPersistedState,
   type ViewerSessionState,
   type ViewerStore,
-} from "./viewerStore";
+} from "./viewerStore.ts";
 export {
   type FilterSlice,
   type FilterSliceActions,
@@ -44,7 +44,7 @@ export {
   type ThemeSlice,
   type ThemeSliceActions,
   type ThemeSliceState,
-} from "./viewerStoreSlices";
+} from "./viewerStoreSlices/index.ts";
 export {
   buildDebugBundle,
   type BuildDebugBundleInput,
@@ -53,17 +53,17 @@ export {
   type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   toDebugBundleBlob,
-} from "./debugBundle";
+} from "./debugBundle.ts";
 export {
   type TelemetryActions,
   type TelemetryMetrics,
   type TelemetryStore,
   useTelemetryStore,
-} from "./telemetryStore";
-export { type UploadedFile, type UploadFileStatus } from "./uploadTypes";
-export { extractRpyFilesFromZip } from "./zipExtractor";
+} from "./telemetryStore.ts";
+export { type UploadedFile, type UploadFileStatus } from "./uploadTypes.ts";
+export { extractRpyFilesFromZip } from "./zipExtractor.ts";
 export {
   traverseDataTransferItems,
   traverseFileSystemEntry,
-} from "./dropTraversal";
-export { fetchFilesFromUrl, resolveGithubUrl } from "./urlImporter";
+} from "./dropTraversal.ts";
+export { fetchFilesFromUrl, resolveGithubUrl } from "./urlImporter.ts";

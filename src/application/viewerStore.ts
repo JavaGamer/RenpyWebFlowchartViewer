@@ -15,17 +15,17 @@ import { immer } from "zustand/middleware/immer";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { temporal } from "zundo";
 import { z } from "zod";
-import type { DialogueSearchResult } from "../infrastructure";
+import type { DialogueSearchResult } from "../infrastructure/index.ts";
 import type {
   ConditionVisibilityMode,
   EdgeKindFilter,
   LayoutDensity,
   LayoutDirection,
   ThemeName,
-} from "../domain";
-import { STORAGE_KEYS } from "../config/storageKeys";
-import type { DialogueSearchMode } from "./appStore";
-import type { MockFlagValue } from "../domain";
+} from "../domain/index.ts";
+import { STORAGE_KEYS } from "../config/storageKeys.ts";
+import type { DialogueSearchMode } from "./appStore.ts";
+import type { MockFlagValue } from "../domain/index.ts";
 
 import {
   createEmptyMockFlags,
@@ -39,7 +39,7 @@ import {
   defaultSelectionState,
   defaultSimulationState,
   defaultThemeState,
-} from "./viewerStoreSlices";
+} from "./viewerStoreSlices/index.ts";
 
 // ─── Persisted slice ──────────────────────────────────────────────────────────
 

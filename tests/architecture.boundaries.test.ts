@@ -117,9 +117,12 @@ describe("architecture import boundaries", () => {
           | "ui";
         const normalizedImportPath = importPath.replace(/^(\.\.\/|\.\/)+/, "");
         const isDeepImport = normalizedImportPath !== targetLayer &&
+          normalizedImportPath !== `${targetLayer}/index.ts` &&
+          normalizedImportPath !== `${targetLayer}/index.tsx` &&
           normalizedImportPath.startsWith(`${targetLayer}/`);
         const isSameLayer = sourceLayer === targetLayer;
-        const isPerfException = normalizedImportPath === "infrastructure/perf";
+        const isPerfException = normalizedImportPath === "infrastructure/perf" ||
+          normalizedImportPath === "infrastructure/perf.ts";
         if (isDeepImport && !isSameLayer && !isPerfException) {
           offenders.push(`${rel} -> ${importPath}`);
         }

@@ -1,15 +1,15 @@
 import { memo } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { DecisionNodeType, LabelNodeType, MenuNodeType } from "../domain";
-import { THEMES } from "./viewerTheme";
-import { useViewerStore } from "../application";
+import type { DecisionNodeType, LabelNodeType, MenuNodeType } from "../domain/index.ts";
+import { THEMES } from "./viewerTheme.ts";
+import { useViewerStore } from "../application/index.ts";
 import {
   Image as ImageIcon,
   Mic as MicIcon,
   Music as MusicIcon,
   Volume2 as Volume2Icon,
 } from "lucide-react";
-import { cn } from "./utils/cn";
+import { cn } from "./utils/cn.ts";
 
 function getTheme(themeName: unknown) {
   if (typeof themeName === "string" && themeName in THEMES) {

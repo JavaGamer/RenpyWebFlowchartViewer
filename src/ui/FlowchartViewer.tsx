@@ -13,7 +13,7 @@ import { saveAs } from "file-saver";
 import { ErrorBoundary } from "react-error-boundary";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import type { CanvasEdge, CanvasNode, FlowEdge, FlowNode } from "../domain";
+import type { CanvasEdge, CanvasNode, FlowEdge, FlowNode } from "../domain/index.ts";
 import {
   type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -21,15 +21,15 @@ import {
   type ParseService,
   useViewerStore,
   workerParseService,
-} from "../application";
+} from "../application/index.ts";
 
-import { createPerfTracker } from "../infrastructure";
-import { THEMES } from "./viewerTheme";
-import { ViewerToolbar } from "./ViewerToolbar";
-import { CanvasErrorFallback } from "./CanvasErrorFallback";
-import { FlowchartCanvas } from "./FlowchartCanvas";
-import { dataUrlToBlob } from "./canvasHelpers";
-import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes";
+import { createPerfTracker } from "../infrastructure/index.ts";
+import { THEMES } from "./viewerTheme.ts";
+import { ViewerToolbar } from "./ViewerToolbar.tsx";
+import { CanvasErrorFallback } from "./CanvasErrorFallback.tsx";
+import { FlowchartCanvas } from "./FlowchartCanvas.tsx";
+import { dataUrlToBlob } from "./canvasHelpers.ts";
+import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
 
 export interface FlowchartViewerProps {
   flowNodes: FlowNode[];
@@ -265,8 +265,8 @@ export default function FlowchartViewer({
         if (canRedo) redo();
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, [onExport, canUndo, canRedo, undo, redo, setShowAdvancedControls]);
 
   // -- Render -----------------------------------------------------------------

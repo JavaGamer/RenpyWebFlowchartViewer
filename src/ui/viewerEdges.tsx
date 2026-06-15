@@ -5,7 +5,7 @@ import {
   type EdgeProps,
   getBezierPath,
 } from "@xyflow/react";
-import type { LabeledEdgeType } from "../domain";
+import type { LabeledEdgeType } from "../domain/index.ts";
 
 export const LabeledEdge = memo(function LabeledEdge({
   id,

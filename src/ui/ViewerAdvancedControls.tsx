@@ -11,15 +11,15 @@ import type {
   LayoutDensity,
   LayoutDirection,
   ThemeName,
-} from "../domain";
+} from "../domain/index.ts";
 
 import {
   CONTROL_BUTTON_CLASS,
   CONTROL_INPUT_CLASS,
   MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES,
-} from "./viewerConstants";
-import type { MockFlagValue } from "../domain";
-import { cn } from "./utils/cn";
+} from "./viewerConstants.ts";
+import type { MockFlagValue } from "../domain/index.ts";
+import { cn } from "./utils/cn.ts";
 
 export interface ViewerAdvancedControlsProps {
   layoutDirection: LayoutDirection;

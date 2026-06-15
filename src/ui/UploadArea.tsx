@@ -6,8 +6,8 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
-import ParserSettingsSection from "./ParserSettingsSection";
-import type { FlowNode } from "../domain";
+import ParserSettingsSection from "./ParserSettingsSection.tsx";
+import type { FlowNode } from "../domain/index.ts";
 import {
   type DebugBundlePrivacyOptions,
   fetchFilesFromUrl,
@@ -15,17 +15,17 @@ import {
   type UploadedFile,
   type UploadFileStatus,
   useViewerStore,
-} from "../application";
-import { cn } from "./utils/cn";
+} from "../application/index.ts";
+import { cn } from "./utils/cn.ts";
 import type {
   ParserVariant,
   ParserVariantPlugin,
   ScreenActionRule,
-} from "../config/parserRules";
+} from "../config/parserRules.ts";
 import {
   MAX_RPY_FILE_COUNT,
   MAX_TOTAL_RPY_SIZE_BYTES,
-} from "../config/uploadLimits";
+} from "../config/uploadLimits.ts";
 
 export interface UploadAreaProps {
   phase: string;

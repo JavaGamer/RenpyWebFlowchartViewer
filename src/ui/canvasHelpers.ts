@@ -1,4 +1,4 @@
-import type { FlowNode } from "../domain";
+import type { FlowNode } from "../domain/index.ts";
 
 export function deriveCollapsedLabelChildren(
   nodes: FlowNode[],

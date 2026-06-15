@@ -1,4 +1,4 @@
-import { CONTROL_BUTTON_CLASS } from "./viewerConstants";
+import { CONTROL_BUTTON_CLASS } from "./viewerConstants.ts";
 
 interface CanvasErrorFallbackProps {
   error: unknown;

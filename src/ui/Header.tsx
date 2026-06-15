@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Activity, FolderOpen } from "lucide-react";
-import TelemetryModal from "./TelemetryModal";
-import { useViewerStore } from "../application";
-import type { ThemeName } from "../domain";
-import { cn } from "./utils/cn";
+import TelemetryModal from "./TelemetryModal.tsx";
+import { useViewerStore } from "../application/index.ts";
+import type { ThemeName } from "../domain/index.ts";
+import { cn } from "./utils/cn.ts";
 
 export default function Header() {
   const [telemetryOpen, setTelemetryOpen] = useState(false);

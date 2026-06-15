@@ -1,7 +1,7 @@
-import type { FlowEdge, FlowNode } from "../domain";
-import type { ParseDiagnosticPayload } from "../infrastructure";
-import type { DialogueSearchMode, ParseProgress } from "./appStore";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
+import type { DialogueSearchMode, ParseProgress } from "./appStore.ts";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 
 export const DEBUG_BUNDLE_SCHEMA_VERSION = 1 as const;
 export const DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS: DebugBundlePrivacyOptions = {

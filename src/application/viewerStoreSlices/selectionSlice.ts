@@ -7,7 +7,7 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { ViewerStore } from "../viewerStore";
+import type { ViewerStore } from "../viewerStore.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 

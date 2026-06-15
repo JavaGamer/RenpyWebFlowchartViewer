@@ -2,8 +2,8 @@ import {
   MAX_RPY_FILE_COUNT,
   MAX_RPY_FILE_SIZE_BYTES,
   MAX_TOTAL_RPY_SIZE_BYTES,
-} from "../config/uploadLimits";
-import type { UploadedFile } from "./uploadTypes";
+} from "../config/uploadLimits.ts";
+import type { UploadedFile } from "./uploadTypes.ts";
 
 export interface UploadValidationResult {
   rpyFiles: UploadedFile[];

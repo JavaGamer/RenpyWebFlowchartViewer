@@ -5,22 +5,22 @@
  */
 
 import pLimit from "p-limit";
-import { compareDeterministicStrings } from "../domain";
-import { createGraphState } from "./pipelineState";
+import { compareDeterministicStrings } from "../domain/index.ts";
+import { createGraphState } from "./pipelineState.ts";
 import {
   parseOneFile,
   processTokenizedFile,
   tokenizeOneFile,
-} from "./filePipeline";
-import { finalizeRoles } from "./roleFinalization";
-import { preParseInitialization } from "./initMapper";
-import { createPerfTracker } from "../infrastructure/perf";
+} from "./filePipeline.ts";
+import { finalizeRoles } from "./roleFinalization.ts";
+import { preParseInitialization } from "./initMapper.ts";
+import { createPerfTracker } from "../infrastructure/perf.ts";
 import type {
   ParseInputFile,
   ParseOptions,
   ParseProgress,
   ParseResult,
-} from "./pipelineTypes";
+} from "./pipelineTypes.ts";
 
 export type { ParseOptions, ParseProgress, ParseResult };
 

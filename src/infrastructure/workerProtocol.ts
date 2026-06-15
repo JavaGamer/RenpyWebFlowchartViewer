@@ -1,6 +1,6 @@
-import type { FlowEdge, FlowNode } from "../domain";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
-import type { ParseInputFile } from "../parser/pipelineTypes";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import type { ParseInputFile } from "../parser/pipelineTypes.ts";
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 3 as const;
 

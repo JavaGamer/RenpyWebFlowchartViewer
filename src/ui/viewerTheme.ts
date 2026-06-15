@@ -1,4 +1,4 @@
-import type { ThemeName } from "../domain";
+import type { ThemeName } from "../domain/index.ts";
 
 export interface ThemeColors {
   pageBg: string;

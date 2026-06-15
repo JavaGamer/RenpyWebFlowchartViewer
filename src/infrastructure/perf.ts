@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from "../config/storageKeys";
+import { STORAGE_KEYS } from "../config/storageKeys.ts";
 
 export interface PerfEvent {
   metric: string;

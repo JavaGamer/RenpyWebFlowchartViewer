@@ -1,6 +1,6 @@
-import { PARSER_TOKENS } from "./parserTokens";
-import type { ParseScanState } from "./pipelineTypes";
-import type { ConditionalBranchKind } from "./pipelineTypes";
+import { PARSER_TOKENS } from "./parserTokens.ts";
+import type { ParseScanState } from "./pipelineTypes.ts";
+import type { ConditionalBranchKind } from "./pipelineTypes.ts";
 
 /**
  * Calculates the index of the parent menu block in the menu stack based on menu depth.

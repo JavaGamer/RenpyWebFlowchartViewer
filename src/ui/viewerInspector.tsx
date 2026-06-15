@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../config/viewerConfig";
-import { type CanvasNode } from "../domain";
-import type { DialogueSearchResult } from "../infrastructure";
-import { renderHighlightedText, truncateForAria } from "./viewerText";
-import { cn } from "./utils/cn";
-import { useViewerStore } from "../application";
+import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../config/viewerConfig.ts";
+import { type CanvasNode } from "../domain/index.ts";
+import type { DialogueSearchResult } from "../infrastructure/index.ts";
+import { renderHighlightedText, truncateForAria } from "./viewerText.tsx";
+import { cn } from "./utils/cn.ts";
+import { useViewerStore } from "../application/index.ts";
 
 import {
   Image as ImageIcon,
@@ -19,7 +19,7 @@ interface SelectedNodeData {
   label?: string;
   dialogueCount?: number;
   dialogueLines?: string[];
-  audioAssetCues?: import("../domain/graph").AudioAssetCue[];
+  audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
 }
 
 export interface ViewerInspectorProps {

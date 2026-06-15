@@ -4,7 +4,7 @@ import {
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
   searchDialogueLinesInWorker,
-} from "../infrastructure";
+} from "../infrastructure/index.ts";
 
 export type ParseServiceRequest = ParseWorkerClientRequest;
 export type ParseServiceResult = ParseWorkerClientResult;

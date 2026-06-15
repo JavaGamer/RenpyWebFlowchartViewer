@@ -1,5 +1,5 @@
-import type { ParseGraphState } from "./pipelineTypes";
-import { addEdge } from "./graphMutations";
+import type { ParseGraphState } from "./pipelineTypes.ts";
+import { addEdge } from "./graphMutations.ts";
 
 export function materializeCallReturnEdges(state: ParseGraphState): void {
   for (const { returnTargetId, callTargetId } of state.pendingCallReturns) {

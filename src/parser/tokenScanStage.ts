@@ -7,16 +7,16 @@ import type {
   ParseGraphState,
   ParseScanState,
   TokenMetaFlags,
-} from "./pipelineTypes";
-import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta";
-import { maybeUpdateConditionalState } from "./scanTransitions";
-import { handleToken } from "./tokenHandling";
-import { PARSER_TOKENS } from "./parserTokens";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+} from "./pipelineTypes.ts";
+import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
+import { maybeUpdateConditionalState } from "./scanTransitions.ts";
+import { handleToken } from "./tokenHandling.ts";
+import { PARSER_TOKENS } from "./parserTokens.ts";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import {
   type ScreenActionKind,
   toScreenActionRuleMap,
-} from "../config/parserRules";
+} from "../config/parserRules.ts";
 
 /**
  * Represents a flattened token-like structure extracted from the AST tree.

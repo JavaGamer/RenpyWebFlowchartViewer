@@ -1,4 +1,4 @@
-import type { EdgeKind, FlowEdge, FlowNode } from "./graph";
+import type { EdgeKind, FlowEdge, FlowNode } from "./graph.ts";
 import type { CSSProperties } from "react";
 import type { EdgeMarker, Position } from "@xyflow/react";
 

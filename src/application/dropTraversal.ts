@@ -4,7 +4,7 @@
  * Recursive scanning of directories from drop events using the FileSystem Entry API.
  */
 
-import type { UploadedFile } from "./uploadTypes";
+import type { UploadedFile } from "./uploadTypes.ts";
 
 async function readAllDirectoryEntries(
   directoryReader: FileSystemDirectoryReader,

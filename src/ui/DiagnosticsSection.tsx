@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
-import type { ParseDiagnosticPayload } from "../infrastructure";
-import { cn } from "./utils/cn";
-import { useViewerStore } from "../application";
+import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
+import { cn } from "./utils/cn.ts";
+import { useViewerStore } from "../application/index.ts";
 
 export interface DiagnosticsSectionProps {
   parseDiagnostics: ParseDiagnosticPayload[];

@@ -7,9 +7,9 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { DialogueSearchResult } from "../../infrastructure";
-import type { DialogueSearchMode } from "../appStore";
-import type { ViewerStore } from "../viewerStore";
+import type { DialogueSearchResult } from "../../infrastructure/index.ts";
+import type { DialogueSearchMode } from "../appStore.ts";
+import type { ViewerStore } from "../viewerStore.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 

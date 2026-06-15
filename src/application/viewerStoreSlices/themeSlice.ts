@@ -6,8 +6,8 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { EdgeKindFilter, LayoutDensity, ThemeName } from "../../domain";
-import type { ViewerStore } from "../viewerStore";
+import type { EdgeKindFilter, LayoutDensity, ThemeName } from "../../domain/index.ts";
+import type { ViewerStore } from "../viewerStore.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
