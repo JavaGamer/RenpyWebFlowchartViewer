@@ -153,7 +153,7 @@ export function applyDagreLayout(
 
   dagre.layout(g);
 
-  const resolvedTheme: ThemeName = options?.theme ?? 'violet';
+
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = g.node(n.id);
     const h = getNodeHeight(n);
@@ -178,7 +178,6 @@ export function applyDagreLayout(
         isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
-        theme: resolvedTheme,
       },
       draggable: true,
     };
@@ -262,7 +261,7 @@ export function applyProgressiveDagreLayout(
     fallbackIndex += 1;
   }
 
-  const resolvedTheme: ThemeName = theme ?? 'violet';
+
   const nodes: CanvasNode[] = orderedNodes.map((n) => {
     const h = getNodeHeight(n);
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
@@ -284,7 +283,6 @@ export function applyProgressiveDagreLayout(
         isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
-        theme: resolvedTheme,
       },
       draggable: true,
       measured: { width: NODE_WIDTH, height: h },
@@ -371,6 +369,7 @@ export async function applyElkLayout(
   const layoutOptions: Record<string, string> = {
     'elk.algorithm': 'layered',
     'elk.direction': direction === 'TB' ? 'DOWN' : 'RIGHT',
+    'elk.separateConnectedComponents': 'true',
     'elk.spacing.nodeNode': String(nodesep),
     'elk.layered.spacing.nodeNodeBetweenLayers': String(ranksep),
     'elk.padding': '[top=20,left=20,bottom=20,right=20]',
@@ -392,7 +391,7 @@ export async function applyElkLayout(
     }
   });
 
-  const resolvedTheme: ThemeName = options?.theme ?? 'violet';
+
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
     const h = getNodeHeight(n);
@@ -414,7 +413,6 @@ export async function applyElkLayout(
         isTerminalOutcome: n.isTerminalOutcome,
         conditionExpression: n.condition?.expression,
         conditionReferences: n.condition?.references,
-        theme: resolvedTheme,
       },
       draggable: true,
       measured: { width: NODE_WIDTH, height: h },

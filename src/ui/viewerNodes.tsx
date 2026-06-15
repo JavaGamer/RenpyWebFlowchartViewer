@@ -14,8 +14,9 @@ function getTheme(themeName: unknown) {
 }
 
 export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
-  const theme = getTheme(data.theme);
-  const isDark = data.theme === 'dark';
+  const themeName = useViewerStore((s) => s.theme);
+  const theme = getTheme(themeName);
+  const isDark = themeName === 'dark';
   const isShadowed = data.isShadowed === true;
   const isTerminalOutcome = data.isTerminalOutcome === true;
   const showAudioAssetCues = useViewerStore((s) => s.showAudioAssetCues);
@@ -158,7 +159,8 @@ export const LabelNodeComponent = memo(function LabelNodeComponent({ data }: Nod
 });
 
 export const MenuNodeComponent = memo(function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
-  const theme = getTheme(data.theme);
+  const themeName = useViewerStore((s) => s.theme);
+  const theme = getTheme(themeName);
   return (
     <div
       className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
@@ -180,7 +182,8 @@ export const MenuNodeComponent = memo(function MenuNodeComponent({ data }: NodeP
 });
 
 export const DecisionNodeComponent = memo(function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
-  const theme = getTheme(data.theme);
+  const themeName = useViewerStore((s) => s.theme);
+  const theme = getTheme(themeName);
   const expression = data.conditionExpression ?? data.label;
   return (
     <div className="w-[220px] flex items-center justify-center relative py-2">

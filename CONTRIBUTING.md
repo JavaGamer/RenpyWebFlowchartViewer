@@ -9,6 +9,22 @@ Thanks for your interest in contributing.
 
 ## Local Setup
 
+The project can be run using either **Deno** (recommended for local development) or **Node.js**.
+
+### Using Deno (Recommended)
+
+Make sure you have Deno installed. Since the project uses Deno's automatic node module resolution (`"nodeModulesDir": "auto"`), it integrates seamlessly with the local `node_modules/` directory.
+
+```bash
+# Install dependencies
+npm install
+
+# Start the dev server
+deno task dev
+```
+
+### Using Node.js
+
 ```bash
 npm install
 npm run dev
@@ -20,27 +36,45 @@ Open <http://localhost:5173>.
 
 Run these before opening a PR:
 
+### Using Deno (Recommended)
+
+```bash
+deno task lint
+deno task build
+deno task test
+```
+
+### Using Node.js
+
 ```bash
 npm run lint
 npm run build
 npm run test
 ```
 
-Optional coverage run:
+### Optional coverage run:
 
 ```bash
+# Deno
+deno task test:coverage
+
+# Node.js
 npm run test:coverage
 ```
 
-Optional perf baseline run:
+### Optional perf baseline run:
 
 ```bash
+# Deno
+deno task bench:perf
+
+# Node.js
 npm run bench:perf
 ```
 
 ## Troubleshooting During Development
 
-- `@renpy/ast` can keep module-level tokenizer cache between test runs. If test behavior looks stale, rerun `npm run test` in a clean process.
+- `@renpy/ast` can keep module-level tokenizer cache between test runs. If test behavior looks stale, rerun `deno task test` (or `npm run test`) in a clean process.
 - Parsing is extension-based: only `.rpy` files are considered input.
 - A flowchart may be empty if uploaded files contain no parsable `label` or `menu` nodes.
 

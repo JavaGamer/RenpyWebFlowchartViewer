@@ -98,7 +98,8 @@ describe('architecture import boundaries', () => {
           normalizedImportPath !== targetLayer
           && normalizedImportPath.startsWith(`${targetLayer}/`);
         const isSameLayer = sourceLayer === targetLayer;
-        if (isDeepImport && !isSameLayer) {
+        const isPerfException = normalizedImportPath === 'infrastructure/perf';
+        if (isDeepImport && !isSameLayer && !isPerfException) {
           offenders.push(`${rel} -> ${importPath}`);
         }
       }

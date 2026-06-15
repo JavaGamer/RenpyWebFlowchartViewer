@@ -17,14 +17,21 @@ const parser = new Parser({
   },
 });
 
+const flagRefsCache = new Map<string, string[]>();
+
 export function extractConditionFlagRefs(expression: string | undefined): string[] {
   if (!expression || expression.trim().length === 0) return [];
   try {
-    const vars = parser.parse(expression).variables();
-    const KEYWORDS = new Set(['true', 'false', 'none', 'and', 'or', 'not']);
-    return vars
-      .filter((v) => !KEYWORDS.has(v.toLowerCase()))
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    let refs = flagRefsCache.get(expression);
+    if (!refs) {
+      const vars = parser.parse(expression).variables();
+      const KEYWORDS = new Set(['true', 'false', 'none', 'and', 'or', 'not']);
+      refs = vars
+        .filter((v) => !KEYWORDS.has(v.toLowerCase()))
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      flagRefsCache.set(expression, refs);
+    }
+    return refs;
   } catch {
     return [];
   }
@@ -113,14 +120,20 @@ function evaluateInstructions(instructions: EvalInstruction[], flags: Record<str
   return stack.pop() ?? 'unknown';
 }
 
+const parsedExpressionCache = new Map<string, EvalInstruction[]>();
+
 export function evaluateConditionExpression(
   expression: string | undefined,
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return 'unknown';
   try {
-    const expr = parser.parse(expression);
-    const tokens = (expr as unknown as { tokens: EvalInstruction[] }).tokens;
+    let tokens = parsedExpressionCache.get(expression);
+    if (!tokens) {
+      const expr = parser.parse(expression);
+      tokens = (expr as unknown as { tokens: EvalInstruction[] }).tokens;
+      parsedExpressionCache.set(expression, tokens);
+    }
     return evaluateInstructions(tokens, flags);
   } catch {
     return 'unknown';

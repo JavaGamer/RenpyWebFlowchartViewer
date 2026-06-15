@@ -6,7 +6,6 @@ import {
   type CanvasNode,
   type CanvasEdge,
   type LayoutDirection,
-  type ThemeName,
   type LayoutDensity,
   applyDagreLayout,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
@@ -26,7 +25,6 @@ interface UseViewerLayoutParams {
   flowNodes: FlowNode[];
   flowEdges: FlowEdge[];
   layoutDirection: LayoutDirection;
-  theme: ThemeName;
   layoutDensity: LayoutDensity;
   perf: PerfTracker;
   onRelayoutComplete?: () => void;
@@ -36,7 +34,6 @@ export function useViewerLayout({
   flowNodes,
   flowEdges,
   layoutDirection,
-  theme,
   layoutDensity,
   perf,
   onRelayoutComplete,
@@ -60,20 +57,17 @@ export function useViewerLayout({
   const [prevFlowNodes, setPrevFlowNodes] = useState(flowNodes);
   const [prevFlowEdges, setPrevFlowEdges] = useState(flowEdges);
   const [prevDirection, setPrevDirection] = useState(layoutDirection);
-  const [prevTheme, setPrevTheme] = useState(theme);
   const [prevDensity, setPrevDensity] = useState(layoutDensity);
 
   if (
     flowNodes !== prevFlowNodes ||
     flowEdges !== prevFlowEdges ||
     layoutDirection !== prevDirection ||
-    theme !== prevTheme ||
     layoutDensity !== prevDensity
   ) {
     setPrevFlowNodes(flowNodes);
     setPrevFlowEdges(flowEdges);
     setPrevDirection(layoutDirection);
-    setPrevTheme(theme);
     setPrevDensity(layoutDensity);
     setIsCalculatingLayout(
       flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT && !isTestEnv && isWorkerSupported
@@ -87,7 +81,7 @@ export function useViewerLayout({
     }
     perf.mark('layout');
     const progressive = shouldProgressiveLayout;
-    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive, theme, layoutDensity });
+    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive, layoutDensity });
     perf.measure('layout', 'layout_ms', {
       nodes: flowNodes.length,
       edges: flowEdges.length,
@@ -95,7 +89,7 @@ export function useViewerLayout({
       progressive,
     });
     return laidOut;
-  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout, theme, layoutDensity]);
+  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout, layoutDensity]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
@@ -106,7 +100,6 @@ export function useViewerLayout({
       const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
-        theme,
         layoutDensity,
       });
       nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
@@ -126,7 +119,6 @@ export function useViewerLayout({
       {
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
-        theme,
         layoutDensity,
       },
       (next) => {
@@ -143,7 +135,7 @@ export function useViewerLayout({
         setIsCalculatingLayout(false);
       }
     );
-  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, theme, layoutDensity]);
+  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, layoutDensity]);
 
   useEffect(() => {
     startTransition(() => {
@@ -160,9 +152,8 @@ export function useViewerLayout({
       flowEdges,
       layoutDirection,
       {
-        progressive: false,
+        progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
-        theme,
         layoutDensity,
       },
       (refined) => {
@@ -182,7 +173,7 @@ export function useViewerLayout({
     return () => {
       cancelLayout();
     };
-  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout, theme, layoutDensity]);
+  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout, layoutDensity]);
 
   useEffect(() => {
     return () => {

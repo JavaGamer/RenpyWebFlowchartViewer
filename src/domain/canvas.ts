@@ -16,7 +16,7 @@ export interface NodeData extends Record<string, unknown> {
   isTerminalOutcome?: boolean;
   conditionExpression?: string;
   conditionReferences?: string[];
-  theme: ThemeName;
+  theme?: ThemeName;
 }
 
 export interface EdgeData extends Record<string, unknown> {

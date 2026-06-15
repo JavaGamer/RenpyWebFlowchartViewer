@@ -63,26 +63,6 @@ function remapMapKey<T>(map: Map<string, T>, fromId: string, toId: string): void
   map.set(toId, value);
 }
 
-function rebuildGraphFromState(state: ParseGraphState): void {
-  state.graph.clear();
-  state.pendingGraphEdgeIds.clear();
-
-  for (const node of state.nodes) {
-    if (!state.graph.hasNode(node.id)) {
-      state.graph.addNode(node.id, node);
-    }
-  }
-  for (const edge of state.edges) {
-    if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
-      if (!state.graph.hasEdge(edge.id)) {
-        state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
-      }
-    } else {
-      state.pendingGraphEdgeIds.add(edge.id);
-    }
-  }
-}
-
 /**
  * Re-maps all incoming references, outgoing connections, and label definition indices
  * from an old label ID to a new label ID. Used when a label is split into scenes.
@@ -122,7 +102,43 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
       state.canonicalLabelIdByName.set(labelName, toId);
     }
   }
-  rebuildGraphFromState(state);
+
+  // Update state.graph incrementally
+  if (state.graph.hasNode(fromId)) {
+    const edges = state.graph.edges(fromId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const edgeDataMap = new Map<string, { source: string; target: string; data: any }>();
+    for (const edgeId of edges) {
+      const source = state.graph.source(edgeId);
+      const target = state.graph.target(edgeId);
+      const data = state.graph.getEdgeAttributes(edgeId);
+      edgeDataMap.set(edgeId, { source, target, data });
+      state.graph.dropEdge(edgeId);
+    }
+    state.graph.dropNode(fromId);
+    if (node) {
+      state.graph.addNode(toId, node);
+    }
+    for (const [edgeId, edgeInfo] of edgeDataMap.entries()) {
+      const newSource = edgeInfo.source === fromId ? toId : edgeInfo.source;
+      const newTarget = edgeInfo.target === fromId ? toId : edgeInfo.target;
+      if (state.graph.hasNode(newSource) && state.graph.hasNode(newTarget)) {
+        state.graph.addDirectedEdgeWithKey(edgeId, newSource, newTarget, edgeInfo.data);
+      } else {
+        state.pendingGraphEdgeIds.add(edgeId);
+      }
+    }
+  }
+
+  for (const edgeId of [...state.pendingGraphEdgeIds]) {
+    const edge = state.edges.find(e => e.id === edgeId);
+    if (edge && state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
+      if (!state.graph.hasEdge(edge.id)) {
+        state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+      }
+      state.pendingGraphEdgeIds.delete(edgeId);
+    }
+  }
 }
 
 function createDecisionConditionMetadata(

@@ -222,7 +222,6 @@ export function FlowchartCanvas({
     flowNodes,
     flowEdges,
     layoutDirection,
-    theme,
     layoutDensity,
     perf,
     onRelayoutComplete,

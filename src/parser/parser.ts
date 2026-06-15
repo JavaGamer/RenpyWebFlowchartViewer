@@ -10,6 +10,7 @@ import { createGraphState } from './pipelineState';
 import { parseOneFile, processTokenizedFile, tokenizeOneFile } from './filePipeline';
 import { finalizeRoles } from './roleFinalization';
 import { preParseInitialization } from './initMapper';
+import { createPerfTracker } from '../infrastructure/perf';
 import type {
   ParseInputFile,
   ParseResult,
@@ -40,8 +41,7 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
-  const infra = await import('../infrastructure');
-  const perf = infra.createPerfTracker('parser');
+  const perf = createPerfTracker('parser');
   perf.mark('total');
   const state = createGraphState();
   const orderedFiles = [...files].sort(compareFiles);
