@@ -1,6 +1,6 @@
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TokenTree, TreeNode } from '@renpy/ast/out/tokenizer/token-definitions';
-import type { ParseGraphState, ParseScanState } from './pipelineTypes';
+import type { ParseGraphState, ParseScanState, TokenMetaFlags } from './pipelineTypes';
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from './tokenMeta';
 import { maybeUpdateConditionalState } from './scanTransitions';
 import { handleToken } from './tokenHandling';

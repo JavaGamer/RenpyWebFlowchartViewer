@@ -1,4 +1,4 @@
-import { Parser } from 'expr-eval';
+import { Parser } from 'expr-eval-fork';
 
 export type MockFlagValue = 'true' | 'false' | 'unknown';
 export type ConditionEvaluationResult = 'true' | 'false' | 'unknown';

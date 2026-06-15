@@ -30,8 +30,7 @@
     "npm:eslint-plugin-react-refresh@~0.5.2": "0.5.2_eslint@9.39.4",
     "npm:eslint@*": "9.39.4",
     "npm:eslint@^9.39.4": "9.39.4",
-    "npm:expr-eval@*": "2.0.2",
-    "npm:expr-eval@^2.0.2": "2.0.2",
+    "npm:expr-eval-fork@^3.0.3": "3.0.3",
     "npm:fflate@~0.8.2": "0.8.3",
     "npm:file-saver@^2.0.5": "2.0.5",
     "npm:fuse.js@^7.3.0": "7.3.0",
@@ -1774,8 +1773,8 @@
     "expect-type@1.3.0": {
       "integrity": "sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA=="
     },
-    "expr-eval@2.0.2": {
-      "integrity": "sha512-4EMSHGOPSwAfBiibw3ndnP0AvjDWLsMvGOvWEZ2F96IGk0bIVdjQisOHxReSkE13mHcfbuCiXw+G4y0zv6N8Eg=="
+    "expr-eval-fork@3.0.3": {
+      "integrity": "sha512-BhC+hbc5lIVjygr840n5DEkW3MQq7H9o+mc1/N7Z5uIiCFVyESLL5DIE7LNq4CYUNxy+XjA+3jRrL/h0Kt2xcg=="
     },
     "fast-deep-equal@3.1.3": {
       "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q=="
@@ -2746,7 +2745,7 @@
         "npm:eslint-plugin-react-hooks@^7.1.1",
         "npm:eslint-plugin-react-refresh@~0.5.2",
         "npm:eslint@^9.39.4",
-        "npm:expr-eval@^2.0.2",
+        "npm:expr-eval-fork@^3.0.3",
         "npm:fflate@~0.8.2",
         "npm:file-saver@^2.0.5",
         "npm:fuse.js@^7.3.0",

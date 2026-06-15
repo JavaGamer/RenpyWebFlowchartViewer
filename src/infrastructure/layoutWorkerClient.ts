@@ -29,7 +29,7 @@ export function terminateLayoutWorker() {
 
 export function preWarmLayoutWorker(): void {
   // Skip pre-warming in test environments to prevent worker instantiation during integration tests
-  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+  const isTest = typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env?.NODE_ENV === 'test';
   if (isTest) {
     return;
   }
