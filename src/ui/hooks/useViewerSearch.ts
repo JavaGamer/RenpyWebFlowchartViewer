@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import MiniSearch from 'minisearch';
-import debounce from 'lodash.debounce';
-import type { CanvasNode } from '../../domain';
-import type { ParseService } from '../../application';
-import type { DialogueSearchResult } from '../../infrastructure';
+import { useEffect, useMemo, useRef, useState } from "react";
+import MiniSearch from "minisearch";
+import debounce from "lodash.debounce";
+import type { CanvasNode } from "../../domain";
+import type { ParseService } from "../../application";
+import type { DialogueSearchResult } from "../../infrastructure";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
-  NODE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
+  NODE_MINISEARCH_OPTIONS,
   type NodeSearchDocument,
-} from '../../config/searchConfig';
-import { SEARCH_DEBOUNCE_MS, DIALOGUE_SEARCH_MAX_RESULTS } from '../../config/viewerConfig';
+} from "../../config/searchConfig";
+import {
+  DIALOGUE_SEARCH_MAX_RESULTS,
+  SEARCH_DEBOUNCE_MS,
+} from "../../config/viewerConfig";
 
 interface UseViewerSearchParams {
   nodes: CanvasNode[];
@@ -25,7 +28,7 @@ interface UseViewerSearchParams {
   dialogueSearchResults: DialogueSearchResult[];
   setDialogueSearchResults: (results: DialogueSearchResult[]) => void;
   selectedSearchChapter: string;
-  selectedSearchNodeKinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>;
+  selectedSearchNodeKinds: Record<"LABEL" | "MENU" | "DECISION", boolean>;
 }
 
 export interface UseViewerSearchResult {
@@ -55,7 +58,11 @@ export function useViewerSearch({
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
 
   const debouncedSetSearch = useMemo(
-    () => debounce((value: string) => setDebouncedSearch(value), SEARCH_DEBOUNCE_MS),
+    () =>
+      debounce(
+        (value: string) => setDebouncedSearch(value),
+        SEARCH_DEBOUNCE_MS,
+      ),
     [],
   );
 
@@ -73,17 +80,29 @@ export function useViewerSearch({
   const dialogueSearchCandidateNodeIdsKey = useMemo(() => {
     const ids: string[] = [];
     for (const node of nodes) {
-      const nodeData = node.data as { chapter?: string; dialogueCount?: number } | undefined;
-      const chapterCollapsed = nodeData?.chapter ? collapsedChapters[nodeData.chapter] : false;
+      const nodeData = node.data as
+        | { chapter?: string; dialogueCount?: number }
+        | undefined;
+      const chapterCollapsed = nodeData?.chapter
+        ? collapsedChapters[nodeData.chapter]
+        : false;
       const labelCollapsed = collapsedLabelChildren.has(node.id);
       const dialogueCount = nodeData?.dialogueCount ?? 0;
       if (chapterCollapsed || labelCollapsed) continue;
       if (dialogueCount < minDialogue) continue;
-      if (selectedSearchChapter && nodeData?.chapter !== selectedSearchChapter) continue;
+      if (
+        selectedSearchChapter && nodeData?.chapter !== selectedSearchChapter
+      ) continue;
       ids.push(node.id);
     }
     return JSON.stringify(ids);
-  }, [collapsedChapters, collapsedLabelChildren, minDialogue, nodes, selectedSearchChapter]);
+  }, [
+    collapsedChapters,
+    collapsedLabelChildren,
+    minDialogue,
+    nodes,
+    selectedSearchChapter,
+  ]);
 
   // ── Worker-backed search (large graph mode) ───────────────────────────────
   useEffect(() => {
@@ -111,7 +130,9 @@ export function useViewerSearch({
         setDialogueSearchResults(results);
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         setDialogueSearchResults([]);
       });
     return () => controller.abort();
@@ -130,15 +151,26 @@ export function useViewerSearch({
   const searchableDocs = useMemo<DialogueSearchDocument[]>(() => {
     // Skip entirely in large-graph mode (worker handles search there) and when
     // dialogue-line search is disabled.
-    if (!dialogueLineSearchEnabled || largeGraphMode || !hasActiveQuery) return [];
+    if (!dialogueLineSearchEnabled || largeGraphMode || !hasActiveQuery) {
+      return [];
+    }
     const docs: DialogueSearchDocument[] = [];
     for (const node of nodes) {
-      const nodeData = node.data as { label: string; chapter?: string; dialogueCount?: number; dialogueLines?: string[] };
-      const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
+      const nodeData = node.data as {
+        label: string;
+        chapter?: string;
+        dialogueCount?: number;
+        dialogueLines?: string[];
+      };
+      const chapterCollapsed = nodeData.chapter
+        ? collapsedChapters[nodeData.chapter]
+        : false;
       const labelCollapsed = collapsedLabelChildren.has(node.id);
       if (chapterCollapsed || labelCollapsed) continue;
       if ((nodeData.dialogueCount ?? 0) < minDialogue) continue;
-      if (selectedSearchChapter && nodeData.chapter !== selectedSearchChapter) continue;
+      if (selectedSearchChapter && nodeData.chapter !== selectedSearchChapter) {
+        continue;
+      }
       const lines = nodeData.dialogueLines ?? [];
       lines.forEach((line, idx) => {
         docs.push({
@@ -151,7 +183,16 @@ export function useViewerSearch({
       });
     }
     return docs;
-  }, [collapsedChapters, collapsedLabelChildren, dialogueLineSearchEnabled, hasActiveQuery, largeGraphMode, minDialogue, nodes, selectedSearchChapter]);
+  }, [
+    collapsedChapters,
+    collapsedLabelChildren,
+    dialogueLineSearchEnabled,
+    hasActiveQuery,
+    largeGraphMode,
+    minDialogue,
+    nodes,
+    selectedSearchChapter,
+  ]);
 
   const localDialogueMiniSearch = useMemo(() => {
     if (searchableDocs.length === 0 || !hasActiveQuery) return null;
@@ -162,7 +203,10 @@ export function useViewerSearch({
 
   const localDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
     if (!localDialogueMiniSearch) return [];
-    return localDialogueMiniSearch.search(trimmedSearch).slice(0, DIALOGUE_SEARCH_MAX_RESULTS).map((entry) => ({
+    return localDialogueMiniSearch.search(trimmedSearch).slice(
+      0,
+      DIALOGUE_SEARCH_MAX_RESULTS,
+    ).map((entry) => ({
       nodeId: entry.nodeId,
       nodeLabel: entry.nodeLabel,
       lineIndex: entry.lineIndex,
@@ -170,7 +214,9 @@ export function useViewerSearch({
     })) as DialogueSearchResult[];
   }, [localDialogueMiniSearch, trimmedSearch]);
 
-  const rawDialogueSearchResults = largeGraphMode ? dialogueSearchResults : localDialogueSearchResults;
+  const rawDialogueSearchResults = largeGraphMode
+    ? dialogueSearchResults
+    : localDialogueSearchResults;
   const activeDialogueSearchResults = useMemo<DialogueSearchResult[]>(() => {
     if (!selectedSearchNodeKinds.LABEL) return [];
     return rawDialogueSearchResults;
@@ -187,13 +233,20 @@ export function useViewerSearch({
       if (!hasActiveQuery) return [];
       const docs: NodeSearchDocument[] = [];
       for (const node of nodes) {
-        const nodeData = node.data as { label?: string; dialogueCount?: number; chapter?: string; nodeType: 'LABEL' | 'MENU' | 'DECISION' };
-        if (selectedSearchChapter && nodeData.chapter !== selectedSearchChapter) continue;
+        const nodeData = node.data as {
+          label?: string;
+          dialogueCount?: number;
+          chapter?: string;
+          nodeType: "LABEL" | "MENU" | "DECISION";
+        };
+        if (
+          selectedSearchChapter && nodeData.chapter !== selectedSearchChapter
+        ) continue;
         if (!selectedSearchNodeKinds[nodeData.nodeType]) continue;
         docs.push({
           id: node.id,
           nodeId: node.id,
-          label: nodeData.label ?? '',
+          label: nodeData.label ?? "",
           dialogueCountText: String(nodeData.dialogueCount ?? 0),
         });
       }
@@ -211,7 +264,9 @@ export function useViewerSearch({
 
   const nodeSearchMatchIds = useMemo(() => {
     if (!nodeMiniSearch || !hasActiveQuery) return null;
-    return new Set(nodeMiniSearch.search(trimmedSearch).map((entry) => entry.nodeId));
+    return new Set(
+      nodeMiniSearch.search(trimmedSearch).map((entry) => entry.nodeId),
+    );
   }, [hasActiveQuery, nodeMiniSearch, trimmedSearch]);
 
   const searchMatchNodeIds = useMemo(() => {

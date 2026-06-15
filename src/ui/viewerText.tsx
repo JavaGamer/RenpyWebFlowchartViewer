@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
 export function truncateForAria(text: string, maxLength = 80): string {
   const normalized = text.trim();

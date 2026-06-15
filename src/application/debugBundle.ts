@@ -1,7 +1,7 @@
-import type { FlowEdge, FlowNode } from '../domain';
-import type { ParseDiagnosticPayload } from '../infrastructure';
-import type { DialogueSearchMode, ParseProgress } from './appStore';
-import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
+import type { FlowEdge, FlowNode } from "../domain";
+import type { ParseDiagnosticPayload } from "../infrastructure";
+import type { DialogueSearchMode, ParseProgress } from "./appStore";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
 
 export const DEBUG_BUNDLE_SCHEMA_VERSION = 1 as const;
 export const DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS: DebugBundlePrivacyOptions = {
@@ -19,7 +19,7 @@ export interface DebugBundlePrivacyOptions {
 export interface BuildDebugBundleInput {
   appVersion: string;
   state: {
-    phase: 'idle' | 'reading' | 'parsing' | 'done' | 'error';
+    phase: "idle" | "reading" | "parsing" | "done" | "error";
     fileCount: number;
     importRevision: number;
     dialogueSearchMode: DialogueSearchMode;
@@ -39,18 +39,18 @@ export interface BuildDebugBundleInput {
 }
 
 interface RedactedWarning {
-  code: ParseDiagnosticPayload['code'];
-  severity: ParseDiagnosticPayload['severity'];
+  code: ParseDiagnosticPayload["code"];
+  severity: ParseDiagnosticPayload["severity"];
   construct?: string;
   category?:
-    | 'invalid_node'
-    | 'duplicate_node'
-    | 'missing_edge_source'
-    | 'missing_edge_target'
-    | 'invalid_edge_kind'
-    | 'duplicate_semantic_edge'
-    | 'shadowed_label'
-    | 'shadowed_target_resolution';
+    | "invalid_node"
+    | "duplicate_node"
+    | "missing_edge_source"
+    | "missing_edge_target"
+    | "invalid_edge_kind"
+    | "duplicate_semantic_edge"
+    | "shadowed_label"
+    | "shadowed_target_resolution";
   edgeId?: string;
   sourceId?: string;
   targetId?: string;
@@ -124,7 +124,7 @@ function redactWarning(
     edgeId?: string;
     sourceId?: string;
     targetId?: string;
-    category?: RedactedWarning['category'];
+    category?: RedactedWarning["category"];
   };
   const location = warning.location ?? {
     chapter: legacyWarning.chapter,
@@ -140,23 +140,39 @@ function redactWarning(
   return {
     code: warning.code,
     // Backward-compatible fallback for legacy bundles/tests that still provide warning-like payloads.
-    severity: warning.severity ?? 'warning',
+    severity: warning.severity ?? "warning",
     ...(location.construct ? { construct: location.construct } : {}),
     ...(context.category ? { category: context.category } : {}),
     ...(location.edgeId
-      ? { edgeId: privacy.includeRawScriptDetails ? location.edgeId : getEdgeAlias(graphAliasContext, location.edgeId) }
+      ? {
+        edgeId: privacy.includeRawScriptDetails
+          ? location.edgeId
+          : getEdgeAlias(graphAliasContext, location.edgeId),
+      }
       : {}),
     ...(location.sourceId
-      ? { sourceId: privacy.includeRawScriptDetails ? location.sourceId : getNodeAlias(graphAliasContext, location.sourceId) }
+      ? {
+        sourceId: privacy.includeRawScriptDetails
+          ? location.sourceId
+          : getNodeAlias(graphAliasContext, location.sourceId),
+      }
       : {}),
     ...(location.targetId
-      ? { targetId: privacy.includeRawScriptDetails ? location.targetId : getNodeAlias(graphAliasContext, location.targetId) }
+      ? {
+        targetId: privacy.includeRawScriptDetails
+          ? location.targetId
+          : getNodeAlias(graphAliasContext, location.targetId),
+      }
       : {}),
-    ...(privacy.includeFileNames && location.chapter ? { chapter: location.chapter } : {}),
+    ...(privacy.includeFileNames && location.chapter
+      ? { chapter: location.chapter }
+      : {}),
     ...(privacy.includeRawScriptDetails && location.targetExpression
       ? { targetExpression: location.targetExpression }
       : {}),
-    ...(privacy.includeRawScriptDetails && warning.message ? { message: warning.message } : {}),
+    ...(privacy.includeRawScriptDetails && warning.message
+      ? { message: warning.message }
+      : {}),
   };
 }
 
@@ -179,8 +195,12 @@ function redactNode(
         ? node.parentLabelId
         : getNodeAlias(graphAliasContext, node.parentLabelId))
       : undefined,
-    ...(privacy.includeFileNames && node.chapter ? { chapter: node.chapter } : {}),
-    ...(privacy.includeRawScriptDetails && node.dialogueLines ? { dialogueLines: node.dialogueLines } : {}),
+    ...(privacy.includeFileNames && node.chapter
+      ? { chapter: node.chapter }
+      : {}),
+    ...(privacy.includeRawScriptDetails && node.dialogueLines
+      ? { dialogueLines: node.dialogueLines }
+      : {}),
   };
 }
 
@@ -190,19 +210,34 @@ function redactEdge(
   graphAliasContext: GraphAliasContext,
 ): Record<string, unknown> {
   return {
-    id: privacy.includeRawScriptDetails ? edge.id : getEdgeAlias(graphAliasContext, edge.id),
-    source: privacy.includeRawScriptDetails ? edge.source : getNodeAlias(graphAliasContext, edge.source),
-    target: privacy.includeRawScriptDetails ? edge.target : getNodeAlias(graphAliasContext, edge.target),
+    id: privacy.includeRawScriptDetails
+      ? edge.id
+      : getEdgeAlias(graphAliasContext, edge.id),
+    source: privacy.includeRawScriptDetails
+      ? edge.source
+      : getNodeAlias(graphAliasContext, edge.source),
+    target: privacy.includeRawScriptDetails
+      ? edge.target
+      : getNodeAlias(graphAliasContext, edge.target),
     kind: edge.kind,
-    ...(privacy.includeRawScriptDetails && edge.label ? { label: edge.label } : {}),
+    ...(privacy.includeRawScriptDetails && edge.label
+      ? { label: edge.label }
+      : {}),
   };
 }
 
 export function buildDebugBundle(input: BuildDebugBundleInput) {
-  const warningCodes = Array.from(new Set(input.parseDiagnostics.map((warning) => warning.code))).sort();
-  const graphAliasContext = createGraphAliasContext(input.graph.flowNodes, input.graph.flowEdges);
+  const warningCodes = Array.from(
+    new Set(input.parseDiagnostics.map((warning) => warning.code)),
+  ).sort();
+  const graphAliasContext = createGraphAliasContext(
+    input.graph.flowNodes,
+    input.graph.flowEdges,
+  );
   const warnings = input.privacy.includeExtraDiagnostics
-    ? input.parseDiagnostics.map((warning) => redactWarning(warning, input.privacy, graphAliasContext))
+    ? input.parseDiagnostics.map((warning) =>
+      redactWarning(warning, input.privacy, graphAliasContext)
+    )
     : undefined;
 
   return {
@@ -216,7 +251,10 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
       fileCount: input.state.fileCount,
       dialogueSearchMode: input.state.dialogueSearchMode,
       ...(input.state.errorMsg
-        ? { errorSummary: 'Import failed. Enable "Include raw/script details (opt-in)" to include the full error message.' }
+        ? {
+          errorSummary:
+            'Import failed. Enable "Include raw/script details (opt-in)" to include the full error message.',
+        }
         : {}),
       ...(input.privacy.includeRawScriptDetails && input.state.errorMsg
         ? { errorMsg: input.state.errorMsg }
@@ -225,7 +263,8 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
         ? {
           doneFiles: input.state.parseProgress.doneFiles,
           totalFiles: input.state.parseProgress.totalFiles,
-          ...(input.privacy.includeFileNames && input.state.parseProgress.currentFile
+          ...(input.privacy.includeFileNames &&
+              input.state.parseProgress.currentFile
             ? { currentFile: input.state.parseProgress.currentFile }
             : {}),
         }
@@ -243,15 +282,21 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
       warningCodes,
     },
     graph: {
-      nodes: input.graph.flowNodes.map((node) => redactNode(node, input.privacy, graphAliasContext)),
-      edges: input.graph.flowEdges.map((edge) => redactEdge(edge, input.privacy, graphAliasContext)),
+      nodes: input.graph.flowNodes.map((node) =>
+        redactNode(node, input.privacy, graphAliasContext)
+      ),
+      edges: input.graph.flowEdges.map((edge) =>
+        redactEdge(edge, input.privacy, graphAliasContext)
+      ),
     },
     ...(warnings ? { warnings } : {}),
   };
 }
 
 export function toDebugBundleBlob(bundle: unknown): Blob {
-  return new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+  return new Blob([JSON.stringify(bundle, null, 2)], {
+    type: "application/json",
+  });
 }
 
 interface BuildIssueDraftUrlInput {
@@ -259,7 +304,7 @@ interface BuildIssueDraftUrlInput {
   repo: string;
   privacy: DebugBundlePrivacyOptions;
   state: {
-    phase: 'idle' | 'reading' | 'parsing' | 'done' | 'error';
+    phase: "idle" | "reading" | "parsing" | "done" | "error";
     dialogueSearchMode: DialogueSearchMode;
     selectedVariant: ParserVariant;
     fileCount: number;
@@ -274,30 +319,36 @@ export function buildIssueDraftUrl(input: BuildIssueDraftUrlInput): string {
     `- Dialogue search mode: ${input.state.dialogueSearchMode}`,
     `- Imported .rpy file count: ${input.state.fileCount}`,
     `- Parser warning count: ${input.state.warningCount}`,
-    `- Debug bundle file names included: ${input.privacy.includeFileNames ? 'yes' : 'no'}`,
-    `- Debug bundle raw/script details included: ${input.privacy.includeRawScriptDetails ? 'yes' : 'no'}`,
-    `- Debug bundle extra diagnostics included: ${input.privacy.includeExtraDiagnostics ? 'yes' : 'no'}`,
-  ].join('\n');
+    `- Debug bundle file names included: ${
+      input.privacy.includeFileNames ? "yes" : "no"
+    }`,
+    `- Debug bundle raw/script details included: ${
+      input.privacy.includeRawScriptDetails ? "yes" : "no"
+    }`,
+    `- Debug bundle extra diagnostics included: ${
+      input.privacy.includeExtraDiagnostics ? "yes" : "no"
+    }`,
+  ].join("\n");
 
   const body = [
-    '## Summary',
-    'Describe the problem and what you expected to happen.',
-    '',
-    '## Steps to Reproduce',
-    '1. ',
-    '2. ',
-    '3. ',
-    '',
-    '## Debug Bundle',
-    'Attach the exported debug bundle JSON file (optional, privacy-aware).',
-    '',
-    '## Metadata',
+    "## Summary",
+    "Describe the problem and what you expected to happen.",
+    "",
+    "## Steps to Reproduce",
+    "1. ",
+    "2. ",
+    "3. ",
+    "",
+    "## Debug Bundle",
+    "Attach the exported debug bundle JSON file (optional, privacy-aware).",
+    "",
+    "## Metadata",
     metadata,
-  ].join('\n');
+  ].join("\n");
 
   const params = new URLSearchParams({
-    template: 'bug_report.md',
-    title: '[Bug] ',
+    template: "bug_report.md",
+    title: "[Bug] ",
     body,
   });
 

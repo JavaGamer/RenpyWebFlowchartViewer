@@ -1,15 +1,15 @@
-import type { FlowNode, FlowEdge } from '../domain';
-import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
-import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import type { MultiDirectedGraph } from 'graphology';
+import type { FlowEdge, FlowNode } from "../domain";
+import type { TextDocument } from "vscode-languageserver-textdocument";
+import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+import type { MultiDirectedGraph } from "graphology";
 
-export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
-export type ConditionalBranchKind = 'if' | 'elif' | 'else';
+export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
+export type ConditionalBranchKind = "if" | "elif" | "else";
 
 export interface ExtractedScreenActionExpression {
   expression: string;
-  timeout?: FlowEdge['timeout'];
+  timeout?: FlowEdge["timeout"];
 }
 
 export interface PendingConditionalHeader {
@@ -38,19 +38,19 @@ export interface ParseDiagnosticLocation {
 
 export interface ParseDiagnosticContext {
   category?:
-    | 'invalid_node'
-    | 'duplicate_node'
-    | 'missing_edge_source'
-    | 'missing_edge_target'
-    | 'invalid_edge_kind'
-    | 'duplicate_semantic_edge'
-    | 'shadowed_label'
-    | 'shadowed_target_resolution';
+    | "invalid_node"
+    | "duplicate_node"
+    | "missing_edge_source"
+    | "missing_edge_target"
+    | "invalid_edge_kind"
+    | "duplicate_semantic_edge"
+    | "shadowed_label"
+    | "shadowed_target_resolution";
   detail?: string;
 }
 
 interface ParseDiagnosticBase {
-  severity: 'warning' | 'error';
+  severity: "warning" | "error";
   message: string;
   location?: ParseDiagnosticLocation;
   context?: ParseDiagnosticContext;
@@ -58,7 +58,7 @@ interface ParseDiagnosticBase {
 }
 
 export interface DynamicTargetParseDiagnostic extends ParseDiagnosticBase {
-  code: 'dynamic_target';
+  code: "dynamic_target";
   location: {
     chapter: string;
     construct: string;
@@ -68,27 +68,27 @@ export interface DynamicTargetParseDiagnostic extends ParseDiagnosticBase {
 }
 
 export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
-  code: 'normalization';
+  code: "normalization";
   context: {
     category:
-      | 'invalid_node'
-      | 'duplicate_node'
-      | 'missing_edge_source'
-      | 'missing_edge_target'
-      | 'invalid_edge_kind'
-      | 'duplicate_semantic_edge'
-      | 'shadowed_label'
-      | 'shadowed_target_resolution';
+      | "invalid_node"
+      | "duplicate_node"
+      | "missing_edge_source"
+      | "missing_edge_target"
+      | "invalid_edge_kind"
+      | "duplicate_semantic_edge"
+      | "shadowed_label"
+      | "shadowed_target_resolution";
     detail?: string;
   };
 }
 
 export interface ShadowedLabelParseDiagnostic extends ParseDiagnosticBase {
-  code: 'shadowed_label';
+  code: "shadowed_label";
 }
 
 export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
-  code: 'unresolved_target';
+  code: "unresolved_target";
   location: {
     edgeId: string;
     sourceId: string;
@@ -180,7 +180,10 @@ export interface ParseInputFile {
 export interface ParseOptions {
   onProgress?: (progress: ParseProgress) => void;
   maxParallelFiles?: number;
-  tokenizedCache?: Map<string, { document: TextDocument; tokenTree: TokenTree }>;
+  tokenizedCache?: Map<
+    string,
+    { document: TextDocument; tokenTree: TokenTree }
+  >;
   fileCacheKeys?: string[];
   captureDialogueLines?: boolean;
   parserVariant?: ParserVariant;

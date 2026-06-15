@@ -1,6 +1,14 @@
-import dagre from '@dagrejs/dagre';
-import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, NodeData, ThemeName, LayoutDensity } from '../index';
-import { resolveGraphIntegrity } from './integrity';
+import dagre from "@dagrejs/dagre";
+import type {
+  CanvasEdge,
+  CanvasNode,
+  FlowEdge,
+  FlowNode,
+  LayoutDensity,
+  NodeData,
+  ThemeName,
+} from "../index";
+import { resolveGraphIntegrity } from "./integrity";
 
 interface ElkNode {
   id: string;
@@ -62,7 +70,9 @@ function compareIdsLocaleIndependent(a: string, b: string): number {
  * Computes the correct pixel height for a LABEL node based on its visual variant
  * (shadowed, terminal outcome, or standard).
  */
-export function getLabelHeight(params: { isShadowed?: boolean; isTerminalOutcome?: boolean }): number {
+export function getLabelHeight(
+  params: { isShadowed?: boolean; isTerminalOutcome?: boolean },
+): number {
   if (params.isShadowed) return NODE_HEIGHT_LABEL_SHADOWED;
   if (params.isTerminalOutcome) return NODE_HEIGHT_LABEL_TERMINAL;
   return NODE_HEIGHT_LABEL;
@@ -73,9 +83,14 @@ export function getLabelHeight(params: { isShadowed?: boolean; isTerminalOutcome
  * the appropriate constant or `getLabelHeight` and adds extra
  * padding if audio/asset cues are present.
  */
-export function getNodeHeight(node: Pick<FlowNode, 'type' | 'isShadowed' | 'isTerminalOutcome' | 'audioAssetCues'>): number {
-  if (node.type === 'MENU') return NODE_HEIGHT_MENU;
-  if (node.type === 'DECISION') return NODE_HEIGHT_DECISION;
+export function getNodeHeight(
+  node: Pick<
+    FlowNode,
+    "type" | "isShadowed" | "isTerminalOutcome" | "audioAssetCues"
+  >,
+): number {
+  if (node.type === "MENU") return NODE_HEIGHT_MENU;
+  if (node.type === "DECISION") return NODE_HEIGHT_DECISION;
   const baseHeight = getLabelHeight(node);
   if (node.audioAssetCues && node.audioAssetCues.length > 0) {
     return baseHeight + 24;
@@ -101,7 +116,7 @@ export function getNodeHeight(node: Pick<FlowNode, 'type' | 'isShadowed' | 'isTe
 export function applyDagreLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
-  direction: 'TB' | 'LR',
+  direction: "TB" | "LR",
   options?: {
     progressive?: boolean;
     previousPositions?: Map<string, { x: number; y: number }>;
@@ -109,24 +124,32 @@ export function applyDagreLayout(
     layoutDensity?: LayoutDensity;
   },
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
-  const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
-  const shouldUseProgressive =
-    options?.progressive === true && normalizedNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+  const { nodes: normalizedNodes, edges: normalizedEdges } =
+    resolveGraphIntegrity(rawNodes, rawEdges);
+  const shouldUseProgressive = options?.progressive === true &&
+    normalizedNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
   if (shouldUseProgressive) {
-    return applyProgressiveDagreLayout(normalizedNodes, normalizedEdges, direction, options?.previousPositions, options?.theme, options?.layoutDensity);
+    return applyProgressiveDagreLayout(
+      normalizedNodes,
+      normalizedEdges,
+      direction,
+      options?.previousPositions,
+      options?.theme,
+      options?.layoutDensity,
+    );
   }
 
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
 
-  const density = options?.layoutDensity ?? 'normal';
-  let ranksep = direction === 'TB' ? 80 : 110;
+  const density = options?.layoutDensity ?? "normal";
+  let ranksep = direction === "TB" ? 80 : 110;
   let nodesep = 50;
-  if (density === 'compact') {
-    ranksep = direction === 'TB' ? 50 : 70;
+  if (density === "compact") {
+    ranksep = direction === "TB" ? 50 : 70;
     nodesep = 30;
-  } else if (density === 'spacious') {
-    ranksep = direction === 'TB' ? 120 : 160;
+  } else if (density === "spacious") {
+    ranksep = direction === "TB" ? 120 : 160;
     nodesep = 80;
   }
 
@@ -153,13 +176,16 @@ export function applyDagreLayout(
 
   dagre.layout(g);
 
-
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = g.node(n.id);
     const h = getNodeHeight(n);
     return {
       id: n.id,
-      type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
+      type: n.type === "LABEL"
+        ? "labelNode"
+        : n.type === "MENU"
+        ? "menuNode"
+        : "decisionNode",
       position: {
         x: pos ? pos.x - NODE_WIDTH / 2 : 0,
         y: pos ? pos.y - h / 2 : 0,
@@ -189,10 +215,15 @@ export function applyDagreLayout(
       id: e.id,
       source: e.source,
       target: e.target,
-      type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind, condition: e.condition, timeout: e.timeout },
-      markerEnd: { type: 'arrowclosed' as const },
-      style: { stroke: '#6b7280', strokeWidth: 1.5 },
+      type: "labeled",
+      data: {
+        label: e.label ?? "",
+        kind: e.kind,
+        condition: e.condition,
+        timeout: e.timeout,
+      },
+      markerEnd: { type: "arrowclosed" as const },
+      style: { stroke: "#6b7280", strokeWidth: 1.5 },
     }));
 
   return { nodes, edges };
@@ -214,7 +245,7 @@ export function applyDagreLayout(
 export function applyProgressiveDagreLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
-  direction: 'TB' | 'LR',
+  direction: "TB" | "LR",
   previousPositions?: Map<string, { x: number; y: number }>,
   theme?: ThemeName,
   layoutDensity?: LayoutDensity,
@@ -224,8 +255,13 @@ export function applyProgressiveDagreLayout(
     : [...rawNodes].sort((a, b) => compareIdsLocaleIndependent(a.id, b.id));
   const subset = orderedNodes.slice(0, PROGRESSIVE_LAYOUT_NODE_LIMIT);
   const subsetIds = new Set(subset.map((n) => n.id));
-  const subsetEdges = rawEdges.filter((e) => subsetIds.has(e.source) && subsetIds.has(e.target));
-  const base = applyDagreLayout(subset, subsetEdges, direction, { theme, layoutDensity });
+  const subsetEdges = rawEdges.filter((e) =>
+    subsetIds.has(e.source) && subsetIds.has(e.target)
+  );
+  const base = applyDagreLayout(subset, subsetEdges, direction, {
+    theme,
+    layoutDensity,
+  });
   const positionById = new Map<string, { x: number; y: number }>(
     base.nodes.map((n) => [n.id, n.position]),
   );
@@ -243,7 +279,10 @@ export function applyProgressiveDagreLayout(
   let fallbackIndex = 0;
   const fallbackColumns = Math.max(
     4,
-    Math.min(PROGRESSIVE_FALLBACK_MAX_COLUMNS, Math.ceil(Math.sqrt(Math.max(orderedNodes.length, 1)))),
+    Math.min(
+      PROGRESSIVE_FALLBACK_MAX_COLUMNS,
+      Math.ceil(Math.sqrt(Math.max(orderedNodes.length, 1))),
+    ),
   );
   for (const node of orderedNodes) {
     if (positionById.has(node.id)) continue;
@@ -261,13 +300,16 @@ export function applyProgressiveDagreLayout(
     fallbackIndex += 1;
   }
 
-
   const nodes: CanvasNode[] = orderedNodes.map((n) => {
     const h = getNodeHeight(n);
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
     return {
       id: n.id,
-      type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
+      type: n.type === "LABEL"
+        ? "labelNode"
+        : n.type === "MENU"
+        ? "menuNode"
+        : "decisionNode",
       position: { x: pos.x, y: pos.y },
       data: {
         label: n.label,
@@ -295,10 +337,15 @@ export function applyProgressiveDagreLayout(
       id: e.id,
       source: e.source,
       target: e.target,
-      type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind, condition: e.condition, timeout: e.timeout },
-      markerEnd: { type: 'arrowclosed' as const },
-      style: { stroke: '#6b7280', strokeWidth: 1.5 },
+      type: "labeled",
+      data: {
+        label: e.label ?? "",
+        kind: e.kind,
+        condition: e.condition,
+        timeout: e.timeout,
+      },
+      markerEnd: { type: "arrowclosed" as const },
+      style: { stroke: "#6b7280", strokeWidth: 1.5 },
     }));
 
   return { nodes, edges };
@@ -310,16 +357,15 @@ export function applyProgressiveDagreLayout(
  */
 export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
   const nodeData = node.data as NodeData;
-  const nodeHeight =
-    node.measured?.height ??
-    (node.type === 'labelNode'
+  const nodeHeight = node.measured?.height ??
+    (node.type === "labelNode"
       ? getLabelHeight({
-          isShadowed: nodeData.isShadowed,
-          isTerminalOutcome: nodeData.isTerminalOutcome,
-        })
-      : node.type === 'menuNode'
-        ? NODE_HEIGHT_MENU
-        : NODE_HEIGHT_DECISION);
+        isShadowed: nodeData.isShadowed,
+        isTerminalOutcome: nodeData.isTerminalOutcome,
+      })
+      : node.type === "menuNode"
+      ? NODE_HEIGHT_MENU
+      : NODE_HEIGHT_DECISION);
   return {
     x: node.position.x + NODE_WIDTH / 2,
     y: node.position.y + nodeHeight / 2,
@@ -328,7 +374,7 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
 
 export async function preWarmElk(): Promise<void> {
   if (!elkInstance) {
-    const ELKModule = await import('elkjs/lib/elk.bundled.js');
+    const ELKModule = await import("elkjs/lib/elk.bundled.js");
     const ELK = ELKModule.default || ELKModule;
     elkInstance = new ELK() as unknown as ElkInstance;
   }
@@ -337,7 +383,7 @@ export async function preWarmElk(): Promise<void> {
 export async function applyElkLayout(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
-  direction: 'TB' | 'LR',
+  direction: "TB" | "LR",
   options?: {
     theme?: ThemeName;
     layoutDensity?: LayoutDensity;
@@ -345,7 +391,8 @@ export async function applyElkLayout(
 ): Promise<{ nodes: CanvasNode[]; edges: CanvasEdge[] }> {
   await preWarmElk();
   const instance = elkInstance!;
-  const { nodes: normalizedNodes, edges: normalizedEdges } = resolveGraphIntegrity(rawNodes, rawEdges);
+  const { nodes: normalizedNodes, edges: normalizedEdges } =
+    resolveGraphIntegrity(rawNodes, rawEdges);
 
   const elkNodes = normalizedNodes.map((n) => ({
     id: n.id,
@@ -359,29 +406,29 @@ export async function applyElkLayout(
     targets: [e.target],
   }));
 
-  const density = options?.layoutDensity ?? 'normal';
-  let ranksep = direction === 'TB' ? 80 : 110;
+  const density = options?.layoutDensity ?? "normal";
+  let ranksep = direction === "TB" ? 80 : 110;
   let nodesep = 50;
-  if (density === 'compact') {
-    ranksep = direction === 'TB' ? 50 : 70;
+  if (density === "compact") {
+    ranksep = direction === "TB" ? 50 : 70;
     nodesep = 30;
-  } else if (density === 'spacious') {
-    ranksep = direction === 'TB' ? 120 : 160;
+  } else if (density === "spacious") {
+    ranksep = direction === "TB" ? 120 : 160;
     nodesep = 80;
   }
 
   const layoutOptions: Record<string, string> = {
-    'elk.algorithm': 'layered',
-    'elk.direction': direction === 'TB' ? 'DOWN' : 'RIGHT',
-    'elk.separateConnectedComponents': 'true',
-    'elk.spacing.nodeNode': String(nodesep),
-    'elk.layered.spacing.nodeNodeBetweenLayers': String(ranksep),
-    'elk.padding': '[top=20,left=20,bottom=20,right=20]',
-    'org.eclipse.elk.nodePlacement.strategy': 'SIMPLE',
+    "elk.algorithm": "layered",
+    "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
+    "elk.separateConnectedComponents": "true",
+    "elk.spacing.nodeNode": String(nodesep),
+    "elk.layered.spacing.nodeNodeBetweenLayers": String(ranksep),
+    "elk.padding": "[top=20,left=20,bottom=20,right=20]",
+    "org.eclipse.elk.nodePlacement.strategy": "SIMPLE",
   };
 
   const graph = {
-    id: 'root',
+    id: "root",
     layoutOptions,
     children: elkNodes,
     edges: elkEdges,
@@ -395,13 +442,16 @@ export async function applyElkLayout(
     }
   });
 
-
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
     const h = getNodeHeight(n);
     return {
       id: n.id,
-      type: n.type === 'LABEL' ? 'labelNode' : n.type === 'MENU' ? 'menuNode' : 'decisionNode',
+      type: n.type === "LABEL"
+        ? "labelNode"
+        : n.type === "MENU"
+        ? "menuNode"
+        : "decisionNode",
       position: { x: pos.x, y: pos.y },
       data: {
         label: n.label,
@@ -429,10 +479,15 @@ export async function applyElkLayout(
       id: e.id,
       source: e.source,
       target: e.target,
-      type: 'labeled',
-      data: { label: e.label ?? '', kind: e.kind, condition: e.condition, timeout: e.timeout },
-      markerEnd: { type: 'arrowclosed' as const },
-      style: { stroke: '#6b7280', strokeWidth: 1.5 },
+      type: "labeled",
+      data: {
+        label: e.label ?? "",
+        kind: e.kind,
+        condition: e.condition,
+        timeout: e.timeout,
+      },
+      markerEnd: { type: "arrowclosed" as const },
+      style: { stroke: "#6b7280", strokeWidth: 1.5 },
     }));
 
   return { nodes, edges };

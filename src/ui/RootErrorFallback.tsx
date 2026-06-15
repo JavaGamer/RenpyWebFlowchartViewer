@@ -4,7 +4,9 @@ export function RootErrorFallback({ error }: { error: unknown }) {
       role="alert"
       className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center bg-white"
     >
-      <h1 className="text-xl font-semibold text-red-700">Something went wrong</h1>
+      <h1 className="text-xl font-semibold text-red-700">
+        Something went wrong
+      </h1>
       <p className="text-sm text-gray-600 max-w-lg">
         An unexpected error occurred. Refreshing the page may resolve the issue.
       </p>

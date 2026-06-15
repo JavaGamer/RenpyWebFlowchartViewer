@@ -17,6 +17,6 @@ export interface UploadFileStatus {
   name: string;
   size: number;
   relativePath?: string;
-  status: 'pending' | 'reading' | 'parsing' | 'done' | 'error';
+  status: "pending" | "reading" | "parsing" | "done" | "error";
   error?: string;
 }

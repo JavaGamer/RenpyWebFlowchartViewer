@@ -9,11 +9,14 @@ Thanks for your interest in contributing.
 
 ## Local Setup
 
-The project can be run using either **Deno** (recommended for local development) or **Node.js**.
+The project can be run using either **Deno** (recommended for local development)
+or **Node.js**.
 
 ### Using Deno (Recommended)
 
-Make sure you have Deno installed. Since the project uses Deno's automatic node module resolution (`"nodeModulesDir": "auto"`), it integrates seamlessly with the local `node_modules/` directory.
+Make sure you have Deno installed. Since the project uses Deno's automatic node
+module resolution (`"nodeModulesDir": "auto"`), it integrates seamlessly with
+the local `node_modules/` directory.
 
 ```bash
 # Install dependencies
@@ -74,17 +77,22 @@ npm run bench:perf
 
 ## Troubleshooting During Development
 
-- `@renpy/ast` can keep module-level tokenizer cache between test runs. If test behavior looks stale, rerun `deno task test` (or `npm run test`) in a clean process.
+- `@renpy/ast` can keep module-level tokenizer cache between test runs. If test
+  behavior looks stale, rerun `deno task test` (or `npm run test`) in a clean
+  process.
 - Parsing is extension-based: only `.rpy` files are considered input.
-- A flowchart may be empty if uploaded files contain no parsable `label` or `menu` nodes.
+- A flowchart may be empty if uploaded files contain no parsable `label` or
+  `menu` nodes.
 
 ## Bug Reports and Debug Bundles
 
-- Prefer opening issues with the app's **Open new GitHub issue** action so issue drafts include reproducibility prompts and metadata.
+- Prefer opening issues with the app's **Open new GitHub issue** action so issue
+  drafts include reproducibility prompts and metadata.
 - The app's **Export Debug Bundle** is privacy-first by default:
   - file names are excluded unless explicitly opted in
   - raw/script details are excluded unless explicitly opted in
-- If you include sensitive fields in a debug bundle, clearly note consent in the issue.
+- If you include sensitive fields in a debug bundle, clearly note consent in the
+  issue.
 
 ## Pull Request Process
 
@@ -95,8 +103,10 @@ npm run bench:perf
    - What changed
    - Why it changed
    - Any testing performed
-   - How architectural boundaries were preserved (domain/application/infrastructure/ui)
-   - Whether cross-layer imports were kept on layer entrypoints (`src/domain`, `src/application`, `src/infrastructure`, `src/ui`)
+   - How architectural boundaries were preserved
+     (domain/application/infrastructure/ui)
+   - Whether cross-layer imports were kept on layer entrypoints (`src/domain`,
+     `src/application`, `src/infrastructure`, `src/ui`)
 5. Address CI or review feedback and keep the PR scope focused.
 
 ## UI/UX + Accessibility Checklist
@@ -107,6 +117,9 @@ For UI-facing changes, verify:
 - Keyboard navigation for controls and search workflows.
 - Focus-visible styles on interactive controls remain clear.
 - ARIA labels and semantic structure are preserved for key regions.
-- Viewer control landmarks/groups remain present (`Viewer controls`, `Search and filters`, `Layout and focus controls`, `Export controls`).
-- Contrast remains acceptable in default, high-contrast, and colorblind-safe themes.
-- Upload flow feedback remains clear across idle, reading, parsing, error, and empty-result states.
+- Viewer control landmarks/groups remain present (`Viewer controls`,
+  `Search and filters`, `Layout and focus controls`, `Export controls`).
+- Contrast remains acceptable in default, high-contrast, and colorblind-safe
+  themes.
+- Upload flow feedback remains clear across idle, reading, parsing, error, and
+  empty-result states.

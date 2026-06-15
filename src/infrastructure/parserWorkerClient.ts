@@ -1,35 +1,40 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { wrap, proxy, releaseProxy, type Remote } from 'comlink';
-import MiniSearch from 'minisearch';
-import { createGraphState } from '../parser/pipelineState';
-import { tokenizeOneFile, processTokenizedFile } from '../parser/filePipeline';
-import { finalizeRoles } from '../parser/roleFinalization';
-import { DIALOGUE_MINISEARCH_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
-import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
-import type { ParserWorkerApi } from './parserWorker';
+import { proxy, releaseProxy, type Remote, wrap } from "comlink";
+import MiniSearch from "minisearch";
+import { createGraphState } from "../parser/pipelineState";
+import { processTokenizedFile, tokenizeOneFile } from "../parser/filePipeline";
+import { finalizeRoles } from "../parser/roleFinalization";
 import {
+  DIALOGUE_MINISEARCH_OPTIONS,
+  type DialogueSearchDocument,
+} from "../config/searchConfig";
+import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig";
+import type { ParserWorkerApi } from "./parserWorker";
+import {
+  type DialogueSearchResult,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-  type DialogueSearchResult,
-} from './workerProtocol';
+} from "./workerProtocol";
 
 class SyncPromise<T> {
   private value: any;
   private error: any;
-  private state: 'pending' | 'resolved' | 'rejected' = 'pending';
+  private state: "pending" | "resolved" | "rejected" = "pending";
   private resolveCallbacks: Array<(v: any) => void> = [];
   private rejectCallbacks: Array<(e: any) => void> = [];
 
-  constructor(executor: (resolve: (v: T) => void, reject: (e: any) => void) => void) {
+  constructor(
+    executor: (resolve: (v: T) => void, reject: (e: any) => void) => void,
+  ) {
     const resolve = (val: any) => {
-      if (this.state !== 'pending') return;
-      this.state = 'resolved';
+      if (this.state !== "pending") return;
+      this.state = "resolved";
       this.value = val;
       for (const cb of this.resolveCallbacks) cb(val);
     };
     const reject = (err: any) => {
-      if (this.state !== 'pending') return;
-      this.state = 'rejected';
+      if (this.state !== "pending") return;
+      this.state = "rejected";
       this.error = err;
       for (const cb of this.rejectCallbacks) cb(err);
     };
@@ -40,11 +45,14 @@ class SyncPromise<T> {
     }
   }
 
-  then<U>(onResolve: (v: T) => any, onReject?: (e: any) => any): SyncPromise<U> {
-    if (this.state === 'resolved') {
+  then<U>(
+    onResolve: (v: T) => any,
+    onReject?: (e: any) => any,
+  ): SyncPromise<U> {
+    if (this.state === "resolved") {
       try {
         const nextVal = onResolve(this.value);
-        if (nextVal && typeof (nextVal as any).then === 'function') {
+        if (nextVal && typeof (nextVal as any).then === "function") {
           return nextVal as any;
         }
         return SyncPromise.resolve(nextVal) as any;
@@ -52,11 +60,11 @@ class SyncPromise<T> {
         return SyncPromise.reject(e) as any;
       }
     }
-    if (this.state === 'rejected') {
+    if (this.state === "rejected") {
       if (onReject) {
         try {
           const nextVal = onReject(this.error);
-          if (nextVal && typeof (nextVal as any).then === 'function') {
+          if (nextVal && typeof (nextVal as any).then === "function") {
             return nextVal as any;
           }
           return SyncPromise.resolve(nextVal) as any;
@@ -70,7 +78,7 @@ class SyncPromise<T> {
       this.resolveCallbacks.push((val) => {
         try {
           const res = onResolve(val);
-          if (res && typeof (res as any).then === 'function') {
+          if (res && typeof (res as any).then === "function") {
             (res as any).then(resolve, reject);
           } else {
             resolve(res as any);
@@ -83,7 +91,7 @@ class SyncPromise<T> {
         this.rejectCallbacks.push((err) => {
           try {
             const res = onReject(err);
-            if (res && typeof (res as any).then === 'function') {
+            if (res && typeof (res as any).then === "function") {
               (res as any).then(resolve, reject);
             } else {
               resolve(res as any);
@@ -123,27 +131,35 @@ const textEncoder = new TextEncoder();
  */
 const MAX_POOL_SIZE = Math.max(
   1,
-  Math.min(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1, 8)
+  Math.min(
+    typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 1,
+    8,
+  ),
 );
 
 const workerPool: (Worker | null)[] = new Array(MAX_POOL_SIZE).fill(null);
-const apiPool: (Remote<ParserWorkerApi> | null)[] = new Array(MAX_POOL_SIZE).fill(null);
+const apiPool: (Remote<ParserWorkerApi> | null)[] = new Array(MAX_POOL_SIZE)
+  .fill(null);
 let isWorkerSpawningFailed = false;
 
 export function areWorkersSupported(): boolean {
-  if (typeof globalThis.Worker === 'undefined') return false;
+  if (typeof globalThis.Worker === "undefined") return false;
   if (isWorkerSpawningFailed) return false;
   return true;
 }
 
 function getWorker(index: number): Worker {
   if (index < 0 || index >= MAX_POOL_SIZE) {
-    throw new Error(`Worker index ${index} out of bounds [0, ${MAX_POOL_SIZE})`);
+    throw new Error(
+      `Worker index ${index} out of bounds [0, ${MAX_POOL_SIZE})`,
+    );
   }
   let w = workerPool[index];
   if (!w) {
     try {
-      w = new Worker(new URL('./parserWorker.ts', import.meta.url), { type: 'module' });
+      w = new Worker(new URL("./parserWorker.ts", import.meta.url), {
+        type: "module",
+      });
       workerPool[index] = w;
       apiPool[index] = wrap<ParserWorkerApi>(w);
     } catch (err) {
@@ -166,9 +182,9 @@ function getPoolSize(): number {
 
 function hashToHex(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
-  let out = '';
+  let out = "";
   for (let i = 0; i < bytes.length; i += 1) {
-    out += bytes[i]!.toString(16).padStart(2, '0');
+    out += bytes[i]!.toString(16).padStart(2, "0");
   }
   return out;
 }
@@ -182,14 +198,18 @@ function simpleStringHash(input: string): string {
     hash ^= input.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
-  return (hash >>> 0).toString(16).padStart(8, '0');
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): SyncPromise<string[]> {
+function computeFileCacheKeys(
+  files: ParseWorkerClientRequest["files"],
+): SyncPromise<string[]> {
   if (!globalThis.crypto?.subtle) {
     const keys = files.map((file) => {
       const identity = file.relativePath ?? file.name;
-      return `${identity}:${file.content.length}:${simpleStringHash(file.content)}`;
+      return `${identity}:${file.content.length}:${
+        simpleStringHash(file.content)
+      }`;
     });
     return SyncPromise.resolve(keys);
   }
@@ -198,10 +218,12 @@ function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): SyncPro
     Promise.all(
       files.map((file) => {
         const data = textEncoder.encode(file.content);
-        return globalThis.crypto.subtle.digest('SHA-256', data).then((digest) => {
-          return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
-        });
-      })
+        return globalThis.crypto.subtle.digest("SHA-256", data).then(
+          (digest) => {
+            return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
+          },
+        );
+      }),
     )
       .then(resolve)
       .catch(reject);
@@ -210,9 +232,13 @@ function computeFileCacheKeys(files: ParseWorkerClientRequest['files']): SyncPro
 
 let fallbackAccumulatedState = createGraphState();
 let fallbackDialogueSearchDocs: DialogueSearchDocument[] = [];
-let fallbackDialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null = null;
+let fallbackDialogueSearchMiniSearch:
+  | MiniSearch<DialogueSearchDocument>
+  | null = null;
 
-function fallbackBuildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLines?: string[] }[]) {
+function fallbackBuildDialogueSearchIndex(
+  nodes: { id: string; label: string; dialogueLines?: string[] }[],
+) {
   fallbackDialogueSearchDocs = [];
   for (const node of nodes) {
     if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
@@ -227,7 +253,9 @@ function fallbackBuildDialogueSearchIndex(nodes: { id: string; label: string; di
     }
   }
   if (fallbackDialogueSearchDocs.length > 0) {
-    fallbackDialogueSearchMiniSearch = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
+    fallbackDialogueSearchMiniSearch = new MiniSearch(
+      DIALOGUE_MINISEARCH_OPTIONS,
+    );
     fallbackDialogueSearchMiniSearch.addAll(fallbackDialogueSearchDocs);
   } else {
     fallbackDialogueSearchMiniSearch = null;
@@ -235,7 +263,7 @@ function fallbackBuildDialogueSearchIndex(nodes: { id: string; label: string; di
 }
 
 async function parseRenpyFilesFallback(
-  request: ParseWorkerClientRequest
+  request: ParseWorkerClientRequest,
 ): Promise<ParseWorkerClientResult> {
   const {
     files,
@@ -250,7 +278,7 @@ async function parseRenpyFilesFallback(
   } = request;
 
   if (signal?.aborted) {
-    throw new DOMException('Parsing cancelled', 'AbortError');
+    throw new DOMException("Parsing cancelled", "AbortError");
   }
 
   try {
@@ -262,7 +290,7 @@ async function parseRenpyFilesFallback(
 
     for (let idx = 0; idx < files.length; idx += 1) {
       if (signal?.aborted) {
-        throw new DOMException('Parsing cancelled', 'AbortError');
+        throw new DOMException("Parsing cancelled", "AbortError");
       }
       const tokenized = await tokenizeOneFile(files[idx], {}, idx);
       processTokenizedFile(fallbackAccumulatedState, tokenized, {
@@ -286,7 +314,9 @@ async function parseRenpyFilesFallback(
     const result: ParseWorkerClientResult = {
       nodes: fallbackAccumulatedState.nodes,
       edges: fallbackAccumulatedState.edges,
-      diagnostics: fallbackAccumulatedState.diagnostics.length > 0 ? fallbackAccumulatedState.diagnostics : undefined,
+      diagnostics: fallbackAccumulatedState.diagnostics.length > 0
+        ? fallbackAccumulatedState.diagnostics
+        : undefined,
     };
 
     if (!isFinalChunk) {
@@ -303,7 +333,7 @@ async function parseRenpyFilesFallback(
 }
 
 export function parseRenpyFilesInWorker(
-  request: ParseWorkerClientRequest
+  request: ParseWorkerClientRequest,
 ): Promise<ParseWorkerClientResult> {
   if (!areWorkersSupported()) {
     return parseRenpyFilesFallback(request);
@@ -323,8 +353,8 @@ export function parseRenpyFilesInWorker(
     maxParallelFiles,
   } = request;
 
-  const shouldRunParallel =
-    files.length > 1 && getPoolSize() > 1 && maxParallelFiles !== 1;
+  const shouldRunParallel = files.length > 1 && getPoolSize() > 1 &&
+    maxParallelFiles !== 1;
 
   if (shouldRunParallel) {
     return parseChunksInParallel({
@@ -341,22 +371,22 @@ export function parseRenpyFilesInWorker(
 
   const requestId = ++requestCounter;
   if (signal?.aborted) {
-    return Promise.reject(new DOMException('Parsing cancelled', 'AbortError'));
+    return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
   }
 
   return new SyncPromise<ParseWorkerClientResult>((resolve, reject) => {
     const onAbort = () => {
       getWorkerApi(0).cancel(requestId);
-      reject(new DOMException('Parsing cancelled', 'AbortError'));
+      reject(new DOMException("Parsing cancelled", "AbortError"));
     };
-    signal?.addEventListener('abort', onAbort, { once: true });
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     let progressProxy: any;
 
     computeFileCacheKeys(files)
       .then((fileCacheKeys) => {
         if (signal?.aborted) {
-          throw new DOMException('Parsing cancelled', 'AbortError');
+          throw new DOMException("Parsing cancelled", "AbortError");
         }
 
         if (onProgress) {
@@ -377,17 +407,17 @@ export function parseRenpyFilesInWorker(
             resetActiveGraph,
             isFinalChunk,
           },
-          progressProxy
+          progressProxy,
         );
       })
       .then((result: any) => {
-        signal?.removeEventListener('abort', onAbort);
+        signal?.removeEventListener("abort", onAbort);
         if (progressProxy) {
           progressProxy[releaseProxy]();
         }
 
         if (signal?.aborted) {
-          reject(new DOMException('Parsing cancelled', 'AbortError'));
+          reject(new DOMException("Parsing cancelled", "AbortError"));
         } else {
           if (!isFinalChunk && onPartialResult) {
             onPartialResult(result);
@@ -396,7 +426,7 @@ export function parseRenpyFilesInWorker(
         }
       })
       .catch((error) => {
-        signal?.removeEventListener('abort', onAbort);
+        signal?.removeEventListener("abort", onAbort);
         if (progressProxy) {
           progressProxy[releaseProxy]();
         }
@@ -420,9 +450,12 @@ export function searchDialogueLinesInWorker({
 }: SearchRequestPayload): Promise<DialogueSearchResult[]> {
   if (!areWorkersSupported()) {
     if (signal?.aborted) {
-      return Promise.reject(new DOMException('Search cancelled', 'AbortError'));
+      return Promise.reject(new DOMException("Search cancelled", "AbortError"));
     }
-    const maxRes = Math.max(1, Math.min(maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
+    const maxRes = Math.max(
+      1,
+      Math.min(maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS),
+    );
     const allowedIds = nodeIds ? new Set(nodeIds) : null;
     let results: DialogueSearchResult[] = [];
     if (fallbackDialogueSearchMiniSearch) {
@@ -442,30 +475,30 @@ export function searchDialogueLinesInWorker({
 
   const requestId = ++requestCounter;
   if (signal?.aborted) {
-    return Promise.reject(new DOMException('Search cancelled', 'AbortError'));
+    return Promise.reject(new DOMException("Search cancelled", "AbortError"));
   }
 
   return new Promise<DialogueSearchResult[]>((resolve, reject) => {
     const onAbort = () => {
       getWorkerApi(0).cancel(requestId);
-      reject(new DOMException('Search cancelled', 'AbortError'));
+      reject(new DOMException("Search cancelled", "AbortError"));
     };
-    signal?.addEventListener('abort', onAbort, { once: true });
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     getWorkerApi(0).search(requestId, query, {
       nodeIds,
       maxResults,
     })
       .then((results) => {
-        signal?.removeEventListener('abort', onAbort);
+        signal?.removeEventListener("abort", onAbort);
         if (signal?.aborted) {
-          reject(new DOMException('Search cancelled', 'AbortError'));
+          reject(new DOMException("Search cancelled", "AbortError"));
         } else {
           resolve(results);
         }
       })
       .catch((err) => {
-        signal?.removeEventListener('abort', onAbort);
+        signal?.removeEventListener("abort", onAbort);
         reject(err);
       });
   });
@@ -474,10 +507,10 @@ export function searchDialogueLinesInWorker({
 // ─── Parallel Chunk Parsing ───────────────────────────────────────────────────
 
 export interface ParseChunkRequest {
-  files: ParseWorkerClientRequest['files'];
+  files: ParseWorkerClientRequest["files"];
   captureDialogueLines?: boolean;
-  parserVariant?: ParseWorkerClientRequest['parserVariant'];
-  screenActionRules?: ParseWorkerClientRequest['screenActionRules'];
+  parserVariant?: ParseWorkerClientRequest["parserVariant"];
+  screenActionRules?: ParseWorkerClientRequest["screenActionRules"];
   signal?: AbortSignal;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
@@ -485,9 +518,9 @@ export interface ParseChunkRequest {
 }
 
 export interface ParseChunkResult {
-  nodes: ParseWorkerClientResult['nodes'];
-  edges: ParseWorkerClientResult['edges'];
-  diagnostics?: ParseWorkerClientResult['diagnostics'];
+  nodes: ParseWorkerClientResult["nodes"];
+  edges: ParseWorkerClientResult["edges"];
+  diagnostics?: ParseWorkerClientResult["diagnostics"];
 }
 
 interface InternalChunkResult extends ParseChunkResult {
@@ -509,7 +542,7 @@ export function parseChunksInParallel({
   isFinalChunk,
 }: ParseChunkRequest): Promise<ParseChunkResult> {
   if (signal?.aborted) {
-    return Promise.reject(new DOMException('Parsing cancelled', 'AbortError'));
+    return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
   }
 
   const poolSize = getPoolSize();
@@ -521,7 +554,7 @@ export function parseChunksInParallel({
   }
   const workerCount = useWorkerIndices.length;
 
-  const chunks: ParseWorkerClientRequest['files'][] = [];
+  const chunks: ParseWorkerClientRequest["files"][] = [];
   const chunkSize = Math.ceil(files.length / workerCount);
   for (let i = 0; i < files.length; i += chunkSize) {
     chunks.push(files.slice(i, i + chunkSize));
@@ -529,21 +562,24 @@ export function parseChunksInParallel({
 
   return computeFileCacheKeys(files).then((allCacheKeys) => {
     if (signal?.aborted) {
-      throw new DOMException('Parsing cancelled', 'AbortError');
+      throw new DOMException("Parsing cancelled", "AbortError");
     }
 
     const chunkPromises = chunks.map((chunkFiles, chunkIdx) => {
       const workerIdx = useWorkerIndices[chunkIdx % workerCount]!;
       const chunkRequestId = ++requestCounter;
       const cacheKeyOffset = chunkIdx * chunkSize;
-      const chunkCacheKeys = allCacheKeys.slice(cacheKeyOffset, cacheKeyOffset + chunkFiles.length);
+      const chunkCacheKeys = allCacheKeys.slice(
+        cacheKeyOffset,
+        cacheKeyOffset + chunkFiles.length,
+      );
 
       return new Promise<InternalChunkResult>((resolve, reject) => {
         const onAbort = () => {
           getWorkerApi(workerIdx).cancel(chunkRequestId);
-          reject(new DOMException('Parsing cancelled', 'AbortError'));
+          reject(new DOMException("Parsing cancelled", "AbortError"));
         };
-        signal?.addEventListener('abort', onAbort, { once: true });
+        signal?.addEventListener("abort", onAbort, { once: true });
 
         getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFiles, {
           fileCacheKeys: chunkCacheKeys,
@@ -552,15 +588,15 @@ export function parseChunksInParallel({
           screenActionRules,
         })
           .then((chunkResult) => {
-            signal?.removeEventListener('abort', onAbort);
+            signal?.removeEventListener("abort", onAbort);
             if (signal?.aborted) {
-              reject(new DOMException('Parsing cancelled', 'AbortError'));
+              reject(new DOMException("Parsing cancelled", "AbortError"));
             } else {
               resolve(chunkResult as InternalChunkResult);
             }
           })
           .catch((err) => {
-            signal?.removeEventListener('abort', onAbort);
+            signal?.removeEventListener("abort", onAbort);
             reject(err);
           });
       });
@@ -568,16 +604,22 @@ export function parseChunksInParallel({
 
     return Promise.all(chunkPromises).then((results) => {
       if (signal?.aborted) {
-        throw new DOMException('Parsing cancelled', 'AbortError');
+        throw new DOMException("Parsing cancelled", "AbortError");
       }
 
       const mergedNodes = results.flatMap((r) => r.nodes);
       const mergedEdges = results.flatMap((r) => r.edges);
       const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
-      const mergedPendingCallReturns = results.flatMap((r) => r.pendingCallReturns);
+      const mergedPendingCallReturns = results.flatMap((r) =>
+        r.pendingCallReturns
+      );
 
-      const mergedHasReliableReturnInLabel = Array.from(new Set(results.flatMap((r) => r.hasReliableReturnInLabel)));
-      const mergedGlobalScreens = Array.from(new Set(results.flatMap((r) => r.globalScreens)));
+      const mergedHasReliableReturnInLabel = Array.from(
+        new Set(results.flatMap((r) => r.hasReliableReturnInLabel)),
+      );
+      const mergedGlobalScreens = Array.from(
+        new Set(results.flatMap((r) => r.globalScreens)),
+      );
 
       const labelCountMap = new Map<string, number>();
       for (const r of results) {
@@ -600,9 +642,9 @@ export function parseChunksInParallel({
       return new Promise<ParseChunkResult>((resolve, reject) => {
         const onAbortFinalize = () => {
           getWorkerApi(0).cancel(finalizeRequestId);
-          reject(new DOMException('Parsing cancelled', 'AbortError'));
+          reject(new DOMException("Parsing cancelled", "AbortError"));
         };
-        signal?.addEventListener('abort', onAbortFinalize, { once: true });
+        signal?.addEventListener("abort", onAbortFinalize, { once: true });
 
         getWorkerApi(0).finalize(finalizeRequestId, {
           nodes: mergedNodes,
@@ -618,15 +660,15 @@ export function parseChunksInParallel({
           isFinalChunk,
         })
           .then((finalResult) => {
-            signal?.removeEventListener('abort', onAbortFinalize);
+            signal?.removeEventListener("abort", onAbortFinalize);
             if (signal?.aborted) {
-              reject(new DOMException('Parsing cancelled', 'AbortError'));
+              reject(new DOMException("Parsing cancelled", "AbortError"));
             } else {
               resolve(finalResult);
             }
           })
           .catch((err) => {
-            signal?.removeEventListener('abort', onAbortFinalize);
+            signal?.removeEventListener("abort", onAbortFinalize);
             reject(err);
           });
       });

@@ -1,5 +1,5 @@
-import { PARSER_TOKENS } from './parserTokens';
-import type { TokenMetaFlags } from './pipelineTypes';
+import { PARSER_TOKENS } from "./parserTokens";
+import type { TokenMetaFlags } from "./pipelineTypes";
 
 function resetMetaFlags(meta: TokenMetaFlags): TokenMetaFlags {
   meta.menuDepth = 0;
@@ -142,7 +142,6 @@ export function analyzeTokenMetaInto(
 
   return meta;
 }
-
 
 export function analyzeTokenMeta(metas: Iterable<number>): TokenMetaFlags {
   return analyzeTokenMetaInto(metas, createEmptyTokenMeta());

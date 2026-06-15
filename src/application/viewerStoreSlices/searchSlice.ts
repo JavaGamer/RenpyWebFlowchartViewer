@@ -6,10 +6,10 @@
  * standalone-vs-auto search mode toggle.
  */
 
-import type { StateCreator } from 'zustand';
-import type { DialogueSearchResult } from '../../infrastructure';
-import type { DialogueSearchMode } from '../appStore';
-import type { ViewerStore } from '../viewerStore';
+import type { StateCreator } from "zustand";
+import type { DialogueSearchResult } from "../../infrastructure";
+import type { DialogueSearchMode } from "../appStore";
+import type { ViewerStore } from "../viewerStore";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ export interface SearchSliceState {
   dialogueSearchResults: DialogueSearchResult[];
   standaloneDialogueSearchMode: DialogueSearchMode;
   selectedSearchChapter: string;
-  selectedSearchNodeKinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>;
+  selectedSearchNodeKinds: Record<"LABEL" | "MENU" | "DECISION", boolean>;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -30,7 +30,9 @@ export interface SearchSliceActions {
   setDialogueSearchResults: (results: DialogueSearchResult[]) => void;
   setStandaloneDialogueSearchMode: (mode: DialogueSearchMode) => void;
   setSelectedSearchChapter: (chapter: string) => void;
-  setSelectedSearchNodeKinds: (kinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>) => void;
+  setSelectedSearchNodeKinds: (
+    kinds: Record<"LABEL" | "MENU" | "DECISION", boolean>,
+  ) => void;
 }
 
 export type SearchSlice = SearchSliceState & SearchSliceActions;
@@ -38,11 +40,11 @@ export type SearchSlice = SearchSliceState & SearchSliceActions;
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const defaultSearchState: SearchSliceState = {
-  searchInput: '',
+  searchInput: "",
   activeDialogueResultIndex: -1,
   dialogueSearchResults: [],
-  standaloneDialogueSearchMode: 'auto',
-  selectedSearchChapter: '',
+  standaloneDialogueSearchMode: "auto",
+  selectedSearchChapter: "",
   selectedSearchNodeKinds: { LABEL: true, MENU: true, DECISION: true },
 };
 
@@ -50,7 +52,7 @@ export const defaultSearchState: SearchSliceState = {
 
 export const createSearchSlice: StateCreator<
   ViewerStore,
-  [['zustand/immer', never]],
+  [["zustand/immer", never]],
   [],
   SearchSlice
 > = (set) => ({

@@ -1,17 +1,25 @@
-import { PARSER_TOKENS, isMenuKeywordTokenType } from './parserTokens';
+import { isMenuKeywordTokenType, PARSER_TOKENS } from "./parserTokens";
 import type {
+  ExtractedScreenActionExpression,
   ParseGraphState,
   ParseScanState,
   ResolveTargetScanState,
   TokenMetaFlags,
-  ExtractedScreenActionExpression,
-} from './pipelineTypes';
-import { menuAtDepth, parentMenuStackLength, edgeIdWithOption } from './scanTransitions';
-import { addNode, addEdge, addIncoming, addOutgoing } from './graphMutations';
-import { assertInvariant } from './pipelineInvariants';
-import type { ScreenActionKind } from '../config/parserRules';
-import { addParseDiagnostic } from './diagnostics';
-import { extractConditionFlagRefs, type ConditionMetadata, type FlowEdge } from '../domain';
+} from "./pipelineTypes";
+import {
+  edgeIdWithOption,
+  menuAtDepth,
+  parentMenuStackLength,
+} from "./scanTransitions";
+import { addEdge, addIncoming, addNode, addOutgoing } from "./graphMutations";
+import { assertInvariant } from "./pipelineInvariants";
+import type { ScreenActionKind } from "../config/parserRules";
+import { addParseDiagnostic } from "./diagnostics";
+import {
+  type ConditionMetadata,
+  extractConditionFlagRefs,
+  type FlowEdge,
+} from "../domain";
 
 interface HandleTokenInput {
   type: number;
@@ -35,17 +43,23 @@ function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
  * Determines whether the current scanner position lies within the indentation scope
  * of the currently active label block.
  */
-function isWithinCurrentLabelScope(scanState: ParseScanState, meta: TokenMetaFlags, lineIndent: number): boolean {
+function isWithinCurrentLabelScope(
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  lineIndent: number,
+): boolean {
   if (meta.hasLabelStatement) {
     return true;
   }
-  if (scanState.currentLabelId === null || scanState.currentLabelIndent === null) {
+  if (
+    scanState.currentLabelId === null || scanState.currentLabelIndent === null
+  ) {
     return false;
   }
   return lineIndent > scanState.currentLabelIndent;
 }
 
-const LABEL_SCENE_ID_SEPARATOR = '__scene_';
+const LABEL_SCENE_ID_SEPARATOR = "__scene_";
 
 function toSceneLabelId(baseLabelId: string, sceneIndex: number): string {
   return `${baseLabelId}${LABEL_SCENE_ID_SEPARATOR}${sceneIndex}`;
@@ -56,7 +70,11 @@ function replaceSetEntry(set: Set<string>, fromId: string, toId: string): void {
   set.add(toId);
 }
 
-function remapMapKey<T>(map: Map<string, T>, fromId: string, toId: string): void {
+function remapMapKey<T>(
+  map: Map<string, T>,
+  fromId: string,
+  toId: string,
+): void {
   if (!map.has(fromId)) return;
   const value = map.get(fromId) as T;
   map.delete(fromId);
@@ -67,7 +85,11 @@ function remapMapKey<T>(map: Map<string, T>, fromId: string, toId: string): void
  * Re-maps all incoming references, outgoing connections, and label definition indices
  * from an old label ID to a new label ID. Used when a label is split into scenes.
  */
-function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: string): void {
+function remapLabelIdReferences(
+  state: ParseGraphState,
+  fromId: string,
+  toId: string,
+): void {
   if (fromId === toId) return;
   const node = state.nodeMap.get(fromId);
   if (node) {
@@ -85,8 +107,12 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
   replaceSetEntry(state.calledFromMenuOptionTargets, fromId, toId);
 
   for (const pendingCallReturn of state.pendingCallReturns) {
-    if (pendingCallReturn.returnTargetId === fromId) pendingCallReturn.returnTargetId = toId;
-    if (pendingCallReturn.callTargetId === fromId) pendingCallReturn.callTargetId = toId;
+    if (pendingCallReturn.returnTargetId === fromId) {
+      pendingCallReturn.returnTargetId = toId;
+    }
+    if (pendingCallReturn.callTargetId === fromId) {
+      pendingCallReturn.callTargetId = toId;
+    }
   }
   for (const edge of state.edges) {
     if (edge.source === fromId) edge.source = toId;
@@ -97,7 +123,10 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
       stateNode.parentLabelId = toId;
     }
   }
-  for (const [labelName, canonicalLabelId] of state.canonicalLabelIdByName.entries()) {
+  for (
+    const [labelName, canonicalLabelId] of state.canonicalLabelIdByName
+      .entries()
+  ) {
     if (canonicalLabelId === fromId) {
       state.canonicalLabelIdByName.set(labelName, toId);
     }
@@ -107,7 +136,10 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
   if (state.graph.hasNode(fromId)) {
     const edges = state.graph.edges(fromId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const edgeDataMap = new Map<string, { source: string; target: string; data: any }>();
+    const edgeDataMap = new Map<
+      string,
+      { source: string; target: string; data: any }
+    >();
     for (const edgeId of edges) {
       const source = state.graph.source(edgeId);
       const target = state.graph.target(edgeId);
@@ -123,7 +155,12 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
       const newSource = edgeInfo.source === fromId ? toId : edgeInfo.source;
       const newTarget = edgeInfo.target === fromId ? toId : edgeInfo.target;
       if (state.graph.hasNode(newSource) && state.graph.hasNode(newTarget)) {
-        state.graph.addDirectedEdgeWithKey(edgeId, newSource, newTarget, edgeInfo.data);
+        state.graph.addDirectedEdgeWithKey(
+          edgeId,
+          newSource,
+          newTarget,
+          edgeInfo.data,
+        );
       } else {
         state.pendingGraphEdgeIds.add(edgeId);
       }
@@ -131,10 +168,18 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
   }
 
   for (const edgeId of [...state.pendingGraphEdgeIds]) {
-    const edge = state.edges.find(e => e.id === edgeId);
-    if (edge && state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
+    const edge = state.edges.find((e) => e.id === edgeId);
+    if (
+      edge && state.graph.hasNode(edge.source) &&
+      state.graph.hasNode(edge.target)
+    ) {
       if (!state.graph.hasEdge(edge.id)) {
-        state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
+        state.graph.addDirectedEdgeWithKey(
+          edge.id,
+          edge.source,
+          edge.target,
+          edge,
+        );
       }
       state.pendingGraphEdgeIds.delete(edgeId);
     }
@@ -142,7 +187,9 @@ function remapLabelIdReferences(state: ParseGraphState, fromId: string, toId: st
 }
 
 function createDecisionConditionMetadata(
-  decisionContext: ParseScanState['conditionalDecisionStack'][number] | undefined,
+  decisionContext:
+    | ParseScanState["conditionalDecisionStack"][number]
+    | undefined,
 ): ConditionMetadata | undefined {
   if (!decisionContext) return undefined;
   return {
@@ -165,12 +212,12 @@ function connectSceneSplitFromSource(
     id: label ? edgeIdWithOption(baseEdgeId, label) : baseEdgeId,
     source: sourceId,
     target: nextSceneId,
-    kind: 'sequence',
+    kind: "sequence",
     label,
     condition,
   });
-  addOutgoing(state, sourceId, 'sequence');
-  addIncoming(state, nextSceneId, 'sequence');
+  addOutgoing(state, sourceId, "sequence");
+  addIncoming(state, nextSceneId, "sequence");
 }
 
 /**
@@ -189,7 +236,9 @@ function splitCurrentLabelOnSceneBoundary(
   const currentLabelId = scanState.currentLabelId;
   const currentLabelBaseId = scanState.currentLabelBaseId;
   const currentLabelDeclaredName = scanState.currentLabelDeclaredName;
-  if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) return;
+  if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) {
+    return;
+  }
   if (!scanState.currentLabelHasContentSinceSceneBoundary) return;
   const threshold = sceneSplitDialogueThreshold ?? 16;
   if ((scanState.currentSceneDialogueCount ?? 0) < threshold) return;
@@ -212,7 +261,7 @@ function splitCurrentLabelOnSceneBoundary(
   const nextSceneId = toSceneLabelId(currentLabelBaseId, sceneIndex);
   addNode(state, {
     id: nextSceneId,
-    type: 'LABEL',
+    type: "LABEL",
     label: `${currentLabelDeclaredName}: Scene ${sceneIndex}`,
     dialogueCount: 0,
     chapter,
@@ -220,14 +269,24 @@ function splitCurrentLabelOnSceneBoundary(
 
   if (scanState.pendingMenuFallthroughIds.length > 0) {
     for (const menuId of scanState.pendingMenuFallthroughIds) {
-      connectSceneSplitFromSource(state, menuId, nextSceneId, 'next');
+      connectSceneSplitFromSource(state, menuId, nextSceneId, "next");
     }
     scanState.pendingMenuFallthroughIds = [];
   } else {
-    const activeMenu = meta.hasMenuOptionBlock ? menuAtDepth(scanState.menuStack, menuDepth) : null;
-    const activeDecision = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+    const activeMenu = meta.hasMenuOptionBlock
+      ? menuAtDepth(scanState.menuStack, menuDepth)
+      : null;
+    const activeDecision = scanState
+      .conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ];
     if (activeMenu) {
-      connectSceneSplitFromSource(state, activeMenu.id, nextSceneId, activeMenu.optionText ?? undefined);
+      connectSceneSplitFromSource(
+        state,
+        activeMenu.id,
+        nextSceneId,
+        activeMenu.optionText ?? undefined,
+      );
     } else {
       let fallbackMenu: { id: string; optionText: string | null } | null = null;
       for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
@@ -238,7 +297,12 @@ function splitCurrentLabelOnSceneBoundary(
         }
       }
       if (fallbackMenu) {
-        connectSceneSplitFromSource(state, fallbackMenu.id, nextSceneId, 'next');
+        connectSceneSplitFromSource(
+          state,
+          fallbackMenu.id,
+          nextSceneId,
+          "next",
+        );
       } else if (activeDecision) {
         connectSceneSplitFromSource(
           state,
@@ -248,7 +312,7 @@ function splitCurrentLabelOnSceneBoundary(
           createDecisionConditionMetadata(activeDecision),
         );
       } else {
-        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, 'next');
+        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
       }
     }
   }
@@ -267,9 +331,9 @@ function isIdentifierStart(char: string | undefined): boolean {
   if (!char) return false;
   const code = char.charCodeAt(0);
   return (
-    (code >= 65 && code <= 90) ||  // A-Z
+    (code >= 65 && code <= 90) || // A-Z
     (code >= 97 && code <= 122) || // a-z
-    code === 95                    // _
+    code === 95 // _
   );
 }
 
@@ -277,22 +341,23 @@ function isIdentifierPart(char: string | undefined): boolean {
   if (!char) return false;
   const code = char.charCodeAt(0);
   return (
-    (code >= 65 && code <= 90) ||  // A-Z
+    (code >= 65 && code <= 90) || // A-Z
     (code >= 97 && code <= 122) || // a-z
-    (code >= 48 && code <= 57) ||  // 0-9
-    code === 95 ||                 // _
-    code === 46                    // .
+    (code >= 48 && code <= 57) || // 0-9
+    code === 95 || // _
+    code === 46 // .
   );
 }
 const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
-  'if',
-  'selectedif',
-  'sensitiveif',
-  'showif',
+  "if",
+  "selectedif",
+  "sensitiveif",
+  "showif",
 ]);
 
 function isWhitespaceChar(char: string | undefined): boolean {
-  return char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f';
+  return char === " " || char === "\t" || char === "\n" || char === "\r" ||
+    char === "\f";
 }
 // Captures simple assignment statements in Python blocks:
 //   1) LHS variable identifier
@@ -301,26 +366,33 @@ function isWhitespaceChar(char: string | undefined): boolean {
 //   4) RHS expression text up to line end
 // This intentionally targets simple one-line bindings and does not attempt to
 // parse complex/multiline annotations or assignment expressions.
-const PYTHON_ASSIGNMENT_PATTERN_SOURCE = '^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)(?:[ \\t]*:[^=\\n#]+)?[ \\t]*=(?!=)([^\\n]*)$';
+const PYTHON_ASSIGNMENT_PATTERN_SOURCE =
+  "^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)(?:[ \\t]*:[^=\\n#]+)?[ \\t]*=(?!=)([^\\n]*)$";
 
-function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boolean {
+function isTopLevelPythonStatementMatch(
+  text: string,
+  matchIndex: number,
+): boolean {
   let parenDepth = 0;
   let bracketDepth = 0;
   let braceDepth = 0;
-  let activeQuote: '"' | '\'' | null = null;
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   let index = 0;
 
   while (index < matchIndex) {
     const char = text[index];
     if (activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
         index += escapeSequenceLength;
         continue;
       }
       if (tripleQuoted) {
-        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+        if (
+          char === activeQuote && text[index + 1] === activeQuote &&
+          text[index + 2] === activeQuote
+        ) {
           index += 3;
           activeQuote = null;
           tripleQuoted = false;
@@ -336,37 +408,40 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
       continue;
     }
 
-    if (char === '#') {
-      while (index < matchIndex && text[index] !== '\n') {
+    if (char === "#") {
+      while (index < matchIndex && text[index] !== "\n") {
         index += 1;
       }
       continue;
     }
 
-    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
+    if (
+      (char === '"' || char === "'") && text[index + 1] === char &&
+      text[index + 2] === char
+    ) {
       activeQuote = char;
       tripleQuoted = true;
       index += 3;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       activeQuote = char;
       tripleQuoted = false;
       index += 1;
       continue;
     }
 
-    if (char === '(') {
+    if (char === "(") {
       parenDepth += 1;
-    } else if (char === ')') {
+    } else if (char === ")") {
       parenDepth = Math.max(0, parenDepth - 1);
-    } else if (char === '[') {
+    } else if (char === "[") {
       bracketDepth += 1;
-    } else if (char === ']') {
+    } else if (char === "]") {
       bracketDepth = Math.max(0, bracketDepth - 1);
-    } else if (char === '{') {
+    } else if (char === "{") {
       braceDepth += 1;
-    } else if (char === '}') {
+    } else if (char === "}") {
       braceDepth = Math.max(0, braceDepth - 1);
     }
 
@@ -378,7 +453,7 @@ function isTopLevelPythonStatementMatch(text: string, matchIndex: number): boole
 
 class TopLevelPythonAssignmentPattern extends RegExp {
   constructor() {
-    super(PYTHON_ASSIGNMENT_PATTERN_SOURCE, 'gm');
+    super(PYTHON_ASSIGNMENT_PATTERN_SOURCE, "gm");
   }
 
   override exec(text: string): RegExpExecArray | null {
@@ -388,7 +463,10 @@ class TopLevelPythonAssignmentPattern extends RegExp {
     let match: RegExpExecArray | null;
     while ((match = matcher.exec(text)) !== null) {
       this.lastIndex = matcher.lastIndex;
-      if (match.index !== undefined && isTopLevelPythonStatementMatch(text, match.index)) {
+      if (
+        match.index !== undefined &&
+        isTopLevelPythonStatementMatch(text, match.index)
+      ) {
         return match;
       }
       if (match[0].length === 0) {
@@ -403,13 +481,18 @@ class TopLevelPythonAssignmentPattern extends RegExp {
 
   override [Symbol.matchAll](text: string): IterableIterator<RegExpMatchArray> {
     const source = this.source;
-    const flags = this.flags.includes('g') ? this.flags : `${this.flags}g`;
-    return (function* matchAll(this: TopLevelPythonAssignmentPattern): IterableIterator<RegExpMatchArray> {
+    const flags = this.flags.includes("g") ? this.flags : `${this.flags}g`;
+    return (function* matchAll(
+      this: TopLevelPythonAssignmentPattern,
+    ): IterableIterator<RegExpMatchArray> {
       const matcher = new RegExp(source, flags);
       let match: RegExpExecArray | null;
       while ((match = matcher.exec(text)) !== null) {
         this.lastIndex = matcher.lastIndex;
-        if (match.index !== undefined && isTopLevelPythonStatementMatch(text, match.index)) {
+        if (
+          match.index !== undefined &&
+          isTopLevelPythonStatementMatch(text, match.index)
+        ) {
           yield match;
         }
         if (match[0].length === 0) {
@@ -432,13 +515,14 @@ function readParenthesizedArgument(
   text: string,
   argumentStartIndex: number,
 ): { argument: string; endIndex: number } | null {
-  const delimiterStack: Array<')' | ']' | '}'> = [')'];
+  const delimiterStack: Array<")" | "]" | "}"> = [")"];
   let endIndex = -1;
   forEachCodeCharacterOutsideStringsAndComments(
     text,
     argumentStartIndex,
     (index, char) => {
-      const openingDelimiter = CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
+      const openingDelimiter =
+        CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
       if (openingDelimiter) {
         delimiterStack.push(openingDelimiter);
         return;
@@ -479,35 +563,38 @@ function readBalancedSegment(
 ): { expression: string; endIndex: number } | null {
   const opener = text[startIndex];
   const closingByOpening: Record<string, string> = {
-    '(': ')',
-    '[': ']',
-    '{': '}',
+    "(": ")",
+    "[": "]",
+    "{": "}",
   };
-  const expectedCloser = closingByOpening[opener ?? ''];
+  const expectedCloser = closingByOpening[opener ?? ""];
   if (!expectedCloser) return null;
 
   const stack = [expectedCloser];
   let index = startIndex + 1;
-  let activeQuote: '"' | '\'' | null = null;
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   let inComment = false;
 
   while (index < text.length) {
     const char = text[index];
     if (inComment) {
-      if (char === '\n') inComment = false;
+      if (char === "\n") inComment = false;
       index += 1;
       continue;
     }
 
     if (activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         const escapeSequenceLength = (index + 1 < text.length) ? 2 : 1;
         index += escapeSequenceLength;
         continue;
       }
       if (tripleQuoted) {
-        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+        if (
+          char === activeQuote && text[index + 1] === activeQuote &&
+          text[index + 2] === activeQuote
+        ) {
           index += 3;
           activeQuote = null;
           tripleQuoted = false;
@@ -521,25 +608,28 @@ function readBalancedSegment(
       continue;
     }
 
-    if (char === '#') {
+    if (char === "#") {
       inComment = true;
       index += 1;
       continue;
     }
 
-    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
+    if (
+      (char === '"' || char === "'") && text[index + 1] === char &&
+      text[index + 2] === char
+    ) {
       activeQuote = char;
       tripleQuoted = true;
       index += 3;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       activeQuote = char;
       index += 1;
       continue;
     }
 
-    if (char === '(' || char === '[' || char === '{') {
+    if (char === "(" || char === "[" || char === "{") {
       stack.push(closingByOpening[char]!);
       index += 1;
       continue;
@@ -569,7 +659,7 @@ function readScreenActionExpression(
   if (expressionStart >= text.length) return null;
   const firstChar = text[expressionStart];
 
-  if (firstChar === '(' || firstChar === '[' || firstChar === '{') {
+  if (firstChar === "(" || firstChar === "[" || firstChar === "{") {
     return readBalancedSegment(text, expressionStart);
   }
 
@@ -582,7 +672,7 @@ function readScreenActionExpression(
     identifierEnd += 1;
   }
   const afterIdentifier = skipWhitespace(text, identifierEnd);
-  if (text[afterIdentifier] !== '(') {
+  if (text[afterIdentifier] !== "(") {
     return {
       expression: text.slice(expressionStart, identifierEnd),
       endIndex: identifierEnd,
@@ -601,14 +691,17 @@ function isIdentifierBoundary(char: string | undefined): boolean {
   if (!char) return true;
   const code = char.charCodeAt(0);
   return !(
-    (code >= 65 && code <= 90) ||  // A-Z
+    (code >= 65 && code <= 90) || // A-Z
     (code >= 97 && code <= 122) || // a-z
-    (code >= 48 && code <= 57) ||  // 0-9
-    code === 95                    // _
+    (code >= 48 && code <= 57) || // 0-9
+    code === 95 // _
   );
 }
 
-function readIdentifier(text: string, startIndex: number): { identifier: string; endIndex: number } | null {
+function readIdentifier(
+  text: string,
+  startIndex: number,
+): { identifier: string; endIndex: number } | null {
   if (!isIdentifierStart(text[startIndex])) return null;
   let endIndex = startIndex + 1;
   while (endIndex < text.length && isIdentifierPart(text[endIndex])) {
@@ -621,23 +714,27 @@ function readIdentifier(text: string, startIndex: number): { identifier: string;
 }
 
 function allowsActionExtractionOnLine(keyword: string): boolean {
-  return keyword.toLowerCase() !== 'default';
+  return keyword.toLowerCase() !== "default";
 }
 
 function parseTimerDurationFromLine(lineText: string): number | undefined {
   const trimmed = lineText.trimStart();
-  if (!trimmed.toLowerCase().startsWith('timer')) return undefined;
-  const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?=[\s:]|$)/i.exec(trimmed);
+  if (!trimmed.toLowerCase().startsWith("timer")) return undefined;
+  const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?=[\s:]|$)/i
+    .exec(trimmed);
   if (!durationMatch) return undefined;
   const durationSeconds = parseFloat(durationMatch[1]);
   return Number.isFinite(durationSeconds) ? durationSeconds : undefined;
 }
 
-function getLineRange(text: string, index: number): { start: number; end: number } {
+function getLineRange(
+  text: string,
+  index: number,
+): { start: number; end: number } {
   let start = index;
-  while (start > 0 && text[start - 1] !== '\n') start -= 1;
+  while (start > 0 && text[start - 1] !== "\n") start -= 1;
   let end = index;
-  while (end < text.length && text[end] !== '\n') end += 1;
+  while (end < text.length && text[end] !== "\n") end += 1;
   return { start, end };
 }
 
@@ -645,17 +742,21 @@ function getLineRange(text: string, index: number): { start: number; end: number
  * Parses screen action lines (e.g. `action Jump("label")`) within a screen block.
  * Extracts call/jump targets, parameter expressions, and timeout durations for timers.
  */
-function extractScreenActionExpressions(blockText: string): ExtractedScreenActionExpression[] {
+function extractScreenActionExpressions(
+  blockText: string,
+): ExtractedScreenActionExpression[] {
   const ignoredMask = buildIgnoredPositionMask(blockText);
   const expressions: ExtractedScreenActionExpression[] = [];
   let currentLineFirstTopLevelIdentifier: string | null = null;
   let currentLineStartIndex = 0;
   let currentLineIndent: number | null = null;
   let processedTimerHeaderForLine = false;
-  const timerBlockStack: Array<{ indent: number; durationSeconds: number | undefined }> = [];
+  const timerBlockStack: Array<
+    { indent: number; durationSeconds: number | undefined }
+  > = [];
 
   for (let index = 0; index < blockText.length; index += 1) {
-    if (blockText[index] === '\n') {
+    if (blockText[index] === "\n") {
       currentLineFirstTopLevelIdentifier = null;
       currentLineStartIndex = index + 1;
       currentLineIndent = null;
@@ -663,11 +764,11 @@ function extractScreenActionExpressions(blockText: string): ExtractedScreenActio
       continue;
     }
     if (currentLineIndent === null) {
-      if (blockText[index] === ' ' || blockText[index] === '\t') continue;
+      if (blockText[index] === " " || blockText[index] === "\t") continue;
       currentLineIndent = index - currentLineStartIndex;
       while (
-        timerBlockStack.length > 0
-        && currentLineIndent <= timerBlockStack[timerBlockStack.length - 1].indent
+        timerBlockStack.length > 0 &&
+        currentLineIndent <= timerBlockStack[timerBlockStack.length - 1].indent
       ) {
         timerBlockStack.pop();
       }
@@ -677,10 +778,13 @@ function extractScreenActionExpressions(blockText: string): ExtractedScreenActio
     if (!identifier) continue;
     if (!currentLineFirstTopLevelIdentifier) {
       currentLineFirstTopLevelIdentifier = identifier.identifier;
-      if (identifier.identifier.toLowerCase() === 'timer' && currentLineIndent !== null && !processedTimerHeaderForLine) {
+      if (
+        identifier.identifier.toLowerCase() === "timer" &&
+        currentLineIndent !== null && !processedTimerHeaderForLine
+      ) {
         const lineRange = getLineRange(blockText, index);
         const lineText = blockText.slice(lineRange.start, lineRange.end);
-        if (lineText.trimEnd().endsWith(':')) {
+        if (lineText.trimEnd().endsWith(":")) {
           timerBlockStack.push({
             indent: currentLineIndent,
             durationSeconds: parseTimerDurationFromLine(lineText),
@@ -690,31 +794,35 @@ function extractScreenActionExpressions(blockText: string): ExtractedScreenActio
       }
     }
     if (
-      identifier.identifier === 'action'
-      && allowsActionExtractionOnLine(currentLineFirstTopLevelIdentifier)
-      && isIdentifierBoundary(blockText[index - 1])
-      && isIdentifierBoundary(blockText[identifier.endIndex])
+      identifier.identifier === "action" &&
+      allowsActionExtractionOnLine(currentLineFirstTopLevelIdentifier) &&
+      isIdentifierBoundary(blockText[index - 1]) &&
+      isIdentifierBoundary(blockText[identifier.endIndex])
     ) {
       let cursor = identifier.endIndex;
-      if (!/\s|=/.test(blockText[cursor] ?? '')) {
+      if (!/\s|=/.test(blockText[cursor] ?? "")) {
         index = identifier.endIndex - 1;
         continue;
       }
       cursor = skipWhitespace(blockText, cursor);
-      if (blockText[cursor] === '=') {
+      if (blockText[cursor] === "=") {
         cursor = skipWhitespace(blockText, cursor + 1);
       }
 
       const parsed = readScreenActionExpression(blockText, cursor);
       if (parsed) {
-        const isTimerContext = currentLineFirstTopLevelIdentifier?.toLowerCase() === 'timer';
+        const isTimerContext =
+          currentLineFirstTopLevelIdentifier?.toLowerCase() === "timer";
         const timerBlockContext = timerBlockStack[timerBlockStack.length - 1];
-        let timeout: FlowEdge['timeout'] | undefined;
+        let timeout: FlowEdge["timeout"] | undefined;
         if (isTimerContext) {
           const lineRange = getLineRange(blockText, index);
           const lineText = blockText.slice(lineRange.start, lineRange.end);
           const durationSeconds = parseTimerDurationFromLine(lineText);
-          timeout = { isTimeout: true, ...(durationSeconds === undefined ? {} : { durationSeconds }) };
+          timeout = {
+            isTimeout: true,
+            ...(durationSeconds === undefined ? {} : { durationSeconds }),
+          };
         } else if (timerBlockContext) {
           timeout = {
             isTimeout: true,
@@ -742,25 +850,27 @@ function addDynamicTargetDiagnostic(
   sourceId?: string,
 ) {
   const diagnosticId = [
-    'dynamic_target',
+    "dynamic_target",
     chapter,
     construct,
     targetExpression.trim(),
-    sourceId ?? '',
-  ].join('|');
+    sourceId ?? "",
+  ].join("|");
   addParseDiagnostic(
     state,
     {
-      code: 'dynamic_target',
-      severity: 'warning',
+      code: "dynamic_target",
+      severity: "warning",
       location: {
         chapter,
         construct,
         targetExpression: targetExpression.trim(),
         sourceId,
       },
-      message: `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
-      recoveryAction: 'Use a static string target or configure explicit parser rules.',
+      message:
+        `Dynamic ${construct} target cannot be resolved statically: ${targetExpression.trim()}`,
+      recoveryAction:
+        "Use a static string target or configure explicit parser rules.",
     },
     diagnosticId,
   );
@@ -770,11 +880,19 @@ function resolveCallContext(
   scanState: ParseScanState,
   meta: TokenMetaFlags,
   menuDepth: number,
-): { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata } {
+): {
+  isInOption: boolean;
+  source: string | null;
+  optionText: string | null;
+  condition?: ConditionMetadata;
+} {
   const isInOption = meta.hasMenuOptionBlock;
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
-  const decisionContext = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
-  const source = isInOption ? (menu ? menu.id : null) : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
+  const decisionContext = scanState
+    .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+  const source = isInOption
+    ? (menu ? menu.id : null)
+    : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
   const condition: ConditionMetadata | undefined = decisionContext
     ? {
       branchKind: decisionContext.branchKind,
@@ -783,7 +901,12 @@ function resolveCallContext(
       decisionNodeId: decisionContext.decisionNodeId,
     }
     : undefined;
-  return { isInOption, source, optionText: menu?.optionText ?? null, condition };
+  return {
+    isInOption,
+    source,
+    optionText: menu?.optionText ?? null,
+    condition,
+  };
 }
 
 function resolveTargetLabelId(
@@ -791,7 +914,8 @@ function resolveTargetLabelId(
   targetExpression: string,
 ): { resolvedTargetId: string } {
   const targetName = targetExpression.trim();
-  const resolvedTargetId = state.canonicalLabelIdByName.get(targetName) ?? targetName;
+  const resolvedTargetId = state.canonicalLabelIdByName.get(targetName) ??
+    targetName;
   return { resolvedTargetId };
 }
 
@@ -799,39 +923,52 @@ function emitJumpEdge(
   state: ParseGraphState,
   scanState: ParseScanState,
   target: string,
-  context: { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata },
+  context: {
+    isInOption: boolean;
+    source: string | null;
+    optionText: string | null;
+    condition?: ConditionMetadata;
+  },
   suppressFallthrough: boolean,
-  timeout?: FlowEdge['timeout'],
+  timeout?: FlowEdge["timeout"],
 ) {
   const { isInOption, source, optionText } = context;
   if (source) {
     const { resolvedTargetId } = resolveTargetLabelId(state, target);
-    const timeoutSuffix =
-      timeout?.isTimeout === true
-        ? `_timeout_${timeout.durationSeconds === undefined ? 'unknown' : String(timeout.durationSeconds)}`
-        : '';
-    const edgeId = `jump_${source}__${resolvedTargetId}_${optionText ?? ''}${timeoutSuffix}`;
+    const timeoutSuffix = timeout?.isTimeout === true
+      ? `_timeout_${
+        timeout.durationSeconds === undefined
+          ? "unknown"
+          : String(timeout.durationSeconds)
+      }`
+      : "";
+    const edgeId = `jump_${source}__${resolvedTargetId}_${
+      optionText ?? ""
+    }${timeoutSuffix}`;
     addEdge(state, {
       id: edgeId,
       source,
       target: resolvedTargetId,
-      kind: 'jump',
+      kind: "jump",
       label: isInOption ? (optionText ?? undefined) : undefined,
       condition: context.condition,
       timeout,
     });
     if (!isInOption && scanState.currentLabelId) {
-      addOutgoing(state, scanState.currentLabelId, 'jump');
-      addIncoming(state, resolvedTargetId, 'jump');
+      addOutgoing(state, scanState.currentLabelId, "jump");
+      addIncoming(state, resolvedTargetId, "jump");
     } else if (isInOption) {
       // Register the menu node's outgoing jump traffic so that fallthrough
       // detection (hasOutgoingEdge) correctly skips menus whose options all
       // explicitly jump to another label.
-      addOutgoing(state, source, 'jump');
-      addIncoming(state, resolvedTargetId, 'jump');
+      addOutgoing(state, source, "jump");
+      addIncoming(state, resolvedTargetId, "jump");
     }
   }
-  if (suppressFallthrough && !isInOption && scanState.conditionalIndentStack.length === 0) {
+  if (
+    suppressFallthrough && !isInOption &&
+    scanState.conditionalIndentStack.length === 0
+  ) {
     scanState.labelHasExplicitExit = true;
   }
 }
@@ -840,30 +977,40 @@ function emitCallEdge(
   state: ParseGraphState,
   scanState: ParseScanState,
   target: string,
-  context: { isInOption: boolean; source: string | null; optionText: string | null; condition?: ConditionMetadata },
-  timeout?: FlowEdge['timeout'],
+  context: {
+    isInOption: boolean;
+    source: string | null;
+    optionText: string | null;
+    condition?: ConditionMetadata;
+  },
+  timeout?: FlowEdge["timeout"],
 ) {
   const { isInOption, source, optionText } = context;
   if (!source) return;
   const { resolvedTargetId } = resolveTargetLabelId(state, target);
-  const timeoutSuffix =
-    timeout?.isTimeout === true
-      ? `_timeout_${timeout.durationSeconds === undefined ? 'unknown' : String(timeout.durationSeconds)}`
-      : '';
-  const edgeId = `call_${source}__${resolvedTargetId}_${optionText ?? ''}${timeoutSuffix}`;
+  const timeoutSuffix = timeout?.isTimeout === true
+    ? `_timeout_${
+      timeout.durationSeconds === undefined
+        ? "unknown"
+        : String(timeout.durationSeconds)
+    }`
+    : "";
+  const edgeId = `call_${source}__${resolvedTargetId}_${
+    optionText ?? ""
+  }${timeoutSuffix}`;
   addEdge(state, {
     id: edgeId,
     source,
     target: resolvedTargetId,
-    kind: 'call',
-    label: isInOption ? (optionText ? `call: ${optionText}` : 'call') : 'call',
+    kind: "call",
+    label: isInOption ? (optionText ? `call: ${optionText}` : "call") : "call",
     condition: context.condition,
     timeout,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {
-    addOutgoing(state, scanState.currentLabelId, 'call');
-    addIncoming(state, resolvedTargetId, 'call');
+    addOutgoing(state, scanState.currentLabelId, "call");
+    addIncoming(state, resolvedTargetId, "call");
   }
   state.pendingCallReturns.push({
     returnTargetId: source,
@@ -872,9 +1019,11 @@ function emitCallEdge(
   if (isInOption) state.calledFromMenuOptionTargets.add(resolvedTargetId);
 }
 
-export function parseDictLiteral(expression: string): Map<string, string> | null {
+export function parseDictLiteral(
+  expression: string,
+): Map<string, string> | null {
   const trimmed = expression.trim();
-  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
   const content = trimmed.substring(1, trimmed.length - 1);
   const result = new Map<string, string>();
 
@@ -890,16 +1039,16 @@ export function parseDictLiteral(expression: string): Map<string, string> | null
     const quoteChar = content[i];
     if (quoteChar !== '"' && quoteChar !== "'") return null;
     i++; // consume quote
-    let str = '';
+    let str = "";
     while (i < content.length) {
       const char = content[i];
-      if (char === '\\') {
+      if (char === "\\") {
         i++;
         if (i < content.length) {
           const nextChar = content[i];
-          if (nextChar === 'n') str += '\n';
-          else if (nextChar === 't') str += '\t';
-          else if (nextChar === 'r') str += '\r';
+          if (nextChar === "n") str += "\n";
+          else if (nextChar === "t") str += "\t";
+          else if (nextChar === "r") str += "\r";
           else str += nextChar;
           i++;
         }
@@ -921,7 +1070,7 @@ export function parseDictLiteral(expression: string): Map<string, string> | null
     if (key === null) return null;
 
     skipWhitespace();
-    if (i >= content.length || content[i] !== ':') return null;
+    if (i >= content.length || content[i] !== ":") return null;
     i++; // consume ':'
 
     skipWhitespace();
@@ -932,7 +1081,7 @@ export function parseDictLiteral(expression: string): Map<string, string> | null
 
     skipWhitespace();
     if (i < content.length) {
-      if (content[i] !== ',') return null;
+      if (content[i] !== ",") return null;
       i++; // consume ','
     }
   }
@@ -942,8 +1091,9 @@ export function parseDictLiteral(expression: string): Map<string, string> | null
 
 export function extractLiteralTarget(expression: string): string | null {
   const trimmed = expression.trim();
-  const prefixMatch = /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[rR]|[uU]|[bB])?/.exec(trimmed);
-  const prefix = prefixMatch ? prefixMatch[0] : '';
+  const prefixMatch = /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[rR]|[uU]|[bB])?/
+    .exec(trimmed);
+  const prefix = prefixMatch ? prefixMatch[0] : "";
   const rest = trimmed.substring(prefix.length);
 
   let quote: string;
@@ -964,22 +1114,22 @@ export function extractLiteralTarget(expression: string): string | null {
   }
 
   const inner = rest.substring(quote.length, rest.length - quote.length);
-  const isRaw = prefix.toLowerCase().includes('r');
-  let result = '';
+  const isRaw = prefix.toLowerCase().includes("r");
+  let result = "";
   let i = 0;
   while (i < inner.length) {
     const char = inner[i];
-    if (char === '\\' && !isRaw) {
+    if (char === "\\" && !isRaw) {
       i++;
       if (i < inner.length) {
         const nextChar = inner[i];
-        if (nextChar === 'n') result += '\n';
-        else if (nextChar === 't') result += '\t';
-        else if (nextChar === 'r') result += '\r';
+        if (nextChar === "n") result += "\n";
+        else if (nextChar === "t") result += "\t";
+        else if (nextChar === "r") result += "\r";
         else result += nextChar;
         i++;
       } else {
-        result += '\\';
+        result += "\\";
       }
     } else {
       result += char;
@@ -1014,8 +1164,10 @@ export function resolveStaticTargetExpression(
     }
     return null;
   }
-  
-  const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(trimmed);
+
+  const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(
+    trimmed,
+  );
   if (dictMatch) {
     const dictName = dictMatch[1];
     const keyExpr = dictMatch[2].trim();
@@ -1023,13 +1175,17 @@ export function resolveStaticTargetExpression(
     const globalDict = state?.globalLabelVariableDictTargets.get(dictName);
     const dict = localDict || globalDict;
     if (dict) {
-      const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState, state);
+      const resolvedKey = resolveStaticTargetExpression(
+        keyExpr,
+        scanState,
+        state,
+      );
       if (resolvedKey) {
         return dict.get(resolvedKey) ?? null;
       }
     }
   }
-  
+
   return null;
 }
 
@@ -1060,7 +1216,9 @@ export function resolveExpressionTargets(
         return [localVal];
       }
       if (state) {
-        const globalVal = state.globalLabelVariableLiteralTargets.get(identifier);
+        const globalVal = state.globalLabelVariableLiteralTargets.get(
+          identifier,
+        );
         if (globalVal !== undefined) {
           return [globalVal];
         }
@@ -1068,7 +1226,9 @@ export function resolveExpressionTargets(
       return [];
     }
 
-    const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(trimmed);
+    const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(
+      trimmed,
+    );
     if (dictMatch) {
       const dictName = dictMatch[1];
       const keyExpr = dictMatch[2].trim();
@@ -1076,7 +1236,11 @@ export function resolveExpressionTargets(
       const globalDict = state?.globalLabelVariableDictTargets.get(dictName);
       const dict = localDict || globalDict;
       if (dict) {
-        const resolvedKey = resolveStaticTargetExpression(keyExpr, scanState, state);
+        const resolvedKey = resolveStaticTargetExpression(
+          keyExpr,
+          scanState,
+          state,
+        );
         if (resolvedKey) {
           const val = dict.get(resolvedKey);
           return val ? [val] : [];
@@ -1092,14 +1256,15 @@ export function resolveExpressionTargets(
   }
 }
 
-type OpeningDelimiter = '(' | '[' | '{';
-type ClosingDelimiter = ')' | ']' | '}';
-const CLOSING_DELIMITER_BY_OPENING: Record<OpeningDelimiter, ClosingDelimiter> = {
-  '(': ')',
-  '[': ']',
-  '{': '}',
-};
-const CLOSING_DELIMITERS = new Set<ClosingDelimiter>([')', ']', '}']);
+type OpeningDelimiter = "(" | "[" | "{";
+type ClosingDelimiter = ")" | "]" | "}";
+const CLOSING_DELIMITER_BY_OPENING: Record<OpeningDelimiter, ClosingDelimiter> =
+  {
+    "(": ")",
+    "[": "]",
+    "{": "}",
+  };
+const CLOSING_DELIMITERS = new Set<ClosingDelimiter>([")", "]", "}"]);
 
 function forEachCodeCharacterOutsideStringsAndComments(
   text: string,
@@ -1107,14 +1272,14 @@ function forEachCodeCharacterOutsideStringsAndComments(
   visitor: (index: number, char: string) => false | void,
 ): void {
   let index = startIndex;
-  let activeQuote: '"' | '\'' | null = null;
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   let inComment = false;
 
   while (index < text.length) {
-    const char = text[index] ?? '';
+    const char = text[index] ?? "";
     if (inComment) {
-      if (char === '\n') {
+      if (char === "\n") {
         inComment = false;
       }
       index += 1;
@@ -1122,12 +1287,15 @@ function forEachCodeCharacterOutsideStringsAndComments(
     }
 
     if (activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         index += (index + 1 < text.length) ? 2 : 1;
         continue;
       }
       if (tripleQuoted) {
-        if (char === activeQuote && text[index + 1] === activeQuote && text[index + 2] === activeQuote) {
+        if (
+          char === activeQuote && text[index + 1] === activeQuote &&
+          text[index + 2] === activeQuote
+        ) {
           index += 3;
           activeQuote = null;
           tripleQuoted = false;
@@ -1143,18 +1311,21 @@ function forEachCodeCharacterOutsideStringsAndComments(
       continue;
     }
 
-    if (char === '#') {
+    if (char === "#") {
       inComment = true;
       index += 1;
       continue;
     }
-    if ((char === '"' || char === '\'') && text[index + 1] === char && text[index + 2] === char) {
+    if (
+      (char === '"' || char === "'") && text[index + 1] === char &&
+      text[index + 2] === char
+    ) {
       activeQuote = char;
       tripleQuoted = true;
       index += 3;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       activeQuote = char;
       index += 1;
       continue;
@@ -1172,24 +1343,29 @@ function splitTopLevelArguments(argumentList: string): string[] {
   const delimiterStack: ClosingDelimiter[] = [];
   let start = 0;
 
-  forEachCodeCharacterOutsideStringsAndComments(argumentList, 0, (index, char) => {
-    const openingDelimiter = CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
-    if (openingDelimiter) {
-      delimiterStack.push(openingDelimiter);
-      return;
-    }
-    if (CLOSING_DELIMITERS.has(char as ClosingDelimiter)) {
-      if (char === delimiterStack[delimiterStack.length - 1]) {
-        delimiterStack.pop();
+  forEachCodeCharacterOutsideStringsAndComments(
+    argumentList,
+    0,
+    (index, char) => {
+      const openingDelimiter =
+        CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
+      if (openingDelimiter) {
+        delimiterStack.push(openingDelimiter);
+        return;
       }
-      return;
-    }
-    if (delimiterStack.length === 0 && char === ',') {
-      const segment = argumentList.slice(start, index).trim();
-      if (segment) args.push(segment);
-      start = index + 1;
-    }
-  });
+      if (CLOSING_DELIMITERS.has(char as ClosingDelimiter)) {
+        if (char === delimiterStack[delimiterStack.length - 1]) {
+          delimiterStack.pop();
+        }
+        return;
+      }
+      if (delimiterStack.length === 0 && char === ",") {
+        const segment = argumentList.slice(start, index).trim();
+        if (segment) args.push(segment);
+        start = index + 1;
+      }
+    },
+  );
 
   const last = argumentList.slice(start).trim();
   if (last) args.push(last);
@@ -1198,7 +1374,10 @@ function splitTopLevelArguments(argumentList: string): string[] {
 
 function stripQuotes(val: string): string {
   const trimmed = val.trim();
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
     return trimmed.slice(1, -1);
   }
   return trimmed;
@@ -1208,49 +1387,61 @@ function extractSceneAsset(lineText: string): string | null {
   const match = lineText.match(/^\s*scene\s+(.+)$/);
   if (!match) return null;
   let content = match[1].trim();
-  if (content.includes('#')) {
-    content = content.split('#')[0].trim();
+  if (content.includes("#")) {
+    content = content.split("#")[0].trim();
   }
-  const paramMatch = content.match(/^(.*?)\s*\b(?:with|at|behind|onlayer|zorder)\b/i);
+  const paramMatch = content.match(
+    /^(.*?)\s*\b(?:with|at|behind|onlayer|zorder)\b/i,
+  );
   const asset = paramMatch ? paramMatch[1].trim() : content.trim();
   return stripQuotes(asset);
 }
 
-function extractPlayCue(lineText: string): { channel: string; asset: string } | null {
+function extractPlayCue(
+  lineText: string,
+): { channel: string; asset: string } | null {
   const match = lineText.match(/^\s*play\s+(\w+)\s+(.+)$/);
   if (!match) return null;
   const channel = match[1].trim();
   let rest = match[2].trim();
-  if (rest.includes('#')) {
-    rest = rest.split('#')[0].trim();
+  if (rest.includes("#")) {
+    rest = rest.split("#")[0].trim();
   }
-  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i);
+  const paramMatch = rest.match(
+    /^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i,
+  );
   const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
   return { channel, asset: stripQuotes(asset) };
 }
 
-function extractStopCue(lineText: string): { channel: string; asset?: string } | null {
+function extractStopCue(
+  lineText: string,
+): { channel: string; asset?: string } | null {
   const match = lineText.match(/^\s*stop\s+(\w+)(?:\s+(.+))?$/);
   if (!match) return null;
   const channel = match[1].trim();
-  let rest = (match[2] ?? '').trim();
-  if (rest.includes('#')) {
-    rest = rest.split('#')[0].trim();
+  let rest = (match[2] ?? "").trim();
+  if (rest.includes("#")) {
+    rest = rest.split("#")[0].trim();
   }
   const paramMatch = rest.match(/^(.*?)\s*\b(?:fadeout|if)\b/i);
   const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
   return { channel, asset: stripQuotes(asset) || undefined };
 }
 
-function extractQueueCue(lineText: string): { channel: string; asset: string } | null {
+function extractQueueCue(
+  lineText: string,
+): { channel: string; asset: string } | null {
   const match = lineText.match(/^\s*queue\s+(\w+)\s+(.+)$/);
   if (!match) return null;
   const channel = match[1].trim();
   let rest = match[2].trim();
-  if (rest.includes('#')) {
-    rest = rest.split('#')[0].trim();
+  if (rest.includes("#")) {
+    rest = rest.split("#")[0].trim();
   }
-  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i);
+  const paramMatch = rest.match(
+    /^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i,
+  );
   const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
   return { channel, asset: stripQuotes(asset) };
 }
@@ -1259,8 +1450,8 @@ function extractVoiceCue(lineText: string): string | null {
   const match = lineText.match(/^\s*voice\s+(.+)$/);
   if (!match) return null;
   let rest = match[1].trim();
-  if (rest.includes('#')) {
-    rest = rest.split('#')[0].trim();
+  if (rest.includes("#")) {
+    rest = rest.split("#")[0].trim();
   }
   const paramMatch = rest.match(/^(.*?)\s*\b(?:sustain|volume|if)\b/i);
   const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
@@ -1270,11 +1461,15 @@ function extractVoiceCue(lineText: string): string | null {
 // Finds the first delimiter at the current expression depth. This is used for
 // top-level argument splitting/keyword parsing (`=`), dictionary payloads (`:`),
 // and comma-separated argument handling.
-function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): number {
+function findTopLevelDelimiterIndex(
+  text: string,
+  delimiter: "," | "=" | ":",
+): number {
   const delimiterStack: ClosingDelimiter[] = [];
   let foundIndex = -1;
   forEachCodeCharacterOutsideStringsAndComments(text, 0, (index, char) => {
-    const openingDelimiter = CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
+    const openingDelimiter =
+      CLOSING_DELIMITER_BY_OPENING[char as OpeningDelimiter];
     if (openingDelimiter) {
       delimiterStack.push(openingDelimiter);
       return;
@@ -1294,31 +1489,50 @@ function findTopLevelDelimiterIndex(text: string, delimiter: ',' | '=' | ':'): n
   return -1;
 }
 
-function extractStaticTargetsFromArgumentList(state: ParseGraphState | undefined, argumentList: string, scanState: ParseScanState): string[] {
+function extractStaticTargetsFromArgumentList(
+  state: ParseGraphState | undefined,
+  argumentList: string,
+  scanState: ParseScanState,
+): string[] {
   const args = splitTopLevelArguments(argumentList);
   if (args.length === 0) return [];
 
   const firstArgument = args[0];
-  const targets = resolveExpressionTargets(scanState, firstArgument, true, state);
+  const targets = resolveExpressionTargets(
+    scanState,
+    firstArgument,
+    true,
+    state,
+  );
   if (targets.length > 0) return targets;
 
-  const preferredKeywordNames = new Set(['label', 'target']);
+  const preferredKeywordNames = new Set(["label", "target"]);
   for (const arg of args) {
-    const equalsIndex = findTopLevelDelimiterIndex(arg, '=');
+    const equalsIndex = findTopLevelDelimiterIndex(arg, "=");
     if (equalsIndex <= 0) continue;
     const keyword = arg.slice(0, equalsIndex).trim().toLowerCase();
     if (!preferredKeywordNames.has(keyword)) continue;
-    const kwTargets = resolveExpressionTargets(scanState, arg.slice(equalsIndex + 1), true, state);
+    const kwTargets = resolveExpressionTargets(
+      scanState,
+      arg.slice(equalsIndex + 1),
+      true,
+      state,
+    );
     if (kwTargets.length > 0) return kwTargets;
   }
 
-  const equalsIndex = findTopLevelDelimiterIndex(firstArgument, '=');
+  const equalsIndex = findTopLevelDelimiterIndex(firstArgument, "=");
   if (equalsIndex <= 0) return [];
-  return resolveExpressionTargets(scanState, firstArgument.slice(equalsIndex + 1), true, state);
+  return resolveExpressionTargets(
+    scanState,
+    firstArgument.slice(equalsIndex + 1),
+    true,
+    state,
+  );
 }
 
 function extractNestedExpressionValue(expression: string): string {
-  const equalsIndex = findTopLevelDelimiterIndex(expression, '=');
+  const equalsIndex = findTopLevelDelimiterIndex(expression, "=");
   if (equalsIndex > 0) {
     return expression.slice(equalsIndex + 1).trim();
   }
@@ -1340,11 +1554,11 @@ function walkScreenActionExpression(
   if (!balancedRoot || balancedRoot.endIndex !== trimmed.length) return;
 
   const opener = trimmed[0];
-  if (opener === '[' || opener === '(' || opener === '{') {
+  if (opener === "[" || opener === "(" || opener === "{") {
     const inner = trimmed.slice(1, -1);
     for (const item of splitTopLevelArguments(inner)) {
-      if (opener === '{') {
-        const colonIndex = findTopLevelDelimiterIndex(item, ':');
+      if (opener === "{") {
+        const colonIndex = findTopLevelDelimiterIndex(item, ":");
         if (colonIndex > -1) {
           walkScreenActionExpression(item.slice(colonIndex + 1), visitCall);
           continue;
@@ -1356,14 +1570,19 @@ function walkScreenActionExpression(
   }
 
   let identifierEnd = 1;
-  while (identifierEnd < trimmed.length && isIdentifierPart(trimmed[identifierEnd])) {
+  while (
+    identifierEnd < trimmed.length && isIdentifierPart(trimmed[identifierEnd])
+  ) {
     identifierEnd += 1;
   }
   const construct = trimmed.slice(0, identifierEnd);
   const afterIdentifier = skipWhitespace(trimmed, identifierEnd);
-  if (trimmed[afterIdentifier] !== '(') return;
+  if (trimmed[afterIdentifier] !== "(") return;
 
-  const parsedArguments = readParenthesizedArgument(trimmed, afterIdentifier + 1);
+  const parsedArguments = readParenthesizedArgument(
+    trimmed,
+    afterIdentifier + 1,
+  );
   if (!parsedArguments || parsedArguments.endIndex !== trimmed.length) return;
 
   visitCall(construct, parsedArguments.argument);
@@ -1371,13 +1590,16 @@ function walkScreenActionExpression(
     return;
   }
   for (const argument of splitTopLevelArguments(parsedArguments.argument)) {
-    walkScreenActionExpression(extractNestedExpressionValue(argument), visitCall);
+    walkScreenActionExpression(
+      extractNestedExpressionValue(argument),
+      visitCall,
+    );
   }
 }
 
 function buildIgnoredPositionMask(text: string): boolean[] {
   const ignored = new Array<boolean>(text.length).fill(false);
-  let activeQuote: '"' | '\'' | null = null;
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   let inComment = false;
 
@@ -1386,13 +1608,13 @@ function buildIgnoredPositionMask(text: string): boolean[] {
 
     if (inComment) {
       ignored[i] = true;
-      if (char === '\n') inComment = false;
+      if (char === "\n") inComment = false;
       continue;
     }
 
     if (activeQuote) {
       ignored[i] = true;
-      if (char === '\\') {
+      if (char === "\\") {
         if (i + 1 < text.length) {
           ignored[i + 1] = true;
           i += 1;
@@ -1400,7 +1622,10 @@ function buildIgnoredPositionMask(text: string): boolean[] {
         continue;
       }
       if (tripleQuoted) {
-        if (char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+        if (
+          char === activeQuote && text[i + 1] === activeQuote &&
+          text[i + 2] === activeQuote
+        ) {
           ignored[i + 1] = true;
           ignored[i + 2] = true;
           i += 2;
@@ -1413,13 +1638,16 @@ function buildIgnoredPositionMask(text: string): boolean[] {
       continue;
     }
 
-    if (char === '#') {
+    if (char === "#") {
       ignored[i] = true;
       inComment = true;
       continue;
     }
 
-    if ((char === '"' || char === '\'') && text[i + 1] === char && text[i + 2] === char) {
+    if (
+      (char === '"' || char === "'") && text[i + 1] === char &&
+      text[i + 2] === char
+    ) {
       ignored[i] = true;
       if (i + 1 < text.length) ignored[i + 1] = true;
       if (i + 2 < text.length) ignored[i + 2] = true;
@@ -1429,7 +1657,7 @@ function buildIgnoredPositionMask(text: string): boolean[] {
       continue;
     }
 
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       ignored[i] = true;
       activeQuote = char;
       tripleQuoted = false;
@@ -1440,12 +1668,12 @@ function buildIgnoredPositionMask(text: string): boolean[] {
 }
 
 export function stripInlineComment(value: string): string {
-  let activeQuote: '"' | '\'' | null = null;
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   for (let i = 0; i < value.length; i += 1) {
     const char = value[i];
     if (activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         i += 1;
         continue;
       }
@@ -1467,7 +1695,7 @@ export function stripInlineComment(value: string): string {
     }
     if (
       i + 2 < value.length &&
-      (char === '"' || char === '\'') &&
+      (char === '"' || char === "'") &&
       value[i + 1] === char &&
       value[i + 2] === char
     ) {
@@ -1476,11 +1704,11 @@ export function stripInlineComment(value: string): string {
       i += 2;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       activeQuote = char;
       continue;
     }
-    if (char === '#') {
+    if (char === "#") {
       return value.slice(0, i).trim();
     }
   }
@@ -1488,7 +1716,7 @@ export function stripInlineComment(value: string): string {
 }
 
 interface PythonAssignmentEvent {
-  kind: 'assignment';
+  kind: "assignment";
   index: number;
   variableName: string;
   assignedTarget: string | null;
@@ -1496,10 +1724,10 @@ interface PythonAssignmentEvent {
 }
 
 interface PythonRenpyCallEvent {
-  kind: 'call';
+  kind: "call";
   index: number;
-  callType: 'jump' | 'call';
-  construct: 'renpy.jump' | 'renpy.call';
+  callType: "jump" | "call";
+  construct: "renpy.jump" | "renpy.call";
   targetExpression: string;
 }
 
@@ -1523,13 +1751,16 @@ function processDirectRenpyBlockCalls(
     if (ignoredMask[match.index]) {
       continue;
     }
-    const callType = match[1] === 'jump' ? 'jump' : 'call';
-    const construct = callType === 'jump' ? 'renpy.jump' : 'renpy.call';
-    const parsed = readParenthesizedArgument(blockText, PYTHON_RENPY_CALL_START_PATTERN.lastIndex);
+    const callType = match[1] === "jump" ? "jump" : "call";
+    const construct = callType === "jump" ? "renpy.jump" : "renpy.call";
+    const parsed = readParenthesizedArgument(
+      blockText,
+      PYTHON_RENPY_CALL_START_PATTERN.lastIndex,
+    );
     if (!parsed) continue;
     PYTHON_RENPY_CALL_START_PATTERN.lastIndex = parsed.endIndex;
     events.push({
-      kind: 'call',
+      kind: "call",
       index: match.index,
       callType,
       construct,
@@ -1540,13 +1771,17 @@ function processDirectRenpyBlockCalls(
   PYTHON_ASSIGNMENT_PATTERN.lastIndex = 0;
   while ((match = PYTHON_ASSIGNMENT_PATTERN.exec(blockText)) !== null) {
     if (ignoredMask[match.index]) continue;
-    const variableName = (match[1] ?? '').trim();
+    const variableName = (match[1] ?? "").trim();
     if (!variableName) continue;
-    const assignedExpression = stripInlineComment(match[2] ?? '');
-    const assignedTarget = resolveStaticTargetExpression(assignedExpression, scanState, state);
+    const assignedExpression = stripInlineComment(match[2] ?? "");
+    const assignedTarget = resolveStaticTargetExpression(
+      assignedExpression,
+      scanState,
+      state,
+    );
     const assignedDict = parseDictLiteral(assignedExpression);
     events.push({
-      kind: 'assignment',
+      kind: "assignment",
       index: match.index,
       variableName,
       assignedTarget,
@@ -1557,12 +1792,18 @@ function processDirectRenpyBlockCalls(
   events.sort((a, b) => a.index - b.index);
 
   for (const event of events) {
-    if (event.kind === 'assignment') {
+    if (event.kind === "assignment") {
       if (event.assignedTarget) {
-        scanState.labelVariableLiteralTargets.set(event.variableName, event.assignedTarget);
+        scanState.labelVariableLiteralTargets.set(
+          event.variableName,
+          event.assignedTarget,
+        );
         scanState.labelVariableDictTargets.delete(event.variableName);
       } else if (event.assignedDict) {
-        scanState.labelVariableDictTargets.set(event.variableName, event.assignedDict);
+        scanState.labelVariableDictTargets.set(
+          event.variableName,
+          event.assignedDict,
+        );
         scanState.labelVariableLiteralTargets.delete(event.variableName);
       } else {
         scanState.labelVariableLiteralTargets.delete(event.variableName);
@@ -1572,14 +1813,24 @@ function processDirectRenpyBlockCalls(
     }
 
     const context = resolveCallContext(scanState, meta, menuDepth);
-    const targets = extractStaticTargetsFromArgumentList(state, event.targetExpression, scanState);
+    const targets = extractStaticTargetsFromArgumentList(
+      state,
+      event.targetExpression,
+      scanState,
+    );
     if (targets.length === 0) {
-      addDynamicTargetDiagnostic(state, chapter, event.construct, event.targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(
+        state,
+        chapter,
+        event.construct,
+        event.targetExpression,
+        context.source ?? undefined,
+      );
       continue;
     }
 
     for (const target of targets) {
-      if (event.callType === 'jump') {
+      if (event.callType === "jump") {
         emitJumpEdge(state, scanState, target, context, false);
       } else {
         emitCallEdge(state, scanState, target, context);
@@ -1601,25 +1852,45 @@ function processDirectScreenActionCalls(
   screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
   const seenCalls = new Set<string>();
-  const emitActionCall = (construct: string, targetExpression: string, timeout?: FlowEdge['timeout']) => {
+  const emitActionCall = (
+    construct: string,
+    targetExpression: string,
+    timeout?: FlowEdge["timeout"],
+  ) => {
     const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) return;
     const context = resolveCallContext(scanState, meta, menuDepth);
-    const targets = extractStaticTargetsFromArgumentList(state, targetExpression, scanState);
+    const targets = extractStaticTargetsFromArgumentList(
+      state,
+      targetExpression,
+      scanState,
+    );
     if (targets.length === 0) {
-      addDynamicTargetDiagnostic(state, chapter, construct, targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(
+        state,
+        chapter,
+        construct,
+        targetExpression,
+        context.source ?? undefined,
+      );
       return;
     }
     for (const target of targets) {
       const dedupeKey = [
         construct.toLowerCase(),
         target,
-        context.source ?? '',
-        timeout?.isTimeout ? `timeout:${timeout.durationSeconds === undefined ? 'unknown' : timeout.durationSeconds}` : 'normal',
-      ].join('|');
+        context.source ?? "",
+        timeout?.isTimeout
+          ? `timeout:${
+            timeout.durationSeconds === undefined
+              ? "unknown"
+              : timeout.durationSeconds
+          }`
+          : "normal",
+      ].join("|");
       if (seenCalls.has(dedupeKey)) continue;
       seenCalls.add(dedupeKey);
-      if (callType === 'jump') {
+      if (callType === "jump") {
         emitJumpEdge(state, scanState, target, context, false, timeout);
       } else {
         emitCallEdge(state, scanState, target, context, timeout);
@@ -1628,8 +1899,10 @@ function processDirectScreenActionCalls(
   };
 
   for (const extracted of extractScreenActionExpressions(blockText)) {
-    walkScreenActionExpression(extracted.expression, (construct, targetExpression) =>
-      emitActionCall(construct, targetExpression, extracted.timeout),
+    walkScreenActionExpression(
+      extracted.expression,
+      (construct, targetExpression) =>
+        emitActionCall(construct, targetExpression, extracted.timeout),
     );
   }
 }
@@ -1641,7 +1914,9 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
   // Wait flags are transient parser intents (e.g. "next function-name is a jump target").
   // On malformed or mixed token streams, these intents can leak into later tokens and create
   // false edges; this guard clears stale waits when token context no longer matches.
-  if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) return;
+  if (
+    type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline
+  ) return;
   if (type === PARSER_TOKENS.kwLabel || isMenuKeywordTokenType(type)) {
     scanState.waitForJumpTarget = false;
     scanState.waitForJumpExpressionTarget = false;
@@ -1649,16 +1924,21 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
     scanState.waitForMenuNameForId = null;
     return;
   }
-  const isJumpTargetTokenCheck =
-    type === PARSER_TOKENS.entityFunctionName ||
-    (PARSER_TOKENS.entityIdentifier !== undefined && type === PARSER_TOKENS.entityIdentifier);
+  const isJumpTargetTokenCheck = type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined &&
+      type === PARSER_TOKENS.entityIdentifier);
 
   if (scanState.waitForJumpTarget && !isJumpTargetTokenCheck) {
-    if (PARSER_TOKENS.kwExpression !== undefined && type === PARSER_TOKENS.kwExpression) {
+    if (
+      PARSER_TOKENS.kwExpression !== undefined &&
+      type === PARSER_TOKENS.kwExpression
+    ) {
       scanState.waitForJumpExpressionTarget = true;
     } else if (
-      (PARSER_TOKENS.metaItemAccess !== undefined && type === PARSER_TOKENS.metaItemAccess) ||
-      (PARSER_TOKENS.metaFunctionCall !== undefined && type === PARSER_TOKENS.metaFunctionCall)
+      (PARSER_TOKENS.metaItemAccess !== undefined &&
+        type === PARSER_TOKENS.metaItemAccess) ||
+      (PARSER_TOKENS.metaFunctionCall !== undefined &&
+        type === PARSER_TOKENS.metaFunctionCall)
     ) {
       // Keep waiting for target
     } else {
@@ -1666,19 +1946,25 @@ function resetStaleWaitFlags(scanState: ParseScanState, type: number): void {
       scanState.waitForJumpExpressionTarget = false;
     }
   }
-  const isCallTargetTokenCheck =
-    type === PARSER_TOKENS.entityFunctionName ||
-    (PARSER_TOKENS.entityIdentifier !== undefined && type === PARSER_TOKENS.entityIdentifier);
+  const isCallTargetTokenCheck = type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined &&
+      type === PARSER_TOKENS.entityIdentifier);
 
   if (scanState.waitForCallTarget && !isCallTargetTokenCheck) {
     scanState.waitForCallTarget = false;
   }
-  if (scanState.waitForMenuNameForId && type !== PARSER_TOKENS.entityFunctionName) {
+  if (
+    scanState.waitForMenuNameForId && type !== PARSER_TOKENS.entityFunctionName
+  ) {
     scanState.waitForMenuNameForId = null;
   }
 }
 
-function resolveConditionalSource(scanState: ParseScanState, meta: TokenMetaFlags, menuDepth: number): string | null {
+function resolveConditionalSource(
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  menuDepth: number,
+): string | null {
   if (meta.hasMenuOptionBlock) {
     const menu = menuAtDepth(scanState.menuStack, menuDepth);
     return menu?.id ?? scanState.currentLabelId;
@@ -1701,19 +1987,21 @@ function handleConditionalHeader(
   if (!pending || scanState.currentLabelId === null) return false;
   const source = resolveConditionalSource(scanState, meta, menuDepth);
   if (!source) return false;
-  if (pending.kind === 'if') {
+  if (pending.kind === "if") {
     state.decisionCounter += 1;
     const decisionNodeId = `decision_${state.decisionCounter}`;
-    const references = extractConditionFlagRefs(pending.expression ?? undefined);
+    const references = extractConditionFlagRefs(
+      pending.expression ?? undefined,
+    );
     addNode(state, {
       id: decisionNodeId,
-      type: 'DECISION',
-      label: pending.expression ? `if ${pending.expression}` : 'if',
+      type: "DECISION",
+      label: pending.expression ? `if ${pending.expression}` : "if",
       dialogueCount: 0,
       chapter,
       parentLabelId: scanState.currentLabelId ?? undefined,
       condition: {
-        branchKind: 'if',
+        branchKind: "if",
         expression: pending.expression ?? undefined,
         references,
         decisionNodeId,
@@ -1723,30 +2011,33 @@ function handleConditionalHeader(
       id: `seq_${source}__${decisionNodeId}`,
       source,
       target: decisionNodeId,
-      kind: 'sequence',
-      label: 'if',
+      kind: "sequence",
+      label: "if",
     });
-    addOutgoing(state, source, 'sequence');
-    addIncoming(state, decisionNodeId, 'sequence');
+    addOutgoing(state, source, "sequence");
+    addIncoming(state, decisionNodeId, "sequence");
     scanState.conditionalDecisionStack.push({
       indent: pending.indent,
       decisionNodeId,
       sourceId: source,
-      branchKind: 'if',
+      branchKind: "if",
       expression: pending.expression,
       references,
     });
     scanState.pendingConditionalHeader = null;
     return true;
   }
-  const existing = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+  const existing = scanState
+    .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
   if (!existing || existing.indent !== pending.indent) {
     scanState.pendingConditionalHeader = null;
     return false;
   }
   existing.branchKind = pending.kind;
   existing.expression = pending.expression;
-  existing.references = extractConditionFlagRefs(pending.expression ?? undefined);
+  existing.references = extractConditionFlagRefs(
+    pending.expression ?? undefined,
+  );
   scanState.pendingConditionalHeader = null;
   return true;
 }
@@ -1795,10 +2086,22 @@ export function handleToken(
   scanState: ParseScanState,
   input: HandleTokenInput,
 ): void {
-  if (!scanState.labelVariableDictTargets || !scanState.conditionalDecisionStack) {
+  if (
+    !scanState.labelVariableDictTargets || !scanState.conditionalDecisionStack
+  ) {
     ensureScanStateInitialized(scanState);
   }
-  const { type, meta, val, chapter, menuDepth, lineIndent, lineText, captureDialogueLines, screenActionRuleMap } = input;
+  const {
+    type,
+    meta,
+    val,
+    chapter,
+    menuDepth,
+    lineIndent,
+    lineText,
+    captureDialogueLines,
+    screenActionRuleMap,
+  } = input;
   resetStaleWaitFlags(scanState, type);
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
@@ -1826,14 +2129,15 @@ export function handleToken(
     meta.hasLabelStatement
   ) {
     const declaredLabelName = val().trim();
-    const definitionCount = (state.labelDefinitionCountByName.get(declaredLabelName) ?? 0) + 1;
+    const definitionCount =
+      (state.labelDefinitionCountByName.get(declaredLabelName) ?? 0) + 1;
     state.labelDefinitionCountByName.set(declaredLabelName, definitionCount);
-    const canonicalLabelId = state.canonicalLabelIdByName.get(declaredLabelName) ?? declaredLabelName;
+    const canonicalLabelId =
+      state.canonicalLabelIdByName.get(declaredLabelName) ?? declaredLabelName;
     state.canonicalLabelIdByName.set(declaredLabelName, canonicalLabelId);
-    const newLabelId =
-      definitionCount === 1
-        ? canonicalLabelId
-        : `${canonicalLabelId}__shadow_${definitionCount}`;
+    const newLabelId = definitionCount === 1
+      ? canonicalLabelId
+      : `${canonicalLabelId}__shadow_${definitionCount}`;
     if (
       scanState.currentLabelId !== null &&
       !scanState.labelHasExplicitExit &&
@@ -1843,11 +2147,11 @@ export function handleToken(
         id: `seq_${scanState.currentLabelId}__${newLabelId}`,
         source: scanState.currentLabelId,
         target: newLabelId,
-        kind: 'sequence',
-        label: 'next',
+        kind: "sequence",
+        label: "next",
       });
-      addOutgoing(state, scanState.currentLabelId, 'sequence');
-      addIncoming(state, newLabelId, 'sequence');
+      addOutgoing(state, scanState.currentLabelId, "sequence");
+      addIncoming(state, newLabelId, "sequence");
     }
 
     scanState.currentLabelId = newLabelId;
@@ -1865,11 +2169,11 @@ export function handleToken(
         id: `seq_${menuId}__${newLabelId}`,
         source: menuId,
         target: newLabelId,
-        kind: 'sequence',
-        label: 'next',
+        kind: "sequence",
+        label: "next",
       });
-      addOutgoing(state, menuId, 'sequence');
-      addIncoming(state, newLabelId, 'sequence');
+      addOutgoing(state, menuId, "sequence");
+      addIncoming(state, newLabelId, "sequence");
     }
     scanState.pendingMenuFallthroughIds = [];
     state.allLabelIds.add(newLabelId);
@@ -1878,7 +2182,7 @@ export function handleToken(
 
     addNode(state, {
       id: newLabelId,
-      type: 'LABEL',
+      type: "LABEL",
       label: declaredLabelName,
       dialogueCount: 0,
       chapter,
@@ -1886,24 +2190,27 @@ export function handleToken(
       shadowOfId: definitionCount > 1 ? canonicalLabelId : undefined,
     });
     if (definitionCount > 1) {
-      const diagnosticId = `shadowed_label|${chapter}|${declaredLabelName}|${newLabelId}|${canonicalLabelId}`;
+      const diagnosticId =
+        `shadowed_label|${chapter}|${declaredLabelName}|${newLabelId}|${canonicalLabelId}`;
       addParseDiagnostic(
         state,
         {
-          code: 'shadowed_label',
-          severity: 'warning',
+          code: "shadowed_label",
+          severity: "warning",
           location: {
             chapter,
-            construct: 'label',
+            construct: "label",
             sourceId: newLabelId,
             targetId: canonicalLabelId,
           },
           context: {
-            category: 'shadowed_label',
+            category: "shadowed_label",
             detail: declaredLabelName,
           },
-          message: `Label "${declaredLabelName}" is a duplicate definition and is shadowed by canonical label "${canonicalLabelId}".`,
-          recoveryAction: 'Rename duplicate labels or keep one canonical definition.',
+          message:
+            `Label "${declaredLabelName}" is a duplicate definition and is shadowed by canonical label "${canonicalLabelId}".`,
+          recoveryAction:
+            "Rename duplicate labels or keep one canonical definition.",
         },
         diagnosticId,
       );
@@ -1916,7 +2223,14 @@ export function handleToken(
   }
 
   if (PARSER_TOKENS.kwScene !== undefined && type === PARSER_TOKENS.kwScene) {
-    splitCurrentLabelOnSceneBoundary(state, scanState, chapter, meta, menuDepth, input.sceneSplitDialogueThreshold);
+    splitCurrentLabelOnSceneBoundary(
+      state,
+      scanState,
+      chapter,
+      meta,
+      menuDepth,
+      input.sceneSplitDialogueThreshold,
+    );
     if (scanState.currentLabelId) {
       const ownerNode = state.nodeMap.get(scanState.currentLabelId);
       if (ownerNode) {
@@ -1924,7 +2238,7 @@ export function handleToken(
         if (sceneAsset) {
           if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
           ownerNode.audioAssetCues.push({
-            type: 'scene',
+            type: "scene",
             asset: sceneAsset,
             raw: lineText.trim(),
           });
@@ -1943,7 +2257,7 @@ export function handleToken(
         if (cue) {
           if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
           ownerNode.audioAssetCues.push({
-            type: 'play',
+            type: "play",
             channel: cue.channel,
             asset: cue.asset,
             raw: lineText.trim(),
@@ -1963,9 +2277,9 @@ export function handleToken(
         if (cue) {
           if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
           ownerNode.audioAssetCues.push({
-            type: 'stop',
+            type: "stop",
             channel: cue.channel,
-            asset: cue.asset ?? '',
+            asset: cue.asset ?? "",
             raw: lineText.trim(),
           });
         }
@@ -1983,7 +2297,7 @@ export function handleToken(
         if (cue) {
           if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
           ownerNode.audioAssetCues.push({
-            type: 'queue',
+            type: "queue",
             channel: cue.channel,
             asset: cue.asset,
             raw: lineText.trim(),
@@ -1994,8 +2308,10 @@ export function handleToken(
     return;
   }
 
-  const isVoiceToken = (PARSER_TOKENS.kwVoice !== undefined && type === PARSER_TOKENS.kwVoice) ||
-    (PARSER_TOKENS.kwOther !== undefined && type === PARSER_TOKENS.kwOther && val().trim().toLowerCase() === 'voice');
+  const isVoiceToken =
+    (PARSER_TOKENS.kwVoice !== undefined && type === PARSER_TOKENS.kwVoice) ||
+    (PARSER_TOKENS.kwOther !== undefined && type === PARSER_TOKENS.kwOther &&
+      val().trim().toLowerCase() === "voice");
 
   if (isVoiceToken) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
@@ -2006,7 +2322,7 @@ export function handleToken(
         if (voiceAsset) {
           if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
           ownerNode.audioAssetCues.push({
-            type: 'voice',
+            type: "voice",
             asset: voiceAsset,
             raw: lineText.trim(),
           });
@@ -2022,23 +2338,50 @@ export function handleToken(
     }
   }
 
-  if (PARSER_TOKENS.kwDollarSign !== undefined && type === PARSER_TOKENS.kwDollarSign) {
+  if (
+    PARSER_TOKENS.kwDollarSign !== undefined &&
+    type === PARSER_TOKENS.kwDollarSign
+  ) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     const rawText = lineText.trim();
-    const cleanStmt = rawText.startsWith('$') ? rawText.slice(1).trim() : rawText;
-    processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, cleanStmt);
+    const cleanStmt = rawText.startsWith("$")
+      ? rawText.slice(1).trim()
+      : rawText;
+    processDirectRenpyBlockCalls(
+      state,
+      scanState,
+      meta,
+      chapter,
+      menuDepth,
+      cleanStmt,
+    );
     return;
   }
 
   if (type === PARSER_TOKENS.metaPythonBlock) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    processDirectRenpyBlockCalls(state, scanState, meta, chapter, menuDepth, val());
+    processDirectRenpyBlockCalls(
+      state,
+      scanState,
+      meta,
+      chapter,
+      menuDepth,
+      val(),
+    );
     return;
   }
 
   if (type === PARSER_TOKENS.metaScreenBlock) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    processDirectScreenActionCalls(state, scanState, meta, chapter, menuDepth, val(), screenActionRuleMap);
+    processDirectScreenActionCalls(
+      state,
+      scanState,
+      meta,
+      chapter,
+      menuDepth,
+      val(),
+      screenActionRuleMap,
+    );
     return;
   }
 
@@ -2057,7 +2400,7 @@ export function handleToken(
     scanState.waitForMenuNameForId = newMenuId;
     addNode(state, {
       id: newMenuId,
-      type: 'MENU',
+      type: "MENU",
       label: newMenuId,
       dialogueCount: 0,
       chapter,
@@ -2069,22 +2412,30 @@ export function handleToken(
         id: `seq_${closedMenu.id}__${newMenuId}`,
         source: closedMenu.id,
         target: newMenuId,
-        kind: 'sequence',
-        label: 'next',
+        kind: "sequence",
+        label: "next",
       });
-      addOutgoing(state, closedMenu.id, 'sequence');
-      addIncoming(state, newMenuId, 'sequence');
+      addOutgoing(state, closedMenu.id, "sequence");
+      addIncoming(state, newMenuId, "sequence");
     }
 
     const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
-    const decisionContext = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
-    const source = parentMenu ? parentMenu.id : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
+    const decisionContext = scanState
+      .conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ];
+    const source = parentMenu
+      ? parentMenu.id
+      : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
     if (source) {
       addEdge(state, {
-        id: edgeIdWithOption(`seq_${source}__${newMenuId}`, parentMenu?.optionText),
+        id: edgeIdWithOption(
+          `seq_${source}__${newMenuId}`,
+          parentMenu?.optionText,
+        ),
         source,
         target: newMenuId,
-        kind: 'sequence',
+        kind: "sequence",
         label: parentMenu?.optionText ?? undefined,
         condition: decisionContext
           ? {
@@ -2095,8 +2446,8 @@ export function handleToken(
           }
           : undefined,
       });
-      addOutgoing(state, source, 'sequence');
-      addIncoming(state, newMenuId, 'sequence');
+      addOutgoing(state, source, "sequence");
+      addIncoming(state, newMenuId, "sequence");
     }
 
     scanState.menuStack.push({ id: newMenuId, optionText: null });
@@ -2147,11 +2498,13 @@ export function handleToken(
     return;
   }
 
-  const isJumpTargetToken =
-    type === PARSER_TOKENS.entityFunctionName ||
-    (PARSER_TOKENS.entityIdentifier !== undefined && type === PARSER_TOKENS.entityIdentifier) ||
-    (PARSER_TOKENS.metaItemAccess !== undefined && type === PARSER_TOKENS.metaItemAccess) ||
-    (PARSER_TOKENS.metaFunctionCall !== undefined && type === PARSER_TOKENS.metaFunctionCall);
+  const isJumpTargetToken = type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined &&
+      type === PARSER_TOKENS.entityIdentifier) ||
+    (PARSER_TOKENS.metaItemAccess !== undefined &&
+      type === PARSER_TOKENS.metaItemAccess) ||
+    (PARSER_TOKENS.metaFunctionCall !== undefined &&
+      type === PARSER_TOKENS.metaFunctionCall);
 
   if (
     isJumpTargetToken &&
@@ -2159,10 +2512,21 @@ export function handleToken(
     meta.hasJumpStatement
   ) {
     const targetExpression = val();
-    const targets = resolveExpressionTargets(scanState, targetExpression, false, state);
+    const targets = resolveExpressionTargets(
+      scanState,
+      targetExpression,
+      false,
+      state,
+    );
     const context = resolveCallContext(scanState, meta, menuDepth);
     if (targets.length === 0) {
-      addDynamicTargetDiagnostic(state, chapter, 'jump expression', targetExpression, context.source ?? undefined);
+      addDynamicTargetDiagnostic(
+        state,
+        chapter,
+        "jump expression",
+        targetExpression,
+        context.source ?? undefined,
+      );
       const isReliableJumpExit =
         scanState.conditionalIndentStack.length === 0 &&
         !meta.hasMenuOptionBlock;
@@ -2214,32 +2578,31 @@ export function handleToken(
   }
 
   if (type === PARSER_TOKENS.literalString) {
-    const isSay =
-      meta.hasSayNarrator ||
+    const isSay = meta.hasSayNarrator ||
       meta.hasSayCharacter ||
       meta.hasSayStatement;
     const isMenuOption = meta.hasMenuOption;
 
     if (isSay && !isMenuOption) {
       scanState.currentLabelHasContentSinceSceneBoundary = true;
-      scanState.currentSceneDialogueCount = (scanState.currentSceneDialogueCount ?? 0) + 1;
+      scanState.currentSceneDialogueCount =
+        (scanState.currentSceneDialogueCount ?? 0) + 1;
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
-      const ownerId =
-        meta.hasMenuOptionBlock && menu
-          ? menu.id
-          : scanState.currentLabelId;
+      const ownerId = meta.hasMenuOptionBlock && menu
+        ? menu.id
+        : scanState.currentLabelId;
 
-        if (ownerId) {
-          const ownerNode = state.nodeMap.get(ownerId);
-          if (ownerNode) {
-            ownerNode.dialogueCount += 1;
-            if (captureDialogueLines) {
-              const line = val();
-              if (!ownerNode.dialogueLines) ownerNode.dialogueLines = [];
-              ownerNode.dialogueLines.push(line);
-            }
+      if (ownerId) {
+        const ownerNode = state.nodeMap.get(ownerId);
+        if (ownerNode) {
+          ownerNode.dialogueCount += 1;
+          if (captureDialogueLines) {
+            const line = val();
+            if (!ownerNode.dialogueLines) ownerNode.dialogueLines = [];
+            ownerNode.dialogueLines.push(line);
           }
         }
       }
+    }
   }
 }

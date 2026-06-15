@@ -1,15 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createProcessUpload } from '../src/application/processUpload';
-import { FileReadError, readFileAsText } from '../src/infrastructure/fileReader';
-import type { ParseService } from '../src/application/parseService';
-import type { AppActions } from '../src/application/appStore';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createProcessUpload } from "../src/application/processUpload";
+import {
+  FileReadError,
+  readFileAsText,
+} from "../src/infrastructure/fileReader";
+import type { ParseService } from "../src/application/parseService";
+import type { AppActions } from "../src/application/appStore";
 
-vi.mock('../src/infrastructure/fileReader', () => ({
+vi.mock("../src/infrastructure/fileReader", () => ({
   readFileAsText: vi.fn(),
   FileReadError: class FileReadError extends Error {
     constructor(filename: string) {
-      super(`Could not read "${filename}". The file may be inaccessible or corrupted.`);
-      this.name = 'FileReadError';
+      super(
+        `Could not read "${filename}". The file may be inaccessible or corrupted.`,
+      );
+      this.name = "FileReadError";
     }
   },
 }));
@@ -29,9 +34,9 @@ function toFileList(files: File[]): FileList {
 }
 
 function makeRpy(name: string, relativePath?: string): File {
-  const file = new File(['label start:'], name, { type: 'text/plain' });
+  const file = new File(["label start:"], name, { type: "text/plain" });
   if (relativePath) {
-    Object.defineProperty(file, 'webkitRelativePath', {
+    Object.defineProperty(file, "webkitRelativePath", {
       configurable: true,
       value: relativePath,
     });
@@ -40,7 +45,17 @@ function makeRpy(name: string, relativePath?: string): File {
 }
 
 type MockActions = {
-  [K in keyof Pick<AppActions, 'startReading' | 'startParsing' | 'setProgress' | 'partialParseSuccess' | 'parseSuccess' | 'fail'>]: ReturnType<typeof vi.fn>;
+  [
+    K in keyof Pick<
+      AppActions,
+      | "startReading"
+      | "startParsing"
+      | "setProgress"
+      | "partialParseSuccess"
+      | "parseSuccess"
+      | "fail"
+    >
+  ]: ReturnType<typeof vi.fn>;
 };
 
 function makeActions(): MockActions {
@@ -57,15 +72,17 @@ function makeActions(): MockActions {
 const LARGE_PROJECT_FILE_COUNT = 200;
 const READ_BATCH_SIZE = 24;
 const PARSE_BATCH_SIZE = 32;
-const EXPECTED_CHUNKED_PARSE_CALLS = Math.ceil(LARGE_PROJECT_FILE_COUNT / READ_BATCH_SIZE);
+const EXPECTED_CHUNKED_PARSE_CALLS = Math.ceil(
+  LARGE_PROJECT_FILE_COUNT / READ_BATCH_SIZE,
+);
 const LAST_CHUNK_INDEX = EXPECTED_CHUNKED_PARSE_CALLS - 1;
 
-describe('createProcessUpload', () => {
+describe("createProcessUpload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns early for null uploads', async () => {
+  it("returns early for null uploads", async () => {
     const parseService: ParseService = {
       parse: vi.fn(),
       searchDialogueLines: vi.fn(),
@@ -84,7 +101,7 @@ describe('createProcessUpload', () => {
     expect(actions.fail).not.toHaveBeenCalled();
   });
 
-  it('dispatches FAIL when upload validation fails', async () => {
+  it("dispatches FAIL when upload validation fails", async () => {
     const parseService: ParseService = {
       parse: vi.fn(),
       searchDialogueLines: vi.fn(),
@@ -97,18 +114,31 @@ describe('createProcessUpload', () => {
       parseAbortControllerRef: { current: null },
     });
 
-    await processUpload(toFileList([new File(['x'], 'notes.txt', { type: 'text/plain' })]));
+    await processUpload(
+      toFileList([new File(["x"], "notes.txt", { type: "text/plain" })]),
+    );
 
-    expect(actions.fail).toHaveBeenCalledWith('No .rpy files found in the selected directory.');
+    expect(actions.fail).toHaveBeenCalledWith(
+      "No .rpy files found in the selected directory.",
+    );
     expect(parseService.parse).not.toHaveBeenCalled();
   });
 
-  it('runs non-chunked parse flow and dispatches success', async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
+  it("runs non-chunked parse flow and dispatches success", async () => {
+    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
+      `content:${file.name}`
+    );
     const actions = makeActions();
     const parse = vi.fn(async (request) => {
-      request.onProgress?.({ doneFiles: 2, totalFiles: 2, currentFile: 'b.rpy' });
-      return { nodes: [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }], edges: [] };
+      request.onProgress?.({
+        doneFiles: 2,
+        totalFiles: 2,
+        currentFile: "b.rpy",
+      });
+      return {
+        nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
+        edges: [],
+      };
     });
     const parseService: ParseService = {
       parse,
@@ -125,10 +155,10 @@ describe('createProcessUpload', () => {
       onReadMeasured,
       onParseStarted,
       onParseMeasured,
-      dialogueSearchMode: 'full',
+      dialogueSearchMode: "full",
     });
 
-    await processUpload(toFileList([makeRpy('a.rpy'), makeRpy('b.rpy')]));
+    await processUpload(toFileList([makeRpy("a.rpy"), makeRpy("b.rpy")]));
 
     expect(onReadMeasured).toHaveBeenCalledWith(2);
     expect(onParseStarted).toHaveBeenCalledTimes(1);
@@ -142,18 +172,24 @@ describe('createProcessUpload', () => {
       }),
     );
     expect(actions.parseSuccess).toHaveBeenCalledWith(
-      [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }],
+      [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
       [],
       [],
     );
-    expect(onParseMeasured).toHaveBeenCalledWith({ fileCount: 2, nodeCount: 1, edgeCount: 0 });
+    expect(onParseMeasured).toHaveBeenCalledWith({
+      fileCount: 2,
+      nodeCount: 1,
+      edgeCount: 0,
+    });
   });
 
-  it('sorts uploads by relative path and forwards stable file identity to parsing', async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
+  it("sorts uploads by relative path and forwards stable file identity to parsing", async () => {
+    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
+      `content:${file.name}`
+    );
     const actions = makeActions();
     const parse = vi.fn(async () => ({
-      nodes: [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }],
+      nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
       edges: [],
     }));
     const parseService: ParseService = {
@@ -169,8 +205,8 @@ describe('createProcessUpload', () => {
 
     await processUpload(
       toFileList([
-        makeRpy('script.rpy', 'routes/beta/script.rpy'),
-        makeRpy('script.rpy', 'routes/alpha/script.rpy'),
+        makeRpy("script.rpy", "routes/beta/script.rpy"),
+        makeRpy("script.rpy", "routes/alpha/script.rpy"),
       ]),
     );
 
@@ -178,23 +214,25 @@ describe('createProcessUpload', () => {
       expect.objectContaining({
         files: [
           expect.objectContaining({
-            name: 'script.rpy',
-            relativePath: 'routes/alpha/script.rpy',
+            name: "script.rpy",
+            relativePath: "routes/alpha/script.rpy",
           }),
           expect.objectContaining({
-            name: 'script.rpy',
-            relativePath: 'routes/beta/script.rpy',
+            name: "script.rpy",
+            relativePath: "routes/beta/script.rpy",
           }),
         ],
       }),
     );
   });
 
-  it('captures dialogue lines in auto mode for non-large uploads', async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
+  it("captures dialogue lines in auto mode for non-large uploads", async () => {
+    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
+      `content:${file.name}`
+    );
     const actions = makeActions();
     const parse = vi.fn(async () => ({
-      nodes: [{ id: 'n1', type: 'LABEL', label: 'n1', dialogueCount: 0 }],
+      nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
       edges: [],
     }));
     const parseService: ParseService = {
@@ -206,10 +244,10 @@ describe('createProcessUpload', () => {
       actions,
       activeRunIdRef: { current: 0 },
       parseAbortControllerRef: { current: null },
-      dialogueSearchMode: 'auto',
+      dialogueSearchMode: "auto",
     });
 
-    await processUpload(toFileList([makeRpy('a.rpy')]));
+    await processUpload(toFileList([makeRpy("a.rpy")]));
 
     expect(parse).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -218,8 +256,10 @@ describe('createProcessUpload', () => {
     );
   });
 
-  it('uses chunked parse flow for large uploads and emits partial updates', async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) => `content:${file.name}`);
+  it("uses chunked parse flow for large uploads and emits partial updates", async () => {
+    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
+      `content:${file.name}`
+    );
     const actions = makeActions();
     let callIndex = 0;
     const parse = vi.fn(async (request) => {
@@ -231,12 +271,22 @@ describe('createProcessUpload', () => {
       });
       if (callIndex === 1) {
         request.onPartialResult?.({
-          nodes: [{ id: 'partial', type: 'LABEL', label: 'partial', dialogueCount: 0 }],
+          nodes: [{
+            id: "partial",
+            type: "LABEL",
+            label: "partial",
+            dialogueCount: 0,
+          }],
           edges: [],
         });
       }
       return {
-        nodes: [{ id: `n-${callIndex}`, type: 'LABEL', label: `n-${callIndex}`, dialogueCount: 0 }],
+        nodes: [{
+          id: `n-${callIndex}`,
+          type: "LABEL",
+          label: `n-${callIndex}`,
+          dialogueCount: 0,
+        }],
         edges: [],
       };
     });
@@ -249,9 +299,12 @@ describe('createProcessUpload', () => {
       actions,
       activeRunIdRef: { current: 0 },
       parseAbortControllerRef: { current: null },
-      dialogueSearchMode: 'auto',
+      dialogueSearchMode: "auto",
     });
-    const files = Array.from({ length: LARGE_PROJECT_FILE_COUNT }, (_, i) => makeRpy(`f${i + 1}.rpy`));
+    const files = Array.from(
+      { length: LARGE_PROJECT_FILE_COUNT },
+      (_, i) => makeRpy(`f${i + 1}.rpy`),
+    );
 
     await processUpload(toFileList(files));
 
@@ -272,7 +325,7 @@ describe('createProcessUpload', () => {
       }),
     );
     expect(actions.partialParseSuccess).toHaveBeenCalledWith(
-      [{ id: 'partial', type: 'LABEL', label: 'partial', dialogueCount: 0 }],
+      [{ id: "partial", type: "LABEL", label: "partial", dialogueCount: 0 }],
       [],
       [],
     );
@@ -280,8 +333,8 @@ describe('createProcessUpload', () => {
     expect(actions.partialParseSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it('dispatches file read failures with mapped message', async () => {
-    vi.mocked(readFileAsText).mockRejectedValue(new FileReadError('bad.rpy'));
+  it("dispatches file read failures with mapped message", async () => {
+    vi.mocked(readFileAsText).mockRejectedValue(new FileReadError("bad.rpy"));
     const actions = makeActions();
     const parseService: ParseService = {
       parse: vi.fn(),
@@ -294,7 +347,7 @@ describe('createProcessUpload', () => {
       parseAbortControllerRef: { current: null },
     });
 
-    await processUpload(toFileList([makeRpy('bad.rpy')]));
+    await processUpload(toFileList([makeRpy("bad.rpy")]));
 
     expect(actions.fail).toHaveBeenCalledWith(
       'Could not read "bad.rpy". The file may be inaccessible or corrupted.',
@@ -302,11 +355,13 @@ describe('createProcessUpload', () => {
     expect(parseService.parse).not.toHaveBeenCalled();
   });
 
-  it('dispatches parse failures with mapped cancellation message', async () => {
-    vi.mocked(readFileAsText).mockResolvedValue('label start:');
+  it("dispatches parse failures with mapped cancellation message", async () => {
+    vi.mocked(readFileAsText).mockResolvedValue("label start:");
     const actions = makeActions();
     const parseService: ParseService = {
-      parse: vi.fn().mockRejectedValue(new DOMException('Parsing cancelled', 'AbortError')),
+      parse: vi.fn().mockRejectedValue(
+        new DOMException("Parsing cancelled", "AbortError"),
+      ),
       searchDialogueLines: vi.fn(),
     };
     const processUpload = createProcessUpload({
@@ -316,8 +371,8 @@ describe('createProcessUpload', () => {
       parseAbortControllerRef: { current: null },
     });
 
-    await processUpload(toFileList([makeRpy('a.rpy')]));
+    await processUpload(toFileList([makeRpy("a.rpy")]));
 
-    expect(actions.fail).toHaveBeenCalledWith('Parsing was cancelled.');
+    expect(actions.fail).toHaveBeenCalledWith("Parsing was cancelled.");
   });
 });

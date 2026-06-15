@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '../config/storageKeys';
+import { STORAGE_KEYS } from "../config/storageKeys";
 
 export interface PerfEvent {
   metric: string;
@@ -7,11 +7,12 @@ export interface PerfEvent {
 }
 
 function isPerfEnabled(): boolean {
-  const perfFlag = (globalThis as { __RFV_DEBUG_PERF__?: unknown }).__RFV_DEBUG_PERF__;
+  const perfFlag =
+    (globalThis as { __RFV_DEBUG_PERF__?: unknown }).__RFV_DEBUG_PERF__;
   if (perfFlag === true) return true;
   try {
-    if (typeof globalThis.localStorage === 'undefined') return false;
-    return globalThis.localStorage.getItem(STORAGE_KEYS.debugPerf) === 'true';
+    if (typeof globalThis.localStorage === "undefined") return false;
+    return globalThis.localStorage.getItem(STORAGE_KEYS.debugPerf) === "true";
   } catch {
     return false;
   }
@@ -31,14 +32,18 @@ export function createPerfTracker(scope: string, options?: PerfTrackerOptions) {
       if (!enabled) return;
       marks.set(name, performance.now());
     },
-    measure(name: string, metric: string, detail?: Record<string, unknown>): number | null {
+    measure(
+      name: string,
+      metric: string,
+      detail?: Record<string, unknown>,
+    ): number | null {
       if (!enabled) return null;
       const start = marks.get(name);
       if (start === undefined) return null;
       const ms = performance.now() - start;
       console.debug(
         `[perf:${scope}]`,
-        detail === undefined ? { metric, ms } : { metric, ms, detail }
+        detail === undefined ? { metric, ms } : { metric, ms, detail },
       );
       options?.onEvent?.({ metric, ms, detail });
       return ms;
@@ -47,7 +52,7 @@ export function createPerfTracker(scope: string, options?: PerfTrackerOptions) {
       if (!enabled) return;
       console.debug(
         `[perf:${scope}]`,
-        detail === undefined ? { metric, ms } : { metric, ms, detail }
+        detail === undefined ? { metric, ms } : { metric, ms, detail },
       );
       options?.onEvent?.({ metric, ms, detail });
     },

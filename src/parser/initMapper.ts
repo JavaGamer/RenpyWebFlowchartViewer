@@ -1,20 +1,24 @@
-import type { ParseGraphState, ParseInputFile, ResolveTargetScanState } from './pipelineTypes';
+import type {
+  ParseGraphState,
+  ParseInputFile,
+  ResolveTargetScanState,
+} from "./pipelineTypes";
 import {
-  parseDictLiteral,
   extractLiteralTarget,
+  parseDictLiteral,
   resolveStaticTargetExpression,
   stripInlineComment,
-} from './tokenHandling';
-import { compareDeterministicStrings } from '../domain';
+} from "./tokenHandling";
+import { compareDeterministicStrings } from "../domain";
 
 interface InitItem {
-  type: 'python_block' | 'init_block' | 'define_default' | 'screen';
+  type: "python_block" | "init_block" | "define_default" | "screen";
   priority: number;
   filePath: string;
   lineIndex: number;
   variableName?: string; // For define/default
-  expression?: string;   // For define/default or python code
-  body?: string;         // For blocks
+  expression?: string; // For define/default or python code
+  body?: string; // For blocks
 }
 
 function getLineIndent(line: string): number {
@@ -23,8 +27,8 @@ function getLineIndent(line: string): number {
 }
 
 interface DelimiterState {
-  delimiterStack: Array<')' | ']' | '}'>;
-  activeQuote: '"' | '\'' | null;
+  delimiterStack: Array<")" | "]" | "}">;
+  activeQuote: '"' | "'" | null;
   tripleQuoted: boolean;
   inComment: boolean;
   explicitContinuation: boolean;
@@ -33,13 +37,13 @@ interface DelimiterState {
 function processLineState(lineText: string, state: DelimiterState) {
   let lastSignificantCharOutsideComment: string | null = null;
   for (let i = 0; i < lineText.length; i += 1) {
-    const char = lineText[i] ?? '';
+    const char = lineText[i] ?? "";
     if (state.inComment) {
       continue;
     }
 
     if (state.activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         if (i + 1 < lineText.length) {
           i += 1;
         }
@@ -64,14 +68,14 @@ function processLineState(lineText: string, state: DelimiterState) {
       continue;
     }
 
-    if (char === '#') {
+    if (char === "#") {
       state.inComment = true;
       continue;
     }
 
     if (
       i + 2 < lineText.length &&
-      (char === '"' || char === '\'') &&
+      (char === '"' || char === "'") &&
       lineText[i + 1] === char &&
       lineText[i + 2] === char
     ) {
@@ -80,21 +84,21 @@ function processLineState(lineText: string, state: DelimiterState) {
       i += 2;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       state.activeQuote = char;
       state.tripleQuoted = false;
       continue;
     }
 
     const openingDelimiter = {
-      '(': ')',
-      '[': ']',
-      '{': '}',
+      "(": ")",
+      "[": "]",
+      "{": "}",
     }[char];
 
     if (openingDelimiter) {
-      state.delimiterStack.push(openingDelimiter as ')' | ']' | '}');
-    } else if (char === ')' || char === ']' || char === '}') {
+      state.delimiterStack.push(openingDelimiter as ")" | "]" | "}");
+    } else if (char === ")" || char === "]" || char === "}") {
       if (char === state.delimiterStack[state.delimiterStack.length - 1]) {
         state.delimiterStack.pop();
       }
@@ -104,14 +108,14 @@ function processLineState(lineText: string, state: DelimiterState) {
       lastSignificantCharOutsideComment = char;
     }
   }
-  state.explicitContinuation = lastSignificantCharOutsideComment === '\\';
+  state.explicitContinuation = lastSignificantCharOutsideComment === "\\";
   state.inComment = false;
 }
 
 function getLogicalBodyAndEndLine(
   lines: string[],
   startLineIndex: number,
-  initialBodyPart: string
+  initialBodyPart: string,
 ): { body: string; endLineIndex: number } {
   let body = initialBodyPart;
   let idx = startLineIndex + 1;
@@ -129,17 +133,18 @@ function getLogicalBodyAndEndLine(
   while (idx < lines.length) {
     const line = lines[idx];
     const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith('#')) {
-      body += '\n' + line;
+    if (trimmed.length === 0 || trimmed.startsWith("#")) {
+      body += "\n" + line;
       idx += 1;
       continue;
     }
 
     const indent = getLineIndent(line);
-    const isInsideGroup = state.explicitContinuation || state.delimiterStack.length > 0 || state.activeQuote !== null;
+    const isInsideGroup = state.explicitContinuation ||
+      state.delimiterStack.length > 0 || state.activeQuote !== null;
 
     if (indent > 0 || isInsideGroup) {
-      body += '\n' + line;
+      body += "\n" + line;
       processLineState(line, state);
       idx += 1;
     } else {
@@ -152,7 +157,7 @@ function getLogicalBodyAndEndLine(
 export function getLogicalExpressionAndEndLine(
   lines: string[],
   startLineIndex: number,
-  initialRHS: string
+  initialRHS: string,
 ): { body: string; endLineIndex: number } {
   let body = initialRHS;
   let currentLine = startLineIndex;
@@ -168,12 +173,13 @@ export function getLogicalExpressionAndEndLine(
   processLineState(initialRHS, state);
 
   while (
-    (state.explicitContinuation || state.delimiterStack.length > 0 || state.activeQuote !== null) &&
+    (state.explicitContinuation || state.delimiterStack.length > 0 ||
+      state.activeQuote !== null) &&
     currentLine + 1 < lines.length
   ) {
     currentLine += 1;
     const nextLine = lines[currentLine];
-    body += '\n' + nextLine;
+    body += "\n" + nextLine;
     processLineState(nextLine, state);
   }
 
@@ -182,12 +188,12 @@ export function getLogicalExpressionAndEndLine(
 
 // Strip inline comments from python code block or assignment RHS
 export function stripPythonComments(text: string): string {
-  let activeQuote: '"' | '\'' | null = null;
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
     if (activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         i += 1;
         continue;
       }
@@ -209,7 +215,7 @@ export function stripPythonComments(text: string): string {
     }
     if (
       i + 2 < text.length &&
-      (char === '"' || char === '\'') &&
+      (char === '"' || char === "'") &&
       text[i + 1] === char &&
       text[i + 2] === char
     ) {
@@ -218,11 +224,11 @@ export function stripPythonComments(text: string): string {
       i += 2;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       activeQuote = char;
       continue;
     }
-    if (char === '#') {
+    if (char === "#") {
       return text.slice(0, i);
     }
   }
@@ -231,7 +237,7 @@ export function stripPythonComments(text: string): string {
 
 export function preParseInitialization(
   files: ParseInputFile[],
-  state: ParseGraphState
+  state: ParseGraphState,
 ): void {
   const items: InitItem[] = [];
 
@@ -245,7 +251,7 @@ export function preParseInitialization(
       const line = lines[idx];
       const trimmed = line.trim();
 
-      if (trimmed.length === 0 || trimmed.startsWith('#')) {
+      if (trimmed.length === 0 || trimmed.startsWith("#")) {
         idx += 1;
         continue;
       }
@@ -267,9 +273,13 @@ export function preParseInitialization(
       // 2. Detect python early
       const pythonEarlyMatch = /^python\s+early\s*:(.*)$/i.exec(trimmed);
       if (pythonEarlyMatch) {
-        const { body, endLineIndex } = getLogicalBodyAndEndLine(lines, idx, pythonEarlyMatch[1]);
+        const { body, endLineIndex } = getLogicalBodyAndEndLine(
+          lines,
+          idx,
+          pythonEarlyMatch[1],
+        );
         items.push({
-          type: 'python_block',
+          type: "python_block",
           priority: -10000,
           filePath,
           lineIndex: idx,
@@ -280,12 +290,19 @@ export function preParseInitialization(
       }
 
       // 3. Detect init blocks
-      const initPriorityPythonMatch = /^init\s+(-?\d+)\s+python\s*:(.*)$/i.exec(trimmed);
+      const initPriorityPythonMatch = /^init\s+(-?\d+)\s+python\s*:(.*)$/i.exec(
+        trimmed,
+      );
       if (initPriorityPythonMatch) {
-        const priority = currentOffset + parseInt(initPriorityPythonMatch[1], 10);
-        const { body, endLineIndex } = getLogicalBodyAndEndLine(lines, idx, initPriorityPythonMatch[2]);
+        const priority = currentOffset +
+          parseInt(initPriorityPythonMatch[1], 10);
+        const { body, endLineIndex } = getLogicalBodyAndEndLine(
+          lines,
+          idx,
+          initPriorityPythonMatch[2],
+        );
         items.push({
-          type: 'python_block',
+          type: "python_block",
           priority,
           filePath,
           lineIndex: idx,
@@ -298,9 +315,13 @@ export function preParseInitialization(
       const initPriorityMatch = /^init\s+(-?\d+)\s*:(.*)$/i.exec(trimmed);
       if (initPriorityMatch) {
         const priority = currentOffset + parseInt(initPriorityMatch[1], 10);
-        const { body, endLineIndex } = getLogicalBodyAndEndLine(lines, idx, initPriorityMatch[2]);
+        const { body, endLineIndex } = getLogicalBodyAndEndLine(
+          lines,
+          idx,
+          initPriorityMatch[2],
+        );
         items.push({
-          type: 'init_block',
+          type: "init_block",
           priority,
           filePath,
           lineIndex: idx,
@@ -312,9 +333,13 @@ export function preParseInitialization(
 
       const initPythonMatch = /^init\s+python\s*:(.*)$/i.exec(trimmed);
       if (initPythonMatch) {
-        const { body, endLineIndex } = getLogicalBodyAndEndLine(lines, idx, initPythonMatch[1]);
+        const { body, endLineIndex } = getLogicalBodyAndEndLine(
+          lines,
+          idx,
+          initPythonMatch[1],
+        );
         items.push({
-          type: 'python_block',
+          type: "python_block",
           priority: currentOffset,
           filePath,
           lineIndex: idx,
@@ -326,9 +351,13 @@ export function preParseInitialization(
 
       const initMatch = /^init\s*:(.*)$/i.exec(trimmed);
       if (initMatch) {
-        const { body, endLineIndex } = getLogicalBodyAndEndLine(lines, idx, initMatch[1]);
+        const { body, endLineIndex } = getLogicalBodyAndEndLine(
+          lines,
+          idx,
+          initMatch[1],
+        );
         items.push({
-          type: 'init_block',
+          type: "init_block",
           priority: currentOffset,
           filePath,
           lineIndex: idx,
@@ -339,14 +368,19 @@ export function preParseInitialization(
       }
 
       // 4. Detect define or default
-      const defineDefaultMatch = /^(define|default)(?:\s+(-?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i.exec(trimmed);
+      const defineDefaultMatch =
+        /^(define|default)(?:\s+(-?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i
+          .exec(trimmed);
       if (defineDefaultMatch) {
         const variableName = defineDefaultMatch[3].trim();
         const initialRHS = defineDefaultMatch[4];
-        const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(lines, idx, initialRHS);
-        const explicitPriority = defineDefaultMatch[2] ? parseInt(defineDefaultMatch[2], 10) : 0;
+        const { body: expression, endLineIndex } =
+          getLogicalExpressionAndEndLine(lines, idx, initialRHS);
+        const explicitPriority = defineDefaultMatch[2]
+          ? parseInt(defineDefaultMatch[2], 10)
+          : 0;
         items.push({
-          type: 'define_default',
+          type: "define_default",
           priority: currentOffset + explicitPriority,
           filePath,
           lineIndex: idx,
@@ -362,7 +396,7 @@ export function preParseInitialization(
       if (screenMatch) {
         const screenName = screenMatch[1].trim();
         items.push({
-          type: 'screen',
+          type: "screen",
           priority: currentOffset,
           filePath,
           lineIndex: idx,
@@ -388,20 +422,26 @@ export function preParseInitialization(
 
   // Execute initialization items in priority order
   for (const item of items) {
-    if (item.type === 'screen' && item.variableName) {
+    if (item.type === "screen" && item.variableName) {
       state.globalScreens.add(item.variableName);
-    } else if (item.type === 'define_default' && item.variableName && item.expression) {
+    } else if (
+      item.type === "define_default" && item.variableName && item.expression
+    ) {
       const cleanExpr = stripPythonComments(item.expression).trim();
       processAssignment(state, item.variableName, cleanExpr);
-    } else if (item.type === 'python_block' && item.body) {
+    } else if (item.type === "python_block" && item.body) {
       processPythonBlockText(state, item.body);
-    } else if (item.type === 'init_block' && item.body) {
+    } else if (item.type === "init_block" && item.body) {
       processInitBlockText(state, item.body);
     }
   }
 }
 
-function processAssignment(state: ParseGraphState, variableName: string, rhsExpression: string) {
+function processAssignment(
+  state: ParseGraphState,
+  variableName: string,
+  rhsExpression: string,
+) {
   const cleanExpr = rhsExpression.trim();
   if (/Character\s*\(/i.test(cleanExpr)) {
     state.globalCharacters.add(variableName);
@@ -417,9 +457,16 @@ function processAssignment(state: ParseGraphState, variableName: string, rhsExpr
         labelVariableDictTargets: state.globalLabelVariableDictTargets,
       };
 
-      const staticResolved = resolveStaticTargetExpression(cleanExpr, mockScanState, state);
+      const staticResolved = resolveStaticTargetExpression(
+        cleanExpr,
+        mockScanState,
+        state,
+      );
       if (staticResolved !== null) {
-        state.globalLabelVariableLiteralTargets.set(variableName, staticResolved);
+        state.globalLabelVariableLiteralTargets.set(
+          variableName,
+          staticResolved,
+        );
         state.globalLabelVariableDictTargets.delete(variableName);
       } else {
         const dictVal = parseDictLiteral(cleanExpr);
@@ -442,17 +489,22 @@ function processPythonBlockText(state: ParseGraphState, body: string) {
   while (idx < lines.length) {
     const line = lines[idx];
     const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith('#')) {
+    if (trimmed.length === 0 || trimmed.startsWith("#")) {
       idx += 1;
       continue;
     }
 
     // Try to match an assignment: var = val
-    const match = /^[ \t]*([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(?!=)(.*)$/.exec(line);
+    const match = /^[ \t]*([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(?!=)(.*)$/
+      .exec(line);
     if (match) {
       const varName = match[1].trim();
       const initialRHS = match[2];
-      const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(lines, idx, initialRHS);
+      const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(
+        lines,
+        idx,
+        initialRHS,
+      );
       processAssignment(state, varName, stripInlineComment(expression));
       idx = endLineIndex + 1;
       continue;
@@ -469,27 +521,38 @@ function processInitBlockText(state: ParseGraphState, body: string) {
     const line = lines[idx];
     const trimmed = line.trim();
 
-    if (trimmed.length === 0 || trimmed.startsWith('#')) {
+    if (trimmed.length === 0 || trimmed.startsWith("#")) {
       idx += 1;
       continue;
     }
 
     // Nested define/default
-    const defineMatch = /^(define|default)(?:\s+(-?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i.exec(trimmed);
+    const defineMatch =
+      /^(define|default)(?:\s+(-?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i
+        .exec(trimmed);
     if (defineMatch) {
       const varName = defineMatch[3].trim();
-      const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(lines, idx, defineMatch[4]);
+      const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(
+        lines,
+        idx,
+        defineMatch[4],
+      );
       processAssignment(state, varName, stripInlineComment(expression));
       idx = endLineIndex + 1;
       continue;
     }
 
     // Nested one-line python statement
-    if (trimmed.startsWith('$')) {
+    if (trimmed.startsWith("$")) {
       const pyLine = trimmed.substring(1).trim();
-      const assignmentMatch = /^([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(?!=)(.*)$/.exec(pyLine);
+      const assignmentMatch =
+        /^([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(?!=)(.*)$/.exec(pyLine);
       if (assignmentMatch) {
-        processAssignment(state, assignmentMatch[1].trim(), stripInlineComment(assignmentMatch[2]));
+        processAssignment(
+          state,
+          assignmentMatch[1].trim(),
+          stripInlineComment(assignmentMatch[2]),
+        );
       }
       idx += 1;
       continue;
@@ -498,7 +561,11 @@ function processInitBlockText(state: ParseGraphState, body: string) {
     // Nested python block
     const pythonBlockMatch = /^python\s*:(.*)$/i.exec(trimmed);
     if (pythonBlockMatch) {
-      const { body: pyBody, endLineIndex } = getLogicalBodyAndEndLine(lines, idx, pythonBlockMatch[1]);
+      const { body: pyBody, endLineIndex } = getLogicalBodyAndEndLine(
+        lines,
+        idx,
+        pythonBlockMatch[1],
+      );
       processPythonBlockText(state, pyBody);
       idx = endLineIndex + 1;
       continue;

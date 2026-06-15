@@ -1,81 +1,87 @@
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { parseRenpyFiles } from '../src/parser/parser';
-import { createGraphState } from '../src/parser/pipelineState';
-import { preParseInitialization } from '../src/parser/initMapper';
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseRenpyFiles } from "../src/parser/parser";
+import { createGraphState } from "../src/parser/pipelineState";
+import { preParseInitialization } from "../src/parser/initMapper";
 
 function loadFixture(name: string): string {
-  const fixturesDir = resolve(import.meta.dirname, 'fixtures');
-  return readFileSync(resolve(fixturesDir, name), 'utf8');
+  const fixturesDir = resolve(import.meta.dirname, "fixtures");
+  return readFileSync(resolve(fixturesDir, name), "utf8");
 }
 
-describe('parseRenpyFiles', () => {
-  it('returns an empty graph when no files are provided', async () => {
-    await expect(parseRenpyFiles([])).resolves.toEqual({ nodes: [], edges: [] });
+describe("parseRenpyFiles", () => {
+  it("returns an empty graph when no files are provided", async () => {
+    await expect(parseRenpyFiles([])).resolves.toEqual({
+      nodes: [],
+      edges: [],
+    });
   });
 
-  it('parses basic labels, dialogue, and fallthrough sequence edges', async () => {
+  it("parses basic labels, dialogue, and fallthrough sequence edges", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    "hello"',
-      '',
-      'label second:',
+      "",
+      "label second:",
       '    e "hi"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'basic.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "basic.rpy",
+      content: script,
+    }]);
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'start',
-          type: 'LABEL',
-          label: 'start',
+          id: "start",
+          type: "LABEL",
+          label: "start",
           dialogueCount: 1,
         }),
         expect.objectContaining({
-          id: 'second',
-          type: 'LABEL',
-          label: 'second',
+          id: "second",
+          type: "LABEL",
+          label: "second",
           dialogueCount: 1,
         }),
       ]),
     );
 
     expect(result.edges).toContainEqual({
-      id: 'seq_start__second',
-      source: 'start',
-      target: 'second',
-      kind: 'sequence',
-      label: 'next',
+      id: "seq_start__second",
+      source: "start",
+      target: "second",
+      kind: "sequence",
+      label: "next",
     });
   });
 
-  it('keeps duplicate label nodes visible across files while preserving local sequence edges', async () => {
+  it("keeps duplicate label nodes visible across files while preserving local sequence edges", async () => {
     const files = [
       {
-        name: 'part1.rpy',
+        name: "part1.rpy",
         content: [
-          'label alpha:',
+          "label alpha:",
           '    "line a1"',
-          '',
-          'label beta:',
+          "",
+          "label beta:",
           '    "line b1"',
-          '',
-        ].join('\n'),
+          "",
+        ].join("\n"),
       },
       {
-        name: 'part2.rpy',
+        name: "part2.rpy",
         content: [
-          'label alpha:',
+          "label alpha:",
           '    "line a2"',
-          '',
-          'label beta:',
+          "",
+          "label beta:",
           '    "line b2"',
-          '',
-        ].join('\n'),
+          "",
+        ].join("\n"),
       },
     ];
 
@@ -83,33 +89,53 @@ describe('parseRenpyFiles', () => {
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'alpha', dialogueCount: 1 }),
-        expect.objectContaining({ id: 'beta', dialogueCount: 1 }),
-        expect.objectContaining({ id: 'alpha__shadow_2', dialogueCount: 1, isShadowed: true, shadowOfId: 'alpha' }),
-        expect.objectContaining({ id: 'beta__shadow_2', dialogueCount: 1, isShadowed: true, shadowOfId: 'beta' }),
+        expect.objectContaining({ id: "alpha", dialogueCount: 1 }),
+        expect.objectContaining({ id: "beta", dialogueCount: 1 }),
+        expect.objectContaining({
+          id: "alpha__shadow_2",
+          dialogueCount: 1,
+          isShadowed: true,
+          shadowOfId: "alpha",
+        }),
+        expect.objectContaining({
+          id: "beta__shadow_2",
+          dialogueCount: 1,
+          isShadowed: true,
+          shadowOfId: "beta",
+        }),
       ]),
     );
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'alpha', target: 'beta', kind: 'sequence', label: 'next' }),
-        expect.objectContaining({ source: 'alpha__shadow_2', target: 'beta__shadow_2', kind: 'sequence', label: 'next' }),
+        expect.objectContaining({
+          source: "alpha",
+          target: "beta",
+          kind: "sequence",
+          label: "next",
+        }),
+        expect.objectContaining({
+          source: "alpha__shadow_2",
+          target: "beta__shadow_2",
+          kind: "sequence",
+          label: "next",
+        }),
       ]),
     );
   });
 
-  it('keeps parse output stable across repeated invocations for the same input', async () => {
+  it("keeps parse output stable across repeated invocations for the same input", async () => {
     const files = [
       {
-        name: 'repeat.rpy',
+        name: "repeat.rpy",
         content: [
-          'label one:',
+          "label one:",
           '    "line 1"',
-          '',
-          'label two:',
+          "",
+          "label two:",
           '    "line 2"',
-          '',
-        ].join('\n'),
+          "",
+        ].join("\n"),
       },
     ];
 
@@ -121,456 +147,559 @@ describe('parseRenpyFiles', () => {
 
   // ── Label parsing ────────────────────────────────────────────────────────────
 
-  it('parses a single label with no dialogue', async () => {
-    const script = 'label intro:\n    pass\n';
+  it("parses a single label with no dialogue", async () => {
+    const script = "label intro:\n    pass\n";
 
-    const result = await parseRenpyFiles([{ name: 'intro.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "intro.rpy",
+      content: script,
+    }]);
 
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0]).toEqual(
-      expect.objectContaining({ id: 'intro', type: 'LABEL', label: 'intro', dialogueCount: 0 }),
+      expect.objectContaining({
+        id: "intro",
+        type: "LABEL",
+        label: "intro",
+        dialogueCount: 0,
+      }),
     );
     expect(result.edges).toHaveLength(0);
   });
 
-  it('accumulates multiple dialogue lines in the same label', async () => {
+  it("accumulates multiple dialogue lines in the same label", async () => {
     const script = [
-      'label scene:',
+      "label scene:",
       '    "line one"',
       '    "line two"',
       '    "line three"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'scene.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "scene.rpy",
+      content: script,
+    }]);
 
-    const node = result.nodes.find((n) => n.id === 'scene');
+    const node = result.nodes.find((n) => n.id === "scene");
     expect(node).toBeDefined();
     expect(node?.dialogueCount).toBe(3);
-    expect(node?.dialogueLines).toEqual(['line one', 'line two', 'line three']);
+    expect(node?.dialogueLines).toEqual(["line one", "line two", "line three"]);
   });
 
-  it('supports count-only dialogue mode for faster parse without line capture', async () => {
+  it("supports count-only dialogue mode for faster parse without line capture", async () => {
     const script = [
-      'label scene:',
+      "label scene:",
       '    "line one"',
       '    "line two"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
     const result = await parseRenpyFiles(
-      [{ name: 'scene.rpy', content: script }],
+      [{ name: "scene.rpy", content: script }],
       { captureDialogueLines: false },
     );
 
-    const node = result.nodes.find((n) => n.id === 'scene');
+    const node = result.nodes.find((n) => n.id === "scene");
     expect(node).toBeDefined();
     expect(node?.dialogueCount).toBe(2);
     expect(node?.dialogueLines).toBeUndefined();
   });
 
-  it('splits labels into scene sub-nodes when scene boundaries occur after label content', async () => {
+  it("splits labels into scene sub-nodes when scene boundaries occur after label content", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    "before 1"',
       '    "before 2"',
       '    "before 3"',
-      '    scene bg room',
+      "    scene bg room",
       '    "after"',
-      '',
-      'label end:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label end:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
+    const result = await parseRenpyFiles([{
+      name: "scene-split.rpy",
+      content: script,
+    }], { sceneSplitDialogueThreshold: 0 });
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'start__scene_1', label: 'start: Scene 1', type: 'LABEL' }),
-        expect.objectContaining({ id: 'start__scene_2', label: 'start: Scene 2', type: 'LABEL' }),
-        expect.objectContaining({ id: 'end', label: 'end', type: 'LABEL' }),
+        expect.objectContaining({
+          id: "start__scene_1",
+          label: "start: Scene 1",
+          type: "LABEL",
+        }),
+        expect.objectContaining({
+          id: "start__scene_2",
+          label: "start: Scene 2",
+          type: "LABEL",
+        }),
+        expect.objectContaining({ id: "end", label: "end", type: "LABEL" }),
       ]),
     );
-    expect(result.nodes.find((node) => node.id === 'start')).toBeUndefined();
+    expect(result.nodes.find((node) => node.id === "start")).toBeUndefined();
     expect(result.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          source: 'start__scene_1',
-          target: 'start__scene_2',
-          kind: 'sequence',
-          label: 'next',
+          source: "start__scene_1",
+          target: "start__scene_2",
+          kind: "sequence",
+          label: "next",
         }),
       ]),
     );
   });
 
-  it('does not split or relabel a label when scene appears before any scoped label content', async () => {
+  it("does not split or relabel a label when scene appears before any scoped label content", async () => {
     const script = [
-      'label start:',
-      '    scene black',
+      "label start:",
+      "    scene black",
       '    "line"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'no-split-first-scene.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "no-split-first-scene.rpy",
+      content: script,
+    }]);
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'start', label: 'start', type: 'LABEL' }),
+        expect.objectContaining({ id: "start", label: "start", type: "LABEL" }),
       ]),
     );
-    expect(result.nodes.find((node) => node.id.startsWith('start__scene_'))).toBeUndefined();
+    expect(result.nodes.find((node) => node.id.startsWith("start__scene_")))
+      .toBeUndefined();
   });
 
-  it('triggers scene splitting when scene appears inside a menu option block', async () => {
+  it("triggers scene splitting when scene appears inside a menu option block", async () => {
     const script = [
-      'label start:',
-      '    menu:',
+      "label start:",
+      "    menu:",
       '        "Pick":',
       '            "inside option 1"',
       '            "inside option 2"',
       '            "inside option 3"',
-      '            scene bg beach',
+      "            scene bg beach",
       '            "after split trigger"',
       '    "outside option"',
-      '',
-      'label end:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label end:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu-option-scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
+    const result = await parseRenpyFiles([{
+      name: "menu-option-scene-split.rpy",
+      content: script,
+    }], { sceneSplitDialogueThreshold: 0 });
 
-    const menuNode = result.nodes.find((node) => node.type === 'MENU');
+    const menuNode = result.nodes.find((node) => node.type === "MENU");
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'start__scene_1', label: 'start: Scene 1', type: 'LABEL' }),
-        expect.objectContaining({ id: 'start__scene_2', label: 'start: Scene 2', type: 'LABEL' }),
+        expect.objectContaining({
+          id: "start__scene_1",
+          label: "start: Scene 1",
+          type: "LABEL",
+        }),
+        expect.objectContaining({
+          id: "start__scene_2",
+          label: "start: Scene 2",
+          type: "LABEL",
+        }),
       ]),
     );
-    expect(menuNode?.parentLabelId).toBe('start__scene_1');
+    expect(menuNode?.parentLabelId).toBe("start__scene_1");
     const sceneSplitEdge = result.edges.find(
-      (edge) => edge.kind === 'sequence' && edge.target === 'start__scene_2',
+      (edge) => edge.kind === "sequence" && edge.target === "start__scene_2",
     );
     expect(sceneSplitEdge).toBeDefined();
     expect(sceneSplitEdge?.source).toBe(menuNode?.id);
-    expect(sceneSplitEdge?.label).toBe('Pick');
+    expect(sceneSplitEdge?.label).toBe("Pick");
     expect(
       result.edges.find(
         (edge) =>
-          edge.kind === 'sequence' &&
-          edge.source === 'start__scene_1' &&
-          edge.target === 'start__scene_2',
+          edge.kind === "sequence" &&
+          edge.source === "start__scene_1" &&
+          edge.target === "start__scene_2",
       ),
     ).toBeUndefined();
   });
 
-  it('uses next for scene split routing after menu options finish', async () => {
+  it("uses next for scene split routing after menu options finish", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    "before 1"',
       '    "before 2"',
       '    "before 3"',
-      '    menu:',
+      "    menu:",
       '        "Pick":',
       '            "inside option"',
-      '    scene bg beach',
+      "    scene bg beach",
       '    "after split trigger"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu-fallthrough-scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
-    const menuNode = result.nodes.find((node) => node.type === 'MENU');
+    const result = await parseRenpyFiles([{
+      name: "menu-fallthrough-scene-split.rpy",
+      content: script,
+    }], { sceneSplitDialogueThreshold: 0 });
+    const menuNode = result.nodes.find((node) => node.type === "MENU");
     const sceneSplitEdge = result.edges.find(
-      (edge) => edge.kind === 'sequence' && edge.target === 'start__scene_2',
+      (edge) => edge.kind === "sequence" && edge.target === "start__scene_2",
     );
 
     expect(sceneSplitEdge).toBeDefined();
     expect(sceneSplitEdge?.source).toBe(menuNode?.id);
-    expect(sceneSplitEdge?.label).toBe('next');
+    expect(sceneSplitEdge?.label).toBe("next");
   });
 
-  it('splits labels when a conditional header appears before a scene boundary', async () => {
+  it("splits labels when a conditional header appears before a scene boundary", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    "before 1"',
       '    "before 2"',
       '    "before 3"',
-      '    if seen_intro:',
-      '        pass',
-      '    scene bg beach',
+      "    if seen_intro:",
+      "        pass",
+      "    scene bg beach",
       '    "after split trigger"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional-scene-split.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
+    const result = await parseRenpyFiles([{
+      name: "conditional-scene-split.rpy",
+      content: script,
+    }], { sceneSplitDialogueThreshold: 0 });
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'start__scene_1', label: 'start: Scene 1', type: 'LABEL' }),
-        expect.objectContaining({ id: 'start__scene_2', label: 'start: Scene 2', type: 'LABEL' }),
+        expect.objectContaining({
+          id: "start__scene_1",
+          label: "start: Scene 1",
+          type: "LABEL",
+        }),
+        expect.objectContaining({
+          id: "start__scene_2",
+          label: "start: Scene 2",
+          type: "LABEL",
+        }),
       ]),
     );
   });
 
-  it('enables scene-based label splitting by default for all parser variants', async () => {
+  it("enables scene-based label splitting by default for all parser variants", async () => {
     const script = [
-      'label route:',
+      "label route:",
       '    "first 1"',
       '    "first 2"',
       '    "first 3"',
-      '    scene bg city',
+      "    scene bg city",
       '    "second"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
     const result = await parseRenpyFiles(
-      [{ name: 'st-scene-split.rpy', content: script }],
-      { parserVariant: 'st', sceneSplitDialogueThreshold: 0 },
+      [{ name: "st-scene-split.rpy", content: script }],
+      { parserVariant: "st", sceneSplitDialogueThreshold: 0 },
     );
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'route__scene_1', label: 'route: Scene 1', type: 'LABEL' }),
-        expect.objectContaining({ id: 'route__scene_2', label: 'route: Scene 2', type: 'LABEL' }),
+        expect.objectContaining({
+          id: "route__scene_1",
+          label: "route: Scene 1",
+          type: "LABEL",
+        }),
+        expect.objectContaining({
+          id: "route__scene_2",
+          label: "route: Scene 2",
+          type: "LABEL",
+        }),
       ]),
     );
   });
 
   // ── Menu detection ───────────────────────────────────────────────────────────
 
-  it('parses an unnamed menu and creates a MENU node with a sequence edge from its parent label', async () => {
+  it("parses an unnamed menu and creates a MENU node with a sequence edge from its parent label", async () => {
     const script = [
-      'label choice:',
-      '    menu:',
+      "label choice:",
+      "    menu:",
       '        "Option A":',
-      '            jump end_a',
+      "            jump end_a",
       '        "Option B":',
-      '            jump end_b',
-      '',
-      'label end_a:',
+      "            jump end_b",
+      "",
+      "label end_a:",
       '    "done a"',
-      '',
-      'label end_b:',
+      "",
+      "label end_b:",
       '    "done b"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "menu.rpy",
+      content: script,
+    }]);
 
-    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
     expect(menuNode).toBeDefined();
 
     // There must be a sequence edge from the parent label to the menu node
     const labelToMenu = result.edges.find(
-      (e) => e.source === 'choice' && e.target === menuNode?.id,
+      (e) => e.source === "choice" && e.target === menuNode?.id,
     );
     expect(labelToMenu).toBeDefined();
   });
 
-  it('parses a named menu and uses the provided name as the menu node label', async () => {
+  it("parses a named menu and uses the provided name as the menu node label", async () => {
     const script = [
-      'label hub:',
-      '    menu talk_options:',
+      "label hub:",
+      "    menu talk_options:",
       '        "Ask A":',
-      '            jump dest_a',
+      "            jump dest_a",
       '        "Ask B":',
-      '            jump dest_b',
-      '',
-      'label dest_a:',
+      "            jump dest_b",
+      "",
+      "label dest_a:",
       '    "a"',
-      '',
-      'label dest_b:',
+      "",
+      "label dest_b:",
       '    "b"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'named_menu.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "named_menu.rpy",
+      content: script,
+    }]);
 
-    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
     expect(menuNode).toBeDefined();
-    expect(menuNode?.label).toBe('talk_options');
+    expect(menuNode?.label).toBe("talk_options");
   });
 
-  it('does not count menu option strings as dialogue', async () => {
+  it("does not count menu option strings as dialogue", async () => {
     const script = [
-      'label pick:',
-      '    menu:',
+      "label pick:",
+      "    menu:",
       '        "Option A":',
-      '            jump end',
+      "            jump end",
       '        "Option B":',
-      '            jump end',
-      '',
-      'label end:',
+      "            jump end",
+      "",
+      "label end:",
       '    "fin"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu_opts.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "menu_opts.rpy",
+      content: script,
+    }]);
 
-    const pickNode = result.nodes.find((n) => n.id === 'pick');
+    const pickNode = result.nodes.find((n) => n.id === "pick");
     expect(pickNode?.dialogueCount).toBe(0);
   });
 
   // ── Jump parsing ─────────────────────────────────────────────────────────────
 
-  it('parses a jump statement and creates a directed jump edge', async () => {
+  it("parses a jump statement and creates a directed jump edge", async () => {
     const script = [
-      'label start:',
-      '    jump finish',
-      '',
-      'label finish:',
+      "label start:",
+      "    jump finish",
+      "",
+      "label finish:",
       '    "the end"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'jump.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "jump.rpy",
+      content: script,
+    }]);
 
     const jumpEdge = result.edges.find(
-      (e) => e.source === 'start' && e.target === 'finish',
+      (e) => e.source === "start" && e.target === "finish",
     );
     expect(jumpEdge).toBeDefined();
     expect(jumpEdge?.id).toMatch(/^jump_/);
   });
 
-  it('jump prevents a fallthrough sequence edge to the next label', async () => {
+  it("jump prevents a fallthrough sequence edge to the next label", async () => {
     const script = [
-      'label a:',
-      '    jump c',
-      '',
-      'label b:',
+      "label a:",
+      "    jump c",
+      "",
+      "label b:",
       '    "b"',
-      '',
-      'label c:',
+      "",
+      "label c:",
       '    "c"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'jump_no_fallthrough.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "jump_no_fallthrough.rpy",
+      content: script,
+    }]);
 
     const fallthroughEdge = result.edges.find(
-      (e) => e.source === 'a' && e.target === 'b' && e.label === 'next',
+      (e) => e.source === "a" && e.target === "b" && e.label === "next",
     );
     expect(fallthroughEdge).toBeUndefined();
   });
 
-  it('creates a jump edge with the menu option text as label when jump is inside a menu option', async () => {
+  it("creates a jump edge with the menu option text as label when jump is inside a menu option", async () => {
     const script = [
-      'label decide:',
-      '    menu:',
+      "label decide:",
+      "    menu:",
       '        "Go north":',
-      '            jump north',
+      "            jump north",
       '        "Go south":',
-      '            jump south',
-      '',
-      'label north:',
+      "            jump south",
+      "",
+      "label north:",
       '    "north"',
-      '',
-      'label south:',
+      "",
+      "label south:",
       '    "south"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu_jump.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "menu_jump.rpy",
+      content: script,
+    }]);
 
-    const northEdge = result.edges.find((e) => e.target === 'north');
-    const southEdge = result.edges.find((e) => e.target === 'south');
+    const northEdge = result.edges.find((e) => e.target === "north");
+    const southEdge = result.edges.find((e) => e.target === "south");
 
     expect(northEdge).toBeDefined();
-    expect(northEdge?.label).toBe('Go north');
+    expect(northEdge?.label).toBe("Go north");
 
     expect(southEdge).toBeDefined();
-    expect(southEdge?.label).toBe('Go south');
+    expect(southEdge?.label).toBe("Go south");
   });
 
-  it('adds a menu fallthrough sequence edge when menu options do not jump/call', async () => {
+  it("adds a menu fallthrough sequence edge when menu options do not jump/call", async () => {
     const script = [
-      'label decide:',
-      '    menu:',
+      "label decide:",
+      "    menu:",
       '        "Go north":',
       '            "You walk north for a bit."',
       '        "Go south":',
       '            "You walk south for a bit."',
-      '',
-      'label after_menu:',
+      "",
+      "label after_menu:",
       '    "after"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu_fallthrough.rpy', content: script }]);
-    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    const result = await parseRenpyFiles([{
+      name: "menu_fallthrough.rpy",
+      content: script,
+    }]);
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: menuNode?.id, target: 'after_menu', kind: 'sequence', label: 'next' }),
+      expect.objectContaining({
+        source: menuNode?.id,
+        target: "after_menu",
+        kind: "sequence",
+        label: "next",
+      }),
     );
   });
 
-  it('adds a menu fallthrough edge to the next menu when prior options have no explicit exit', async () => {
+  it("adds a menu fallthrough edge to the next menu when prior options have no explicit exit", async () => {
     const script = [
-      'label decide:',
-      '    menu:',
+      "label decide:",
+      "    menu:",
       '        "Talk":',
       '            "You chat a bit."',
-      '',
-      '    menu:',
+      "",
+      "    menu:",
       '        "Leave":',
-      '            jump end',
-      '',
-      'label end:',
+      "            jump end",
+      "",
+      "label end:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu_to_menu_fallthrough.rpy', content: script }]);
-    const menus = result.nodes.filter((n) => n.type === 'MENU');
+    const result = await parseRenpyFiles([{
+      name: "menu_to_menu_fallthrough.rpy",
+      content: script,
+    }]);
+    const menus = result.nodes.filter((n) => n.type === "MENU");
     expect(menus).toHaveLength(2);
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: menus[0]?.id, target: menus[1]?.id, kind: 'sequence', label: 'next' }),
+      expect.objectContaining({
+        source: menus[0]?.id,
+        target: menus[1]?.id,
+        kind: "sequence",
+        label: "next",
+      }),
     );
   });
 
-  it('keeps nested menu jumps attached to the nested menu node and option text', async () => {
+  it("keeps nested menu jumps attached to the nested menu node and option text", async () => {
     const script = [
-      'label start:',
-      '    menu:',
+      "label start:",
+      "    menu:",
       '        "Outer":',
-      '            menu:',
+      "            menu:",
       '                "Inner":',
-      '                    jump inner_dest',
-      '',
-      'label inner_dest:',
+      "                    jump inner_dest",
+      "",
+      "label inner_dest:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'nested_menu_source.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "nested_menu_source.rpy",
+      content: script,
+    }]);
 
-    const menuNodes = result.nodes.filter((n) => n.type === 'MENU');
+    const menuNodes = result.nodes.filter((n) => n.type === "MENU");
     expect(menuNodes).toHaveLength(2);
 
-    const innerJump = result.edges.find((e) => e.target === 'inner_dest' && e.id.startsWith('jump_'));
+    const innerJump = result.edges.find((e) =>
+      e.target === "inner_dest" && e.id.startsWith("jump_")
+    );
     expect(innerJump).toBeDefined();
-    expect(innerJump?.label).toBe('Inner');
+    expect(innerJump?.label).toBe("Inner");
     expect(menuNodes.some((n) => n.id === innerJump?.source)).toBe(true);
   });
 
-  it('uses stable edge IDs when a menu option text is not yet available', async () => {
+  it("uses stable edge IDs when a menu option text is not yet available", async () => {
     const script = [
-      'label choice:',
-      '    menu:',
+      "label choice:",
+      "    menu:",
       '        "Option A":',
-      '            jump end_a',
-      '',
-      'label end_a:',
+      "            jump end_a",
+      "",
+      "label end_a:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'unnamed_menu_edge_id.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "unnamed_menu_edge_id.rpy",
+      content: script,
+    }]);
 
-    const seqEdge = result.edges.find((e) => e.source === 'choice' && e.target.startsWith('menu_'));
+    const seqEdge = result.edges.find((e) =>
+      e.source === "choice" && e.target.startsWith("menu_")
+    );
     expect(seqEdge).toBeDefined();
     expect(seqEdge?.id).toBe(`seq_choice__${seqEdge?.target}`);
   });
@@ -579,1541 +708,2077 @@ describe('parseRenpyFiles', () => {
 
   it('parses a call statement and creates a directed call edge labeled "call"', async () => {
     const script = [
-      'label main:',
-      '    call subroutine',
+      "label main:",
+      "    call subroutine",
       '    "back from sub"',
-      '',
-      'label subroutine:',
+      "",
+      "label subroutine:",
       '    "in sub"',
-      '    return',
-      '',
-    ].join('\n');
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'call.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "call.rpy",
+      content: script,
+    }]);
 
     const callEdge = result.edges.find(
-      (e) => e.source === 'main' && e.target === 'subroutine',
+      (e) => e.source === "main" && e.target === "subroutine",
     );
     expect(callEdge).toBeDefined();
     expect(callEdge?.id).toMatch(/^call_/);
-    expect(callEdge?.label).toBe('call');
-    expect(callEdge?.kind).toBe('call');
+    expect(callEdge?.label).toBe("call");
+    expect(callEdge?.kind).toBe("call");
   });
 
-  it('call does not prevent a fallthrough sequence edge to the next label', async () => {
+  it("call does not prevent a fallthrough sequence edge to the next label", async () => {
     const script = [
-      'label caller:',
-      '    call helper',
-      '',
-      'label after_caller:',
+      "label caller:",
+      "    call helper",
+      "",
+      "label after_caller:",
       '    "after"',
-      '',
-      'label helper:',
+      "",
+      "label helper:",
       '    "help"',
-      '    return',
-      '',
-    ].join('\n');
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'call_fallthrough.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "call_fallthrough.rpy",
+      content: script,
+    }]);
 
     const fallthroughEdge = result.edges.find(
-      (e) => e.source === 'caller' && e.target === 'after_caller' && e.label === 'next',
+      (e) =>
+        e.source === "caller" && e.target === "after_caller" &&
+        e.label === "next",
     );
     expect(fallthroughEdge).toBeDefined();
   });
 
-  it('does not suppress fallthrough when jump is inside a conditional branch', async () => {
+  it("does not suppress fallthrough when jump is inside a conditional branch", async () => {
     const script = [
-      'label start:',
-      '    if flag:',
-      '        jump branch_a',
+      "label start:",
+      "    if flag:",
+      "        jump branch_a",
       '    "continue"',
-      '',
-      'label next_label:',
+      "",
+      "label next_label:",
       '    "after conditional"',
-      '',
-      'label branch_a:',
+      "",
+      "label branch_a:",
       '    "branch"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional_jump.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "conditional_jump.rpy",
+      content: script,
+    }]);
 
-    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    const decisionNode = result.nodes.find((node) => node.type === "DECISION");
     expect(decisionNode).toBeDefined();
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: decisionNode?.id, kind: 'sequence' }),
+        expect.objectContaining({
+          source: "start",
+          target: decisionNode?.id,
+          kind: "sequence",
+        }),
         expect.objectContaining({
           source: decisionNode?.id,
-          target: 'branch_a',
-          kind: 'jump',
-          condition: expect.objectContaining({ branchKind: 'if', expression: 'flag' }),
+          target: "branch_a",
+          kind: "jump",
+          condition: expect.objectContaining({
+            branchKind: "if",
+            expression: "flag",
+          }),
         }),
-        expect.objectContaining({ source: 'start', target: 'next_label', label: 'next' }),
+        expect.objectContaining({
+          source: "start",
+          target: "next_label",
+          label: "next",
+        }),
       ]),
     );
   });
 
-  it('does not suppress fallthrough when menu is inside a conditional branch', async () => {
+  it("does not suppress fallthrough when menu is inside a conditional branch", async () => {
     const script = [
-      'label start:',
-      '    if flag:',
-      '        menu:',
+      "label start:",
+      "    if flag:",
+      "        menu:",
       '            "Go to branch":',
-      '                jump branch_a',
+      "                jump branch_a",
       '    "continue"',
-      '',
-      'label next_label:',
+      "",
+      "label next_label:",
       '    "after conditional"',
-      '',
-      'label branch_a:',
+      "",
+      "label branch_a:",
       '    "branch"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional_menu.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "conditional_menu.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'menu_1', target: 'branch_a', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'next_label', label: 'next' }),
+        expect.objectContaining({
+          source: "menu_1",
+          target: "branch_a",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "next_label",
+          label: "next",
+        }),
       ]),
     );
   });
 
-  it('does not suppress fallthrough when return is inside a conditional branch', async () => {
+  it("does not suppress fallthrough when return is inside a conditional branch", async () => {
     const script = [
-      'label start:',
-      '    if flag:',
-      '        return',
+      "label start:",
+      "    if flag:",
+      "        return",
       '    "continue"',
-      '',
-      'label next_label:',
+      "",
+      "label next_label:",
       '    "after conditional"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional_return.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "conditional_return.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'next_label', kind: 'sequence', label: 'next' }),
+      expect.objectContaining({
+        source: "start",
+        target: "next_label",
+        kind: "sequence",
+        label: "next",
+      }),
     );
   });
 
-  it('emits an explicit decision node and conditional branch metadata for if/elif/else', async () => {
+  it("emits an explicit decision node and conditional branch metadata for if/elif/else", async () => {
     const script = [
-      'label start:',
-      '    if flag_a:  # branch A',
-      '        jump branch_a',
-      '    elif flag_b:  # branch B',
-      '        jump branch_b',
-      '    else:  # fallback',
-      '        jump branch_c',
-      '',
-      'label branch_a:',
+      "label start:",
+      "    if flag_a:  # branch A",
+      "        jump branch_a",
+      "    elif flag_b:  # branch B",
+      "        jump branch_b",
+      "    else:  # fallback",
+      "        jump branch_c",
+      "",
+      "label branch_a:",
       '    "A"',
-      '',
-      'label branch_b:',
+      "",
+      "label branch_b:",
       '    "B"',
-      '',
-      'label branch_c:',
+      "",
+      "label branch_c:",
       '    "C"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional_branches.rpy', content: script }]);
-    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    const result = await parseRenpyFiles([{
+      name: "conditional_branches.rpy",
+      content: script,
+    }]);
+    const decisionNode = result.nodes.find((node) => node.type === "DECISION");
     expect(decisionNode).toBeDefined();
 
-    const conditionalJumpEdges = result.edges.filter((edge) => edge.source === decisionNode?.id && edge.kind === 'jump');
+    const conditionalJumpEdges = result.edges.filter((edge) =>
+      edge.source === decisionNode?.id && edge.kind === "jump"
+    );
     expect(conditionalJumpEdges).toHaveLength(3);
     expect(conditionalJumpEdges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          target: 'branch_a',
+          target: "branch_a",
           condition: expect.objectContaining({
-            branchKind: 'if',
-            expression: 'flag_a',
-            references: ['flag_a'],
+            branchKind: "if",
+            expression: "flag_a",
+            references: ["flag_a"],
           }),
         }),
         expect.objectContaining({
-          target: 'branch_b',
+          target: "branch_b",
           condition: expect.objectContaining({
-            branchKind: 'elif',
-            expression: 'flag_b',
-            references: ['flag_b'],
+            branchKind: "elif",
+            expression: "flag_b",
+            references: ["flag_b"],
           }),
         }),
         expect.objectContaining({
-          target: 'branch_c',
+          target: "branch_c",
           condition: expect.objectContaining({
-            branchKind: 'else',
+            branchKind: "else",
           }),
         }),
       ]),
     );
   });
 
-  it('preserves full conditional expression text when it contains nested colons', async () => {
+  it("preserves full conditional expression text when it contains nested colons", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    if route_map["a:b"] == {"k": "v:1"}:',
-      '        jump branch_a',
-      '    else:',
-      '        jump branch_b',
-      '',
-      'label branch_a:',
+      "        jump branch_a",
+      "    else:",
+      "        jump branch_b",
+      "",
+      "label branch_a:",
       '    "A"',
-      '',
-      'label branch_b:',
+      "",
+      "label branch_b:",
       '    "B"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional_nested_colons.rpy', content: script }]);
-    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    const result = await parseRenpyFiles([{
+      name: "conditional_nested_colons.rpy",
+      content: script,
+    }]);
+    const decisionNode = result.nodes.find((node) => node.type === "DECISION");
     expect(decisionNode).toBeDefined();
     expect(decisionNode?.condition).toEqual(
       expect.objectContaining({
-        branchKind: 'if',
+        branchKind: "if",
         expression: 'route_map["a:b"] == {"k": "v:1"}',
       }),
     );
   });
 
-  it('creates a call edge labeled with the option text when call is inside a menu option', async () => {
+  it("creates a call edge labeled with the option text when call is inside a menu option", async () => {
     const script = [
-      'label hub:',
-      '    menu:',
+      "label hub:",
+      "    menu:",
       '        "Talk to Alice":',
-      '            call alice_scene',
-      '',
-      'label alice_scene:',
+      "            call alice_scene",
+      "",
+      "label alice_scene:",
       '    "hello"',
-      '    return',
-      '',
-    ].join('\n');
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu_call.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "menu_call.rpy",
+      content: script,
+    }]);
 
-    const callEdge = result.edges.find((e) => e.target === 'alice_scene');
+    const callEdge = result.edges.find((e) => e.target === "alice_scene");
     expect(callEdge).toBeDefined();
-    expect(callEdge?.label).toBe('call: Talk to Alice');
+    expect(callEdge?.label).toBe("call: Talk to Alice");
   });
 
-  it('adds synthetic call-return edges from called label back to caller label', async () => {
+  it("adds synthetic call-return edges from called label back to caller label", async () => {
     const script = [
-      'label main:',
-      '    call helper',
-      '',
-      'label helper:',
+      "label main:",
+      "    call helper",
+      "",
+      "label helper:",
       '    "in helper"',
-      '    return',
-      '',
-    ].join('\n');
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'call_return.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "call_return.rpy",
+      content: script,
+    }]);
     expect(result.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          source: 'main',
-          target: 'helper',
-          kind: 'call',
+          source: "main",
+          target: "helper",
+          kind: "call",
         }),
         expect.objectContaining({
-          source: 'helper',
-          target: 'main',
-          kind: 'call_return',
-          label: 'return',
+          source: "helper",
+          target: "main",
+          kind: "call_return",
+          label: "return",
         }),
       ]),
     );
   });
 
-  it('does not add call-return edges when a callee only returns conditionally', async () => {
+  it("does not add call-return edges when a callee only returns conditionally", async () => {
     const script = [
-      'label main:',
-      '    call helper',
-      '',
-      'label helper:',
-      '    if flag:',
-      '        return',
+      "label main:",
+      "    call helper",
+      "",
+      "label helper:",
+      "    if flag:",
+      "        return",
       '    "continue"',
-      '',
-      'label after_helper:',
+      "",
+      "label after_helper:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'conditional-call-return.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "conditional-call-return.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'main', target: 'helper', kind: 'call' }),
+      expect.objectContaining({
+        source: "main",
+        target: "helper",
+        kind: "call",
+      }),
     );
-    expect(result.edges.find((e) => e.kind === 'call_return' && e.source === 'helper' && e.target === 'main')).toBeUndefined();
+    expect(
+      result.edges.find((e) =>
+        e.kind === "call_return" && e.source === "helper" && e.target === "main"
+      ),
+    ).toBeUndefined();
   });
 
-  it('adds call-return edges for menu option call, renpy.call, and screen action Call with direct-call parity', async () => {
+  it("adds call-return edges for menu option call, renpy.call, and screen action Call with direct-call parity", async () => {
     const script = [
-      'label menu_caller:',
-      '    menu:',
+      "label menu_caller:",
+      "    menu:",
       '        "Ask":',
-      '            call helper',
-      '',
-      'label py_caller:',
-      '    python:',
+      "            call helper",
+      "",
+      "label py_caller:",
+      "    python:",
       '        renpy.call("helper")',
-      '',
-      'label screen_caller:',
-      '    screen chooser():',
+      "",
+      "label screen_caller:",
+      "    screen chooser():",
       '        textbutton "Go" action Call("helper")',
-      '',
-      'label helper:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label helper:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'call-parity.rpy', content: script }]);
-    const menuNode = result.nodes.find((node) => node.type === 'MENU');
+    const result = await parseRenpyFiles([{
+      name: "call-parity.rpy",
+      content: script,
+    }]);
+    const menuNode = result.nodes.find((node) => node.type === "MENU");
     expect(menuNode).toBeDefined();
     expect(menuNode?.id).toMatch(/^menu_/);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'call', source: menuNode?.id, target: 'helper' }),
-        expect.objectContaining({ kind: 'call_return', source: 'helper', target: menuNode?.id }),
-        expect.objectContaining({ kind: 'call', source: 'py_caller', target: 'helper' }),
-        expect.objectContaining({ kind: 'call_return', source: 'helper', target: 'py_caller' }),
-        expect.objectContaining({ kind: 'call', source: 'screen_caller', target: 'helper' }),
-        expect.objectContaining({ kind: 'call_return', source: 'helper', target: 'screen_caller' }),
+        expect.objectContaining({
+          kind: "call",
+          source: menuNode?.id,
+          target: "helper",
+        }),
+        expect.objectContaining({
+          kind: "call_return",
+          source: "helper",
+          target: menuNode?.id,
+        }),
+        expect.objectContaining({
+          kind: "call",
+          source: "py_caller",
+          target: "helper",
+        }),
+        expect.objectContaining({
+          kind: "call_return",
+          source: "helper",
+          target: "py_caller",
+        }),
+        expect.objectContaining({
+          kind: "call",
+          source: "screen_caller",
+          target: "helper",
+        }),
+        expect.objectContaining({
+          kind: "call_return",
+          source: "helper",
+          target: "screen_caller",
+        }),
       ]),
     );
   });
 
-  it('classifies label roles using strict rules and keeps role metadata on nodes', async () => {
+  it("classifies label roles using strict rules and keeps role metadata on nodes", async () => {
     const script = [
-      'label main:',
-      '    menu:',
+      "label main:",
+      "    menu:",
       '        "Talk":',
-      '            call detour_scene',
-      '',
-      'label detour_scene:',
+      "            call detour_scene",
+      "",
+      "label detour_scene:",
       '    "detour"',
-      '    return',
-      '',
-      'label helper_only:',
+      "    return",
+      "",
+      "label helper_only:",
       '    "utility"',
-      '    return',
-      '',
-      'label state_toggle:',
-      '    return',
-      '',
-    ].join('\n');
+      "    return",
+      "",
+      "label state_toggle:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'roles.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "roles.rpy",
+      content: script,
+    }]);
     const byId = new Map(result.nodes.map((n) => [n.id, n]));
-    expect(byId.get('main')?.role).toBe('story');
-    expect(byId.get('detour_scene')?.role).toBe('detour');
-    expect(byId.get('helper_only')?.role).toBe('state_toggle');
-    const menuNode = result.nodes.find((n) => n.type === 'MENU');
-    expect(menuNode?.role).toBe('menu');
+    expect(byId.get("main")?.role).toBe("story");
+    expect(byId.get("detour_scene")?.role).toBe("detour");
+    expect(byId.get("helper_only")?.role).toBe("state_toggle");
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode?.role).toBe("menu");
   });
 
   // ── Dialogue extraction ───────────────────────────────────────────────────────
 
-  it('counts narrator dialogue (no character prefix)', async () => {
+  it("counts narrator dialogue (no character prefix)", async () => {
     const script = [
-      'label narration:',
+      "label narration:",
       '    "narrator speaks"',
       '    "again"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'narrator.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "narrator.rpy",
+      content: script,
+    }]);
 
-    const node = result.nodes.find((n) => n.id === 'narration');
+    const node = result.nodes.find((n) => n.id === "narration");
     expect(node?.dialogueCount).toBe(2);
   });
 
-  it('counts character dialogue (character name prefix)', async () => {
+  it("counts character dialogue (character name prefix)", async () => {
     const script = [
-      'label scene:',
+      "label scene:",
       '    e "hello there"',
       '    m "hi!"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'char_dialogue.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "char_dialogue.rpy",
+      content: script,
+    }]);
 
-    const node = result.nodes.find((n) => n.id === 'scene');
+    const node = result.nodes.find((n) => n.id === "scene");
     expect(node?.dialogueCount).toBe(2);
   });
 
-  it('attributes dialogue inside a menu option block to the menu node', async () => {
+  it("attributes dialogue inside a menu option block to the menu node", async () => {
     const script = [
-      'label explain:',
-      '    menu:',
+      "label explain:",
+      "    menu:",
       '        "Ask A":',
       '            e "answering A"',
-      '            jump done',
-      '',
-      'label done:',
+      "            jump done",
+      "",
+      "label done:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu_dialogue.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "menu_dialogue.rpy",
+      content: script,
+    }]);
 
-    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
     expect(menuNode).toBeDefined();
     expect(menuNode?.dialogueCount).toBe(1);
 
-    const labelNode = result.nodes.find((n) => n.id === 'explain');
+    const labelNode = result.nodes.find((n) => n.id === "explain");
     expect(labelNode?.dialogueCount).toBe(0);
   });
 
   // ── Return keyword ───────────────────────────────────────────────────────────
 
-  it('return prevents a fallthrough sequence edge to the next label', async () => {
+  it("return prevents a fallthrough sequence edge to the next label", async () => {
     const script = [
-      'label first:',
+      "label first:",
       '    "say something"',
-      '    return',
-      '',
-      'label second:',
+      "    return",
+      "",
+      "label second:",
       '    "never reached via fallthrough"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'return.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "return.rpy",
+      content: script,
+    }]);
 
     const fallthroughEdge = result.edges.find(
-      (e) => e.source === 'first' && e.target === 'second' && e.label === 'next',
+      (e) =>
+        e.source === "first" && e.target === "second" && e.label === "next",
     );
     expect(fallthroughEdge).toBeUndefined();
   });
 
   // ── Fixture-based regression cases ───────────────────────────────────────────
 
-  it('fixture: nested menus preserve menu-option jump edges, including nested options', async () => {
+  it("fixture: nested menus preserve menu-option jump edges, including nested options", async () => {
     const result = await parseRenpyFiles([
-      { name: 'nested-menus.rpy', content: loadFixture('nested-menus.rpy') },
+      { name: "nested-menus.rpy", content: loadFixture("nested-menus.rpy") },
     ]);
 
-    const menuNodes = result.nodes.filter((n) => n.type === 'MENU');
+    const menuNodes = result.nodes.filter((n) => n.type === "MENU");
     expect(menuNodes).toHaveLength(2);
-    expect(menuNodes.map((n) => n.id)).toEqual(['menu_1', 'menu_2']);
+    expect(menuNodes.map((n) => n.id)).toEqual(["menu_1", "menu_2"]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'menu_1' }),
-        expect.objectContaining({ source: 'menu_1', target: 'menu_2', label: 'Ask about quest' }),
+        expect.objectContaining({ source: "start", target: "menu_1" }),
+        expect.objectContaining({
+          source: "menu_1",
+          target: "menu_2",
+          label: "Ask about quest",
+        }),
       ]),
     );
 
-    const acceptedEdge = result.edges.find((e) => e.target === 'accepted' && e.label === 'Accept quest');
-    const declinedViaNested = result.edges.find((e) => e.target === 'declined' && e.label === 'Decline quest');
-    const declinedDirect = result.edges.find((e) => e.target === 'declined' && e.label === 'Leave');
+    const acceptedEdge = result.edges.find((e) =>
+      e.target === "accepted" && e.label === "Accept quest"
+    );
+    const declinedViaNested = result.edges.find((e) =>
+      e.target === "declined" && e.label === "Decline quest"
+    );
+    const declinedDirect = result.edges.find((e) =>
+      e.target === "declined" && e.label === "Leave"
+    );
 
     expect(acceptedEdge).toBeDefined();
     expect(declinedViaNested).toBeDefined();
     expect(declinedDirect).toBeDefined();
   });
 
-  it('fixture: unreachable labels are still emitted as nodes and keep normal sequence/jump behavior', async () => {
+  it("fixture: unreachable labels are still emitted as nodes and keep normal sequence/jump behavior", async () => {
     const result = await parseRenpyFiles([
-      { name: 'unreachable-labels.rpy', content: loadFixture('unreachable-labels.rpy') },
+      {
+        name: "unreachable-labels.rpy",
+        content: loadFixture("unreachable-labels.rpy"),
+      },
     ]);
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'start', type: 'LABEL' }),
-        expect.objectContaining({ id: 'hidden_branch', type: 'LABEL' }),
-        expect.objectContaining({ id: 'finish', type: 'LABEL' }),
+        expect.objectContaining({ id: "start", type: "LABEL" }),
+        expect.objectContaining({ id: "hidden_branch", type: "LABEL" }),
+        expect.objectContaining({ id: "finish", type: "LABEL" }),
       ]),
     );
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'finish' }),
+      expect.objectContaining({ source: "start", target: "finish" }),
     );
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'hidden_branch', target: 'finish', label: 'next' }),
+      expect.objectContaining({
+        source: "hidden_branch",
+        target: "finish",
+        label: "next",
+      }),
     );
   });
 
-  it('fixture: cyclic jumps are represented as explicit jump edges in both directions', async () => {
+  it("fixture: cyclic jumps are represented as explicit jump edges in both directions", async () => {
     const result = await parseRenpyFiles([
-      { name: 'cyclic-jumps.rpy', content: loadFixture('cyclic-jumps.rpy') },
+      { name: "cyclic-jumps.rpy", content: loadFixture("cyclic-jumps.rpy") },
     ]);
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'loop_a', target: 'loop_b' }),
+      expect.objectContaining({ source: "loop_a", target: "loop_b" }),
     );
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'loop_b', target: 'loop_a' }),
+      expect.objectContaining({ source: "loop_b", target: "loop_a" }),
     );
   });
 
-  it('fixture: malformed script recovery preserves parsable labels and does not throw', async () => {
+  it("fixture: malformed script recovery preserves parsable labels and does not throw", async () => {
     await expect(
       parseRenpyFiles([
         {
-          name: 'malformed-script-recovery.rpy',
-          content: loadFixture('malformed-script-recovery.rpy'),
+          name: "malformed-script-recovery.rpy",
+          content: loadFixture("malformed-script-recovery.rpy"),
         },
       ]),
     ).resolves.toEqual(
       expect.objectContaining({
         nodes: expect.arrayContaining([
-          expect.objectContaining({ id: 'start', type: 'LABEL' }),
-          expect.objectContaining({ id: 'fallback', type: 'LABEL' }),
+          expect.objectContaining({ id: "start", type: "LABEL" }),
+          expect.objectContaining({ id: "fallback", type: "LABEL" }),
         ]),
         edges: expect.arrayContaining([
-          expect.objectContaining({ source: 'start', target: 'fallback' }),
+          expect.objectContaining({ source: "start", target: "fallback" }),
         ]),
       }),
     );
   });
 
-  it('fixture: extracts direct renpy.jump/renpy.call from python blocks and over-approximates loop/state control flow', async () => {
+  it("fixture: extracts direct renpy.jump/renpy.call from python blocks and over-approximates loop/state control flow", async () => {
     const result = await parseRenpyFiles([
-      { name: 'direct-renpy-api.rpy', content: loadFixture('direct-renpy-api.rpy') },
+      {
+        name: "direct-renpy-api.rpy",
+        content: loadFixture("direct-renpy-api.rpy"),
+      },
     ]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'loop_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-        expect.objectContaining({ source: 'start', target: 'next_label', kind: 'sequence', label: 'next' }),
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "loop_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "next_label",
+          kind: "sequence",
+          label: "next",
+        }),
       ]),
     );
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          severity: 'warning',
+          code: "dynamic_target",
+          severity: "warning",
           location: expect.objectContaining({
-            chapter: 'direct-renpy-api',
-            construct: 'renpy.call',
-            targetExpression: 'dynamic_target',
+            chapter: "direct-renpy-api",
+            construct: "renpy.call",
+            targetExpression: "dynamic_target",
           }),
         }),
       ]),
     );
   });
 
-  it('does not treat non-direct identifiers like myrenpy.call as direct renpy API calls', async () => {
+  it("does not treat non-direct identifiers like myrenpy.call as direct renpy API calls", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        myrenpy.call("target")',
-      '',
-      'label target:',
+      "",
+      "label target:",
       '    "target"',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'not-direct-renpy.rpy', content: script }]);
-    expect(result.edges.find((e) => e.kind === 'call' && e.source === 'start' && e.target === 'target')).toBeUndefined();
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "not-direct-renpy.rpy",
+      content: script,
+    }]);
+    expect(
+      result.edges.find((e) =>
+        e.kind === "call" && e.source === "start" && e.target === "target"
+      ),
+    ).toBeUndefined();
   });
 
-  it('fixture: extracts direct screen action Jump/Call targets and warns on dynamic action targets', async () => {
+  it("fixture: extracts direct screen action Jump/Call targets and warns on dynamic action targets", async () => {
     const result = await parseRenpyFiles([
-      { name: 'direct-screen-actions.rpy', content: loadFixture('direct-screen-actions.rpy') },
+      {
+        name: "direct-screen-actions.rpy",
+        content: loadFixture("direct-screen-actions.rpy"),
+      },
     ]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
       ]),
     );
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          severity: 'warning',
+          code: "dynamic_target",
+          severity: "warning",
           location: expect.objectContaining({
-            chapter: 'direct-screen-actions',
-            construct: 'Jump',
-            targetExpression: 'dynamic_target',
+            chapter: "direct-screen-actions",
+            construct: "Jump",
+            targetExpression: "dynamic_target",
           }),
         }),
       ]),
     );
   });
 
-  it('extracts timer-driven screen actions as timeout-aware jump/call edges', async () => {
+  it("extracts timer-driven screen actions as timeout-aware jump/call edges", async () => {
     const result = await parseRenpyFiles([
-      { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
+      {
+        name: "timer-screen-actions.rpy",
+        content: loadFixture("timer-screen-actions.rpy"),
+      },
     ]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          source: 'start',
-          target: 'too_late',
-          kind: 'jump',
+          source: "start",
+          target: "too_late",
+          kind: "jump",
           timeout: { isTimeout: true, durationSeconds: 5 },
         }),
         expect.objectContaining({
-          source: 'start',
-          target: 'helper',
-          kind: 'call',
+          source: "start",
+          target: "helper",
+          kind: "call",
           timeout: { isTimeout: true, durationSeconds: 3 },
         }),
         expect.objectContaining({
-          source: 'start',
-          target: 'block_timeout_target',
-          kind: 'jump',
+          source: "start",
+          target: "block_timeout_target",
+          kind: "jump",
           timeout: { isTimeout: true, durationSeconds: 6.5 },
         }),
       ]),
     );
   });
 
-  it('marks nested and assignment timer screen actions as timeout edges', async () => {
+  it("marks nested and assignment timer screen actions as timeout edges", async () => {
     const result = await parseRenpyFiles([
-      { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
+      {
+        name: "timer-screen-actions.rpy",
+        content: loadFixture("timer-screen-actions.rpy"),
+      },
     ]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          source: 'start',
-          target: 'skip_target',
-          kind: 'jump',
+          source: "start",
+          target: "skip_target",
+          kind: "jump",
           timeout: { isTimeout: true, durationSeconds: 7 },
         }),
         expect.objectContaining({
-          source: 'start',
-          target: 'helper_two',
-          kind: 'call',
+          source: "start",
+          target: "helper_two",
+          kind: "call",
           timeout: { isTimeout: true, durationSeconds: 2 },
         }),
       ]),
     );
   });
 
-  it('warns on dynamic timer screen action targets without emitting unresolved timer edges', async () => {
+  it("warns on dynamic timer screen action targets without emitting unresolved timer edges", async () => {
     const result = await parseRenpyFiles([
-      { name: 'timer-screen-actions.rpy', content: loadFixture('timer-screen-actions.rpy') },
+      {
+        name: "timer-screen-actions.rpy",
+        content: loadFixture("timer-screen-actions.rpy"),
+      },
     ]);
 
-    expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
+    expect(result.edges.find((edge) => edge.target === "dynamic_target"))
+      .toBeUndefined();
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          severity: 'warning',
+          code: "dynamic_target",
+          severity: "warning",
           location: expect.objectContaining({
-            chapter: 'timer-screen-actions',
-            construct: 'Jump',
-            targetExpression: 'dynamic_target',
+            chapter: "timer-screen-actions",
+            construct: "Jump",
+            targetExpression: "dynamic_target",
           }),
         }),
       ]),
     );
   });
 
-  it('ignores top-level python blocks that are outside any active label scope', async () => {
+  it("ignores top-level python blocks that are outside any active label scope", async () => {
     const script = [
-      'python:',
+      "python:",
       '    renpy.call("helper")',
-      '',
-      'label start:',
+      "",
+      "label start:",
       '    "hello"',
-      '',
-      'label helper:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label helper:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'global-python.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "global-python.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((e) => e.kind === 'call' && e.target === 'helper')).toBeUndefined();
+    expect(result.edges.find((e) => e.kind === "call" && e.target === "helper"))
+      .toBeUndefined();
   });
 
-  it('ignores top-level screen blocks instead of attributing them to the previous label', async () => {
+  it("ignores top-level screen blocks instead of attributing them to the previous label", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    "hello"',
-      '',
-      'screen chooser():',
+      "",
+      "screen chooser():",
       '    textbutton "Go" action Jump("dest")',
-      '',
-      'label dest:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label dest:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'global-screen.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "global-screen.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((e) => e.kind === 'jump' && e.source === 'start' && e.target === 'dest')).toBeUndefined();
+    expect(
+      result.edges.find((e) =>
+        e.kind === "jump" && e.source === "start" && e.target === "dest"
+      ),
+    ).toBeUndefined();
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'dest', kind: 'sequence', label: 'next' }),
+      expect.objectContaining({
+        source: "start",
+        target: "dest",
+        kind: "sequence",
+        label: "next",
+      }),
     );
   });
 
-  it('does not synthesize action edges from a reused global screen for whichever label was parsed last', async () => {
+  it("does not synthesize action edges from a reused global screen for whichever label was parsed last", async () => {
     const script = [
-      'label first:',
-      '    show screen chooser',
-      '',
-      'label second:',
-      '    show screen chooser',
-      '',
-      'screen chooser():',
+      "label first:",
+      "    show screen chooser",
+      "",
+      "label second:",
+      "    show screen chooser",
+      "",
+      "screen chooser():",
       '    textbutton "Go" action Call("dest")',
-      '',
-      'label dest:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label dest:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'reused-global-screen.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "reused-global-screen.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((e) => e.kind === 'call' && e.target === 'dest')).toBeUndefined();
+    expect(result.edges.find((e) => e.kind === "call" && e.target === "dest"))
+      .toBeUndefined();
   });
 
-  it('extracts ST variant default action rules', async () => {
+  it("extracts ST variant default action rules", async () => {
     const script = [
-      'label start:',
-      '    screen route_picker():',
+      "label start:",
+      "    screen route_picker():",
       '        textbutton "Route" action timedchoice("route_one")',
       '        textbutton "Title" action title("title_screen")',
-      '',
-      'label route_one:',
-      '    return',
-      '',
-      'label title_screen:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label route_one:",
+      "    return",
+      "",
+      "label title_screen:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'st-defaults.rpy', content: script }], { parserVariant: 'st' });
+    const result = await parseRenpyFiles([{
+      name: "st-defaults.rpy",
+      content: script,
+    }], { parserVariant: "st" });
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'route_one', kind: 'call' }),
-        expect.objectContaining({ source: 'start', target: 'title_screen', kind: 'jump' }),
+        expect.objectContaining({
+          source: "start",
+          target: "route_one",
+          kind: "call",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "title_screen",
+          kind: "jump",
+        }),
       ]),
     );
   });
 
-  it('applies custom screen action rules on top of defaults', async () => {
+  it("applies custom screen action rules on top of defaults", async () => {
     const script = [
-      'label start:',
-      '    screen route_picker():',
+      "label start:",
+      "    screen route_picker():",
       '        textbutton "Route" action Warp("warp_target")',
-      '',
-      'label warp_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label warp_target:",
+      "    return",
+      "",
+    ].join("\n");
 
     const result = await parseRenpyFiles(
-      [{ name: 'custom-screen-rule.rpy', content: script }],
+      [{ name: "custom-screen-rule.rpy", content: script }],
       {
-        parserVariant: 'renpy',
-        screenActionRules: [{ actionName: 'Warp', actionKind: 'jump' }],
+        parserVariant: "renpy",
+        screenActionRules: [{ actionName: "Warp", actionKind: "jump" }],
       },
     );
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'warp_target', kind: 'jump' }),
+      expect.objectContaining({
+        source: "start",
+        target: "warp_target",
+        kind: "jump",
+      }),
     );
   });
 
-  it('warns instead of inferring dynamic ST variant action targets', async () => {
+  it("warns instead of inferring dynamic ST variant action targets", async () => {
     const script = [
-      'label start:',
-      '    screen route_picker():',
+      "label start:",
+      "    screen route_picker():",
       '        textbutton "Route" action timedchoice(dynamic_target)',
-      '',
-      'label route_one:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label route_one:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'st-dynamic-target.rpy', content: script }], { parserVariant: 'st' });
+    const result = await parseRenpyFiles([{
+      name: "st-dynamic-target.rpy",
+      content: script,
+    }], { parserVariant: "st" });
 
-    expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
+    expect(result.edges.find((edge) => edge.target === "dynamic_target"))
+      .toBeUndefined();
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          severity: 'warning',
+          code: "dynamic_target",
+          severity: "warning",
           location: expect.objectContaining({
-            chapter: 'st-dynamic-target',
-            construct: 'timedchoice',
-            targetExpression: 'dynamic_target',
+            chapter: "st-dynamic-target",
+            construct: "timedchoice",
+            targetExpression: "dynamic_target",
           }),
         }),
       ]),
     );
   });
 
-  it('extracts direct renpy.jump/renpy.call targets when extra arguments are present', async () => {
+  it("extracts direct renpy.jump/renpy.call targets when extra arguments are present", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.jump("jump_target", from_current=True)',
       '        renpy.call("call_target", from_current=True)',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'renpy-extra-args.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.jump' }) }),
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-extra-args', construct: 'renpy.call' }) }),
-      ]),
-    );
-  });
-
-  it('extracts direct renpy.jump/renpy.call targets when target keyword is not first argument', async () => {
-    const script = [
-      'label start:',
-      '    python:',
-      '        renpy.jump(from_current=True, label="jump_target")',
-      '        renpy.call(from_current=True, label="call_target")',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'renpy-keyword-order.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "renpy-extra-args.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.jump' }) }),
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'renpy-keyword-order', construct: 'renpy.call' }) }),
-      ]),
-    );
-  });
-
-  it('extracts direct renpy api targets with explicit backslash multiline continuation and inline comments', async () => {
-    const script = [
-      'label start:',
-      '    python:',
-      '        renpy.jump("jump_target", \\',
-      '            from_current=True)  # comment with ) , : tokens',
-      '        renpy.call(label="call_target", \\',
-      '            from_current=True)  # trailing ) , : in comment',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'renpy-multiline-backslash.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
       ]),
     );
     expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ chapter: 'renpy-multiline-backslash', construct: 'renpy.jump' }),
-        }),
-        expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ chapter: 'renpy-multiline-backslash', construct: 'renpy.call' }),
-        }),
-      ]),
-    );
-  });
-
-  it('extracts direct renpy api targets with implicit grouping multiline continuation and inline comments', async () => {
-    const script = [
-      'label start:',
-      '    python:',
-      '        renpy.jump(',
-      '            "jump_target",  # comment with ) , : tokens',
-      '            from_current=True,',
-      '        )',
-      '        renpy.call(',
-      '            from_current=True,',
-      '            label="call_target",  # trailing ) , : in comment',
-      '        )',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'renpy-multiline-grouping.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ chapter: 'renpy-multiline-grouping', construct: 'renpy.jump' }),
-        }),
-        expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ chapter: 'renpy-multiline-grouping', construct: 'renpy.call' }),
-        }),
-      ]),
-    );
-  });
-
-  it('extracts direct screen action targets with keyword and trailing arguments', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Jump A" action Jump("jump_target", from_current=True)',
-      '        textbutton "Call B" action Call(label="call_target")',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'screen-extra-args.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Jump' }) }),
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'screen-extra-args', construct: 'Call' }) }),
-      ]),
-    );
-  });
-
-  it('extracts direct screen action targets when action uses assignment syntax', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Jump A" action=Jump("jump_target")',
-      '        textbutton "Call B" action = Call("call_target")',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'screen-action-assignment.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-  });
-
-  it('extracts multiple screen actions from action list expressions', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Jump A" action [Jump("jump_target"), Call("call_target")]',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'screen-action-list.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-  });
-
-  it('extracts nested screen actions from composite conditional action expressions', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Go" action If(seen_intro, [Jump("jump_target"), NullAction()], (Call("call_target"),))',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'screen-action-nested-composite.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-  });
-
-  it('extracts nested screen actions from keyword action payloads', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Go" action SelectedIf(seen_intro, yes=Jump("jump_target"), no=[NullAction(), Call("call_target")])',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'screen-action-keyword-payloads.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-  });
-
-  it('extracts nested screen actions from multiline If/SelectedIf payloads with inline comments', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Go If" action If(',
-      '            seen_intro,  # comment with ) , :',
-      '            [',
-      '                Jump("jump_target"),',
-      '                NullAction(),  # comment with ) , :',
-      '            ],',
-      '            (',
-      '                Call("call_target"),',
-      '            ),',
-      '        )',
-      '        textbutton "Go SelectedIf" action SelectedIf(',
-      '            seen_intro,  # comment with ) , :',
-      '            yes=Jump("jump_target"),',
-      '            no=[',
-      '                NullAction(),',
-      '                Call("call_target"),  # comment with ) , :',
-      '            ],',
-      '        )',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'screen-action-multiline-comments.rpy', content: script }]);
-
-    expect(result.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
-      ]),
-    );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ chapter: 'screen-action-multiline-comments', construct: 'Jump' }),
-        }),
-        expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ chapter: 'screen-action-multiline-comments', construct: 'Call' }),
-        }),
-      ]),
-    );
-  });
-
-  it('applies custom screen action rules inside nested action structures', async () => {
-    const script = [
-      'label start:',
-      '    screen route_picker():',
-      '        textbutton "Route" action If(can_warp, [Warp("warp_target")], NullAction())',
-      '',
-      'label warp_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles(
-      [{ name: 'nested-custom-screen-rule.rpy', content: script }],
-      {
-        parserVariant: 'renpy',
-        screenActionRules: [{ actionName: 'Warp', actionKind: 'jump' }],
-      },
-    );
-
-    expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'warp_target', kind: 'jump' }),
-    );
-  });
-
-  it('warns on dynamic nested screen action targets', async () => {
-    const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Go" action If(can_jump, Jump(dynamic_target), NullAction())',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-    ].join('\n');
-
-    const result = await parseRenpyFiles([{ name: 'nested-dynamic-screen-target.rpy', content: script }]);
-
-    expect(result.edges.find((edge) => edge.target === 'dynamic_target')).toBeUndefined();
-    expect(result.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'dynamic_target',
-          severity: 'warning',
           location: expect.objectContaining({
-            chapter: 'nested-dynamic-screen-target',
-            construct: 'Jump',
-            targetExpression: 'dynamic_target',
+            chapter: "renpy-extra-args",
+            construct: "renpy.jump",
+          }),
+        }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "renpy-extra-args",
+            construct: "renpy.call",
           }),
         }),
       ]),
     );
   });
 
-  it('does not recurse into nested calls for non-wrapper screen actions', async () => {
+  it("extracts direct renpy.jump/renpy.call targets when target keyword is not first argument", async () => {
     const script = [
-      'label start:',
-      '    screen nav_overlay:',
-      '        textbutton "Go" action Function(handler, Jump("jump_target"), Call("call_target"))',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "label start:",
+      "    python:",
+      '        renpy.jump(from_current=True, label="jump_target")',
+      '        renpy.call(from_current=True, label="call_target")',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'screen-non-wrapper-nested-calls.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "renpy-keyword-order.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
-    expect(result.edges.find((edge) => edge.kind === 'call' && edge.target === 'call_target')).toBeUndefined();
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "renpy-keyword-order",
+            construct: "renpy.jump",
+          }),
+        }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "renpy-keyword-order",
+            construct: "renpy.call",
+          }),
+        }),
+      ]),
+    );
   });
 
-  it('does not infer navigation edges from non-action screen expressions', async () => {
+  it("extracts direct renpy api targets with explicit backslash multiline continuation and inline comments", async () => {
     const script = [
-      'label start:',
-      '    screen nav_overlay:',
+      "label start:",
+      "    python:",
+      '        renpy.jump("jump_target", \\',
+      "            from_current=True)  # comment with ) , : tokens",
+      '        renpy.call(label="call_target", \\',
+      "            from_current=True)  # trailing ) , : in comment",
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "renpy-multiline-backslash.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            chapter: "renpy-multiline-backslash",
+            construct: "renpy.jump",
+          }),
+        }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            chapter: "renpy-multiline-backslash",
+            construct: "renpy.call",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("extracts direct renpy api targets with implicit grouping multiline continuation and inline comments", async () => {
+    const script = [
+      "label start:",
+      "    python:",
+      "        renpy.jump(",
+      '            "jump_target",  # comment with ) , : tokens',
+      "            from_current=True,",
+      "        )",
+      "        renpy.call(",
+      "            from_current=True,",
+      '            label="call_target",  # trailing ) , : in comment',
+      "        )",
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "renpy-multiline-grouping.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            chapter: "renpy-multiline-grouping",
+            construct: "renpy.jump",
+          }),
+        }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            chapter: "renpy-multiline-grouping",
+            construct: "renpy.call",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("extracts direct screen action targets with keyword and trailing arguments", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Jump A" action Jump("jump_target", from_current=True)',
+      '        textbutton "Call B" action Call(label="call_target")',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-extra-args.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "screen-extra-args",
+            construct: "Jump",
+          }),
+        }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "screen-extra-args",
+            construct: "Call",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("extracts direct screen action targets when action uses assignment syntax", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Jump A" action=Jump("jump_target")',
+      '        textbutton "Call B" action = Call("call_target")',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-action-assignment.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+  });
+
+  it("extracts multiple screen actions from action list expressions", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Jump A" action [Jump("jump_target"), Call("call_target")]',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-action-list.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+  });
+
+  it("extracts nested screen actions from composite conditional action expressions", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Go" action If(seen_intro, [Jump("jump_target"), NullAction()], (Call("call_target"),))',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-action-nested-composite.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+  });
+
+  it("extracts nested screen actions from keyword action payloads", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Go" action SelectedIf(seen_intro, yes=Jump("jump_target"), no=[NullAction(), Call("call_target")])',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-action-keyword-payloads.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+  });
+
+  it("extracts nested screen actions from multiline If/SelectedIf payloads with inline comments", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Go If" action If(',
+      "            seen_intro,  # comment with ) , :",
+      "            [",
+      '                Jump("jump_target"),',
+      "                NullAction(),  # comment with ) , :",
+      "            ],",
+      "            (",
+      '                Call("call_target"),',
+      "            ),",
+      "        )",
+      '        textbutton "Go SelectedIf" action SelectedIf(',
+      "            seen_intro,  # comment with ) , :",
+      '            yes=Jump("jump_target"),',
+      "            no=[",
+      "                NullAction(),",
+      '                Call("call_target"),  # comment with ) , :',
+      "            ],",
+      "        )",
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-action-multiline-comments.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
+      ]),
+    );
+    expect(result.diagnostics ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            chapter: "screen-action-multiline-comments",
+            construct: "Jump",
+          }),
+        }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            chapter: "screen-action-multiline-comments",
+            construct: "Call",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("applies custom screen action rules inside nested action structures", async () => {
+    const script = [
+      "label start:",
+      "    screen route_picker():",
+      '        textbutton "Route" action If(can_warp, [Warp("warp_target")], NullAction())',
+      "",
+      "label warp_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles(
+      [{ name: "nested-custom-screen-rule.rpy", content: script }],
+      {
+        parserVariant: "renpy",
+        screenActionRules: [{ actionName: "Warp", actionKind: "jump" }],
+      },
+    );
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        source: "start",
+        target: "warp_target",
+        kind: "jump",
+      }),
+    );
+  });
+
+  it("warns on dynamic nested screen action targets", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Go" action If(can_jump, Jump(dynamic_target), NullAction())',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "nested-dynamic-screen-target.rpy",
+      content: script,
+    }]);
+
+    expect(result.edges.find((edge) => edge.target === "dynamic_target"))
+      .toBeUndefined();
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "dynamic_target",
+          severity: "warning",
+          location: expect.objectContaining({
+            chapter: "nested-dynamic-screen-target",
+            construct: "Jump",
+            targetExpression: "dynamic_target",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("does not recurse into nested calls for non-wrapper screen actions", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
+      '        textbutton "Go" action Function(handler, Jump("jump_target"), Call("call_target"))',
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "screen-non-wrapper-nested-calls.rpy",
+      content: script,
+    }]);
+
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "jump" && edge.target === "jump_target"
+      ),
+    ).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "call" && edge.target === "call_target"
+      ),
+    ).toBeUndefined();
+  });
+
+  it("does not infer navigation edges from non-action screen expressions", async () => {
+    const script = [
+      "label start:",
+      "    screen nav_overlay:",
       '        default preview_jump = Jump("jump_target")',
       '        default preview_call = Call("call_target")',
       '        textbutton "Hover" hovered Jump("hover_target")',
       '        textbutton "Actual" action NullAction()',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-      'label hover_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+      "label hover_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'screen-non-action-expressions.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "screen-non-action-expressions.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
-    expect(result.edges.find((edge) => edge.kind === 'call' && edge.target === 'call_target')).toBeUndefined();
-    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'hover_target')).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "jump" && edge.target === "jump_target"
+      ),
+    ).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "call" && edge.target === "call_target"
+      ),
+    ).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "jump" && edge.target === "hover_target"
+      ),
+    ).toBeUndefined();
   });
 
-  it('does not root navigation extraction from nested action keywords in unrelated screen expressions', async () => {
+  it("does not root navigation extraction from nested action keywords in unrelated screen expressions", async () => {
     const script = [
-      'label start:',
-      '    screen nav_overlay:',
+      "label start:",
+      "    screen nav_overlay:",
       '        default cfg = ButtonConfig(action=Jump("jump_target"))',
       '        textbutton "Actual" action NullAction()',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'screen-nested-action-keyword.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "screen-nested-action-keyword.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.target === 'jump_target')).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "jump" && edge.target === "jump_target"
+      ),
+    ).toBeUndefined();
   });
 
-  it('extracts direct renpy.jump/renpy.call targets from non-f-string prefixed literals', async () => {
+  it("extracts direct renpy.jump/renpy.call targets from non-f-string prefixed literals", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.jump(u"jump_target")',
       '        renpy.call(r"call_target")',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'renpy-prefixed-literals.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "renpy-prefixed-literals.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
       ]),
     );
   });
 
-  it('extracts direct renpy api targets from legacy unicode-raw prefixed literals', async () => {
+  it("extracts direct renpy api targets from legacy unicode-raw prefixed literals", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.jump(ur"jump_target")',
       '        renpy.call(ru"call_target")',
-      '',
-      'label jump_target:',
-      '    return',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label jump_target:",
+      "    return",
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'renpy-legacy-unicode-raw-prefixes.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "renpy-legacy-unicode-raw-prefixes.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_target', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+        expect.objectContaining({
+          source: "start",
+          target: "jump_target",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_target",
+          kind: "call",
+        }),
       ]),
     );
   });
 
-  it('uses the latest earlier same-label python assignment for direct renpy api targets', async () => {
+  it("uses the latest earlier same-label python assignment for direct renpy api targets", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        route = "first_target"',
       '        route = "second_target"',
-      '        renpy.jump(route)',
-      '',
-      'label first_target:',
-      '    return',
-      '',
-      'label second_target:',
-      '    return',
-      '',
-    ].join('\n');
+      "        renpy.jump(route)",
+      "",
+      "label first_target:",
+      "    return",
+      "",
+      "label second_target:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'latest-assignment.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "latest-assignment.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'second_target', kind: 'jump' }),
+      expect.objectContaining({
+        source: "start",
+        target: "second_target",
+        kind: "jump",
+      }),
     );
-    expect(result.edges.find((edge) => edge.source === 'start' && edge.target === 'first_target' && edge.kind === 'jump')).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.source === "start" && edge.target === "first_target" &&
+        edge.kind === "jump"
+      ),
+    ).toBeUndefined();
     expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'renpy.jump' }) }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({ construct: "renpy.jump" }),
+        }),
       ]),
     );
   });
 
-  it('resolves typed python assignments for jump expression and screen action calls', async () => {
+  it("resolves typed python assignments for jump expression and screen action calls", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        jump_target: str = "jump_dest"',
       '        call_target: str = "call_dest"',
-      '    jump expression jump_target',
-      '    screen nav_overlay:',
+      "    jump expression jump_target",
+      "    screen nav_overlay:",
       '        textbutton "Go Jump" action Jump(jump_target)',
       '        textbutton "Go Call" action Call(call_target)',
-      '',
-      'label jump_dest:',
-      '    return',
-      '',
-      'label call_dest:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label jump_dest:",
+      "    return",
+      "",
+      "label call_dest:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'typed-targets.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "typed-targets.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'jump_dest', kind: 'jump' }),
-        expect.objectContaining({ source: 'start', target: 'call_dest', kind: 'call' }),
+        expect.objectContaining({
+          source: "start",
+          target: "jump_dest",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "start",
+          target: "call_dest",
+          kind: "call",
+        }),
       ]),
     );
     expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'jump expression' }) }),
-        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'Jump' }) }),
-        expect.objectContaining({ code: 'dynamic_target', location: expect.objectContaining({ construct: 'Call' }) }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({ construct: "jump expression" }),
+        }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({ construct: "Jump" }),
+        }),
+        expect.objectContaining({
+          code: "dynamic_target",
+          location: expect.objectContaining({ construct: "Call" }),
+        }),
       ]),
     );
   });
 
-  it('invalidates same-label python assignment bindings after a dynamic reassignment', async () => {
+  it("invalidates same-label python assignment bindings after a dynamic reassignment", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        target = "resolved_dest"',
-      '        target = compute_target()',
-      '        renpy.call(target)',
-      '',
-      'label resolved_dest:',
-      '    return',
-      '',
-    ].join('\n');
+      "        target = compute_target()",
+      "        renpy.call(target)",
+      "",
+      "label resolved_dest:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'dynamic-reassign.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "dynamic-reassign.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((edge) => edge.kind === 'call' && edge.source === 'start' && edge.target === 'resolved_dest')).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "call" && edge.source === "start" &&
+        edge.target === "resolved_dest"
+      ),
+    ).toBeUndefined();
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ construct: 'renpy.call', targetExpression: 'target' }),
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            construct: "renpy.call",
+            targetExpression: "target",
+          }),
         }),
       ]),
     );
   });
 
-  it('does not leak same-label python assignment bindings into later labels', async () => {
+  it("does not leak same-label python assignment bindings into later labels", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        route = "start_dest"',
-      '    return',
-      '',
-      'label second:',
-      '    python:',
-      '        renpy.jump(route)',
-      '',
-      'label start_dest:',
-      '    return',
-      '',
-    ].join('\n');
+      "    return",
+      "",
+      "label second:",
+      "    python:",
+      "        renpy.jump(route)",
+      "",
+      "label start_dest:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'no-cross-label-leak.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "no-cross-label-leak.rpy",
+      content: script,
+    }]);
 
-    expect(result.edges.find((edge) => edge.kind === 'jump' && edge.source === 'second' && edge.target === 'start_dest')).toBeUndefined();
+    expect(
+      result.edges.find((edge) =>
+        edge.kind === "jump" && edge.source === "second" &&
+        edge.target === "start_dest"
+      ),
+    ).toBeUndefined();
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ construct: 'renpy.jump', targetExpression: 'route' }),
+          code: "dynamic_target",
+          location: expect.objectContaining({
+            construct: "renpy.jump",
+            targetExpression: "route",
+          }),
         }),
       ]),
     );
   });
 
-  it('ignores direct call-like patterns inside comments and quoted strings', async () => {
+  it("ignores direct call-like patterns inside comments and quoted strings", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        "renpy.call(\\"string_target\\")"',
       '        # renpy.jump("comment_target")',
-      '    show screen fake_overlay',
-      '',
-      'screen fake_overlay:',
+      "    show screen fake_overlay",
+      "",
+      "screen fake_overlay:",
       '    text "action Jump(\\"text_target\\")"',
       '    # textbutton "Call target" action Call("comment_call_target")',
-      '',
-      'label end:',
-      '    return',
-      '',
-    ].join('\n');
+      "",
+      "label end:",
+      "    return",
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'ignored-direct-call-patterns.rpy', content: script }]);
-    const ignoredTargets = new Set(['string_target', 'comment_target', 'text_target', 'comment_call_target']);
-    expect(result.edges.some((edge) => ignoredTargets.has(edge.target))).toBe(false);
+    const result = await parseRenpyFiles([{
+      name: "ignored-direct-call-patterns.rpy",
+      content: script,
+    }]);
+    const ignoredTargets = new Set([
+      "string_target",
+      "comment_target",
+      "text_target",
+      "comment_call_target",
+    ]);
+    expect(result.edges.some((edge) => ignoredTargets.has(edge.target))).toBe(
+      false,
+    );
     expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.jump' }) }),
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'renpy.call' }) }),
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Jump' }) }),
-        expect.objectContaining({ location: expect.objectContaining({ chapter: 'ignored-direct-call-patterns', construct: 'Call' }) }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "ignored-direct-call-patterns",
+            construct: "renpy.jump",
+          }),
+        }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "ignored-direct-call-patterns",
+            construct: "renpy.call",
+          }),
+        }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "ignored-direct-call-patterns",
+            construct: "Jump",
+          }),
+        }),
+        expect.objectContaining({
+          location: expect.objectContaining({
+            chapter: "ignored-direct-call-patterns",
+            construct: "Call",
+          }),
+        }),
       ]),
     );
   });
 
-
-
-  it('handles complex conditional nested menu and mixed call/jump flow', async () => {
+  it("handles complex conditional nested menu and mixed call/jump flow", async () => {
     const script = [
-      'label start:',
-      '    if seen_intro:',
-      '        menu:',
+      "label start:",
+      "    if seen_intro:",
+      "        menu:",
       '            "Ask mentor":',
-      '                call mentor_scene',
+      "                call mentor_scene",
       '            "Skip":',
-      '                jump end',
+      "                jump end",
       '    "continue"',
-      '',
-      'label mentor_scene:',
+      "",
+      "label mentor_scene:",
       '    "mentor line"',
-      '    return',
-      '',
-      'label end:',
+      "    return",
+      "",
+      "label end:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'complex.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "complex.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'call', target: 'mentor_scene' }),
-        expect.objectContaining({ kind: 'jump', target: 'end' }),
-        expect.objectContaining({ source: 'start', target: 'mentor_scene', kind: 'sequence', label: 'next' }),
+        expect.objectContaining({ kind: "call", target: "mentor_scene" }),
+        expect.objectContaining({ kind: "jump", target: "end" }),
+        expect.objectContaining({
+          source: "start",
+          target: "mentor_scene",
+          kind: "sequence",
+          label: "next",
+        }),
       ]),
     );
   });
 
-  it('classifies helper labels as utility when called directly and returning', async () => {
+  it("classifies helper labels as utility when called directly and returning", async () => {
     const script = [
-      'label start:',
-      '    call helper',
-      '    jump end',
-      '',
-      'label helper:',
+      "label start:",
+      "    call helper",
+      "    jump end",
+      "",
+      "label helper:",
       '    "assist"',
-      '    return',
-      '',
-      'label end:',
+      "    return",
+      "",
+      "label end:",
       '    "done"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'utility-role.rpy', content: script }]);
-    const helper = result.nodes.find((n) => n.id === 'helper');
-    expect(helper?.role).toBe('utility');
+    const result = await parseRenpyFiles([{
+      name: "utility-role.rpy",
+      content: script,
+    }]);
+    const helper = result.nodes.find((n) => n.id === "helper");
+    expect(helper?.role).toBe("utility");
   });
 
-  it('marks terminal story labels for end-of-route badge rendering', async () => {
+  it("marks terminal story labels for end-of-route badge rendering", async () => {
     const script = [
-      'label start:',
-      '    jump ending',
-      '',
-      'label ending:',
+      "label start:",
+      "    jump ending",
+      "",
+      "label ending:",
       '    "The End"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'terminal-outcome.rpy', content: script }]);
-    const start = result.nodes.find((n) => n.id === 'start');
-    const ending = result.nodes.find((n) => n.id === 'ending');
+    const result = await parseRenpyFiles([{
+      name: "terminal-outcome.rpy",
+      content: script,
+    }]);
+    const start = result.nodes.find((n) => n.id === "start");
+    const ending = result.nodes.find((n) => n.id === "ending");
     expect(start?.isTerminalOutcome).toBe(false);
     expect(ending?.isTerminalOutcome).toBe(true);
   });
 
-  it('keeps duplicate labels visible as shadowed nodes and emits warnings', async () => {
+  it("keeps duplicate labels visible as shadowed nodes and emits warnings", async () => {
     const result = await parseRenpyFiles([
       {
-        name: 'chapter_one.rpy',
-        content: ['label same:', '    "one"', ''].join('\n'),
+        name: "chapter_one.rpy",
+        content: ["label same:", '    "one"', ""].join("\n"),
       },
       {
-        name: 'chapter_two.rpy',
-        content: ['label same:', '    "two"', ''].join('\n'),
+        name: "chapter_two.rpy",
+        content: ["label same:", '    "two"', ""].join("\n"),
       },
     ]);
 
-    const same = result.nodes.find((n) => n.id === 'same');
-    const shadow = result.nodes.find((n) => n.id === 'same__shadow_2');
+    const same = result.nodes.find((n) => n.id === "same");
+    const shadow = result.nodes.find((n) => n.id === "same__shadow_2");
     expect(same).toBeDefined();
-    expect(same?.chapter).toBe('chapter_one');
+    expect(same?.chapter).toBe("chapter_one");
     expect(same?.dialogueCount).toBe(1);
     expect(shadow).toBeDefined();
-    expect(shadow?.chapter).toBe('chapter_two');
+    expect(shadow?.chapter).toBe("chapter_two");
     expect(shadow?.dialogueCount).toBe(1);
     expect(shadow?.isShadowed).toBe(true);
-    expect(shadow?.shadowOfId).toBe('same');
+    expect(shadow?.shadowOfId).toBe("same");
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'shadowed_label',
-          context: expect.objectContaining({ category: 'shadowed_label' }),
-          location: expect.objectContaining({ sourceId: 'same__shadow_2', targetId: 'same' }),
+          code: "shadowed_label",
+          context: expect.objectContaining({ category: "shadowed_label" }),
+          location: expect.objectContaining({
+            sourceId: "same__shadow_2",
+            targetId: "same",
+          }),
         }),
       ]),
     );
   });
 
-  it('uses relative paths to keep duplicate basenames distinct and deterministically ordered', async () => {
+  it("uses relative paths to keep duplicate basenames distinct and deterministically ordered", async () => {
     const progressFiles: string[] = [];
     const result = await parseRenpyFiles(
       [
         {
-          name: 'script.rpy',
-          relativePath: 'routes/beta/script.rpy',
-          content: ['label same:', '    "beta"', ''].join('\n'),
+          name: "script.rpy",
+          relativePath: "routes/beta/script.rpy",
+          content: ["label same:", '    "beta"', ""].join("\n"),
         },
         {
-          name: 'script.rpy',
-          relativePath: 'routes/alpha/script.rpy',
-          content: ['label same:', '    "alpha"', ''].join('\n'),
+          name: "script.rpy",
+          relativePath: "routes/alpha/script.rpy",
+          content: ["label same:", '    "alpha"', ""].join("\n"),
         },
       ],
       {
@@ -2123,118 +2788,146 @@ describe('parseRenpyFiles', () => {
       },
     );
 
-    const same = result.nodes.find((n) => n.id === 'same');
-    const shadow = result.nodes.find((n) => n.id === 'same__shadow_2');
-    expect(same?.chapter).toBe('routes/alpha/script');
+    const same = result.nodes.find((n) => n.id === "same");
+    const shadow = result.nodes.find((n) => n.id === "same__shadow_2");
+    expect(same?.chapter).toBe("routes/alpha/script");
     expect(same?.dialogueCount).toBe(1);
-    expect(shadow?.chapter).toBe('routes/beta/script');
+    expect(shadow?.chapter).toBe("routes/beta/script");
     expect(shadow?.dialogueCount).toBe(1);
-    expect(progressFiles).toEqual(['routes/alpha/script.rpy', 'routes/beta/script.rpy']);
+    expect(progressFiles).toEqual([
+      "routes/alpha/script.rpy",
+      "routes/beta/script.rpy",
+    ]);
   });
 
-  it('warns when jump/call targets resolve through shadowed duplicate labels', async () => {
+  it("warns when jump/call targets resolve through shadowed duplicate labels", async () => {
     const result = await parseRenpyFiles([
       {
-        name: 'a.rpy',
-        content: ['label start:', '    jump same', ''].join('\n'),
+        name: "a.rpy",
+        content: ["label start:", "    jump same", ""].join("\n"),
       },
       {
-        name: 'b.rpy',
-        content: ['label helper:', '    call same', ''].join('\n'),
+        name: "b.rpy",
+        content: ["label helper:", "    call same", ""].join("\n"),
       },
       {
-        name: 'c.rpy',
-        content: ['label same:', '    return', ''].join('\n'),
+        name: "c.rpy",
+        content: ["label same:", "    return", ""].join("\n"),
       },
       {
-        name: 'd.rpy',
-        content: ['label same:', '    return', ''].join('\n'),
+        name: "d.rpy",
+        content: ["label same:", "    return", ""].join("\n"),
       },
     ]);
 
     expect(result.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: 'start', target: 'same', kind: 'jump' }),
-        expect.objectContaining({ source: 'helper', target: 'same', kind: 'call' }),
+        expect.objectContaining({
+          source: "start",
+          target: "same",
+          kind: "jump",
+        }),
+        expect.objectContaining({
+          source: "helper",
+          target: "same",
+          kind: "call",
+        }),
       ]),
     );
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'shadowed_label',
-          context: expect.objectContaining({ category: 'shadowed_target_resolution' }),
-          location: expect.objectContaining({ sourceId: 'start', targetId: 'same' }),
-        }),
-        expect.objectContaining({
-          code: 'shadowed_label',
-          context: expect.objectContaining({ category: 'shadowed_target_resolution' }),
-          location: expect.objectContaining({ sourceId: 'helper', targetId: 'same' }),
-        }),
-      ]),
-    );
-  });
-
-  it('resolves jumps to labels that are defined in a different file', async () => {
-    const result = await parseRenpyFiles([
-      {
-        name: 'part-a.rpy',
-        content: ['label intro:', '    jump ending', ''].join('\n'),
-      },
-      {
-        name: 'part-b.rpy',
-        content: ['label ending:', '    "done"', ''].join('\n'),
-      },
-    ]);
-
-    expect(result.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'intro', type: 'LABEL' }),
-        expect.objectContaining({ id: 'ending', type: 'LABEL' }),
-      ]),
-    );
-    expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'intro', target: 'ending' }),
-    );
-  });
-
-  it('emits unresolved-target warnings for edges targeting missing labels', async () => {
-    const result = await parseRenpyFiles([
-      {
-        name: 'missing-target.rpy',
-        content: ['label intro:', '    jump missing_label', ''].join('\n'),
-      },
-    ]);
-
-    expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'intro', target: 'missing_label', kind: 'jump' }),
-    );
-    expect(result.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'unresolved_target',
-          severity: 'warning',
+          code: "shadowed_label",
+          context: expect.objectContaining({
+            category: "shadowed_target_resolution",
+          }),
           location: expect.objectContaining({
-            sourceId: 'intro',
-            targetId: 'missing_label',
+            sourceId: "start",
+            targetId: "same",
+          }),
+        }),
+        expect.objectContaining({
+          code: "shadowed_label",
+          context: expect.objectContaining({
+            category: "shadowed_target_resolution",
+          }),
+          location: expect.objectContaining({
+            sourceId: "helper",
+            targetId: "same",
           }),
         }),
       ]),
     );
   });
 
-  it('preserves output semantics when tokenization is parallelized', async () => {
+  it("resolves jumps to labels that are defined in a different file", async () => {
+    const result = await parseRenpyFiles([
+      {
+        name: "part-a.rpy",
+        content: ["label intro:", "    jump ending", ""].join("\n"),
+      },
+      {
+        name: "part-b.rpy",
+        content: ["label ending:", '    "done"', ""].join("\n"),
+      },
+    ]);
+
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "intro", type: "LABEL" }),
+        expect.objectContaining({ id: "ending", type: "LABEL" }),
+      ]),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: "intro", target: "ending" }),
+    );
+  });
+
+  it("emits unresolved-target warnings for edges targeting missing labels", async () => {
+    const result = await parseRenpyFiles([
+      {
+        name: "missing-target.rpy",
+        content: ["label intro:", "    jump missing_label", ""].join("\n"),
+      },
+    ]);
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        source: "intro",
+        target: "missing_label",
+        kind: "jump",
+      }),
+    );
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "unresolved_target",
+          severity: "warning",
+          location: expect.objectContaining({
+            sourceId: "intro",
+            targetId: "missing_label",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("preserves output semantics when tokenization is parallelized", async () => {
     const files = [
       {
-        name: 'chapter_one.rpy',
-        content: ['label same:', '    "one"', '', 'label a:', '    jump z', ''].join('\n'),
+        name: "chapter_one.rpy",
+        content: ["label same:", '    "one"', "", "label a:", "    jump z", ""]
+          .join("\n"),
       },
       {
-        name: 'chapter_two.rpy',
-        content: ['label same:', '    "two"', '', 'label z:', '    return', ''].join('\n'),
+        name: "chapter_two.rpy",
+        content: ["label same:", '    "two"', "", "label z:", "    return", ""]
+          .join("\n"),
       },
       {
-        name: 'chapter_three.rpy',
-        content: ['label k:', '    call z', '', 'label end:', '    "done"', ''].join('\n'),
+        name: "chapter_three.rpy",
+        content: ["label k:", "    call z", "", "label end:", '    "done"', ""]
+          .join("\n"),
       },
     ];
 
@@ -2246,83 +2939,106 @@ describe('parseRenpyFiles', () => {
 
   // ── Triple-quoted string handling regression tests ─────────────────────────────
 
-  it('extracts renpy.call target from triple-quoted string argument', async () => {
+  it("extracts renpy.call target from triple-quoted string argument", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.call("""call_target""")',
-      '',
-      'label call_target:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'triple-q-call.rpy', content: script }]);
+      "",
+      "label call_target:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "triple-q-call.rpy",
+      content: script,
+    }]);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'call_target', kind: 'call' }),
+      expect.objectContaining({
+        source: "start",
+        target: "call_target",
+        kind: "call",
+      }),
     );
   });
 
-  it('extracts renpy.jump target from triple-quoted string with inner parens', async () => {
+  it("extracts renpy.jump target from triple-quoted string with inner parens", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.jump("""target_with_(parens)""")',
-      '',
-      'label next:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'triple-q-parens.rpy', content: script }]);
+      "",
+      "label next:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "triple-q-parens.rpy",
+      content: script,
+    }]);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'target_with_(parens)', kind: 'jump' }),
+      expect.objectContaining({
+        source: "start",
+        target: "target_with_(parens)",
+        kind: "jump",
+      }),
     );
   });
 
-  it('splits arguments correctly when triple-quoted string contains a comma', async () => {
+  it("splits arguments correctly when triple-quoted string contains a comma", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.call("""a,b""", from_current=True)',
-      '',
-      'label next:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'triple-q-comma.rpy', content: script }]);
+      "",
+      "label next:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "triple-q-comma.rpy",
+      content: script,
+    }]);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'a,b', kind: 'call' }),
+      expect.objectContaining({ source: "start", target: "a,b", kind: "call" }),
     );
   });
 
-  it('resolves keyword arg with triple-quoted value containing equals sign', async () => {
+  it("resolves keyword arg with triple-quoted value containing equals sign", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       "        renpy.jump(label='''x=y''')",
-      '',
-      'label next:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'triple-q-eq.rpy', content: script }]);
+      "",
+      "label next:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "triple-q-eq.rpy",
+      content: script,
+    }]);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'x=y', kind: 'jump' }),
+      expect.objectContaining({ source: "start", target: "x=y", kind: "jump" }),
     );
   });
 
-  it('handles triple-quoted string with inner quotes and parens in renpy.call', async () => {
+  it("handles triple-quoted string with inner quotes and parens in renpy.call", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.call("""label("x")""")',
-      '',
-      'label next:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'triple-q-inner-quotes.rpy', content: script }]);
+      "",
+      "label next:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "triple-q-inner-quotes.rpy",
+      content: script,
+    }]);
     const callEdge = result.edges.find(
-      (e) => e.kind === 'call' && e.source === 'start',
+      (e) => e.kind === "call" && e.source === "start",
     );
     expect(callEdge).toBeDefined();
     expect(callEdge?.target).toBe('label("x")');
@@ -2330,51 +3046,57 @@ describe('parseRenpyFiles', () => {
 
   // ── Whitespace-only target regression tests ────────────────────────────────────
 
-  it('treats whitespace-only renpy.jump target as dynamic and emits a warning', async () => {
+  it("treats whitespace-only renpy.jump target as dynamic and emits a warning", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.jump(" ")',
-      '',
-      'label next:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'whitespace-target.rpy', content: script }]);
+      "",
+      "label next:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "whitespace-target.rpy",
+      content: script,
+    }]);
     const jumpEdge = result.edges.find(
-      (e) => e.kind === 'jump' && e.source === 'start' && e.target === ' ',
+      (e) => e.kind === "jump" && e.source === "start" && e.target === " ",
     );
     expect(jumpEdge).toBeUndefined();
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ construct: 'renpy.jump' }),
+          code: "dynamic_target",
+          location: expect.objectContaining({ construct: "renpy.jump" }),
         }),
       ]),
     );
   });
 
-  it('treats empty-string renpy.call target as dynamic and emits a warning', async () => {
+  it("treats empty-string renpy.call target as dynamic and emits a warning", async () => {
     const script = [
-      'label start:',
-      '    python:',
+      "label start:",
+      "    python:",
       '        renpy.call("")',
-      '',
-      'label next:',
-      '    return',
-      '',
-    ].join('\n');
-    const result = await parseRenpyFiles([{ name: 'empty-target.rpy', content: script }]);
+      "",
+      "label next:",
+      "    return",
+      "",
+    ].join("\n");
+    const result = await parseRenpyFiles([{
+      name: "empty-target.rpy",
+      content: script,
+    }]);
     const callEdge = result.edges.find(
-      (e) => e.kind === 'call' && e.source === 'start' && e.target === '',
+      (e) => e.kind === "call" && e.source === "start" && e.target === "",
     );
     expect(callEdge).toBeUndefined();
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'dynamic_target',
-          location: expect.objectContaining({ construct: 'renpy.call' }),
+          code: "dynamic_target",
+          location: expect.objectContaining({ construct: "renpy.call" }),
         }),
       ]),
     );
@@ -2382,80 +3104,91 @@ describe('parseRenpyFiles', () => {
 
   // ── Menu fallthrough regression tests ──────────────────────────────────────────
 
-  it('does not add a spurious fallthrough sequence edge from a menu whose options all jump', async () => {
+  it("does not add a spurious fallthrough sequence edge from a menu whose options all jump", async () => {
     const script = [
-      'label choice:',
-      '    menu:',
+      "label choice:",
+      "    menu:",
       '        "Option A":',
-      '            jump end_a',
+      "            jump end_a",
       '        "Option B":',
-      '            jump end_b',
-      '',
-      'label end_a:',
+      "            jump end_b",
+      "",
+      "label end_a:",
       '    "done a"',
-      '',
-      'label end_b:',
+      "",
+      "label end_b:",
       '    "done b"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'menu-no-fallthrough.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "menu-no-fallthrough.rpy",
+      content: script,
+    }]);
 
-    const menuNode = result.nodes.find((n) => n.type === 'MENU');
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
     expect(menuNode).toBeDefined();
 
     // Jump edges from menu options must be present.
-    const menuJumps = result.edges.filter((e) => e.source === menuNode?.id && e.kind === 'jump');
+    const menuJumps = result.edges.filter((e) =>
+      e.source === menuNode?.id && e.kind === "jump"
+    );
     expect(menuJumps).toHaveLength(2);
 
     // No spurious sequence (fallthrough) edge should be added from the menu
     // to end_a just because it is the label that follows in source order.
     const menuSequences = result.edges.filter(
-      (e) => e.source === menuNode?.id && e.kind === 'sequence',
+      (e) => e.source === menuNode?.id && e.kind === "sequence",
     );
     expect(menuSequences).toHaveLength(0);
   });
 
   // ── f-string literal normalisation regression tests ────────────────────────────
 
-  it('strips f-string prefix and quotes from say-statement dialogue lines', async () => {
+  it("strips f-string prefix and quotes from say-statement dialogue lines", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    f"Hello {name}!"',
       '    F"Another line"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'fstring-dialogue.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "fstring-dialogue.rpy",
+      content: script,
+    }]);
 
-    const node = result.nodes.find((n) => n.id === 'start');
+    const node = result.nodes.find((n) => n.id === "start");
     expect(node).toBeDefined();
     expect(node?.dialogueCount).toBe(2);
-    expect(node?.dialogueLines).toEqual(['Hello {name}!', 'Another line']);
+    expect(node?.dialogueLines).toEqual(["Hello {name}!", "Another line"]);
   });
 
-  it('strips legacy unicode-raw prefixes from say-statement dialogue lines', async () => {
+  it("strips legacy unicode-raw prefixes from say-statement dialogue lines", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    ur"Line one"',
       '    ru"Line two"',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'legacy-prefix-dialogue.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "legacy-prefix-dialogue.rpy",
+      content: script,
+    }]);
 
-    const node = result.nodes.find((n) => n.id === 'start');
+    const node = result.nodes.find((n) => n.id === "start");
     expect(node).toBeDefined();
     expect(node?.dialogueCount).toBe(2);
-    expect(node?.dialogueLines).toEqual(['Line one', 'Line two']);
+    expect(node?.dialogueLines).toEqual(["Line one", "Line two"]);
   });
 
   // ── Audio & Asset Cues parsing tests ──────────────────────────────────────────
 
-  it('correctly parses and associates audio and asset cues with the active node', async () => {
+  it("correctly parses and associates audio and asset cues with the active node", async () => {
     const script = [
-      'label start:',
-      '    scene bg room with fade',
+      "label start:",
+      "    scene bg room with fade",
       '    play music "audio/bgm_chill.ogg" fadein 1.0',
       '    "This is dialogue."',
       '    "Extra dialogue 1."',
@@ -2463,325 +3196,404 @@ describe('parseRenpyFiles', () => {
       '    play sound "audio/sfx_ding.wav"',
       '    voice "audio/voice_line_1.mp3"',
       '    "More dialogue."',
-      '    stop music fadeout 2.0',
-      '    queue music theme_track',
-      '    scene bg beach',
+      "    stop music fadeout 2.0",
+      "    queue music theme_track",
+      "    scene bg beach",
       '    "Beach dialogue."',
-      '',
-    ].join('\n');
+      "",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'audio-asset-cues.rpy', content: script }], { sceneSplitDialogueThreshold: 0 });
+    const result = await parseRenpyFiles([{
+      name: "audio-asset-cues.rpy",
+      content: script,
+    }], { sceneSplitDialogueThreshold: 0 });
 
-    const scene1 = result.nodes.find((n) => n.id === 'start__scene_1');
-    const scene2 = result.nodes.find((n) => n.id === 'start__scene_2');
+    const scene1 = result.nodes.find((n) => n.id === "start__scene_1");
+    const scene2 = result.nodes.find((n) => n.id === "start__scene_2");
 
     expect(scene1).toBeDefined();
     expect(scene2).toBeDefined();
 
     expect(scene1?.audioAssetCues).toEqual([
-      { type: 'scene', asset: 'bg room', raw: 'scene bg room with fade' },
-      { type: 'play', channel: 'music', asset: 'audio/bgm_chill.ogg', raw: 'play music "audio/bgm_chill.ogg" fadein 1.0' },
-      { type: 'play', channel: 'sound', asset: 'audio/sfx_ding.wav', raw: 'play sound "audio/sfx_ding.wav"' },
-      { type: 'voice', asset: 'audio/voice_line_1.mp3', raw: 'voice "audio/voice_line_1.mp3"' },
-      { type: 'stop', channel: 'music', asset: '', raw: 'stop music fadeout 2.0' },
-      { type: 'queue', channel: 'music', asset: 'theme_track', raw: 'queue music theme_track' },
+      { type: "scene", asset: "bg room", raw: "scene bg room with fade" },
+      {
+        type: "play",
+        channel: "music",
+        asset: "audio/bgm_chill.ogg",
+        raw: 'play music "audio/bgm_chill.ogg" fadein 1.0',
+      },
+      {
+        type: "play",
+        channel: "sound",
+        asset: "audio/sfx_ding.wav",
+        raw: 'play sound "audio/sfx_ding.wav"',
+      },
+      {
+        type: "voice",
+        asset: "audio/voice_line_1.mp3",
+        raw: 'voice "audio/voice_line_1.mp3"',
+      },
+      {
+        type: "stop",
+        channel: "music",
+        asset: "",
+        raw: "stop music fadeout 2.0",
+      },
+      {
+        type: "queue",
+        channel: "music",
+        asset: "theme_track",
+        raw: "queue music theme_track",
+      },
     ]);
 
     expect(scene2?.audioAssetCues).toEqual([
-      { type: 'scene', asset: 'bg beach', raw: 'scene bg beach' },
+      { type: "scene", asset: "bg beach", raw: "scene bg beach" },
     ]);
   });
 
   // ── Dollar-Prefixed Python Statements & Dict Target Resolution tests ─────────────────
 
-  it('extracts jumps and assignments from dollar-prefixed single-line Python statements', async () => {
+  it("extracts jumps and assignments from dollar-prefixed single-line Python statements", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    $ target_label = "dest"',
-      '    $ renpy.jump(target_label)',
-      '',
-      'label dest:',
-      '    return',
-    ].join('\n');
+      "    $ renpy.jump(target_label)",
+      "",
+      "label dest:",
+      "    return",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'dollar-statements.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "dollar-statements.rpy",
+      content: script,
+    }]);
 
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'dest', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "dest",
+        kind: "jump",
+      }),
     );
     expect(result.diagnostics ?? []).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'dynamic_target' }),
-      ])
+        expect.objectContaining({ code: "dynamic_target" }),
+      ]),
     );
   });
 
-  it('resolves static and dynamic dictionary-based targets to single and multiple edges', async () => {
+  it("resolves static and dynamic dictionary-based targets to single and multiple edges", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    $ target_map = {"route_a": "target_a", "route_b": "target_b"}',
       '    jump expression target_map["route_a"]',
-      '    jump expression target_map[route_var]',
-      '',
-      'label target_a:',
-      '    return',
-      '',
-      'label target_b:',
-      '    return',
-    ].join('\n');
+      "    jump expression target_map[route_var]",
+      "",
+      "label target_a:",
+      "    return",
+      "",
+      "label target_b:",
+      "    return",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'dict-targets.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "dict-targets.rpy",
+      content: script,
+    }]);
 
     // Static lookup mapping to target_a
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'target_a', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "target_a",
+        kind: "jump",
+      }),
     );
     // Dynamic lookup mapping to all target values in the dict: target_a and target_b
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'target_b', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "target_b",
+        kind: "jump",
+      }),
     );
   });
 
-  it('parses triple-quoted strings containing escaped quotes without premature termination', async () => {
+  it("parses triple-quoted strings containing escaped quotes without premature termination", async () => {
     const script = [
-      'label start:',
+      "label start:",
       '    if """test escaped triple quote \\""" inside string""":',
-      '        jump target_a',
-      '',
-      'label target_a:',
-      '    return',
-    ].join('\n');
+      "        jump target_a",
+      "",
+      "label target_a:",
+      "    return",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'triple_quoted_escaped.rpy', content: script }]);
-    const decisionNode = result.nodes.find((node) => node.type === 'DECISION');
+    const result = await parseRenpyFiles([{
+      name: "triple_quoted_escaped.rpy",
+      content: script,
+    }]);
+    const decisionNode = result.nodes.find((node) => node.type === "DECISION");
     expect(decisionNode).toBeDefined();
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: decisionNode?.id, target: 'target_a', kind: 'jump' })
+      expect.objectContaining({
+        source: decisionNode?.id,
+        target: "target_a",
+        kind: "jump",
+      }),
     );
   });
 
   // ── Multi-pass Initialization Mapping tests ─────────────────
 
-  it('resolves variables from python early and prioritized init blocks in the correct priority order', async () => {
+  it("resolves variables from python early and prioritized init blocks in the correct priority order", async () => {
     const files = [
       {
-        name: 'priority_init.rpy',
+        name: "priority_init.rpy",
         content: [
-          'init 10 python:',
+          "init 10 python:",
           '    target_val = "target_high"',
-          '',
-          'python early:',
+          "",
+          "python early:",
           '    target_val = "target_early"',
-          '',
-          'init -5 python:',
+          "",
+          "init -5 python:",
           '    target_val = "target_low"',
-        ].join('\n'),
+        ].join("\n"),
       },
       {
-        name: 'main.rpy',
+        name: "main.rpy",
         content: [
-          'label start:',
-          '    jump expression target_val',
-          '',
-          'label target_high:',
-          '    return',
-        ].join('\n'),
+          "label start:",
+          "    jump expression target_val",
+          "",
+          "label target_high:",
+          "    return",
+        ].join("\n"),
       },
     ];
 
     const result = await parseRenpyFiles(files);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'target_high', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "target_high",
+        kind: "jump",
+      }),
     );
   });
 
-  it('supports init offset for local file offset adjustment and priority calculation', async () => {
+  it("supports init offset for local file offset adjustment and priority calculation", async () => {
     const files = [
       {
-        name: 'offset_file.rpy',
+        name: "offset_file.rpy",
         content: [
-          'init offset = 20',
-          'init -5 python:',
+          "init offset = 20",
+          "init -5 python:",
           '    target_val = "target_offset_fifteen"', // 20 - 5 = 15
-        ].join('\n'),
+        ].join("\n"),
       },
       {
-        name: 'another_file.rpy',
+        name: "another_file.rpy",
         content: [
-          'init 10 python:',
+          "init 10 python:",
           '    target_val = "target_ten"', // 10
-        ].join('\n'),
+        ].join("\n"),
       },
       {
-        name: 'main.rpy',
+        name: "main.rpy",
         content: [
-          'label start:',
-          '    jump expression target_val',
-          '',
-          'label target_offset_fifteen:',
-          '    return',
-        ].join('\n'),
+          "label start:",
+          "    jump expression target_val",
+          "",
+          "label target_offset_fifteen:",
+          "    return",
+        ].join("\n"),
       },
     ];
 
     const result = await parseRenpyFiles(files);
     // target_val should resolve to "target_offset_fifteen" since priority 15 > 10
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'target_offset_fifteen', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "target_offset_fifteen",
+        kind: "jump",
+      }),
     );
   });
 
-  it('resolves variables globally across different files', async () => {
+  it("resolves variables globally across different files", async () => {
     const files = [
       {
-        name: 'definitions.rpy',
+        name: "definitions.rpy",
         content: [
           'define global_target = "dest_label"',
           'default global_dict = {"choice": "dest_label_choice"}',
-        ].join('\n'),
+        ].join("\n"),
       },
       {
-        name: 'story.rpy',
+        name: "story.rpy",
         content: [
-          'label start:',
-          '    jump expression global_target',
+          "label start:",
+          "    jump expression global_target",
           '    jump expression global_dict["choice"]',
-          '',
-          'label dest_label:',
-          '    return',
-          '',
-          'label dest_label_choice:',
-          '    return',
-        ].join('\n'),
+          "",
+          "label dest_label:",
+          "    return",
+          "",
+          "label dest_label_choice:",
+          "    return",
+        ].join("\n"),
       },
     ];
 
     const result = await parseRenpyFiles(files);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'dest_label', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "dest_label",
+        kind: "jump",
+      }),
     );
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'dest_label_choice', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "dest_label_choice",
+        kind: "jump",
+      }),
     );
   });
 
-  it('ignores screen calls and does not emit navigation edges', async () => {
+  it("ignores screen calls and does not emit navigation edges", async () => {
     const script = [
-      'label start:',
-      '    call screen custom_selector',
-      '    jump next_label',
-      '',
-      'label next_label:',
-      '    return',
-    ].join('\n');
+      "label start:",
+      "    call screen custom_selector",
+      "    jump next_label",
+      "",
+      "label next_label:",
+      "    return",
+    ].join("\n");
 
-    const result = await parseRenpyFiles([{ name: 'screen_call.rpy', content: script }]);
+    const result = await parseRenpyFiles([{
+      name: "screen_call.rpy",
+      content: script,
+    }]);
     // Should have jump start -> next_label, but NO call to custom_selector
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'next_label', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "next_label",
+        kind: "jump",
+      }),
     );
-    expect(result.edges.find((e) => e.target === 'custom_selector')).toBeUndefined();
+    expect(result.edges.find((e) => e.target === "custom_selector"))
+      .toBeUndefined();
   });
 
-  it('registers character definitions in globalCharacters set', async () => {
+  it("registers character definitions in globalCharacters set", async () => {
     const files = [
       {
-        name: 'init.rpy',
+        name: "init.rpy",
         content: [
           'define e = Character("Eileen")',
           'define character.m = Character("Monica")',
-          'init python:',
-          '    narrator = Character(None)',
-        ].join('\n'),
+          "init python:",
+          "    narrator = Character(None)",
+        ].join("\n"),
       },
       {
-        name: 'main.rpy',
+        name: "main.rpy",
         content: [
-          'label start:',
+          "label start:",
           '    e "Hello!"',
-        ].join('\n'),
+        ].join("\n"),
       },
     ];
 
     const state = createGraphState();
     preParseInitialization(files, state);
-    expect(state.globalCharacters.has('e')).toBe(true);
-    expect(state.globalCharacters.has('character.m')).toBe(true);
-    expect(state.globalCharacters.has('narrator')).toBe(true);
+    expect(state.globalCharacters.has("e")).toBe(true);
+    expect(state.globalCharacters.has("character.m")).toBe(true);
+    expect(state.globalCharacters.has("narrator")).toBe(true);
   });
 
-  it('supports define and default priority correctly', async () => {
+  it("supports define and default priority correctly", async () => {
     const files = [
       {
-        name: 'priority_defs.rpy',
+        name: "priority_defs.rpy",
         content: [
           'define 10 my_val = "high"',
           'define -5 my_val = "low"',
           'default 20 my_val = "highest"',
           'default my_val = "default_zero"',
-        ].join('\n'),
+        ].join("\n"),
       },
       {
-        name: 'main.rpy',
+        name: "main.rpy",
         content: [
-          'label start:',
-          '    jump expression my_val',
-          '',
-          'label highest:',
-          '    return',
-        ].join('\n'),
+          "label start:",
+          "    jump expression my_val",
+          "",
+          "label highest:",
+          "    return",
+        ].join("\n"),
       },
     ];
 
     const result = await parseRenpyFiles(files);
     expect(result.edges).toContainEqual(
-      expect.objectContaining({ source: 'start', target: 'highest', kind: 'jump' })
+      expect.objectContaining({
+        source: "start",
+        target: "highest",
+        kind: "jump",
+      }),
     );
   });
 
-  it('correctly strips comments in triple-quoted strings without mangling', async () => {
+  it("correctly strips comments in triple-quoted strings without mangling", async () => {
     const files = [
       {
-        name: 'triple_comments.rpy',
+        name: "triple_comments.rpy",
         content: [
           'define my_val = """',
-          'hello # not a comment!',
+          "hello # not a comment!",
           '"""',
-          'label start:',
-          '    jump expression my_val',
-          '',
-          'label test_label:',
-          '    return',
-        ].join('\n'),
+          "label start:",
+          "    jump expression my_val",
+          "",
+          "label test_label:",
+          "    return",
+        ].join("\n"),
       },
     ];
 
     const state = createGraphState();
     preParseInitialization(files, state);
-    const resolved = state.globalLabelVariableLiteralTargets.get('my_val');
-    expect(resolved).toContain('not a comment!');
+    const resolved = state.globalLabelVariableLiteralTargets.get("my_val");
+    expect(resolved).toContain("not a comment!");
   });
 
-  it('handles multiline dictionary declarations with column-0 lines inside python blocks', async () => {
+  it("handles multiline dictionary declarations with column-0 lines inside python blocks", async () => {
     const files = [
       {
-        name: 'multiline_dict.rpy',
+        name: "multiline_dict.rpy",
         content: [
-          'init python:',
-          '    choices = {',
+          "init python:",
+          "    choices = {",
           '        "1": "label1",',
           '"2": "label2"',
-          '    }',
-        ].join('\n'),
+          "    }",
+        ].join("\n"),
       },
     ];
 
     const state = createGraphState();
     preParseInitialization(files, state);
-    const resolvedDict = state.globalLabelVariableDictTargets.get('choices');
+    const resolvedDict = state.globalLabelVariableDictTargets.get("choices");
     expect(resolvedDict).toBeDefined();
-    expect(resolvedDict?.get('1')).toBe('label1');
-    expect(resolvedDict?.get('2')).toBe('label2');
+    expect(resolvedDict?.get("1")).toBe("label1");
+    expect(resolvedDict?.get("2")).toBe("label2");
   });
 });
-

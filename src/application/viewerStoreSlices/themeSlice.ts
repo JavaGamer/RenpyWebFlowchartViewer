@@ -5,9 +5,9 @@
  * visibility, audio-asset cue visibility, and per-edge-kind filters.
  */
 
-import type { StateCreator } from 'zustand';
-import type { EdgeKindFilter, ThemeName, LayoutDensity } from '../../domain';
-import type { ViewerStore } from '../viewerStore';
+import type { StateCreator } from "zustand";
+import type { EdgeKindFilter, LayoutDensity, ThemeName } from "../../domain";
+import type { ViewerStore } from "../viewerStore";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -34,8 +34,8 @@ export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const defaultThemeState: ThemeSliceState = {
-  theme: 'violet',
-  layoutDensity: 'normal',
+  theme: "violet",
+  layoutDensity: "normal",
   showCallReturns: false,
   showAudioAssetCues: true,
   visibleEdgeKinds: {
@@ -50,7 +50,7 @@ export const defaultThemeState: ThemeSliceState = {
 
 export const createThemeSlice: StateCreator<
   ViewerStore,
-  [['zustand/immer', never]],
+  [["zustand/immer", never]],
   [],
   ThemeSlice
 > = (set) => ({

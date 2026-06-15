@@ -1,6 +1,6 @@
-import type { FlowEdge, FlowNode } from '../domain';
-import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import type { ParseInputFile } from '../parser/pipelineTypes';
+import type { FlowEdge, FlowNode } from "../domain";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+import type { ParseInputFile } from "../parser/pipelineTypes";
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 3 as const;
 
@@ -42,7 +42,7 @@ export interface ParseWorkerClientResult {
 
 export interface ParseRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'parse';
+  type: "parse";
   requestId: number;
   files: ParseInputFile[];
   fileCacheKeys?: string[];
@@ -65,7 +65,7 @@ export interface DialogueSearchResult {
 
 export interface SearchRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'search';
+  type: "search";
   requestId: number;
   query: string;
   nodeIds?: string[];
@@ -74,7 +74,7 @@ export interface SearchRequestMessage {
 
 export interface ParseChunkRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'parse_chunk';
+  type: "parse_chunk";
   requestId: number;
   files: ParseInputFile[];
   fileCacheKeys?: string[];
@@ -85,7 +85,7 @@ export interface ParseChunkRequestMessage {
 
 export interface FinalizeRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'finalize';
+  type: "finalize";
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -102,7 +102,7 @@ export interface FinalizeRequestMessage {
 
 export interface CancelRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'cancel';
+  type: "cancel";
   requestId: number;
 }
 
@@ -115,7 +115,7 @@ export type WorkerRequestMessage =
 
 export interface ProgressResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'progress';
+  type: "progress";
   requestId: number;
   doneFiles: number;
   totalFiles: number;
@@ -125,7 +125,7 @@ export interface ProgressResponseMessage {
 
 export interface ResultResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'result';
+  type: "result";
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -135,8 +135,12 @@ export interface ResultResponseMessage {
 }
 
 export interface ParseDiagnosticPayload {
-  code: 'dynamic_target' | 'normalization' | 'unresolved_target' | 'shadowed_label';
-  severity: 'warning' | 'error';
+  code:
+    | "dynamic_target"
+    | "normalization"
+    | "unresolved_target"
+    | "shadowed_label";
+  severity: "warning" | "error";
   message: string;
   location?: {
     chapter?: string;
@@ -148,21 +152,22 @@ export interface ParseDiagnosticPayload {
   };
   context?: {
     category?:
-      | 'invalid_node'
-      | 'duplicate_node'
-      | 'missing_edge_source'
-      | 'missing_edge_target'
-      | 'invalid_edge_kind'
-      | 'duplicate_semantic_edge'
-      | 'shadowed_label'
-      | 'shadowed_target_resolution';
+      | "invalid_node"
+      | "duplicate_node"
+      | "missing_edge_source"
+      | "missing_edge_target"
+      | "invalid_edge_kind"
+      | "duplicate_semantic_edge"
+      | "shadowed_label"
+      | "shadowed_target_resolution";
     detail?: string;
   };
   recoveryAction?: string;
 }
 
-export interface DynamicTargetParseDiagnosticPayload extends ParseDiagnosticPayload {
-  code: 'dynamic_target';
+export interface DynamicTargetParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "dynamic_target";
   location: {
     chapter: string;
     construct: string;
@@ -171,8 +176,9 @@ export interface DynamicTargetParseDiagnosticPayload extends ParseDiagnosticPayl
   };
 }
 
-export interface UnresolvedTargetParseDiagnosticPayload extends ParseDiagnosticPayload {
-  code: 'unresolved_target';
+export interface UnresolvedTargetParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "unresolved_target";
   location: {
     edgeId: string;
     sourceId: string;
@@ -180,24 +186,26 @@ export interface UnresolvedTargetParseDiagnosticPayload extends ParseDiagnosticP
   };
 }
 
-export interface NormalizationParseDiagnosticPayload extends ParseDiagnosticPayload {
-  code: 'normalization';
+export interface NormalizationParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "normalization";
   context: {
     category:
-      | 'invalid_node'
-      | 'duplicate_node'
-      | 'missing_edge_source'
-      | 'missing_edge_target'
-      | 'invalid_edge_kind'
-      | 'duplicate_semantic_edge'
-      | 'shadowed_label'
-      | 'shadowed_target_resolution';
+      | "invalid_node"
+      | "duplicate_node"
+      | "missing_edge_source"
+      | "missing_edge_target"
+      | "invalid_edge_kind"
+      | "duplicate_semantic_edge"
+      | "shadowed_label"
+      | "shadowed_target_resolution";
     detail?: string;
   };
 }
 
-export interface ShadowedLabelParseDiagnosticPayload extends ParseDiagnosticPayload {
-  code: 'shadowed_label';
+export interface ShadowedLabelParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "shadowed_label";
 }
 
 export type StrictParseDiagnosticPayload =
@@ -208,7 +216,7 @@ export type StrictParseDiagnosticPayload =
 
 export interface ErrorResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'error';
+  type: "error";
   requestId: number;
   message: string;
   elapsedMs?: number;
@@ -216,7 +224,7 @@ export interface ErrorResponseMessage {
 
 export interface SearchResultResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'search_result';
+  type: "search_result";
   requestId: number;
   results: DialogueSearchResult[];
   elapsedMs?: number;
@@ -224,7 +232,7 @@ export interface SearchResultResponseMessage {
 
 export interface ChunkResultResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'chunk_result';
+  type: "chunk_result";
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -239,7 +247,7 @@ export interface ChunkResultResponseMessage {
 
 export interface FinalizeResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
-  type: 'finalize_result';
+  type: "finalize_result";
   requestId: number;
   nodes: FlowNode[];
   edges: FlowEdge[];

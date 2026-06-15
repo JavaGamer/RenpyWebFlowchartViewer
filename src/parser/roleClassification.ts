@@ -1,5 +1,5 @@
-import type { FlowNode } from '../domain';
-import type { ParseGraphState } from './pipelineTypes';
+import type { FlowNode } from "../domain";
+import type { ParseGraphState } from "./pipelineTypes";
 
 /**
  * Assigns a specific semantic role to a flowchart node based on its AST type and graph topology.
@@ -16,9 +16,12 @@ import type { ParseGraphState } from './pipelineTypes';
  * @param node The node being classified.
  * @returns The classified NodeRole.
  */
-export function classifyNodeRole(state: ParseGraphState, node: FlowNode): FlowNode['role'] {
-  if (node.type === 'MENU') return 'menu';
-  if (node.type === 'DECISION') return 'decision';
+export function classifyNodeRole(
+  state: ParseGraphState,
+  node: FlowNode,
+): FlowNode["role"] {
+  if (node.type === "MENU") return "menu";
+  if (node.type === "DECISION") return "decision";
 
   const incoming = state.incomingByLabel.get(node.id);
   const outgoing = state.outgoingByLabel.get(node.id);
@@ -26,21 +29,20 @@ export function classifyNodeRole(state: ParseGraphState, node: FlowNode): FlowNo
   const isCalled = state.calledLabels.has(node.id);
   const isCalledFromMenuOption = state.calledFromMenuOptionTargets.has(node.id);
   const hasStoryTraffic = Boolean(
-    incoming?.has('sequence') ||
-    outgoing?.has('sequence') ||
-    incoming?.has('jump') ||
-    outgoing?.has('jump'),
+    incoming?.has("sequence") ||
+      outgoing?.has("sequence") ||
+      incoming?.has("jump") ||
+      outgoing?.has("jump"),
   );
 
   if (hasReturn && !hasStoryTraffic && !isCalled) {
-    return 'state_toggle';
+    return "state_toggle";
   }
   if (isCalledFromMenuOption && hasReturn) {
-    return 'detour';
+    return "detour";
   }
   if (isCalled && hasReturn && !hasStoryTraffic) {
-    return 'utility';
+    return "utility";
   }
-  return 'story';
+  return "story";
 }
-

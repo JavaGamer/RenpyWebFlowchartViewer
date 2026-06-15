@@ -2,7 +2,7 @@
 // browser global `console` so that @renpy/ast's tokenizer works in the browser.
 export const assert = (condition?: boolean, ...data: unknown[]): void => {
   if (!condition) {
-    console.error('Assertion failed:', ...data);
+    console.error("Assertion failed:", ...data);
   }
 };
 export const log = (...args: unknown[]) => console.log(...args);

@@ -1,7 +1,9 @@
 export class FileReadError extends Error {
   constructor(filename: string) {
-    super(`Could not read "${filename}". The file may be inaccessible or corrupted.`);
-    this.name = 'FileReadError';
+    super(
+      `Could not read "${filename}". The file may be inaccessible or corrupted.`,
+    );
+    this.name = "FileReadError";
   }
 }
 
@@ -10,7 +12,7 @@ export function readFileAsText(file: File): Promise<string> {
     const reader = new FileReader();
     const rejectRead = () => reject(new FileReadError(file.name));
     reader.onload = () => {
-      if (typeof reader.result !== 'string') {
+      if (typeof reader.result !== "string") {
         rejectRead();
         return;
       }

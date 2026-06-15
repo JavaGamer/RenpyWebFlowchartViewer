@@ -1,16 +1,16 @@
-import type { FlowNode, FlowEdge, EdgeKind } from './graph';
-import type { CSSProperties } from 'react';
-import type { Position, EdgeMarker } from '@xyflow/react';
+import type { EdgeKind, FlowEdge, FlowNode } from "./graph";
+import type { CSSProperties } from "react";
+import type { EdgeMarker, Position } from "@xyflow/react";
 
 export interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
   dialogueLines?: string[];
-  audioAssetCues?: FlowNode['audioAssetCues'];
-  nodeType: 'LABEL' | 'MENU' | 'DECISION';
+  audioAssetCues?: FlowNode["audioAssetCues"];
+  nodeType: "LABEL" | "MENU" | "DECISION";
   chapter?: string;
   parentLabelId?: string;
-  role?: FlowNode['role'];
+  role?: FlowNode["role"];
   isShadowed?: boolean;
   shadowOfId?: string;
   isTerminalOutcome?: boolean;
@@ -21,9 +21,9 @@ export interface NodeData extends Record<string, unknown> {
 
 export interface EdgeData extends Record<string, unknown> {
   label: string;
-  kind?: 'sequence' | 'jump' | 'call' | 'call_return';
-  condition?: FlowEdge['condition'];
-  timeout?: FlowEdge['timeout'];
+  kind?: "sequence" | "jump" | "call" | "call_return";
+  condition?: FlowEdge["condition"];
+  timeout?: FlowEdge["timeout"];
   conditionState?: ConditionReachability;
 }
 
@@ -47,7 +47,7 @@ export interface CanvasNode {
   width?: number;
   height?: number;
   parentId?: string;
-  extent?: 'parent' | [[number, number], [number, number]];
+  extent?: "parent" | [[number, number], [number, number]];
   expandParent?: boolean;
   ariaLabel?: string;
   focusable?: boolean;
@@ -88,12 +88,9 @@ export type DecisionNodeType = CanvasNode;
 export type LabeledEdgeType = CanvasEdge;
 
 export type EdgeKindFilter = EdgeKind;
-export type ConditionReachability = 'reachable' | 'unreachable' | 'unknown';
-export type ConditionVisibilityMode = 'fade' | 'hide';
+export type ConditionReachability = "reachable" | "unreachable" | "unknown";
+export type ConditionVisibilityMode = "fade" | "hide";
 
-export type ThemeName = 'violet' | 'highContrast' | 'colorblind' | 'dark';
-export type LayoutDirection = 'TB' | 'LR';
-export type LayoutDensity = 'compact' | 'normal' | 'spacious';
-
-
-
+export type ThemeName = "violet" | "highContrast" | "colorblind" | "dark";
+export type LayoutDirection = "TB" | "LR";
+export type LayoutDensity = "compact" | "normal" | "spacious";

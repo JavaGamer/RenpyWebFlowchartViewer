@@ -6,9 +6,9 @@
  * object properties.
  */
 
-import type { StateCreator } from 'zustand';
-import type { MockFlagValue } from '../../domain';
-import type { ViewerStore } from '../viewerStore';
+import type { StateCreator } from "zustand";
+import type { MockFlagValue } from "../../domain";
+import type { ViewerStore } from "../viewerStore";
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,11 @@ import type { ViewerStore } from '../viewerStore';
  * Set of property names forbidden as mock-flag keys to prevent prototype pollution
  * when user-supplied flag strings are written to the flags record.
  */
-export const UNSAFE_MOCK_FLAG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+export const UNSAFE_MOCK_FLAG_KEYS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
 
 /** Creates an empty mock-flags object with a null prototype to avoid pollution. */
 export function createEmptyMockFlags(): Record<string, MockFlagValue> {
@@ -53,7 +57,7 @@ export const defaultSimulationState: SimulationSliceState = {
 
 export const createSimulationSlice: StateCreator<
   ViewerStore,
-  [['zustand/immer', never]],
+  [["zustand/immer", never]],
   [],
   SimulationSlice
 > = (set) => ({

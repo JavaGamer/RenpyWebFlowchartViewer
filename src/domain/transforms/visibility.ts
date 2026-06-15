@@ -1,6 +1,18 @@
-import type { CanvasNode, CanvasEdge, NodeData, EdgeData, ConditionReachability, ConditionVisibilityMode, EdgeKindFilter, ThemeName } from '../index';
-import { evaluateConditionExpression, type MockFlagValue } from '../conditionLogic';
-import { normalizeEdgeKind } from './integrity';
+import type {
+  CanvasEdge,
+  CanvasNode,
+  ConditionReachability,
+  ConditionVisibilityMode,
+  EdgeData,
+  EdgeKindFilter,
+  NodeData,
+  ThemeName,
+} from "../index";
+import {
+  evaluateConditionExpression,
+  type MockFlagValue,
+} from "../conditionLogic";
+import { normalizeEdgeKind } from "./integrity";
 
 /**
  * Computes which nodes should be visible on the canvas based on the current
@@ -54,24 +66,27 @@ export function buildVisibleNodes(params: {
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
     const dialogueCountMatch = String(nodeData.dialogueCount).includes(query);
-    const chapterCollapsed = nodeData.chapter ? collapsedChapters[nodeData.chapter] : false;
+    const chapterCollapsed = nodeData.chapter
+      ? collapsedChapters[nodeData.chapter]
+      : false;
     const labelCollapsed = collapsedLabelChildren.has(n.id);
-    const matchesSearch =
-      query.length === 0 ||
+    const matchesSearch = query.length === 0 ||
       dialogueCountMatch ||
       (searchMatchNodeIds
         ? searchMatchNodeIds.has(n.id)
         : nodeData.label.toLowerCase().includes(query)) ||
       (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
-        (nodeData.dialogueLines ?? []).some((line) => line.toLowerCase().includes(query)));
+        (nodeData.dialogueLines ?? []).some((line) =>
+          line.toLowerCase().includes(query)
+        ));
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
     const hidden = Boolean(
       chapterCollapsed ||
-      labelCollapsed ||
-      (conditionHiddenNodeIds?.has(n.id) ?? false) ||
-      !matchesSearch ||
-      !matchesDialogue,
+        labelCollapsed ||
+        (conditionHiddenNodeIds?.has(n.id) ?? false) ||
+        !matchesSearch ||
+        !matchesDialogue,
     );
     const previous = previousById?.get(n.id);
     if (previous) {
@@ -150,20 +165,26 @@ export function buildVisibleEdges(params: {
     labelColor,
     menuColor,
     largeGraphMode,
-    conditionVisibilityMode = 'fade',
+    conditionVisibilityMode = "fade",
     edgeConditionStateById,
     previousById,
   } = params;
   const visible: CanvasEdge[] = [];
   for (const edge of edges) {
-    const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
+    const edgeData = (edge.data as EdgeData | undefined) ?? { label: "" };
     const kind = normalizeEdgeKind(edgeData.kind);
     if (!visibleEdgeKinds[kind]) continue;
-    if (!showCallReturns && kind === 'call_return') continue;
+    if (!showCallReturns && kind === "call_return") continue;
     const conditionState = edgeConditionStateById?.get(edge.id);
-    if (conditionVisibilityMode === 'hide' && conditionState === 'unreachable') continue;
-    if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
-    const edgeLabel = largeGraphMode && kind === 'sequence' ? '' : (edgeData.label ?? '');
+    if (
+      conditionVisibilityMode === "hide" && conditionState === "unreachable"
+    ) continue;
+    if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) {
+      continue;
+    }
+    const edgeLabel = largeGraphMode && kind === "sequence"
+      ? ""
+      : (edgeData.label ?? "");
 
     // Semantic edge colors and dash styles
     let stroke = edgeColor;
@@ -171,23 +192,27 @@ export function buildVisibleEdges(params: {
 
     if (edgeData.condition) {
       stroke = decisionColor ?? edgeColor;
-      baseDash = '5 3';
-    } else if (kind === 'call' || kind === 'call_return') {
+      baseDash = "5 3";
+    } else if (kind === "call" || kind === "call_return") {
       stroke = labelColor ?? edgeColor;
-      baseDash = '3 3';
-    } else if (kind === 'jump') {
+      baseDash = "3 3";
+    } else if (kind === "jump") {
       stroke = menuColor ?? edgeColor;
-      baseDash = '6 3';
+      baseDash = "6 3";
     }
 
-    const timeoutDash = edgeData.timeout?.isTimeout ? '8 4' : undefined;
+    const timeoutDash = edgeData.timeout?.isTimeout ? "8 4" : undefined;
 
     const unreachableStyle =
-      conditionVisibilityMode === 'fade' && conditionState === 'unreachable'
-        ? { opacity: 0.28, strokeDasharray: timeoutDash || baseDash ? undefined : '5 4' }
+      conditionVisibilityMode === "fade" && conditionState === "unreachable"
+        ? {
+          opacity: 0.28,
+          strokeDasharray: timeoutDash || baseDash ? undefined : "5 4",
+        }
         : {};
 
-    const finalStrokeDasharray = timeoutDash || unreachableStyle.strokeDasharray || baseDash;
+    const finalStrokeDasharray = timeoutDash ||
+      unreachableStyle.strokeDasharray || baseDash;
 
     const previous = previousById?.get(edge.id);
     const previousData = previous?.data as EdgeData | undefined;
@@ -196,7 +221,8 @@ export function buildVisibleEdges(params: {
       previousData?.label === edgeLabel &&
       previousData?.kind === kind &&
       previousData?.timeout?.isTimeout === edgeData.timeout?.isTimeout &&
-      previousData?.timeout?.durationSeconds === edgeData.timeout?.durationSeconds &&
+      previousData?.timeout?.durationSeconds ===
+        edgeData.timeout?.durationSeconds &&
       previousData?.conditionState === conditionState &&
       previous.source === edge.source &&
       previous.target === edge.target &&
@@ -260,19 +286,27 @@ export function buildConditionalVisibility(params: {
     sourceOutgoing.push(edge);
     outgoing.set(edge.source, sourceOutgoing);
 
-    const edgeData = (edge.data as EdgeData | undefined) ?? { label: '' };
+    const edgeData = (edge.data as EdgeData | undefined) ?? { label: "" };
     const condition = edgeData.condition;
     if (!condition) continue;
     for (const ref of condition.references ?? []) {
       discoveredFlagSet.add(ref);
     }
-    const evaluated = evaluateConditionExpression(condition.expression, params.mockFlags);
-    const conditionState: ConditionReachability =
-      evaluated === 'true' ? 'reachable' : evaluated === 'false' ? 'unreachable' : 'unknown';
+    const evaluated = evaluateConditionExpression(
+      condition.expression,
+      params.mockFlags,
+    );
+    const conditionState: ConditionReachability = evaluated === "true"
+      ? "reachable"
+      : evaluated === "false"
+      ? "unreachable"
+      : "unknown";
     edgeConditionStateById.set(edge.id, conditionState);
   }
 
-  const roots = Array.from(nodeIds).filter((nodeId) => (incomingCounts.get(nodeId) ?? 0) === 0);
+  const roots = Array.from(nodeIds).filter((nodeId) =>
+    (incomingCounts.get(nodeId) ?? 0) === 0
+  );
   const traversalStarts = roots.length > 0 ? roots : Array.from(nodeIds);
   const reachableNodeIds = new Set<string>();
   const stack = [...traversalStarts];
@@ -283,7 +317,7 @@ export function buildConditionalVisibility(params: {
     reachableNodeIds.add(nodeId);
     for (const edge of outgoing.get(nodeId) ?? []) {
       const edgeState = edgeConditionStateById.get(edge.id);
-      if (edgeState === 'unreachable') continue;
+      if (edgeState === "unreachable") continue;
       stack.push(edge.target);
     }
   }
@@ -298,6 +332,9 @@ export function buildConditionalVisibility(params: {
   return {
     edgeConditionStateById,
     hiddenNodeIds,
-    discoveredFlags: Array.from(discoveredFlagSet).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    discoveredFlags: Array.from(discoveredFlagSet).sort((
+      a,
+      b,
+    ) => (a < b ? -1 : a > b ? 1 : 0)),
   };
 }

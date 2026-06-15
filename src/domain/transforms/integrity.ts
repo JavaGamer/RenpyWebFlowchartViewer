@@ -1,10 +1,15 @@
-import type { FlowNode, FlowEdge, EdgeKindFilter } from '../index';
+import type { EdgeKindFilter, FlowEdge, FlowNode } from "../index";
 
 /**
  * The complete list of recognised edge kind strings.
  * Used for runtime validation of edge kind values before they enter the render layer.
  */
-export const EDGE_KIND_FILTERS: ReadonlyArray<EdgeKindFilter> = ['sequence', 'jump', 'call', 'call_return'];
+export const EDGE_KIND_FILTERS: ReadonlyArray<EdgeKindFilter> = [
+  "sequence",
+  "jump",
+  "call",
+  "call_return",
+];
 
 /**
  * Coerces an arbitrary edge kind string to a valid EdgeKindFilter value.
@@ -14,7 +19,7 @@ export function normalizeEdgeKind(kind: string | undefined): EdgeKindFilter {
   if (kind && EDGE_KIND_FILTERS.includes(kind as EdgeKindFilter)) {
     return kind as EdgeKindFilter;
   }
-  return 'sequence';
+  return "sequence";
 }
 
 /**
@@ -32,7 +37,10 @@ export function normalizeEdgeKind(kind: string | undefined): EdgeKindFilter {
  * @param rawEdges Array of FlowEdges from the parser output.
  * @returns A cleaned `{ nodes, edges }` pair ready for layout.
  */
-export function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
+export function resolveGraphIntegrity(
+  rawNodes: FlowNode[],
+  rawEdges: FlowEdge[],
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const nodeMap = new Map<string, FlowNode>();
   const nodes: FlowNode[] = [];
   for (const node of rawNodes) {
@@ -48,10 +56,10 @@ export function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]
     if (!nodeMap.has(edge.source)) {
       const sourcePlaceholder: FlowNode = {
         id: edge.source,
-        type: 'LABEL',
+        type: "LABEL",
         label: `(unresolved) ${edge.source}`,
         dialogueCount: 0,
-        chapter: '__unresolved__',
+        chapter: "__unresolved__",
       };
       nodeMap.set(edge.source, sourcePlaceholder);
       nodes.push(sourcePlaceholder);
@@ -59,19 +67,25 @@ export function resolveGraphIntegrity(rawNodes: FlowNode[], rawEdges: FlowEdge[]
     if (!nodeMap.has(edge.target)) {
       const targetPlaceholder: FlowNode = {
         id: edge.target,
-        type: 'LABEL',
+        type: "LABEL",
         label: `(unresolved) ${edge.target}`,
         dialogueCount: 0,
-        chapter: '__unresolved__',
+        chapter: "__unresolved__",
       };
       nodeMap.set(edge.target, targetPlaceholder);
       nodes.push(targetPlaceholder);
     }
     const normalizedKind = normalizeEdgeKind(edge.kind);
     const timeoutKey = edge.timeout?.isTimeout
-      ? `timeout:${edge.timeout.durationSeconds === undefined ? 'unknown' : edge.timeout.durationSeconds}`
-      : 'normal';
-    const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${edge.label ?? ''}|${timeoutKey}`;
+      ? `timeout:${
+        edge.timeout.durationSeconds === undefined
+          ? "unknown"
+          : edge.timeout.durationSeconds
+      }`
+      : "normal";
+    const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${
+      edge.label ?? ""
+    }|${timeoutKey}`;
     if (seenEdgeKeys.has(semanticKey)) continue;
     seenEdgeKeys.add(semanticKey);
     edges.push({

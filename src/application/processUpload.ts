@@ -6,24 +6,36 @@
  * and real-time status reporting.
  */
 
-import type { RefObject } from 'react';
-import { compareDeterministicStrings, type FlowEdge, type FlowNode } from '../domain';
-import { readFileAsText, type ParseDiagnosticPayload } from '../infrastructure';
+import type { RefObject } from "react";
+import {
+  compareDeterministicStrings,
+  type FlowEdge,
+  type FlowNode,
+} from "../domain";
+import { type ParseDiagnosticPayload, readFileAsText } from "../infrastructure";
 
-import { validateRpyUpload } from './uploadValidation';
-import type { AppActions, DialogueSearchMode } from './appStore';
-import { toFileReadErrorMessage, toParseErrorMessage } from './errorMessages';
-import type { ParseService } from './parseService';
-import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import type { UploadedFile, UploadFileStatus } from './uploadTypes';
-import { extractRpyFilesFromZip } from './zipExtractor';
+import { validateRpyUpload } from "./uploadValidation";
+import type { AppActions, DialogueSearchMode } from "./appStore";
+import { toFileReadErrorMessage, toParseErrorMessage } from "./errorMessages";
+import type { ParseService } from "./parseService";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+import type { UploadedFile, UploadFileStatus } from "./uploadTypes";
+import { extractRpyFilesFromZip } from "./zipExtractor";
 
 /**
  * Dependency bag injected into `createProcessUpload`.
  */
 export interface ProcessUploadDeps {
   parseService: ParseService;
-  actions: Pick<AppActions, 'startReading' | 'startParsing' | 'setProgress' | 'partialParseSuccess' | 'parseSuccess' | 'fail'>;
+  actions: Pick<
+    AppActions,
+    | "startReading"
+    | "startParsing"
+    | "setProgress"
+    | "partialParseSuccess"
+    | "parseSuccess"
+    | "fail"
+  >;
   /** Active run ID ref used to abort stale upload sequences when a new upload begins. */
   activeRunIdRef: RefObject<number>;
   /** Ref holding the AbortController passed to the parse worker so it can be cancelled. */
@@ -33,14 +45,20 @@ export interface ProcessUploadDeps {
   /** Called once the first parse batch is dispatched. */
   onParseStarted?: () => void;
   /** Called after the final parse result is committed; useful for analytics. */
-  onParseMeasured?: (data: { fileCount: number; nodeCount: number; edgeCount: number }) => void;
+  onParseMeasured?: (
+    data: { fileCount: number; nodeCount: number; edgeCount: number },
+  ) => void;
   dialogueSearchMode?: DialogueSearchMode;
   parserVariant?: ParserVariant;
   customScreenActionRules?: ScreenActionRule[];
-  
+
   // Real-time status callbacks
   onFilesDiscovered?: (files: UploadFileStatus[]) => void;
-  onFileStatusUpdate?: (id: string, status: UploadFileStatus['status'], error?: string) => void;
+  onFileStatusUpdate?: (
+    id: string,
+    status: UploadFileStatus["status"],
+    error?: string,
+  ) => void;
 }
 
 /** Maximum number of files to read concurrently per read pass. */
@@ -52,14 +70,17 @@ const LARGE_PROJECT_THRESHOLD = 200;
 
 /** Extracts the folder-relative path from a `File` or `UploadedFile`. */
 function getFileRelativePath(file: File | UploadedFile): string | undefined {
-  return file.webkitRelativePath ? file.webkitRelativePath.replace(/\\/g, '/') : undefined;
+  return file.webkitRelativePath
+    ? file.webkitRelativePath.replace(/\\/g, "/")
+    : undefined;
 }
 
 /** Deterministic sort comparator for uploaded files. */
 function compareUploadFiles(a: UploadedFile, b: UploadedFile): number {
   const aIdentity = a.webkitRelativePath ?? a.name;
   const bIdentity = b.webkitRelativePath ?? b.name;
-  return compareDeterministicStrings(aIdentity, bIdentity) || compareDeterministicStrings(a.name, b.name);
+  return compareDeterministicStrings(aIdentity, bIdentity) ||
+    compareDeterministicStrings(a.name, b.name);
 }
 
 /**
@@ -76,14 +97,16 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     onReadMeasured,
     onParseStarted,
     onParseMeasured,
-    dialogueSearchMode = 'auto',
-    parserVariant = 'renpy',
+    dialogueSearchMode = "auto",
+    parserVariant = "renpy",
     customScreenActionRules = [],
     onFilesDiscovered,
     onFileStatusUpdate,
   } = deps;
 
-  return async function processUpload(files: FileList | UploadedFile[] | null): Promise<void> {
+  return async function processUpload(
+    files: FileList | UploadedFile[] | null,
+  ): Promise<void> {
     if (!files || files.length === 0) {
       return;
     }
@@ -116,7 +139,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     try {
       for (const file of initialFiles) {
         if (!isActiveRun()) return;
-        if (file.name.toLowerCase().endsWith('.zip')) {
+        if (file.name.toLowerCase().endsWith(".zip")) {
           const extracted = await extractRpyFilesFromZip(file);
           consolidatedFiles.push(...extracted);
         } else {
@@ -149,7 +172,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       name: f.name,
       size: f.size,
       relativePath: f.webkitRelativePath,
-      status: 'pending',
+      status: "pending",
     }));
     onFilesDiscovered?.(fileStatuses);
 
@@ -159,14 +182,21 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     let hasStartedParsing = false;
 
     try {
-      const shouldUseChunking = orderedRpyFiles.length >= LARGE_PROJECT_THRESHOLD;
+      const shouldUseChunking =
+        orderedRpyFiles.length >= LARGE_PROJECT_THRESHOLD;
       const effectiveDialogueMode =
-        dialogueSearchMode === 'auto' && shouldUseChunking ? 'countOnly' : dialogueSearchMode;
-      const shouldCaptureDialogueLines = effectiveDialogueMode !== 'countOnly';
+        dialogueSearchMode === "auto" && shouldUseChunking
+          ? "countOnly"
+          : dialogueSearchMode;
+      const shouldCaptureDialogueLines = effectiveDialogueMode !== "countOnly";
       let readCount = 0;
       let parsedFileCount = 0;
 
-      for (let offset = 0; offset < orderedRpyFiles.length; offset += READ_BATCH_SIZE) {
+      for (
+        let offset = 0;
+        offset < orderedRpyFiles.length;
+        offset += READ_BATCH_SIZE
+      ) {
         if (!isActiveRun()) return;
         const batch = orderedRpyFiles.slice(offset, offset + READ_BATCH_SIZE);
 
@@ -174,8 +204,10 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
           batch.map(async (f) => {
             const id = f.webkitRelativePath || f.name;
             try {
-              onFileStatusUpdate?.(id, 'reading');
-              const content = f.file ? await readFileAsText(f.file) : await f.text();
+              onFileStatusUpdate?.(id, "reading");
+              const content = f.file
+                ? await readFileAsText(f.file)
+                : await f.text();
               return {
                 name: f.name,
                 relativePath: f.webkitRelativePath,
@@ -184,12 +216,14 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             } catch (err) {
               onFileStatusUpdate?.(
                 id,
-                'error',
-                `Failed to read: ${err instanceof Error ? err.message : String(err)}`
+                "error",
+                `Failed to read: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
               );
               throw err;
             }
-          })
+          }),
         );
 
         readCount += inputs.length;
@@ -199,22 +233,34 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         // Mark read files as parsing
         batch.forEach((f) => {
           const id = f.webkitRelativePath || f.name;
-          onFileStatusUpdate?.(id, 'parsing');
+          onFileStatusUpdate?.(id, "parsing");
         });
 
         try {
           if (shouldUseChunking) {
-            const isLastReadBatch = offset + batch.length >= orderedRpyFiles.length;
-            for (let parseOffset = 0; parseOffset < inputs.length; parseOffset += PARSE_BATCH_SIZE) {
+            const isLastReadBatch =
+              offset + batch.length >= orderedRpyFiles.length;
+            for (
+              let parseOffset = 0;
+              parseOffset < inputs.length;
+              parseOffset += PARSE_BATCH_SIZE
+            ) {
               if (!isActiveRun()) return;
               if (!hasStartedParsing) {
                 hasStartedParsing = true;
                 onParseStarted?.();
                 actions.startParsing();
               }
-              const parseChunk = inputs.slice(parseOffset, parseOffset + PARSE_BATCH_SIZE);
-              const chunkFiles = batch.slice(parseOffset, parseOffset + PARSE_BATCH_SIZE);
-              const isLastParseChunkInBatch = parseOffset + parseChunk.length >= inputs.length;
+              const parseChunk = inputs.slice(
+                parseOffset,
+                parseOffset + PARSE_BATCH_SIZE,
+              );
+              const chunkFiles = batch.slice(
+                parseOffset,
+                parseOffset + PARSE_BATCH_SIZE,
+              );
+              const isLastParseChunkInBatch =
+                parseOffset + parseChunk.length >= inputs.length;
               const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
               const baseCount = parsedFileCount;
 
@@ -227,11 +273,16 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 parserVariant,
                 screenActionRules: customScreenActionRules,
                 signal: controller.signal,
-                maxParallelFiles: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4,
+                maxParallelFiles: typeof navigator !== "undefined"
+                  ? navigator.hardwareConcurrency
+                  : 4,
                 onProgress: (progress) => {
                   if (!isActiveRun()) return;
                   actions.setProgress({
-                    doneFiles: Math.min(baseCount + progress.doneFiles, orderedRpyFiles.length),
+                    doneFiles: Math.min(
+                      baseCount + progress.doneFiles,
+                      orderedRpyFiles.length,
+                    ),
                     totalFiles: orderedRpyFiles.length,
                     currentFile: progress.currentFile,
                   });
@@ -241,9 +292,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                     const f = chunkFiles[i]!;
                     const id = f.webkitRelativePath || f.name;
                     if (id === progress.currentFile) {
-                      onFileStatusUpdate?.(id, 'parsing');
+                      onFileStatusUpdate?.(id, "parsing");
                     } else if (i < progress.doneFiles) {
-                      onFileStatusUpdate?.(id, 'done');
+                      onFileStatusUpdate?.(id, "done");
                     }
                   }
                 },
@@ -252,7 +303,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   parsedNodes = partial.nodes;
                   parsedEdges = partial.edges;
                   parsedDiagnostics = partial.diagnostics ?? parsedDiagnostics;
-                  actions.partialParseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
+                  actions.partialParseSuccess(
+                    parsedNodes,
+                    parsedEdges,
+                    parsedDiagnostics,
+                  );
                 },
               });
 
@@ -264,12 +319,13 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               // Mark all files in this chunk as successfully completed
               chunkFiles.forEach((f) => {
                 const id = f.webkitRelativePath || f.name;
-                onFileStatusUpdate?.(id, 'done');
+                onFileStatusUpdate?.(id, "done");
               });
             }
           } else {
             const isFirstReadBatch = offset === 0;
-            const isLastReadBatch = offset + batch.length >= orderedRpyFiles.length;
+            const isLastReadBatch =
+              offset + batch.length >= orderedRpyFiles.length;
             if (!hasStartedParsing) {
               hasStartedParsing = true;
               onParseStarted?.();
@@ -286,11 +342,16 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               parserVariant,
               screenActionRules: customScreenActionRules,
               signal: controller.signal,
-              maxParallelFiles: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4,
+              maxParallelFiles: typeof navigator !== "undefined"
+                ? navigator.hardwareConcurrency
+                : 4,
               onProgress: (progress) => {
                 if (!isActiveRun()) return;
                 actions.setProgress({
-                  doneFiles: Math.min(baseCount + progress.doneFiles, orderedRpyFiles.length),
+                  doneFiles: Math.min(
+                    baseCount + progress.doneFiles,
+                    orderedRpyFiles.length,
+                  ),
                   totalFiles: orderedRpyFiles.length,
                   currentFile: progress.currentFile,
                 });
@@ -300,9 +361,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   const f = batch[i]!;
                   const id = f.webkitRelativePath || f.name;
                   if (id === progress.currentFile) {
-                    onFileStatusUpdate?.(id, 'parsing');
+                    onFileStatusUpdate?.(id, "parsing");
                   } else if (i < progress.doneFiles) {
-                    onFileStatusUpdate?.(id, 'done');
+                    onFileStatusUpdate?.(id, "done");
                   }
                 }
               },
@@ -312,12 +373,16 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             parsedEdges = result.edges;
             parsedDiagnostics = result.diagnostics ?? parsedDiagnostics;
             parsedFileCount += inputs.length;
-            actions.partialParseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
+            actions.partialParseSuccess(
+              parsedNodes,
+              parsedEdges,
+              parsedDiagnostics,
+            );
 
             // Mark all files in this batch as successfully completed
             batch.forEach((f) => {
               const id = f.webkitRelativePath || f.name;
-              onFileStatusUpdate?.(id, 'done');
+              onFileStatusUpdate?.(id, "done");
             });
           }
         } catch (err: unknown) {
@@ -325,7 +390,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
           // Mark files currently in batch as error
           batch.forEach((f) => {
             const id = f.webkitRelativePath || f.name;
-            onFileStatusUpdate?.(id, 'error', String(err));
+            onFileStatusUpdate?.(id, "error", String(err));
           });
           actions.fail(toParseErrorMessage(err));
           return;

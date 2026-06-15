@@ -4,13 +4,17 @@
  * Selective client-side decompression of .rpy files from .zip archives.
  */
 
-import { unzip, strFromU8 } from 'fflate';
-import type { UploadedFile } from './uploadTypes';
+import { strFromU8, unzip } from "fflate";
+import type { UploadedFile } from "./uploadTypes";
 
-export async function extractRpyFilesFromZip(zipFile: UploadedFile): Promise<UploadedFile[]> {
+export async function extractRpyFilesFromZip(
+  zipFile: UploadedFile,
+): Promise<UploadedFile[]> {
   const nativeFile = zipFile.file;
   if (!nativeFile) {
-    throw new Error(`Cannot decompress ZIP "${zipFile.name}": underlying File object is missing.`);
+    throw new Error(
+      `Cannot decompress ZIP "${zipFile.name}": underlying File object is missing.`,
+    );
   }
 
   const buffer = await nativeFile.arrayBuffer();
@@ -20,7 +24,7 @@ export async function extractRpyFilesFromZip(zipFile: UploadedFile): Promise<Upl
     unzip(
       zipData,
       {
-        filter: (file) => file.name.toLowerCase().endsWith('.rpy'),
+        filter: (file) => file.name.toLowerCase().endsWith(".rpy"),
       },
       (err, unzipped) => {
         if (err) {
@@ -28,18 +32,20 @@ export async function extractRpyFilesFromZip(zipFile: UploadedFile): Promise<Upl
           return;
         }
 
-        const files: UploadedFile[] = Object.entries(unzipped).map(([path, data]) => {
-          const parts = path.split('/');
-          const name = parts[parts.length - 1];
-          return {
-            name,
-            size: data.length,
-            webkitRelativePath: path,
-            text: async () => strFromU8(data),
-          };
-        });
+        const files: UploadedFile[] = Object.entries(unzipped).map(
+          ([path, data]) => {
+            const parts = path.split("/");
+            const name = parts[parts.length - 1];
+            return {
+              name,
+              size: data.length,
+              webkitRelativePath: path,
+              text: async () => strFromU8(data),
+            };
+          },
+        );
         resolve(files);
-      }
+      },
     );
   });
 }

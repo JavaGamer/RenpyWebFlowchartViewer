@@ -1,12 +1,22 @@
-import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { TokenTree, TreeNode } from '@renpy/ast/out/tokenizer/token-definitions';
-import type { ParseGraphState, ParseScanState, TokenMetaFlags } from './pipelineTypes';
-import { analyzeTokenMetaInto, createEmptyTokenMeta } from './tokenMeta';
-import { maybeUpdateConditionalState } from './scanTransitions';
-import { handleToken } from './tokenHandling';
-import { PARSER_TOKENS } from './parserTokens';
-import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import { toScreenActionRuleMap, type ScreenActionKind } from '../config/parserRules';
+import type { TextDocument } from "vscode-languageserver-textdocument";
+import type {
+  TokenTree,
+  TreeNode,
+} from "@renpy/ast/out/tokenizer/token-definitions";
+import type {
+  ParseGraphState,
+  ParseScanState,
+  TokenMetaFlags,
+} from "./pipelineTypes";
+import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta";
+import { maybeUpdateConditionalState } from "./scanTransitions";
+import { handleToken } from "./tokenHandling";
+import { PARSER_TOKENS } from "./parserTokens";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+import {
+  type ScreenActionKind,
+  toScreenActionRuleMap,
+} from "../config/parserRules";
 
 /**
  * Represents a flattened token-like structure extracted from the AST tree.
@@ -52,7 +62,7 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.kwScreen,
   PARSER_TOKENS.metaItemAccess,
   PARSER_TOKENS.metaFunctionCall,
-].filter((t): t is number => typeof t === 'number'));
+].filter((t): t is number => typeof t === "number"));
 
 /**
  * Computes and caches the indent of a specific line in the TextDocument.
@@ -63,7 +73,6 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
  * @param cache Map containing cached line indent results.
  * @returns The length of the leading whitespace characters on the line.
  */
-
 
 /**
  * Computes and caches the indent of a specific line in the TextDocument.
@@ -84,12 +93,10 @@ function getLineIndent(
   if (cached !== undefined) {
     return cached;
   }
-  const line = docLines
-    ? (docLines[lineNumber] ?? '')
-    : document.getText({
-        start: { line: lineNumber, character: 0 },
-        end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
-      });
+  const line = docLines ? (docLines[lineNumber] ?? "") : document.getText({
+    start: { line: lineNumber, character: 0 },
+    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
+  });
   let indent = 0;
   const len = line.length;
   while (indent < len) {
@@ -121,12 +128,10 @@ function getLineText(
   if (cached !== undefined) {
     return cached;
   }
-  const line = docLines
-    ? (docLines[lineNumber] ?? '')
-    : document.getText({
-        start: { line: lineNumber, character: 0 },
-        end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
-      });
+  const line = docLines ? (docLines[lineNumber] ?? "") : document.getText({
+    start: { line: lineNumber, character: 0 },
+    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
+  });
   cache.set(lineNumber, line);
   return line;
 }
@@ -158,8 +163,8 @@ function getConditionalLogicalLine(
   let logicalText = getLineText(document, lineNumber, lineTextCache, docLines);
   let currentLine = lineNumber;
   let maxLine = lineNumber;
-  const delimiterStack: Array<')' | ']' | '}'> = [];
-  let activeQuote: '"' | '\'' | null = null;
+  const delimiterStack: Array<")" | "]" | "}"> = [];
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   let inComment = false;
   let explicitContinuation = false;
@@ -168,20 +173,23 @@ function getConditionalLogicalLine(
   const processLine = (lineText: string) => {
     let lastSignificantCharOutsideComment: string | null = null;
     for (let i = 0; i < lineText.length; i += 1) {
-      const char = lineText[i] ?? '';
+      const char = lineText[i] ?? "";
       if (inComment) {
         continue;
       }
 
       if (activeQuote) {
-        if (char === '\\') {
+        if (char === "\\") {
           if (i + 1 < lineText.length) {
             i += 1; // Skip escaped character
           }
           continue;
         }
         if (tripleQuoted) {
-          if (char === activeQuote && lineText[i + 1] === activeQuote && lineText[i + 2] === activeQuote) {
+          if (
+            char === activeQuote && lineText[i + 1] === activeQuote &&
+            lineText[i + 2] === activeQuote
+          ) {
             i += 2;
             activeQuote = null;
             tripleQuoted = false;
@@ -194,48 +202,62 @@ function getConditionalLogicalLine(
         continue;
       }
 
-      if (char === '#') {
+      if (char === "#") {
         inComment = true;
         continue;
       }
-      if ((char === '"' || char === '\'') && lineText[i + 1] === char && lineText[i + 2] === char) {
+      if (
+        (char === '"' || char === "'") && lineText[i + 1] === char &&
+        lineText[i + 2] === char
+      ) {
         activeQuote = char;
         tripleQuoted = true;
         i += 2;
         continue;
       }
-      if (char === '"' || char === '\'') {
+      if (char === '"' || char === "'") {
         activeQuote = char;
         tripleQuoted = false;
         continue;
       }
 
-      if (char === '(') {
-        delimiterStack.push(')');
-      } else if (char === '[') {
-        delimiterStack.push(']');
-      } else if (char === '{') {
-        delimiterStack.push('}');
-      } else if (char === ')' || char === ']' || char === '}') {
+      if (char === "(") {
+        delimiterStack.push(")");
+      } else if (char === "[") {
+        delimiterStack.push("]");
+      } else if (char === "{") {
+        delimiterStack.push("}");
+      } else if (char === ")" || char === "]" || char === "}") {
         if (char === delimiterStack[delimiterStack.length - 1]) {
           delimiterStack.pop();
         }
       }
 
-      if (!(char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f' || char === '\v')) {
+      if (
+        !(char === " " || char === "\t" || char === "\n" || char === "\r" ||
+          char === "\f" || char === "\v")
+      ) {
         lastSignificantCharOutsideComment = char;
       }
     }
     // Check if the line ends with an explicit backslash continuation character
-    explicitContinuation = lastSignificantCharOutsideComment === '\\';
+    explicitContinuation = lastSignificantCharOutsideComment === "\\";
     inComment = false;
   };
 
   processLine(logicalText);
   // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
-  while ((explicitContinuation || delimiterStack.length > 0) && currentLine + 1 < document.lineCount) {
+  while (
+    (explicitContinuation || delimiterStack.length > 0) &&
+    currentLine + 1 < document.lineCount
+  ) {
     currentLine += 1;
-    const nextLine = getLineText(document, currentLine, lineTextCache, docLines);
+    const nextLine = getLineText(
+      document,
+      currentLine,
+      lineTextCache,
+      docLines,
+    );
     logicalText += `\n${nextLine}`;
     processLine(nextLine);
     maxLine = currentLine;
@@ -269,24 +291,53 @@ export function processFlatToken(
   docLines?: readonly string[],
 ): void {
   const type = token.type as number;
-  const meta = analyzeTokenMetaInto(token.metaTokens as Iterable<number>, createEmptyTokenMeta());
-  const screenActionRuleMap = precomputedScreenActionRuleMap ?? toScreenActionRuleMap(parserVariant, screenActionRules);
+  const meta = analyzeTokenMetaInto(
+    token.metaTokens as Iterable<number>,
+    createEmptyTokenMeta(),
+  );
+  const screenActionRuleMap = precomputedScreenActionRuleMap ??
+    toScreenActionRuleMap(parserVariant, screenActionRules);
   let tokenText: string | undefined;
   const val = (): string => {
     if (tokenText === undefined) {
       const raw = token.getValue(document);
-      tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
+      tokenText = type === PARSER_TOKENS.literalString
+        ? normalizeLiteralString(raw)
+        : raw;
     }
     return tokenText;
   };
   const menuDepth = meta.menuDepth;
-  const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache, docLines);
-  const lineText = getLineText(document, token.startPos.line, lineTextCache, docLines);
+  const lineIndent = getLineIndent(
+    document,
+    token.startPos.line,
+    lineIndentCache,
+    docLines,
+  );
+  const lineText = getLineText(
+    document,
+    token.startPos.line,
+    lineTextCache,
+    docLines,
+  );
   const conditionalText = type === PARSER_TOKENS.kwConditional
-    ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache, docLines)
+    ? getConditionalLogicalLine(
+      document,
+      token.startPos.line,
+      lineTextCache,
+      conditionalLogicalLineCache,
+      docLines,
+    )
     : lineText;
 
-  maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
+  maybeUpdateConditionalState(
+    scanState,
+    type,
+    val,
+    lineIndent,
+    conditionalText,
+    token.startPos.line,
+  );
   handleToken(state, scanState, {
     type,
     meta,
@@ -320,7 +371,8 @@ function normalizeLiteralString(raw: string): string {
 
   const quoteChar = raw[start]!;
   // Detect triple-quote
-  const isTriple = start + 2 < len && raw[start + 1] === quoteChar && raw[start + 2] === quoteChar;
+  const isTriple = start + 2 < len && raw[start + 1] === quoteChar &&
+    raw[start + 2] === quoteChar;
   const quoteLen = isTriple ? 3 : 1;
   const contentStart = start + quoteLen;
   const expectedEnd = isTriple ? quoteChar + quoteChar + quoteChar : quoteChar;
@@ -357,25 +409,27 @@ function traverseAndProcess(
     const type = token.type as number;
     if (RELEVANT_TOKEN_TYPES.has(type)) {
       analyzeTokenMetaInto(metaStack, meta);
-      
+
       let tokenText: string | undefined;
       const val = (): string => {
         if (tokenText === undefined) {
           const raw = token.getValue(document);
-          tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
+          tokenText = type === PARSER_TOKENS.literalString
+            ? normalizeLiteralString(raw)
+            : raw;
         }
         return tokenText;
       };
 
       const menuDepth = meta.menuDepth;
       const lineNum = token.startPos.line;
-      
+
       let lineText = lineTextCache.get(lineNum);
       if (lineText === undefined) {
-        lineText = docLines[lineNum] ?? '';
+        lineText = docLines[lineNum] ?? "";
         lineTextCache.set(lineNum, lineText);
       }
-      
+
       let lineIndent = lineIndentCache.get(lineNum);
       if (lineIndent === undefined) {
         let indent = 0;
@@ -392,10 +446,23 @@ function traverseAndProcess(
       }
 
       const conditionalText = type === PARSER_TOKENS.kwConditional
-        ? getConditionalLogicalLine(document, lineNum, lineTextCache, conditionalLogicalLineCache, docLines)
+        ? getConditionalLogicalLine(
+          document,
+          lineNum,
+          lineTextCache,
+          conditionalLogicalLineCache,
+          docLines,
+        )
         : lineText;
 
-      maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, lineNum);
+      maybeUpdateConditionalState(
+        scanState,
+        type,
+        val,
+        lineIndent,
+        conditionalText,
+        lineNum,
+      );
       handleToken(state, scanState, {
         type,
         meta,
@@ -463,7 +530,10 @@ export function processTokenTreeStream(
   sceneSplitDialogueThreshold?: number,
 ): void {
   const meta = createEmptyTokenMeta();
-  const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
+  const screenActionRuleMap = toScreenActionRuleMap(
+    parserVariant,
+    screenActionRules,
+  );
   const lineIndentCache = new Map<number, number>();
   const lineTextCache = new Map<number, string>();
   const conditionalLogicalLineCache = new Map<number, string>();
@@ -505,7 +575,10 @@ export function processFlatTokens(
   sceneSplitDialogueThreshold?: number,
 ): void {
   const meta = createEmptyTokenMeta();
-  const screenActionRuleMap = toScreenActionRuleMap(parserVariant, screenActionRules);
+  const screenActionRuleMap = toScreenActionRuleMap(
+    parserVariant,
+    screenActionRules,
+  );
   const lineIndentCache = new Map<number, number>();
   const lineTextCache = new Map<number, string>();
   const conditionalLogicalLineCache = new Map<number, string>();
@@ -523,18 +596,43 @@ export function processFlatTokens(
     const val = (): string => {
       if (tokenText === undefined) {
         const raw = token.getValue(document);
-        tokenText = type === PARSER_TOKENS.literalString ? normalizeLiteralString(raw) : raw;
+        tokenText = type === PARSER_TOKENS.literalString
+          ? normalizeLiteralString(raw)
+          : raw;
       }
       return tokenText;
     };
     const menuDepth = meta.menuDepth;
-    const lineIndent = getLineIndent(document, token.startPos.line, lineIndentCache, docLines);
-    const lineText = getLineText(document, token.startPos.line, lineTextCache, docLines);
+    const lineIndent = getLineIndent(
+      document,
+      token.startPos.line,
+      lineIndentCache,
+      docLines,
+    );
+    const lineText = getLineText(
+      document,
+      token.startPos.line,
+      lineTextCache,
+      docLines,
+    );
     const conditionalText = type === PARSER_TOKENS.kwConditional
-      ? getConditionalLogicalLine(document, token.startPos.line, lineTextCache, conditionalLogicalLineCache, docLines)
+      ? getConditionalLogicalLine(
+        document,
+        token.startPos.line,
+        lineTextCache,
+        conditionalLogicalLineCache,
+        docLines,
+      )
       : lineText;
 
-    maybeUpdateConditionalState(scanState, type, val, lineIndent, conditionalText, token.startPos.line);
+    maybeUpdateConditionalState(
+      scanState,
+      type,
+      val,
+      lineIndent,
+      conditionalText,
+      token.startPos.line,
+    );
     handleToken(state, scanState, {
       type,
       meta,
@@ -549,5 +647,3 @@ export function processFlatTokens(
     });
   }
 }
-
-

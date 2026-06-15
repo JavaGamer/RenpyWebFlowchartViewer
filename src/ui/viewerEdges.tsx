@@ -1,6 +1,11 @@
-import { memo } from 'react';
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
-import type { LabeledEdgeType } from '../domain';
+import { memo } from "react";
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  type EdgeProps,
+  getBezierPath,
+} from "@xyflow/react";
+import type { LabeledEdgeType } from "../domain";
 
 export const LabeledEdge = memo(function LabeledEdge({
   id,
@@ -30,10 +35,11 @@ export const LabeledEdge = memo(function LabeledEdge({
         <EdgeLabelRenderer>
           <div
             style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'all',
-              opacity: data.conditionState === 'unreachable' ? 0.45 : 1,
+              position: "absolute",
+              transform:
+                `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: "all",
+              opacity: data.conditionState === "unreachable" ? 0.45 : 1,
             }}
             className="bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[10px] text-gray-600 max-w-[120px] truncate shadow-sm nodrag nopan"
           >

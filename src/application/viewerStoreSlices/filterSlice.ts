@@ -7,9 +7,9 @@
  * visibility mode.
  */
 
-import type { StateCreator } from 'zustand';
-import type { ConditionVisibilityMode, LayoutDirection } from '../../domain';
-import type { ViewerStore } from '../viewerStore';
+import type { StateCreator } from "zustand";
+import type { ConditionVisibilityMode, LayoutDirection } from "../../domain";
+import type { ViewerStore } from "../viewerStore";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -46,22 +46,22 @@ export type FilterSlice = FilterSliceState & FilterSliceActions;
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const defaultFilterState: FilterSliceState = {
-  layoutDirection: 'TB',
+  layoutDirection: "TB",
   minDialogue: 0,
   collapsedChapters: {},
   collapsedParentLabels: {},
   largeGraphModeOverride: null,
   showAdvancedControls: false,
   showAllLabelSubgraphToggles: false,
-  labelSubgraphSearchInput: '',
-  conditionVisibilityMode: 'fade',
+  labelSubgraphSearchInput: "",
+  conditionVisibilityMode: "fade",
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
 
 export const createFilterSlice: StateCreator<
   ViewerStore,
-  [['zustand/immer', never]],
+  [["zustand/immer", never]],
   [],
   FilterSlice
 > = (set) => ({

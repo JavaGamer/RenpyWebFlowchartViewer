@@ -8,55 +8,57 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
-import { saveAs } from 'file-saver';
-import { Header, DiagnosticsSection, UploadArea, FlowchartViewer } from './ui';
-import { createPerfTracker, preWarmLayoutWorker } from './infrastructure';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { saveAs } from "file-saver";
+import { DiagnosticsSection, FlowchartViewer, Header, UploadArea } from "./ui";
+import { createPerfTracker, preWarmLayoutWorker } from "./infrastructure";
 import {
-  useAppStore,
-  useParserRuleSettingsStore,
   buildDebugBundle,
   buildIssueDraftUrl,
-  workerParseService,
   createProcessUpload,
+  type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   toDebugBundleBlob,
-  type DebugBundlePrivacyOptions,
-  useTelemetryStore,
-  type UploadFileStatus,
   type UploadedFile,
+  type UploadFileStatus,
+  useAppStore,
+  useParserRuleSettingsStore,
+  useTelemetryStore,
   useViewerStore,
-} from './application';
-import { cn } from './ui/utils/cn';
-import {
-  getParserVariantPlugins,
-} from './config/parserRules';
+  workerParseService,
+} from "./application";
+import { cn } from "./ui/utils/cn";
+import { getParserVariantPlugins } from "./config/parserRules";
 
 export default function App() {
-  const perf = useMemo(() => createPerfTracker('app', {
-    onEvent: (event) => {
-      const store = useTelemetryStore.getState();
-      if (event.metric === 'read_files_ms') {
-        store.recordRead(event.ms);
-        if (typeof event.detail?.files === 'number') {
-          store.setFileCount(event.detail.files);
-        }
-      } else if (event.metric === 'parse_ms') {
-        store.recordParse(event.ms, event.detail as { files?: number; nodes?: number; edges?: number });
-        if (typeof event.detail?.nodes === 'number') {
-          store.setGraphMetrics(
-            event.detail.nodes as number,
-            (event.detail.edges as number) ?? 0,
+  const perf = useMemo(() =>
+    createPerfTracker("app", {
+      onEvent: (event) => {
+        const store = useTelemetryStore.getState();
+        if (event.metric === "read_files_ms") {
+          store.recordRead(event.ms);
+          if (typeof event.detail?.files === "number") {
+            store.setFileCount(event.detail.files);
+          }
+        } else if (event.metric === "parse_ms") {
+          store.recordParse(
+            event.ms,
+            event.detail as { files?: number; nodes?: number; edges?: number },
           );
+          if (typeof event.detail?.nodes === "number") {
+            store.setGraphMetrics(
+              event.detail.nodes as number,
+              (event.detail.edges as number) ?? 0,
+            );
+          }
+        } else if (event.metric === "layout_ms") {
+          store.recordLayout(event.ms);
+        } else if (event.metric === "render_commit_ms") {
+          store.recordRender(event.ms);
         }
-      } else if (event.metric === 'layout_ms') {
-        store.recordLayout(event.ms);
-      } else if (event.metric === 'render_commit_ms') {
-        store.recordRender(event.ms);
-      }
-    },
-  }), []);
+      },
+    }), []);
 
   // ── App state (Zustand store) ───────────────────────────────────────────────
   const {
@@ -97,12 +99,22 @@ export default function App() {
 
   // ── Parser settings (Zustand persist store) ─────────────────────────────────
   const selectedVariant = useParserRuleSettingsStore((s) => s.selectedVariant);
-  const customRulesByVariant = useParserRuleSettingsStore((s) => s.customRulesByVariant);
-  const setSelectedVariant = useParserRuleSettingsStore((s) => s.setSelectedVariant);
+  const customRulesByVariant = useParserRuleSettingsStore((s) =>
+    s.customRulesByVariant
+  );
+  const setSelectedVariant = useParserRuleSettingsStore((s) =>
+    s.setSelectedVariant
+  );
   const addCustomRule = useParserRuleSettingsStore((s) => s.addCustomRule);
-  const updateCustomRule = useParserRuleSettingsStore((s) => s.updateCustomRule);
-  const removeCustomRule = useParserRuleSettingsStore((s) => s.removeCustomRule);
-  const resetParserRuleSettings = useParserRuleSettingsStore((s) => s.resetSettings);
+  const updateCustomRule = useParserRuleSettingsStore((s) =>
+    s.updateCustomRule
+  );
+  const removeCustomRule = useParserRuleSettingsStore((s) =>
+    s.removeCustomRule
+  );
+  const resetParserRuleSettings = useParserRuleSettingsStore((s) =>
+    s.resetSettings
+  );
   const selectedVariantCustomRules = useMemo(
     () => customRulesByVariant[selectedVariant] ?? [],
     [customRulesByVariant, selectedVariant],
@@ -114,7 +126,9 @@ export default function App() {
     preWarmLayoutWorker();
   }, []);
 
-  const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<DebugBundlePrivacyOptions>(
+  const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<
+    DebugBundlePrivacyOptions
+  >(
     DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   );
   const parseAbortControllerRef = useRef<AbortController | null>(null);
@@ -126,7 +140,7 @@ export default function App() {
     async (files: FileList | UploadedFile[] | null) => {
       // Warm up worker on import initiation
       preWarmLayoutWorker();
-      perf.mark('read');
+      perf.mark("read");
       const processFiles = createProcessUpload({
         parseService: workerParseService,
         actions: appActions,
@@ -136,13 +150,13 @@ export default function App() {
         parserVariant: selectedVariant,
         customScreenActionRules: selectedVariantCustomRules,
         onReadMeasured: (fileCount) => {
-          perf.measure('read', 'read_files_ms', { files: fileCount });
+          perf.measure("read", "read_files_ms", { files: fileCount });
         },
         onParseStarted: () => {
-          perf.mark('parse');
+          perf.mark("parse");
         },
         onParseMeasured: ({ fileCount, nodeCount, edgeCount }) => {
-          perf.measure('parse', 'parse_ms', {
+          perf.measure("parse", "parse_ms", {
             files: fileCount,
             nodes: nodeCount,
             edges: edgeCount,
@@ -159,10 +173,16 @@ export default function App() {
       });
       await processFiles(files);
     },
-    [appActions, perf, selectedVariant, selectedVariantCustomRules, dialogueSearchMode],
+    [
+      appActions,
+      perf,
+      selectedVariant,
+      selectedVariantCustomRules,
+      dialogueSearchMode,
+    ],
   );
 
-  const appVersion = import.meta.env.VITE_APP_VERSION ?? '0.0.0';
+  const appVersion = import.meta.env.VITE_APP_VERSION ?? "0.0.0";
   const exportDebugBundle = useCallback(
     (privacy: DebugBundlePrivacyOptions) => {
       const bundle = buildDebugBundle({
@@ -186,7 +206,7 @@ export default function App() {
         parseDiagnostics,
         privacy,
       });
-      saveAs(toDebugBundleBlob(bundle), 'renpy-flowchart-debug-bundle.json');
+      saveAs(toDebugBundleBlob(bundle), "renpy-flowchart-debug-bundle.json");
     },
     [
       appVersion,
@@ -206,8 +226,8 @@ export default function App() {
   const openNewIssue = useCallback(
     (privacy: DebugBundlePrivacyOptions) => {
       const issueUrl = buildIssueDraftUrl({
-        owner: 'JavaGamer',
-        repo: 'RenpyWebFlowchartViewer',
+        owner: "JavaGamer",
+        repo: "RenpyWebFlowchartViewer",
         privacy,
         state: {
           phase,
@@ -217,20 +237,28 @@ export default function App() {
           warningCount: parseDiagnostics.length,
         },
       });
-      if (typeof globalThis.open !== 'function') return;
-      globalThis.open(issueUrl, '_blank', 'noopener,noreferrer');
+      if (typeof globalThis.open !== "function") return;
+      globalThis.open(issueUrl, "_blank", "noopener,noreferrer");
     },
-    [selectedVariant, dialogueSearchMode, fileCount, parseDiagnostics.length, phase],
+    [
+      selectedVariant,
+      dialogueSearchMode,
+      fileCount,
+      parseDiagnostics.length,
+      phase,
+    ],
   );
 
   const theme = useViewerStore((s) => s.theme);
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   return (
-    <div className={cn(
-      "flex flex-col h-full min-h-screen font-sans transition-colors duration-200",
-      isDark ? "bg-slate-950 text-slate-100" : "bg-gray-50 text-gray-900"
-    )}>
+    <div
+      className={cn(
+        "flex flex-col h-full min-h-screen font-sans transition-colors duration-200",
+        isDark ? "bg-slate-950 text-slate-100" : "bg-gray-50 text-gray-900",
+      )}
+    >
       <a
         href="#flowchart-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:text-violet-700 focus:shadow"
@@ -240,77 +268,82 @@ export default function App() {
 
       <Header />
 
-      {phase === 'done' && flowNodes.length > 0 ? (
-        <main
-          id="flowchart-main"
-          className="flex-1 flex flex-col overflow-hidden"
-          aria-label="Flowchart viewer"
-        >
-          {/* Re-upload button */}
-          <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-violet-700">
-            <span>
-              Parsed <strong>{fileCount}</strong> .rpy file
-              {fileCount !== 1 ? 's' : ''} → <strong>{flowNodes.length}</strong> nodes,{' '}
-              <strong>{flowEdges.length}</strong> edges
-            </span>
-            {parseDiagnostics.length > 0 && (
-              <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                {parseDiagnostics.length} parse warning{parseDiagnostics.length === 1 ? '' : 's'}
+      {phase === "done" && flowNodes.length > 0
+        ? (
+          <main
+            id="flowchart-main"
+            className="flex-1 flex flex-col overflow-hidden"
+            aria-label="Flowchart viewer"
+          >
+            {/* Re-upload button */}
+            <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-violet-700">
+              <span>
+                Parsed <strong>{fileCount}</strong> .rpy file
+                {fileCount !== 1 ? "s" : ""} →{" "}
+                <strong>{flowNodes.length}</strong> nodes,{" "}
+                <strong>{flowEdges.length}</strong> edges
               </span>
-            )}
-            <button
-              onClick={() => {
-                setUploadedFiles([]);
-                appActions.reset();
-              }}
-              className="sm:ml-auto text-xs underline text-violet-600 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
-            >
-              Upload a different folder
-            </button>
-          </div>
+              {parseDiagnostics.length > 0 && (
+                <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
+                  {parseDiagnostics.length}{" "}
+                  parse warning{parseDiagnostics.length === 1 ? "" : "s"}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setUploadedFiles([]);
+                  appActions.reset();
+                }}
+                className="sm:ml-auto text-xs underline text-violet-600 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+              >
+                Upload a different folder
+              </button>
+            </div>
 
-          <DiagnosticsSection parseDiagnostics={parseDiagnostics} />
+            <DiagnosticsSection parseDiagnostics={parseDiagnostics} />
 
-          <FlowchartViewer
-            key={importRevision}
+            <FlowchartViewer
+              key={importRevision}
+              flowNodes={flowNodes}
+              flowEdges={flowEdges}
+              dialogueSearchMode={dialogueSearchMode}
+              onDialogueSearchModeChange={(mode) =>
+                appActions.setDialogueSearchMode(mode)}
+              debugPrivacyOptions={debugPrivacyOptions}
+              onDebugPrivacyOptionsChange={setDebugPrivacyOptions}
+              onExportDebugBundle={exportDebugBundle}
+              onOpenIssue={openNewIssue}
+            />
+          </main>
+        )
+        : (
+          <UploadArea
+            phase={phase}
+            fileCount={fileCount}
+            parseProgress={parseProgress}
             flowNodes={flowNodes}
-            flowEdges={flowEdges}
-            dialogueSearchMode={dialogueSearchMode}
-            onDialogueSearchModeChange={(mode) => appActions.setDialogueSearchMode(mode)}
+            errorMsg={errorMsg}
             debugPrivacyOptions={debugPrivacyOptions}
-            onDebugPrivacyOptionsChange={setDebugPrivacyOptions}
+            setDebugPrivacyOptions={setDebugPrivacyOptions}
+            processFiles={processFilesWithPerf}
+            onCancelParsing={() => parseAbortControllerRef.current?.abort()}
+            onReset={() => {
+              setUploadedFiles([]);
+              appActions.reset();
+            }}
             onExportDebugBundle={exportDebugBundle}
             onOpenIssue={openNewIssue}
+            selectedVariant={selectedVariant}
+            setSelectedVariant={setSelectedVariant}
+            parserVariantPlugins={parserVariantPlugins}
+            resetParserRuleSettings={resetParserRuleSettings}
+            selectedVariantCustomRules={selectedVariantCustomRules}
+            uploadedFiles={uploadedFiles}
+            updateCustomRule={updateCustomRule}
+            removeCustomRule={removeCustomRule}
+            addCustomRule={addCustomRule}
           />
-        </main>
-      ) : (
-        <UploadArea
-          phase={phase}
-          fileCount={fileCount}
-          parseProgress={parseProgress}
-          flowNodes={flowNodes}
-          errorMsg={errorMsg}
-          debugPrivacyOptions={debugPrivacyOptions}
-          setDebugPrivacyOptions={setDebugPrivacyOptions}
-          processFiles={processFilesWithPerf}
-          onCancelParsing={() => parseAbortControllerRef.current?.abort()}
-          onReset={() => {
-            setUploadedFiles([]);
-            appActions.reset();
-          }}
-          onExportDebugBundle={exportDebugBundle}
-          onOpenIssue={openNewIssue}
-          selectedVariant={selectedVariant}
-          setSelectedVariant={setSelectedVariant}
-          parserVariantPlugins={parserVariantPlugins}
-          resetParserRuleSettings={resetParserRuleSettings}
-          selectedVariantCustomRules={selectedVariantCustomRules}
-          uploadedFiles={uploadedFiles}
-          updateCustomRule={updateCustomRule}
-          removeCustomRule={removeCustomRule}
-          addCustomRule={addCustomRule}
-        />
-      )}
+        )}
     </div>
   );
 }

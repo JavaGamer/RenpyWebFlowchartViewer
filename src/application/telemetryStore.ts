@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 export interface TelemetryMetrics {
   readMs: number | null;
@@ -12,7 +12,10 @@ export interface TelemetryMetrics {
 
 export interface TelemetryActions {
   recordRead: (ms: number) => void;
-  recordParse: (ms: number, detail?: { files?: number; nodes?: number; edges?: number }) => void;
+  recordParse: (
+    ms: number,
+    detail?: { files?: number; nodes?: number; edges?: number },
+  ) => void;
   recordLayout: (ms: number) => void;
   recordRender: (ms: number) => void;
   setGraphMetrics: (nodes: number, edges: number) => void;
@@ -51,7 +54,8 @@ export const useTelemetryStore = create<TelemetryStore>((set) => ({
 
   recordRender: (ms) => set({ renderMs: ms }),
 
-  setGraphMetrics: (nodes, edges) => set({ nodesCount: nodes, edgesCount: edges }),
+  setGraphMetrics: (nodes, edges) =>
+    set({ nodesCount: nodes, edgesCount: edges }),
 
   setFileCount: (count) => set({ fileCount: count }),
 

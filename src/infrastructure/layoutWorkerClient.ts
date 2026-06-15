@@ -1,18 +1,27 @@
-import { wrap, type Remote } from 'comlink';
-import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge, ThemeName, LayoutDensity } from '../domain';
-import type { LayoutWorkerApi } from './layoutWorker';
+import { type Remote, wrap } from "comlink";
+import type {
+  CanvasEdge,
+  CanvasNode,
+  FlowEdge,
+  FlowNode,
+  LayoutDensity,
+  ThemeName,
+} from "../domain";
+import type { LayoutWorkerApi } from "./layoutWorker";
 
 let worker: Worker | null = null;
 
 function isWorkerSupported(): boolean {
-  return typeof globalThis.Worker !== 'undefined';
+  return typeof globalThis.Worker !== "undefined";
 }
 let apiProxy: Remote<LayoutWorkerApi> | null = null;
 let isWorkerRunning = false;
 
 function getLayoutWorker(): Worker {
   if (!worker) {
-    worker = new Worker(new URL('./layoutWorker.ts', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL("./layoutWorker.ts", import.meta.url), {
+      type: "module",
+    });
     apiProxy = wrap<LayoutWorkerApi>(worker);
   }
   return worker;
@@ -29,7 +38,8 @@ export function terminateLayoutWorker() {
 
 export function preWarmLayoutWorker(): void {
   // Skip pre-warming in test environments to prevent worker instantiation during integration tests
-  const isTest = typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env?.NODE_ENV === 'test';
+  const isTest = typeof (globalThis as any).process !== "undefined" &&
+    (globalThis as any).process.env?.NODE_ENV === "test";
   if (isTest) {
     return;
   }
@@ -39,7 +49,7 @@ export function preWarmLayoutWorker(): void {
   getLayoutWorker();
   if (apiProxy) {
     apiProxy.preWarm().catch((error) => {
-      console.error('Failed to pre-warm layout worker:', error);
+      console.error("Failed to pre-warm layout worker:", error);
     });
   }
 }
@@ -51,15 +61,17 @@ export function isLayoutRunning(): boolean {
 export function runLayoutInWorker(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
-  direction: 'TB' | 'LR',
+  direction: "TB" | "LR",
   options: {
     progressive?: boolean;
-    previousPositions?: Map<string, { x: number; y: number }> | Array<[string, { x: number; y: number }]>;
+    previousPositions?:
+      | Map<string, { x: number; y: number }>
+      | Array<[string, { x: number; y: number }]>;
     theme?: ThemeName;
     layoutDensity?: LayoutDensity;
   } | undefined,
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
 ): () => void {
   if (isWorkerRunning) {
     terminateLayoutWorker();
@@ -71,10 +83,14 @@ export function runLayoutInWorker(
   let cancelled = false;
   let completed = false;
 
-  let serializedPreviousPositions: Array<[string, { x: number; y: number }]> | undefined;
+  let serializedPreviousPositions:
+    | Array<[string, { x: number; y: number }]>
+    | undefined;
   if (options?.previousPositions) {
     if (options.previousPositions instanceof Map) {
-      serializedPreviousPositions = Array.from(options.previousPositions.entries());
+      serializedPreviousPositions = Array.from(
+        options.previousPositions.entries(),
+      );
     } else {
       serializedPreviousPositions = options.previousPositions;
     }

@@ -6,8 +6,8 @@
  * and the show-all-inspector-lines toggle.
  */
 
-import type { StateCreator } from 'zustand';
-import type { ViewerStore } from '../viewerStore';
+import type { StateCreator } from "zustand";
+import type { ViewerStore } from "../viewerStore";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -33,8 +33,8 @@ export type SelectionSlice = SelectionSliceState & SelectionSliceActions;
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const defaultSelectionState: SelectionSliceState = {
-  focusNodeId: '',
-  selectedNodeId: '',
+  focusNodeId: "",
+  selectedNodeId: "",
   selectedDialogueLineIndex: null,
   showAllInspectorLines: false,
 };
@@ -43,7 +43,7 @@ export const defaultSelectionState: SelectionSliceState = {
 
 export const createSelectionSlice: StateCreator<
   ViewerStore,
-  [['zustand/immer', never]],
+  [["zustand/immer", never]],
   [],
   SelectionSlice
 > = (set) => ({

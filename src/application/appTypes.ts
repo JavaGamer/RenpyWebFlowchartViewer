@@ -1,1 +1,1 @@
-export type AppPhase = 'idle' | 'reading' | 'parsing' | 'done' | 'error';
+export type AppPhase = "idle" | "reading" | "parsing" | "done" | "error";

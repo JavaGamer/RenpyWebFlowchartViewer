@@ -7,7 +7,7 @@
  * "file://my.rpy" / version 0 used by `parse()`) from returning stale tokens
  * when multiple test cases are run in the same module context.
  */
-declare module '@renpy/ast/out/tokenizer/tokenizer' {
+declare module "@renpy/ast/out/tokenizer/tokenizer" {
   export class Tokenizer {
     /** Clears the static per-document token cache. */
     static clearTokenCache(): void;

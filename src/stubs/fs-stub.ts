@@ -4,7 +4,7 @@
 // never actually invoked at runtime.
 
 export const readFile = (): never => {
-  throw new Error('node:fs is not available in the browser');
+  throw new Error("node:fs is not available in the browser");
 };
 
 export default { readFile };

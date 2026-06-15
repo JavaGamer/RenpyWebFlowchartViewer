@@ -1,28 +1,35 @@
-import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { type ReactFlowInstance } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { toBlob, toSvg } from 'html-to-image';
-import { saveAs } from 'file-saver';
-import { ErrorBoundary } from 'react-error-boundary';
-import { useStore } from 'zustand';
-import { useShallow } from 'zustand/react/shallow';
-import type { FlowNode, FlowEdge, CanvasNode, CanvasEdge } from '../domain';
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { type ReactFlowInstance } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { toBlob, toSvg } from "html-to-image";
+import { saveAs } from "file-saver";
+import { ErrorBoundary } from "react-error-boundary";
+import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
+import type { CanvasEdge, CanvasNode, FlowEdge, FlowNode } from "../domain";
+import {
+  type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   type DialogueSearchMode,
   type ParseService,
-  type DebugBundlePrivacyOptions,
   useViewerStore,
   workerParseService,
-} from '../application';
+} from "../application";
 
-import { createPerfTracker } from '../infrastructure';
-import { THEMES } from './viewerTheme';
-import { ViewerToolbar } from './ViewerToolbar';
-import { CanvasErrorFallback } from './CanvasErrorFallback';
-import { FlowchartCanvas } from './FlowchartCanvas';
-import { dataUrlToBlob } from './canvasHelpers';
-import type { CanvasMetrics, CanvasCallbacksRegistry } from './canvasTypes';
+import { createPerfTracker } from "../infrastructure";
+import { THEMES } from "./viewerTheme";
+import { ViewerToolbar } from "./ViewerToolbar";
+import { CanvasErrorFallback } from "./CanvasErrorFallback";
+import { FlowchartCanvas } from "./FlowchartCanvas";
+import { dataUrlToBlob } from "./canvasHelpers";
+import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes";
 
 export interface FlowchartViewerProps {
   flowNodes: FlowNode[];
@@ -39,7 +46,7 @@ export interface FlowchartViewerProps {
 export default function FlowchartViewer({
   flowNodes,
   flowEdges,
-  dialogueSearchMode = 'auto',
+  dialogueSearchMode = "auto",
   onDialogueSearchModeChange,
   parseService = workerParseService,
   debugPrivacyOptions = DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -47,14 +54,20 @@ export default function FlowchartViewer({
   onExportDebugBundle,
   onOpenIssue,
 }: FlowchartViewerProps) {
-  const perf = useMemo(() => createPerfTracker('viewer'), []);
+  const perf = useMemo(() => createPerfTracker("viewer"), []);
   const flowRef = useRef<HTMLDivElement>(null);
-  const flowInstanceRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
+  const flowInstanceRef = useRef<
+    ReactFlowInstance<CanvasNode, CanvasEdge> | null
+  >(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Issue 10: useRef instead of useState for identity-preserving cache maps
-  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(new Map());
-  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(new Map());
+  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(
+    new Map(),
+  );
+  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(
+    new Map(),
+  );
 
   // Registry ref: inner component writes current onSearchInputKeyDown here;
   // outer provides a stable wrapper that calls it.
@@ -62,7 +75,8 @@ export default function FlowchartViewer({
     onSearchInputKeyDown: () => {},
   });
   const onSearchInputKeyDown = useCallback(
-    (e: ReactKeyboardEvent<HTMLInputElement>) => canvasCallbacksRef.current.onSearchInputKeyDown(e),
+    (e: ReactKeyboardEvent<HTMLInputElement>) =>
+      canvasCallbacksRef.current.onSearchInputKeyDown(e),
     [],
   );
 
@@ -119,7 +133,7 @@ export default function FlowchartViewer({
       redo: s.redo,
       pastStates: s.pastStates,
       futureStates: s.futureStates,
-    }))
+    })),
   );
   const canUndo = pastStates.length > 0;
   const canRedo = futureStates.length > 0;
@@ -151,15 +165,20 @@ export default function FlowchartViewer({
 
   // -- Toolbar callbacks ------------------------------------------------------
   const onExportJson = useCallback(() => {
-    const graphJson = JSON.stringify({ nodes: flowNodes, edges: flowEdges }, null, 2);
-    const blob = new Blob([graphJson], { type: 'application/json' });
-    saveAs(blob, 'renpy-flowchart.json');
+    const graphJson = JSON.stringify(
+      { nodes: flowNodes, edges: flowEdges },
+      null,
+      2,
+    );
+    const blob = new Blob([graphJson], { type: "application/json" });
+    saveAs(blob, "renpy-flowchart.json");
   }, [flowEdges, flowNodes]);
 
   const onExport = useCallback(() => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
-    const { isLargeExportTarget, visibleNodeCount, visibleEdgeCount } = canvasMetrics;
+    const { isLargeExportTarget, visibleNodeCount, visibleEdgeCount } =
+      canvasMetrics;
     const pixelRatio = isLargeExportTarget ? 1 : 2;
     toBlob(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
@@ -169,14 +188,14 @@ export default function FlowchartViewer({
     })
       .then((blob) => {
         if (!blob) return;
-        saveAs(blob, 'renpy-flowchart.png');
-        perf.log('export_png_ms', performance.now() - startedAt, {
+        saveAs(blob, "renpy-flowchart.png");
+        perf.log("export_png_ms", performance.now() - startedAt, {
           nodeCount: visibleNodeCount,
           edgeCount: visibleEdgeCount,
         });
       })
       .catch((err: unknown) => {
-        console.error('Export failed:', err);
+        console.error("Export failed:", err);
       });
   }, [canvasMetrics, perf, theme]);
 
@@ -191,14 +210,14 @@ export default function FlowchartViewer({
     })
       .then((svgDataUrl) => {
         const svgBlob = dataUrlToBlob(svgDataUrl);
-        saveAs(svgBlob, 'renpy-flowchart.svg');
-        perf.log('export_svg_ms', performance.now() - startedAt, {
+        saveAs(svgBlob, "renpy-flowchart.svg");
+        perf.log("export_svg_ms", performance.now() - startedAt, {
           nodeCount: visibleNodeCount,
           edgeCount: visibleEdgeCount,
         });
       })
       .catch((err: unknown) => {
-        console.error('SVG export failed:', err);
+        console.error("SVG export failed:", err);
       });
   }, [canvasMetrics, perf, theme]);
 
@@ -217,7 +236,7 @@ export default function FlowchartViewer({
   // -- Global keyboard shortcuts ----------------------------------------------
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         setShowAdvancedControls(false);
         setTimeout(() => {
@@ -226,33 +245,39 @@ export default function FlowchartViewer({
         }, 0);
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "e") {
         event.preventDefault();
         onExport();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "l") {
         event.preventDefault();
         flowInstanceRef.current?.fitView({ padding: 0.2 });
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (canUndo) undo();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {
         event.preventDefault();
         if (canRedo) redo();
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [onExport, canUndo, canRedo, undo, redo, setShowAdvancedControls]);
 
   // -- Render -----------------------------------------------------------------
   return (
-    <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: THEMES[theme].pageBg, color: THEMES[theme].text }}>
+    <div
+      className="flex flex-col h-full min-h-0"
+      style={{
+        backgroundColor: THEMES[theme].pageBg,
+        color: THEMES[theme].text,
+      }}
+    >
       {/* Toolbar - always rendered, even when the canvas has errored */}
       <ViewerToolbar
         theme={theme}
@@ -278,7 +303,8 @@ export default function FlowchartViewer({
         debugPrivacyOptions={debugPrivacyOptions}
         onDebugOptionChange={onDebugOptionChange}
         onFitView={onFitView}
-        onZoomTo={(preset) => flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
+        onZoomTo={(preset) =>
+          flowInstanceRef.current?.zoomTo(preset, { duration: 250 })}
         showAdvancedControls={showAdvancedControls}
         toggleShowAdvancedControls={toggleShowAdvancedControls}
         canUndo={canUndo}
@@ -292,9 +318,11 @@ export default function FlowchartViewer({
         uniqueChapters={uniqueChapters}
       />
 
-      {/* ErrorBoundary wraps FlowchartCanvas so errors from layout hooks,
+      {
+        /* ErrorBoundary wraps FlowchartCanvas so errors from layout hooks,
           graph-derivation, or ReactFlow rendering are all contained here.
-          The toolbar above continues to function after any such error. */}
+          The toolbar above continues to function after any such error. */
+      }
       <ErrorBoundary FallbackComponent={CanvasErrorFallback}>
         <FlowchartCanvas
           flowNodes={flowNodes}

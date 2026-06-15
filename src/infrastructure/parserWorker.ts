@@ -1,22 +1,29 @@
-import { expose } from 'comlink';
-import { parseRenpyFiles } from '../parser/parser';
-import MiniSearch from 'minisearch';
-import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { TokenTree } from '@renpy/ast/out/tokenizer/token-definitions';
-import { createGraphState } from '../parser/pipelineState';
-import type { ParseDiagnostic, ParseInputFile } from '../parser/pipelineTypes';
-import pLimit from 'p-limit';
-import { tokenizeOneFile, processTokenizedFile, type TokenizedFile } from '../parser/filePipeline';
-import { finalizeRoles } from '../parser/roleFinalization';
-import { DIALOGUE_MINISEARCH_OPTIONS, type DialogueSearchDocument } from '../config/searchConfig';
-import { DIALOGUE_SEARCH_MAX_RESULTS } from '../config/viewerConfig';
-import type { ParserVariant, ScreenActionRule } from '../config/parserRules';
-import type { FlowNode, FlowEdge } from '../domain';
+import { expose } from "comlink";
+import { parseRenpyFiles } from "../parser/parser";
+import MiniSearch from "minisearch";
+import type { TextDocument } from "vscode-languageserver-textdocument";
+import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
+import { createGraphState } from "../parser/pipelineState";
+import type { ParseDiagnostic, ParseInputFile } from "../parser/pipelineTypes";
+import pLimit from "p-limit";
+import {
+  processTokenizedFile,
+  type TokenizedFile,
+  tokenizeOneFile,
+} from "../parser/filePipeline";
+import { finalizeRoles } from "../parser/roleFinalization";
+import {
+  DIALOGUE_MINISEARCH_OPTIONS,
+  type DialogueSearchDocument,
+} from "../config/searchConfig";
+import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules";
+import type { FlowEdge, FlowNode } from "../domain";
 import type {
   DialogueSearchResult,
   ParseDiagnosticPayload,
   ParseWorkerClientResult,
-} from './workerProtocol';
+} from "./workerProtocol";
 
 type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
 
@@ -60,7 +67,9 @@ let accumulatedState = createGraphState();
 let dialogueSearchDocs: DialogueSearchDocument[] = [];
 let dialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null = null;
 
-function buildDialogueSearchIndex(nodes: { id: string; label: string; dialogueLines?: string[] }[]) {
+function buildDialogueSearchIndex(
+  nodes: { id: string; label: string; dialogueLines?: string[] }[],
+) {
   dialogueSearchDocs = [];
   for (const node of nodes) {
     if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
@@ -115,7 +124,7 @@ const parserApi = {
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
     },
-    onProgress?: (progress: ProgressPayload) => void
+    onProgress?: (progress: ProgressPayload) => void,
   ): Promise<ParseWorkerClientResult> {
     activeRequestId = requestId;
     const startedAt = performance.now();
@@ -136,9 +145,15 @@ const parserApi = {
           dialogueSearchMiniSearch = null;
         }
 
-        const hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1;
-        const defaultMaxParallel = Math.max(1, Math.min(4, hardwareConcurrency));
-        const effectiveMaxParallel = options.maxParallelFiles ?? defaultMaxParallel;
+        const hardwareConcurrency = typeof navigator !== "undefined"
+          ? navigator.hardwareConcurrency
+          : 1;
+        const defaultMaxParallel = Math.max(
+          1,
+          Math.min(4, hardwareConcurrency),
+        );
+        const effectiveMaxParallel = options.maxParallelFiles ??
+          defaultMaxParallel;
 
         let tokenizedFiles: Array<TokenizedFile | undefined> = [];
         if (files.length > 1 && effectiveMaxParallel > 1) {
@@ -146,7 +161,10 @@ const parserApi = {
           tokenizedFiles = await Promise.all(
             files.map((file, idx) =>
               limit(async () => {
-                if (activeRequestId !== requestId || cancelledRequests.has(requestId)) {
+                if (
+                  activeRequestId !== requestId ||
+                  cancelledRequests.has(requestId)
+                ) {
                   return undefined;
                 }
                 return tokenizeOneFile(
@@ -155,19 +173,19 @@ const parserApi = {
                     tokenizedCache,
                     fileCacheKeys: options.fileCacheKeys,
                   },
-                  idx
+                  idx,
                 );
               })
-            )
+            ),
           );
         }
 
         for (let idx = 0; idx < files.length; idx += 1) {
           if (activeRequestId !== requestId) {
-            throw new Error('Parsing superceded by another request');
+            throw new Error("Parsing superceded by another request");
           }
           if (cancelledRequests.has(requestId)) {
-            throw new Error('Parsing cancelled');
+            throw new Error("Parsing cancelled");
           }
           const file = files[idx];
           let tokenized = tokenizedFiles[idx];
@@ -178,7 +196,7 @@ const parserApi = {
                 tokenizedCache,
                 fileCacheKeys: options.fileCacheKeys,
               },
-              idx
+              idx,
             );
           }
           processTokenizedFile(accumulatedState, tokenized, {
@@ -214,7 +232,9 @@ const parserApi = {
         result = {
           nodes: accumulatedState.nodes,
           edges: accumulatedState.edges,
-          diagnostics: accumulatedState.diagnostics.length > 0 ? accumulatedState.diagnostics : undefined,
+          diagnostics: accumulatedState.diagnostics.length > 0
+            ? accumulatedState.diagnostics
+            : undefined,
         };
       } else {
         result = await parseRenpyFiles(files, {
@@ -226,7 +246,7 @@ const parserApi = {
           screenActionRules: options.screenActionRules,
           onProgress: ({ doneFiles, totalFiles, currentFile }) => {
             if (cancelledRequests.has(requestId)) {
-              throw new Error('Parsing cancelled');
+              throw new Error("Parsing cancelled");
             }
             if (!wantsProgress) return;
             const now = performance.now();
@@ -237,7 +257,11 @@ const parserApi = {
               elapsedMs: performance.now() - startedAt,
             };
             pendingProgress = nextProgress;
-            if (progressThrottleMs <= 0 || now - lastProgressAt >= progressThrottleMs || doneFiles === totalFiles) {
+            if (
+              progressThrottleMs <= 0 ||
+              now - lastProgressAt >= progressThrottleMs ||
+              doneFiles === totalFiles
+            ) {
               onProgress(nextProgress);
               lastProgressAt = now;
               pendingProgress = null;
@@ -256,7 +280,7 @@ const parserApi = {
       }
 
       if (cancelledRequests.has(requestId)) {
-        throw new Error('Parsing cancelled');
+        throw new Error("Parsing cancelled");
       }
 
       return {
@@ -288,22 +312,22 @@ const parserApi = {
       captureDialogueLines?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
-    }
+    },
   ): Promise<InternalChunkResult> {
     if (cancelledRequests.has(requestId)) {
       cancelledRequests.delete(requestId);
-      throw new Error('Chunk parsing cancelled');
+      throw new Error("Chunk parsing cancelled");
     }
     try {
       const chunkState = createGraphState();
       for (let idx = 0; idx < files.length; idx += 1) {
         if (cancelledRequests.has(requestId)) {
-          throw new Error('Chunk parsing cancelled');
+          throw new Error("Chunk parsing cancelled");
         }
         const tokenized = await tokenizeOneFile(
           files[idx],
           { tokenizedCache, fileCacheKeys: options.fileCacheKeys },
-          idx
+          idx,
         );
         processTokenizedFile(chunkState, tokenized, {
           captureDialogueLines: options.captureDialogueLines !== false,
@@ -312,17 +336,25 @@ const parserApi = {
         });
       }
       if (cancelledRequests.has(requestId)) {
-        throw new Error('Chunk parsing cancelled');
+        throw new Error("Chunk parsing cancelled");
       }
       return {
         nodes: chunkState.nodes,
         edges: chunkState.edges,
-        diagnostics: chunkState.diagnostics.length > 0 ? (chunkState.diagnostics as ParseDiagnosticPayload[]) : undefined,
+        diagnostics: chunkState.diagnostics.length > 0
+          ? (chunkState.diagnostics as ParseDiagnosticPayload[])
+          : undefined,
         pendingCallReturns: chunkState.pendingCallReturns,
-        hasReliableReturnInLabel: Array.from(chunkState.hasReliableReturnInLabel),
+        hasReliableReturnInLabel: Array.from(
+          chunkState.hasReliableReturnInLabel,
+        ),
         globalScreens: Array.from(chunkState.globalScreens),
-        labelDefinitionCount: Array.from(chunkState.labelDefinitionCountByName.entries()),
-        canonicalLabelIds: Array.from(chunkState.canonicalLabelIdByName.entries()),
+        labelDefinitionCount: Array.from(
+          chunkState.labelDefinitionCountByName.entries(),
+        ),
+        canonicalLabelIds: Array.from(
+          chunkState.canonicalLabelIdByName.entries(),
+        ),
       };
     } finally {
       cancelledRequests.delete(requestId);
@@ -335,7 +367,9 @@ const parserApi = {
       nodes: FlowNode[];
       edges: FlowEdge[];
       diagnostics?: ParseDiagnosticPayload[];
-      pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+      pendingCallReturns: Array<
+        { returnTargetId: string; callTargetId: string }
+      >;
       hasReliableReturnInLabel: string[];
       globalScreens: string[];
       labelDefinitionCount: Array<[string, number]>;
@@ -343,11 +377,11 @@ const parserApi = {
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
-    }
+    },
   ): Promise<ParseWorkerClientResult> {
     if (cancelledRequests.has(requestId)) {
       cancelledRequests.delete(requestId);
-      throw new Error('Finalize cancelled');
+      throw new Error("Finalize cancelled");
     }
     const appendToActiveGraph = options.appendToActiveGraph === true;
     const isFinalChunk = options.isFinalChunk !== false;
@@ -363,7 +397,9 @@ const parserApi = {
         accumulatedState.nodes.push(...options.nodes);
         accumulatedState.edges.push(...options.edges);
         if (options.diagnostics) {
-          accumulatedState.diagnostics.push(...(options.diagnostics as ParseDiagnostic[]));
+          accumulatedState.diagnostics.push(
+            ...(options.diagnostics as ParseDiagnostic[]),
+          );
         }
         accumulatedState.pendingCallReturns.push(...options.pendingCallReturns);
         for (const label of options.hasReliableReturnInLabel) {
@@ -375,7 +411,8 @@ const parserApi = {
         for (const [name, count] of options.labelDefinitionCount) {
           accumulatedState.labelDefinitionCountByName.set(
             name,
-            (accumulatedState.labelDefinitionCountByName.get(name) ?? 0) + count
+            (accumulatedState.labelDefinitionCountByName.get(name) ?? 0) +
+              count,
           );
         }
         for (const [name, id] of options.canonicalLabelIds) {
@@ -388,36 +425,46 @@ const parserApi = {
         }
 
         if (cancelledRequests.has(requestId)) {
-          throw new Error('Finalize cancelled');
+          throw new Error("Finalize cancelled");
         }
 
         return {
           nodes: accumulatedState.nodes,
           edges: accumulatedState.edges,
-          diagnostics: accumulatedState.diagnostics.length > 0 ? (accumulatedState.diagnostics as ParseDiagnosticPayload[]) : undefined,
+          diagnostics: accumulatedState.diagnostics.length > 0
+            ? (accumulatedState.diagnostics as ParseDiagnosticPayload[])
+            : undefined,
         };
       } else {
         const state = createGraphState();
         state.nodes = options.nodes;
         state.edges = options.edges;
-        state.diagnostics = options.diagnostics ? (options.diagnostics as ParseDiagnostic[]) : [];
+        state.diagnostics = options.diagnostics
+          ? (options.diagnostics as ParseDiagnostic[])
+          : [];
         state.pendingCallReturns = options.pendingCallReturns;
-        state.hasReliableReturnInLabel = new Set(options.hasReliableReturnInLabel);
+        state.hasReliableReturnInLabel = new Set(
+          options.hasReliableReturnInLabel,
+        );
         state.globalScreens = new Set(options.globalScreens);
-        state.labelDefinitionCountByName = new Map(options.labelDefinitionCount);
+        state.labelDefinitionCountByName = new Map(
+          options.labelDefinitionCount,
+        );
         state.canonicalLabelIdByName = new Map(options.canonicalLabelIds);
 
         finalizeRoles(state);
         buildDialogueSearchIndex(state.nodes);
 
         if (cancelledRequests.has(requestId)) {
-          throw new Error('Finalize cancelled');
+          throw new Error("Finalize cancelled");
         }
 
         return {
           nodes: state.nodes,
           edges: state.edges,
-          diagnostics: state.diagnostics.length > 0 ? (state.diagnostics as ParseDiagnosticPayload[]) : undefined,
+          diagnostics: state.diagnostics.length > 0
+            ? (state.diagnostics as ParseDiagnosticPayload[])
+            : undefined,
         };
       }
     } finally {
@@ -439,7 +486,7 @@ const parserApi = {
     options: {
       nodeIds?: string[];
       maxResults?: number;
-    }
+    },
   ): Promise<DialogueSearchResult[]> {
     if (cancelledRequests.has(requestId)) {
       cancelledRequests.delete(requestId);
@@ -450,7 +497,10 @@ const parserApi = {
       cancelledRequests.delete(requestId);
       return [];
     }
-    const maxResults = Math.max(1, Math.min(options.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS));
+    const maxResults = Math.max(
+      1,
+      Math.min(options.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS),
+    );
     const allowedIds = options.nodeIds ? new Set(options.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
     if (dialogueSearchMiniSearch) {
@@ -479,4 +529,3 @@ expose(parserApi);
 export type ParserWorkerApi = typeof parserApi;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default null as any;
-

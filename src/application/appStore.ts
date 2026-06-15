@@ -9,11 +9,11 @@
  * (theme, search, layout) lives in `viewerStore.ts`.
  */
 
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import type { FlowEdge, FlowNode } from '../domain';
-import type { AppPhase } from './appTypes';
-import type { ParseDiagnosticPayload } from '../infrastructure';
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import type { FlowEdge, FlowNode } from "../domain";
+import type { AppPhase } from "./appTypes";
+import type { ParseDiagnosticPayload } from "../infrastructure";
 
 /**
  * Tracks how many files have been processed by the web worker,
@@ -31,7 +31,7 @@ export type ParseProgress = {
  * - `'countOnly'`: only record how many lines exist (lower memory, better for large projects).
  * - `'auto'`: let the upload orchestrator decide based on project size.
  */
-export type DialogueSearchMode = 'auto' | 'full' | 'countOnly';
+export type DialogueSearchMode = "auto" | "full" | "countOnly";
 
 /**
  * Core application state managed by `useAppStore`.
@@ -68,9 +68,17 @@ export interface AppActions {
    * Stores intermediate parse results so the UI can display a partial graph
    * while the worker continues processing remaining files.
    */
-  partialParseSuccess: (nodes: FlowNode[], edges: FlowEdge[], diagnostics?: ParseDiagnosticPayload[]) => void;
+  partialParseSuccess: (
+    nodes: FlowNode[],
+    edges: FlowEdge[],
+    diagnostics?: ParseDiagnosticPayload[],
+  ) => void;
   /** Finalises the parse, bumps importRevision, and transitions to 'done'. */
-  parseSuccess: (nodes: FlowNode[], edges: FlowEdge[], diagnostics?: ParseDiagnosticPayload[]) => void;
+  parseSuccess: (
+    nodes: FlowNode[],
+    edges: FlowEdge[],
+    diagnostics?: ParseDiagnosticPayload[],
+  ) => void;
   setDialogueSearchMode: (mode: DialogueSearchMode) => void;
   /** Transitions to 'error' and stores a human-readable error message. */
   fail: (message: string) => void;
@@ -79,15 +87,15 @@ export interface AppActions {
 export type AppStore = AppState & AppActions;
 
 const initialState: AppState = {
-  phase: 'idle',
+  phase: "idle",
   flowNodes: [],
   flowEdges: [],
   parseDiagnostics: [],
-  errorMsg: '',
+  errorMsg: "",
   fileCount: 0,
   parseProgress: null,
   importRevision: 0,
-  dialogueSearchMode: 'auto',
+  dialogueSearchMode: "auto",
 };
 
 export const useAppStore = create<AppStore>()(
@@ -98,15 +106,19 @@ export const useAppStore = create<AppStore>()(
 
     startReading: (fileCount) =>
       set((draft) => {
-        draft.phase = 'reading';
+        draft.phase = "reading";
         draft.fileCount = fileCount;
-        draft.errorMsg = '';
-        draft.parseProgress = { doneFiles: 0, totalFiles: fileCount, currentFile: '' };
+        draft.errorMsg = "";
+        draft.parseProgress = {
+          doneFiles: 0,
+          totalFiles: fileCount,
+          currentFile: "",
+        };
       }),
 
     startParsing: () =>
       set((draft) => {
-        draft.phase = 'parsing';
+        draft.phase = "parsing";
       }),
 
     setProgress: (progress) =>
@@ -116,7 +128,7 @@ export const useAppStore = create<AppStore>()(
 
     partialParseSuccess: (nodes, edges, diagnostics) =>
       set((draft) => {
-        draft.phase = 'parsing';
+        draft.phase = "parsing";
         draft.flowNodes = nodes;
         draft.flowEdges = edges;
         if (diagnostics !== undefined) {
@@ -126,7 +138,7 @@ export const useAppStore = create<AppStore>()(
 
     parseSuccess: (nodes, edges, diagnostics) =>
       set((draft) => {
-        draft.phase = 'done';
+        draft.phase = "done";
         draft.flowNodes = nodes;
         draft.flowEdges = edges;
         draft.parseDiagnostics = diagnostics ?? [];
@@ -141,7 +153,7 @@ export const useAppStore = create<AppStore>()(
 
     fail: (message) =>
       set((draft) => {
-        draft.phase = 'error';
+        draft.phase = "error";
         draft.errorMsg = message;
         draft.parseProgress = null;
       }),

@@ -1,6 +1,6 @@
-import type { FlowEdge, FlowNode } from '../domain';
-import type { ParseGraphState, EdgeKind } from './pipelineTypes';
-import { assertInvariant } from './pipelineInvariants';
+import type { FlowEdge, FlowNode } from "../domain";
+import type { EdgeKind, ParseGraphState } from "./pipelineTypes";
+import { assertInvariant } from "./pipelineInvariants";
 
 function addLabelTraffic(
   bucket: Map<string, Set<EdgeKind>>,
@@ -29,7 +29,9 @@ export function addNode(state: ParseGraphState, node: FlowNode) {
       state.pendingGraphEdgeIds.delete(edgeId);
       continue;
     }
-    if (!state.graph.hasNode(edge.source) || !state.graph.hasNode(edge.target)) continue;
+    if (
+      !state.graph.hasNode(edge.source) || !state.graph.hasNode(edge.target)
+    ) continue;
     state.graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, edge);
     state.pendingGraphEdgeIds.delete(edge.id);
   }
@@ -49,10 +51,18 @@ export function addEdge(state: ParseGraphState, edge: FlowEdge) {
   state.edgeMap.set(edge.id, edge);
 }
 
-export function addIncoming(state: ParseGraphState, labelId: string, kind: EdgeKind) {
+export function addIncoming(
+  state: ParseGraphState,
+  labelId: string,
+  kind: EdgeKind,
+) {
   addLabelTraffic(state.incomingByLabel, labelId, kind);
 }
 
-export function addOutgoing(state: ParseGraphState, labelId: string, kind: EdgeKind) {
+export function addOutgoing(
+  state: ParseGraphState,
+  labelId: string,
+  kind: EdgeKind,
+) {
   addLabelTraffic(state.outgoingByLabel, labelId, kind);
 }

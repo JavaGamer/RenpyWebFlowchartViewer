@@ -1,7 +1,13 @@
-export type NodeType = 'LABEL' | 'MENU' | 'DECISION';
-export type NodeRole = 'story' | 'detour' | 'utility' | 'state_toggle' | 'menu' | 'decision';
-export type EdgeKind = 'sequence' | 'jump' | 'call' | 'call_return';
-export type ConditionBranchKind = 'if' | 'elif' | 'else';
+export type NodeType = "LABEL" | "MENU" | "DECISION";
+export type NodeRole =
+  | "story"
+  | "detour"
+  | "utility"
+  | "state_toggle"
+  | "menu"
+  | "decision";
+export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
+export type ConditionBranchKind = "if" | "elif" | "else";
 
 export interface ConditionMetadata {
   branchKind: ConditionBranchKind;
@@ -16,7 +22,7 @@ export interface TimeoutMetadata {
 }
 
 export interface AudioAssetCue {
-  type: 'play' | 'stop' | 'queue' | 'voice' | 'scene';
+  type: "play" | "stop" | "queue" | "voice" | "scene";
   channel?: string;
   asset: string;
   raw: string;

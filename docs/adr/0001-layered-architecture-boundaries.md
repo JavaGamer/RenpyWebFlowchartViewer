@@ -6,7 +6,9 @@ Accepted
 
 ## Context
 
-`App.tsx`, `FlowchartViewer.tsx`, and parser/worker files had mixed concerns (domain, orchestration, browser adapters, and UI), making targeted changes riskier.
+`App.tsx`, `FlowchartViewer.tsx`, and parser/worker files had mixed concerns
+(domain, orchestration, browser adapters, and UI), making targeted changes
+riskier.
 
 ## Decision
 

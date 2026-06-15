@@ -1,10 +1,10 @@
 import {
-  parseRenpyFilesInWorker,
-  searchDialogueLinesInWorker,
   type DialogueSearchResult,
+  parseRenpyFilesInWorker,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
-} from '../infrastructure';
+  searchDialogueLinesInWorker,
+} from "../infrastructure";
 
 export type ParseServiceRequest = ParseWorkerClientRequest;
 export type ParseServiceResult = ParseWorkerClientResult;

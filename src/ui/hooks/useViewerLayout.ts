@@ -1,22 +1,33 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNodesState, useEdgesState } from '@xyflow/react';
 import {
-  type FlowNode,
-  type FlowEdge,
-  type CanvasNode,
-  type CanvasEdge,
-  type LayoutDirection,
-  type LayoutDensity,
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useEdgesState, useNodesState } from "@xyflow/react";
+import {
   applyDagreLayout,
+  type CanvasEdge,
+  type CanvasNode,
+  type FlowEdge,
+  type FlowNode,
+  type LayoutDensity,
+  type LayoutDirection,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-} from '../../domain';
-import type { createPerfTracker } from '../../infrastructure';
-import { runLayoutInWorker, terminateLayoutWorker, areWorkersSupported } from '../../infrastructure';
+} from "../../domain";
+import type { createPerfTracker } from "../../infrastructure";
+import {
+  areWorkersSupported,
+  runLayoutInWorker,
+  terminateLayoutWorker,
+} from "../../infrastructure";
 
 const globalRecord = globalThis as Record<string, unknown>;
-const isTestEnv =
-  typeof globalRecord['process'] !== 'undefined' &&
-  (globalRecord['process'] as { env?: { NODE_ENV?: string } } | undefined)?.env?.NODE_ENV === 'test';
+const isTestEnv = typeof globalRecord["process"] !== "undefined" &&
+  (globalRecord["process"] as { env?: { NODE_ENV?: string } } | undefined)?.env
+      ?.NODE_ENV === "test";
 const isWorkerSupported = areWorkersSupported();
 
 type PerfTracker = ReturnType<typeof createPerfTracker>;
@@ -48,10 +59,16 @@ export function useViewerLayout({
   relayout: () => void;
   isCalculatingLayout: boolean;
 } {
-  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
-  const shouldProgressiveLayout = flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
-  const isLargeWorkerEnabled = shouldProgressiveLayout && !isTestEnv && isWorkerSupported;
-  const [isCalculatingLayout, setIsCalculatingLayout] = useState(isLargeWorkerEnabled);
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
+  const shouldProgressiveLayout =
+    flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
+  const isLargeWorkerEnabled = shouldProgressiveLayout && !isTestEnv &&
+    isWorkerSupported;
+  const [isCalculatingLayout, setIsCalculatingLayout] = useState(
+    isLargeWorkerEnabled,
+  );
 
   // Sync state with props changes during render phase to avoid effect layout shifts
   const [prevFlowNodes, setPrevFlowNodes] = useState(flowNodes);
@@ -70,7 +87,8 @@ export function useViewerLayout({
     setPrevDirection(layoutDirection);
     setPrevDensity(layoutDensity);
     setIsCalculatingLayout(
-      flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT && !isTestEnv && isWorkerSupported
+      flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT && !isTestEnv &&
+        isWorkerSupported,
     );
   }
 
@@ -79,17 +97,27 @@ export function useViewerLayout({
       // Immediately bypass synchronous layout for large projects
       return { nodes: [], edges: [] };
     }
-    perf.mark('layout');
+    perf.mark("layout");
     const progressive = shouldProgressiveLayout;
-    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, { progressive, layoutDensity });
-    perf.measure('layout', 'layout_ms', {
+    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
+      progressive,
+      layoutDensity,
+    });
+    perf.measure("layout", "layout_ms", {
       nodes: flowNodes.length,
       edges: flowEdges.length,
       direction: layoutDirection,
       progressive,
     });
     return laidOut;
-  }, [flowEdges, flowNodes, layoutDirection, perf, shouldProgressiveLayout, layoutDensity]);
+  }, [
+    flowEdges,
+    flowNodes,
+    layoutDirection,
+    perf,
+    shouldProgressiveLayout,
+    layoutDensity,
+  ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
@@ -102,7 +130,9 @@ export function useViewerLayout({
         previousPositions: nodePositionsRef.current,
         layoutDensity,
       });
-      nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
+      nodePositionsRef.current = new Map(
+        next.nodes.map((n) => [n.id, n.position]),
+      );
       setNodes(next.nodes);
       setEdges(next.edges);
       setIsCalculatingLayout(false);
@@ -111,7 +141,7 @@ export function useViewerLayout({
       }
       return;
     }
- 
+
     runLayoutInWorker(
       flowNodes,
       flowEdges,
@@ -122,7 +152,9 @@ export function useViewerLayout({
         layoutDensity,
       },
       (next) => {
-        nodePositionsRef.current = new Map(next.nodes.map((n) => [n.id, n.position]));
+        nodePositionsRef.current = new Map(
+          next.nodes.map((n) => [n.id, n.position]),
+        );
         setNodes(next.nodes);
         setEdges(next.edges);
         setIsCalculatingLayout(false);
@@ -131,18 +163,29 @@ export function useViewerLayout({
         }
       },
       (error) => {
-        console.error('Layout worker error during manual relayout:', error);
+        console.error("Layout worker error during manual relayout:", error);
         setIsCalculatingLayout(false);
-      }
+      },
     );
-  }, [flowEdges, flowNodes, layoutDirection, onRelayoutComplete, setEdges, setNodes, shouldProgressiveLayout, layoutDensity]);
+  }, [
+    flowEdges,
+    flowNodes,
+    layoutDirection,
+    onRelayoutComplete,
+    setEdges,
+    setNodes,
+    shouldProgressiveLayout,
+    layoutDensity,
+  ]);
 
   useEffect(() => {
     startTransition(() => {
       setNodes(layoutNodes);
       setEdges(layoutEdges);
     });
-    nodePositionsRef.current = new Map(layoutNodes.map((n) => [n.id, n.position]));
+    nodePositionsRef.current = new Map(
+      layoutNodes.map((n) => [n.id, n.position]),
+    );
     if (!shouldProgressiveLayout || isTestEnv || !isWorkerSupported) {
       return;
     }
@@ -157,7 +200,9 @@ export function useViewerLayout({
         layoutDensity,
       },
       (refined) => {
-        nodePositionsRef.current = new Map(refined.nodes.map((n) => [n.id, n.position]));
+        nodePositionsRef.current = new Map(
+          refined.nodes.map((n) => [n.id, n.position]),
+        );
         startTransition(() => {
           setNodes(refined.nodes);
           setEdges(refined.edges);
@@ -165,15 +210,25 @@ export function useViewerLayout({
         setIsCalculatingLayout(false);
       },
       (error) => {
-        console.error('Layout worker error:', error);
+        console.error("Layout worker error:", error);
         setIsCalculatingLayout(false);
-      }
+      },
     );
 
     return () => {
       cancelLayout();
     };
-  }, [flowEdges, flowNodes, layoutDirection, layoutEdges, layoutNodes, setEdges, setNodes, shouldProgressiveLayout, layoutDensity]);
+  }, [
+    flowEdges,
+    flowNodes,
+    layoutDirection,
+    layoutEdges,
+    layoutNodes,
+    setEdges,
+    setNodes,
+    shouldProgressiveLayout,
+    layoutDensity,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -181,6 +236,15 @@ export function useViewerLayout({
     };
   }, []);
 
-  return { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, nodePositionsRef, relayout, isCalculatingLayout };
+  return {
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    onNodesChange,
+    onEdgesChange,
+    nodePositionsRef,
+    relayout,
+    isCalculatingLayout,
+  };
 }
-

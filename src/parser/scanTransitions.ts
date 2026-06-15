@@ -1,6 +1,6 @@
-import { PARSER_TOKENS } from './parserTokens';
-import type { ParseScanState } from './pipelineTypes';
-import type { ConditionalBranchKind } from './pipelineTypes';
+import { PARSER_TOKENS } from "./parserTokens";
+import type { ParseScanState } from "./pipelineTypes";
+import type { ConditionalBranchKind } from "./pipelineTypes";
 
 /**
  * Calculates the index of the parent menu block in the menu stack based on menu depth.
@@ -23,7 +23,10 @@ export function menuAtDepth(
 /**
  * Appends the menu option text slug to the base edge ID to guarantee identifier uniqueness.
  */
-export function edgeIdWithOption(base: string, optionText: string | null | undefined): string {
+export function edgeIdWithOption(
+  base: string,
+  optionText: string | null | undefined,
+): string {
   return optionText ? `${base}_${optionText}` : base;
 }
 
@@ -56,11 +59,15 @@ export function maybeUpdateConditionalState(
     scanState.pendingConditionalHeader = null;
   }
   // Ignore purely whitespace or newline tokens
-  if (type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline) {
+  if (
+    type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline
+  ) {
     return;
   }
 
-  if (lineNumber !== undefined && scanState.lastConditionalLine === lineNumber) {
+  if (
+    lineNumber !== undefined && scanState.lastConditionalLine === lineNumber
+  ) {
     // We are on the same line as the conditional statement keyword itself.
     // Do not pop.
     if (type !== PARSER_TOKENS.kwConditional) return;
@@ -71,13 +78,16 @@ export function maybeUpdateConditionalState(
   // Pop all conditional blocks that are deeper than the current indentation
   while (
     scanState.conditionalIndentStack.length > 0 &&
-    indent <= scanState.conditionalIndentStack[scanState.conditionalIndentStack.length - 1]
+    indent <=
+      scanState
+        .conditionalIndentStack[scanState.conditionalIndentStack.length - 1]
   ) {
     scanState.conditionalIndentStack.pop();
   }
   // Pop out-of-scope decisions from the stack
   while (scanState.conditionalDecisionStack.length > 0) {
-    const top = scanState.conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1]!;
+    const top = scanState
+      .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1]!;
     if (indent < top.indent) {
       scanState.conditionalDecisionStack.pop();
       continue;
@@ -92,7 +102,10 @@ export function maybeUpdateConditionalState(
   if (type !== PARSER_TOKENS.kwConditional) return;
   scanState.lastConditionalLine = lineNumber;
   const tokenText = getTokenText();
-  if (tokenText === 'if' || tokenText === 'elif' || tokenText === 'else' || tokenText === 'while') {
+  if (
+    tokenText === "if" || tokenText === "elif" || tokenText === "else" ||
+    tokenText === "while"
+  ) {
     scanState.conditionalIndentStack.push(indent);
   }
   const parsedHeader = parseConditionalHeader(lineText ?? tokenText);
@@ -116,8 +129,8 @@ function parseConditionalHeader(lineText: string): {
   if (headerColonIndex < 0) return null;
 
   const headerPrefix = trimmed.slice(0, headerColonIndex).trim();
-  if (kind === 'else') {
-    return headerPrefix === 'else' ? { kind: 'else', expression: null } : null;
+  if (kind === "else") {
+    return headerPrefix === "else" ? { kind: "else", expression: null } : null;
   }
 
   if (!headerPrefix.startsWith(kind)) return null;
@@ -132,22 +145,22 @@ function parseConditionalHeader(lineText: string): {
  * Returns -1 if no valid root-level colon can be found.
  */
 function findTopLevelHeaderColon(text: string): number {
-  const delimiterStack: Array<')' | ']' | '}'> = [];
-  let activeQuote: '"' | '\'' | null = null;
+  const delimiterStack: Array<")" | "]" | "}"> = [];
+  let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
   let inComment = false;
 
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
     if (inComment) {
-      if (char === '\n') {
+      if (char === "\n") {
         inComment = false;
       }
       continue;
     }
 
     if (activeQuote) {
-      if (char === '\\') {
+      if (char === "\\") {
         if (i + 1 < text.length) {
           i += 1;
         } else {
@@ -156,7 +169,10 @@ function findTopLevelHeaderColon(text: string): number {
         continue;
       }
       if (tripleQuoted) {
-        if (i + 2 < text.length && char === activeQuote && text[i + 1] === activeQuote && text[i + 2] === activeQuote) {
+        if (
+          i + 2 < text.length && char === activeQuote &&
+          text[i + 1] === activeQuote && text[i + 2] === activeQuote
+        ) {
           i += 2;
           activeQuote = null;
           tripleQuoted = false;
@@ -169,28 +185,31 @@ function findTopLevelHeaderColon(text: string): number {
       continue;
     }
 
-    if ((char === '"' || char === '\'') && i + 2 < text.length && text[i + 1] === char && text[i + 2] === char) {
+    if (
+      (char === '"' || char === "'") && i + 2 < text.length &&
+      text[i + 1] === char && text[i + 2] === char
+    ) {
       activeQuote = char;
       tripleQuoted = true;
       i += 2;
       continue;
     }
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       activeQuote = char;
       tripleQuoted = false;
       continue;
     }
 
-    if (char === '#') {
+    if (char === "#") {
       inComment = true;
       continue;
     }
 
-    if (char === '(' || char === '[' || char === '{') {
-      delimiterStack.push(char === '(' ? ')' : char === '[' ? ']' : '}');
+    if (char === "(" || char === "[" || char === "{") {
+      delimiterStack.push(char === "(" ? ")" : char === "[" ? "]" : "}");
       continue;
     }
-    if (char === ')' || char === ']' || char === '}') {
+    if (char === ")" || char === "]" || char === "}") {
       const expectedCloser = delimiterStack.pop();
       if (!expectedCloser || expectedCloser !== char) {
         return -1;
@@ -198,11 +217,10 @@ function findTopLevelHeaderColon(text: string): number {
       continue;
     }
 
-    if (char === ':' && delimiterStack.length === 0) {
+    if (char === ":" && delimiterStack.length === 0) {
       return i;
     }
   }
 
   return -1;
 }
-

@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { z } from 'zod';
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { z } from "zod";
 import {
   DEFAULT_PARSER_VARIANT,
   getParserVariants,
@@ -9,8 +9,8 @@ import {
   normalizeScreenActionRule,
   type ParserVariant,
   type ScreenActionRule,
-} from '../config/parserRules';
-import { STORAGE_KEYS } from '../config/storageKeys';
+} from "../config/parserRules";
+import { STORAGE_KEYS } from "../config/storageKeys";
 
 export type RulesByVariant = Record<string, ScreenActionRule[]>;
 
@@ -22,15 +22,24 @@ export interface ParserRuleSettings {
 export interface ParserRuleSettingsActions {
   setSelectedVariant: (variant: ParserVariant) => void;
   addCustomRule: () => void;
-  updateCustomRule: (idx: number, patch: Partial<{ actionName: string; actionKind: ScreenActionRule['actionKind'] }>) => void;
+  updateCustomRule: (
+    idx: number,
+    patch: Partial<
+      { actionName: string; actionKind: ScreenActionRule["actionKind"] }
+    >,
+  ) => void;
   removeCustomRule: (idx: number) => void;
   resetSettings: () => void;
 }
 
-export type ParserRuleSettingsStore = ParserRuleSettings & ParserRuleSettingsActions;
+export type ParserRuleSettingsStore =
+  & ParserRuleSettings
+  & ParserRuleSettingsActions;
 
 function createEmptyRulesByVariant(): RulesByVariant {
-  return Object.fromEntries(getParserVariants().map((variant) => [variant, []] as const));
+  return Object.fromEntries(
+    getParserVariants().map((variant) => [variant, []] as const),
+  );
 }
 
 export const defaultParserRuleSettings: ParserRuleSettings = {
@@ -40,7 +49,7 @@ export const defaultParserRuleSettings: ParserRuleSettings = {
 
 const screenActionRuleSchema = z.object({
   actionName: z.string().transform((s) => s.trim()).pipe(z.string().min(1)),
-  actionKind: z.enum(['jump', 'call']),
+  actionKind: z.enum(["jump", "call"]),
 });
 
 const rulesArraySchema = z
@@ -49,7 +58,7 @@ const rulesArraySchema = z
     arr.flatMap((item) => {
       const result = screenActionRuleSchema.safeParse(item);
       return result.success ? [result.data as ScreenActionRule] : [];
-    }),
+    })
   )
   .catch([]);
 
@@ -68,7 +77,7 @@ function mergePersistedState(
   current: ParserRuleSettingsStore,
 ): ParserRuleSettingsStore {
   const parsed = parserRuleSettingsSchema.parse(
-    persisted && typeof persisted === 'object' ? persisted : {},
+    persisted && typeof persisted === "object" ? persisted : {},
   );
   const normalizedRules = createEmptyRulesByVariant();
   for (const [variant, rules] of Object.entries(parsed.customRulesByVariant)) {
@@ -103,8 +112,8 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
             draft.customRulesByVariant[draft.selectedVariant] = [];
           }
           draft.customRulesByVariant[draft.selectedVariant].push({
-            actionName: '',
-            actionKind: 'jump',
+            actionName: "",
+            actionKind: "jump",
           });
         }),
 
@@ -112,8 +121,12 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
         set((draft) => {
           const rule = draft.customRulesByVariant[draft.selectedVariant][idx];
           if (!rule) return;
-          if (patch.actionName !== undefined) rule.actionName = patch.actionName;
-          if (patch.actionKind !== undefined) rule.actionKind = patch.actionKind;
+          if (patch.actionName !== undefined) {
+            rule.actionName = patch.actionName;
+          }
+          if (patch.actionKind !== undefined) {
+            rule.actionKind = patch.actionKind;
+          }
         }),
 
       removeCustomRule: (idx) =>
@@ -122,8 +135,7 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
           draft.customRulesByVariant[draft.selectedVariant].splice(idx, 1);
         }),
 
-      resetSettings: () =>
-        set(() => ({ ...defaultParserRuleSettings })),
+      resetSettings: () => set(() => ({ ...defaultParserRuleSettings })),
     })),
     {
       name: STORAGE_KEYS.parserSettings,

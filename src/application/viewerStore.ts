@@ -10,30 +10,36 @@
  *   import, since App renders it with key={importRevision}).
  */
 
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { temporal } from 'zundo';
-import { z } from 'zod';
-import type { DialogueSearchResult } from '../infrastructure';
-import type { ConditionVisibilityMode, EdgeKindFilter, ThemeName, LayoutDirection, LayoutDensity } from '../domain';
-import { STORAGE_KEYS } from '../config/storageKeys';
-import type { DialogueSearchMode } from './appStore';
-import type { MockFlagValue } from '../domain';
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { temporal } from "zundo";
+import { z } from "zod";
+import type { DialogueSearchResult } from "../infrastructure";
+import type {
+  ConditionVisibilityMode,
+  EdgeKindFilter,
+  LayoutDensity,
+  LayoutDirection,
+  ThemeName,
+} from "../domain";
+import { STORAGE_KEYS } from "../config/storageKeys";
+import type { DialogueSearchMode } from "./appStore";
+import type { MockFlagValue } from "../domain";
 
 import {
-  createThemeSlice,
-  defaultThemeState,
-  createFilterSlice,
-  defaultFilterState,
-  createSearchSlice,
-  defaultSearchState,
-  createSelectionSlice,
-  defaultSelectionState,
-  createSimulationSlice,
-  defaultSimulationState,
   createEmptyMockFlags,
-} from './viewerStoreSlices';
+  createFilterSlice,
+  createSearchSlice,
+  createSelectionSlice,
+  createSimulationSlice,
+  createThemeSlice,
+  defaultFilterState,
+  defaultSearchState,
+  defaultSelectionState,
+  defaultSimulationState,
+  defaultThemeState,
+} from "./viewerStoreSlices";
 
 // ─── Persisted slice ──────────────────────────────────────────────────────────
 
@@ -76,7 +82,7 @@ export interface ViewerSessionState {
   mockFlags: Record<string, MockFlagValue>;
   conditionVisibilityMode: ConditionVisibilityMode;
   selectedSearchChapter: string;
-  selectedSearchNodeKinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>;
+  selectedSearchNodeKinds: Record<"LABEL" | "MENU" | "DECISION", boolean>;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -113,7 +119,9 @@ export interface ViewerActions {
   resetMockFlags: () => void;
   setConditionVisibilityMode: (mode: ConditionVisibilityMode) => void;
   setSelectedSearchChapter: (chapter: string) => void;
-  setSelectedSearchNodeKinds: (kinds: Record<'LABEL' | 'MENU' | 'DECISION', boolean>) => void;
+  setSelectedSearchNodeKinds: (
+    kinds: Record<"LABEL" | "MENU" | "DECISION", boolean>,
+  ) => void;
 
   /** Resets all session state to defaults. Called on component unmount. */
   resetSession: () => void;
@@ -121,7 +129,10 @@ export interface ViewerActions {
 
 // ─── Full store type ──────────────────────────────────────────────────────────
 
-export type ViewerStore = ViewerPersistedState & ViewerSessionState & ViewerActions;
+export type ViewerStore =
+  & ViewerPersistedState
+  & ViewerSessionState
+  & ViewerActions;
 
 // ─── Default values ───────────────────────────────────────────────────────────
 
@@ -137,16 +148,26 @@ const defaultSessionState: ViewerSessionState = {
 // ─── Persist merge/validation helpers ────────────────────────────────────────
 
 const viewerPersistedStateSchema = z.object({
-  theme: z.enum(['violet', 'highContrast', 'colorblind', 'dark']).catch(defaultPersistedState.theme),
-  layoutDensity: z.enum(['compact', 'normal', 'spacious']).catch(defaultPersistedState.layoutDensity),
+  theme: z.enum(["violet", "highContrast", "colorblind", "dark"]).catch(
+    defaultPersistedState.theme,
+  ),
+  layoutDensity: z.enum(["compact", "normal", "spacious"]).catch(
+    defaultPersistedState.layoutDensity,
+  ),
   showCallReturns: z.boolean().catch(defaultPersistedState.showCallReturns),
-  showAudioAssetCues: z.boolean().catch(defaultPersistedState.showAudioAssetCues),
+  showAudioAssetCues: z.boolean().catch(
+    defaultPersistedState.showAudioAssetCues,
+  ),
   visibleEdgeKinds: z
     .object({
-      sequence: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.sequence),
+      sequence: z.boolean().catch(
+        defaultPersistedState.visibleEdgeKinds.sequence,
+      ),
       jump: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.jump),
       call: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.call),
-      call_return: z.boolean().catch(defaultPersistedState.visibleEdgeKinds.call_return),
+      call_return: z.boolean().catch(
+        defaultPersistedState.visibleEdgeKinds.call_return,
+      ),
     })
     .catch(defaultPersistedState.visibleEdgeKinds),
 });
@@ -156,9 +177,12 @@ const viewerPersistedStateSchema = z.object({
  * current store state. Unknown or malformed keys are silently replaced with
  * their schema defaults via Zod `.catch()` clauses.
  */
-function mergePersistedState(persisted: unknown, current: ViewerStore): ViewerStore {
+function mergePersistedState(
+  persisted: unknown,
+  current: ViewerStore,
+): ViewerStore {
   const parsed = viewerPersistedStateSchema.parse(
-    persisted && typeof persisted === 'object' ? persisted : {},
+    persisted && typeof persisted === "object" ? persisted : {},
   );
   return { ...current, ...parsed };
 }
@@ -194,27 +218,38 @@ const LEGACY_KEYS = [
 function migrateLegacyKeys(): string | null {
   try {
     const rawTheme = globalThis.localStorage.getItem(STORAGE_KEYS.theme);
-    const rawCallReturns = globalThis.localStorage.getItem(STORAGE_KEYS.showCallReturns);
+    const rawCallReturns = globalThis.localStorage.getItem(
+      STORAGE_KEYS.showCallReturns,
+    );
     const rawSeq = globalThis.localStorage.getItem(STORAGE_KEYS.edgeSequence);
     const rawJump = globalThis.localStorage.getItem(STORAGE_KEYS.edgeJump);
     const rawCall = globalThis.localStorage.getItem(STORAGE_KEYS.edgeCall);
-    const rawCallReturn = globalThis.localStorage.getItem(STORAGE_KEYS.edgeCallReturn);
+    const rawCallReturn = globalThis.localStorage.getItem(
+      STORAGE_KEYS.edgeCallReturn,
+    );
 
-    const hasLegacy = [rawTheme, rawCallReturns, rawSeq, rawJump, rawCall, rawCallReturn].some(
+    const hasLegacy = [
+      rawTheme,
+      rawCallReturns,
+      rawSeq,
+      rawJump,
+      rawCall,
+      rawCallReturn,
+    ].some(
       (v) => v !== null,
     );
     if (!hasLegacy) return null;
 
     const migratedState: ViewerPersistedState = {
       theme: viewerPersistedStateSchema.shape.theme.parse(rawTheme),
-      layoutDensity: 'normal',
-      showCallReturns: rawCallReturns === 'true',
+      layoutDensity: "normal",
+      showCallReturns: rawCallReturns === "true",
       showAudioAssetCues: true,
       visibleEdgeKinds: {
-        sequence: rawSeq !== 'false',
-        jump: rawJump !== 'false',
-        call: rawCall !== 'false',
-        call_return: rawCallReturn !== 'false',
+        sequence: rawSeq !== "false",
+        jump: rawJump !== "false",
+        call: rawCall !== "false",
+        call_return: rawCallReturn !== "false",
       },
     };
 
@@ -256,7 +291,7 @@ export const useViewerStore = create<ViewerStore>()(
           mockFlags: state.mockFlags,
           conditionVisibilityMode: state.conditionVisibilityMode,
         }),
-      }
+      },
     ),
     {
       name: STORAGE_KEYS.viewer,
