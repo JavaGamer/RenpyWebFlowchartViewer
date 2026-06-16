@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { proxy, releaseProxy, type Remote, wrap } from "comlink";
+import { proxy, type Remote, wrap } from "comlink";
 import MiniSearch from "minisearch";
 import { createGraphState } from "../parser/pipelineState.ts";
 import { processTokenizedFile, tokenizeOneFile } from "../parser/filePipeline.ts";
@@ -412,9 +412,6 @@ export function parseRenpyFilesInWorker(
       })
       .then((result: any) => {
         signal?.removeEventListener("abort", onAbort);
-        if (progressProxy) {
-          progressProxy[releaseProxy]();
-        }
 
         if (signal?.aborted) {
           reject(new DOMException("Parsing cancelled", "AbortError"));
@@ -427,9 +424,6 @@ export function parseRenpyFilesInWorker(
       })
       .catch((error) => {
         signal?.removeEventListener("abort", onAbort);
-        if (progressProxy) {
-          progressProxy[releaseProxy]();
-        }
         reject(error);
       });
   }) as unknown as Promise<ParseWorkerClientResult>;
