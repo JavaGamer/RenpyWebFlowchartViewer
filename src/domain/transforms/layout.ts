@@ -1,4 +1,5 @@
 import dagre from "@dagrejs/dagre";
+import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import type {
   CanvasEdge,
   CanvasNode,
@@ -374,18 +375,10 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
 
 export async function preWarmElk(): Promise<void> {
   if (!elkInstance) {
-    const [ELKModule, ElkWorker] = await Promise.all([
-      import("elkjs/lib/elk.bundled.js"),
-      import("elkjs/lib/elk-worker.min.js"),
-    ]);
+    const ELKModule = await import("elkjs/lib/elk-api.js");
     const ELK = ELKModule.default || ELKModule;
-    const ElkWorkerTyped = ElkWorker as unknown as Record<string, unknown>;
-    const defaultExport = ElkWorkerTyped.default as Record<string, unknown> | undefined;
-    const WorkerConstructor = (ElkWorkerTyped.Worker ||
-      (defaultExport && defaultExport.Worker) ||
-      ElkWorkerTyped.default) as new (url?: string) => Worker;
     elkInstance = new ELK({
-      workerFactory: (url?: string) => new WorkerConstructor(url),
+      workerUrl: elkWorkerUrl,
     }) as unknown as ElkInstance;
   }
 }
