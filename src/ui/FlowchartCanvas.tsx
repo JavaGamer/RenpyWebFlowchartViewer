@@ -745,6 +745,7 @@ export function FlowchartCanvas({
           ref={flowRef}
           className="flex-1 min-h-[320px] relative"
           style={{ backgroundColor: THEMES[theme].pageBg }}
+          data-theme={theme}
         >
           {isCalculatingLayout && (
             <div className="absolute inset-0 bg-white/45 backdrop-blur-md z-30 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
@@ -774,6 +775,7 @@ export function FlowchartCanvas({
             </div>
           )}
           <ReactFlow
+            colorMode={theme === "dark" ? "dark" : "light"}
             nodes={visibleNodes}
             edges={visibleEdges}
             nodeTypes={nodeTypes}

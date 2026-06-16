@@ -6,6 +6,8 @@ import {
   getBezierPath,
 } from "@xyflow/react";
 import type { LabeledEdgeType } from "../domain/index.ts";
+import { useViewerStore } from "../application/index.ts";
+import { cn } from "./utils/cn.ts";
 
 export const LabeledEdge = memo(function LabeledEdge({
   id,
@@ -28,6 +30,10 @@ export const LabeledEdge = memo(function LabeledEdge({
     targetPosition,
   });
 
+  const theme = useViewerStore((s) => s.theme);
+  const isDark = theme === "dark";
+  const isHighContrast = theme === "highContrast";
+
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
@@ -41,7 +47,14 @@ export const LabeledEdge = memo(function LabeledEdge({
               pointerEvents: "all",
               opacity: data.conditionState === "unreachable" ? 0.45 : 1,
             }}
-            className="bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[10px] text-gray-600 max-w-[120px] truncate shadow-sm nodrag nopan"
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] max-w-[120px] truncate shadow-sm nodrag nopan border transition-colors duration-200",
+              isDark
+                ? "bg-slate-800 border-slate-700 text-slate-200"
+                : isHighContrast
+                ? "bg-white border-2 border-black text-black font-semibold"
+                : "bg-white border-gray-200 text-gray-600",
+            )}
           >
             {data.label}
           </div>

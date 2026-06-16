@@ -38,3 +38,152 @@ body,
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out;
 }
+
+/* React Flow custom styled panels across different themes */
+
+/* --- Default / Light Theme Overrides (e.g. violet, colorblind, light backgrounds) --- */
+.react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.react-flow__controls-button {
+  background: #ffffff !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  color: #374151 !important;
+  transition: all 0.2s ease;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+}
+
+.react-flow__minimap {
+  background-color: #ffffff !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.06) !important;
+  stroke: rgba(124, 58, 237, 0.35) !important;
+  stroke-width: 1.5px !important;
+}
+
+/* --- Theme-Specific Overrides --- */
+
+/* Violet Theme Specifics */
+[data-theme="violet"] .react-flow__controls-button:hover {
+  background: #f5f3ff !important;
+  color: #7c3aed !important;
+}
+[data-theme="violet"] .react-flow__minimap-mask {
+  stroke: rgba(124, 58, 237, 0.45) !important;
+}
+
+/* Colorblind Theme Specifics */
+[data-theme="colorblind"] .react-flow__controls-button:hover {
+  background: #e0f2fe !important;
+  color: #0072b2 !important;
+}
+[data-theme="colorblind"] .react-flow__minimap-mask {
+  stroke: rgba(0, 114, 178, 0.45) !important;
+}
+
+/* High Contrast Theme (Pure black and white) */
+[data-theme="highContrast"] .react-flow__controls {
+  border-radius: 0px !important;
+  border: 2px solid #000000 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="highContrast"] .react-flow__controls-button {
+  background: #ffffff !important;
+  border-bottom: 2px solid #000000 !important;
+  color: #000000 !important;
+}
+
+[data-theme="highContrast"] .react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+[data-theme="highContrast"] .react-flow__controls-button:hover {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="highContrast"] .react-flow__minimap {
+  background-color: #ffffff !important;
+  border-radius: 0px !important;
+  border: 2px solid #000000 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="highContrast"] .react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.2) !important;
+  stroke: #000000 !important;
+  stroke-width: 2px !important;
+}
+
+/* --- Dark Theme (Slate Theme) --- */
+[data-theme="dark"] .react-flow__controls {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="dark"] .react-flow__controls-button {
+  background: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+[data-theme="dark"] .react-flow__controls-button:hover {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .react-flow__minimap {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="dark"] .react-flow__minimap-mask {
+  fill: rgba(15, 23, 42, 0.65) !important;
+  stroke: rgba(167, 139, 250, 0.45) !important; /* matches a78bfa label border color */
+  stroke-width: 2px !important;
+}
+
+/* Custom scrollbar for dark theme to prevent jarring default scrollbars */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
