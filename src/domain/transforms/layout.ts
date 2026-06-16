@@ -383,9 +383,9 @@ export async function preWarmElk(): Promise<void> {
     const defaultExport = ElkWorkerTyped.default as Record<string, unknown> | undefined;
     const WorkerConstructor = (ElkWorkerTyped.Worker ||
       (defaultExport && defaultExport.Worker) ||
-      ElkWorkerTyped.default) as new (url: string) => Worker;
+      ElkWorkerTyped.default) as new (url?: string) => Worker;
     elkInstance = new ELK({
-      workerFactory: (url: string) => new WorkerConstructor(url),
+      workerFactory: (url?: string) => new WorkerConstructor(url),
     }) as unknown as ElkInstance;
   }
 }
