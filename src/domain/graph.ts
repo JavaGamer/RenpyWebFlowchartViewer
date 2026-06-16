@@ -55,6 +55,10 @@ export interface FlowNode {
   shadowOfId?: string;
   /** True when this label is a terminal story outcome. */
   isTerminalOutcome?: boolean;
+  /** Internal line numbers of dialogue lines for sorting during parsing. */
+  dialogueLineNums?: number[];
+  /** Internal line number of the dialogue prompt that set this menu's label. */
+  menuPromptLineNum?: number;
 }
 
 /** A directed edge in the flowchart graph. */

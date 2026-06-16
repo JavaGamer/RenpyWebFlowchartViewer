@@ -484,6 +484,111 @@ describe("parseRenpyFiles", () => {
     expect(menuNode?.label).toBe("talk_options");
   });
 
+  it("uses the dialogue prompt as the label for unnamed menu nodes", async () => {
+    const script = [
+      "label choice:",
+      "    menu:",
+      '        "Should I go north or south?"',
+      '        "Option A":',
+      "            jump end_a",
+      '        "Option B":',
+      "            jump end_b",
+      "",
+      "label end_a:",
+      '    "done a"',
+      "",
+      "label end_b:",
+      '    "done b"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "menu_dialogue.rpy",
+      content: script,
+    }]);
+
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode).toBeDefined();
+    expect(menuNode?.label).toBe("Should I go north or south?");
+  });
+
+  it("uses the first dialogue prompt as label and ignores subsequent dialogue prompts for unnamed menu labels", async () => {
+    const script = [
+      "label choice:",
+      "    menu:",
+      '        "First prompt line"',
+      '        "Second prompt line"',
+      '        "Option A":',
+      "            jump end_a",
+      "",
+      "label end_a:",
+      '    "done a"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "menu_multi_dialogue.rpy",
+      content: script,
+    }]);
+
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode).toBeDefined();
+    expect(menuNode?.label).toBe("First prompt line");
+  });
+
+  it("retains the custom name of a named menu even when it has dialogue prompts", async () => {
+    const script = [
+      "label choice:",
+      "    menu talk_options:",
+      '        "What should I talk about?"',
+      '        "Option A":',
+      "            jump end_a",
+      "",
+      "label end_a:",
+      '    "done a"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "named_menu_dialogue.rpy",
+      content: script,
+    }]);
+
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode).toBeDefined();
+    expect(menuNode?.label).toBe("talk_options");
+  });
+
+  it("associates menu dialogue prompts directly with the MENU node", async () => {
+    const script = [
+      "label choice:",
+      "    menu:",
+      '        "Should I go north or south?"',
+      '        "Option A":',
+      "            jump end_a",
+      "",
+      "label end_a:",
+      '    "done a"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "menu_dialogue_association.rpy",
+      content: script,
+    }]);
+
+    const choiceNode = result.nodes.find((n) => n.id === "choice");
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+
+    // Parent label node should not have the menu's dialogue count/lines
+    expect(choiceNode?.dialogueCount).toBe(0);
+    expect(choiceNode?.dialogueLines).toBeUndefined();
+
+    // Menu node should have the dialogue count/lines
+    expect(menuNode?.dialogueCount).toBe(1);
+    expect(menuNode?.dialogueLines).toEqual(["Should I go north or south?"]);
+  });
+
   it("does not count menu option strings as dialogue", async () => {
     const script = [
       "label pick:",

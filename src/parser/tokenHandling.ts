@@ -29,6 +29,7 @@ interface HandleTokenInput {
   menuDepth: number;
   lineIndent: number;
   lineText: string;
+  lineNum: number;
   captureDialogueLines: boolean;
   screenActionRuleMap: Map<string, ScreenActionKind>;
   sceneSplitDialogueThreshold?: number;
@@ -2098,6 +2099,7 @@ export function handleToken(
     menuDepth,
     lineIndent,
     lineText,
+    lineNum,
     captureDialogueLines,
     screenActionRuleMap,
   } = input;
@@ -2587,7 +2589,8 @@ export function handleToken(
       scanState.currentSceneDialogueCount =
         (scanState.currentSceneDialogueCount ?? 0) + 1;
       const menu = menuAtDepth(scanState.menuStack, menuDepth);
-      const ownerId = meta.hasMenuOptionBlock && menu
+      const isInMenuPrompt = menu !== null && !meta.hasMenuOptionBlock;
+      const ownerId = (meta.hasMenuOptionBlock && menu) || isInMenuPrompt
         ? menu.id
         : scanState.currentLabelId;
 
@@ -2595,10 +2598,30 @@ export function handleToken(
         const ownerNode = state.nodeMap.get(ownerId);
         if (ownerNode) {
           ownerNode.dialogueCount += 1;
+          const line = val();
           if (captureDialogueLines) {
-            const line = val();
-            if (!ownerNode.dialogueLines) ownerNode.dialogueLines = [];
-            ownerNode.dialogueLines.push(line);
+            if (!ownerNode.dialogueLines) {
+              ownerNode.dialogueLines = [];
+              ownerNode.dialogueLineNums = [];
+            }
+            const lineNums = ownerNode.dialogueLineNums!;
+            const insertIdx = lineNums.findIndex(num => num > lineNum);
+            if (insertIdx === -1) {
+              ownerNode.dialogueLines.push(line);
+              lineNums.push(lineNum);
+            } else {
+              ownerNode.dialogueLines.splice(insertIdx, 0, line);
+              lineNums.splice(insertIdx, 0, lineNum);
+            }
+          }
+          if (ownerNode.type === "MENU" && isInMenuPrompt) {
+            const currentLineNum = ownerNode.menuPromptLineNum;
+            const isUnnamed = ownerNode.label === ownerNode.id;
+            const isSetByDialogue = currentLineNum !== undefined;
+            if (isUnnamed || (isSetByDialogue && lineNum < currentLineNum)) {
+              ownerNode.label = line;
+              ownerNode.menuPromptLineNum = lineNum;
+            }
           }
         }
       }
