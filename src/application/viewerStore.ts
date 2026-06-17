@@ -53,6 +53,8 @@ export interface ViewerPersistedState {
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
   showMediaCuesInDialogue: boolean;
+  minimapPannable: boolean;
+  minimapZoomable: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
 }
 
@@ -95,6 +97,8 @@ export interface ViewerActions {
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
   setShowMediaCuesInDialogue: (show: boolean) => void;
+  setMinimapPannable: (pannable: boolean) => void;
+  setMinimapZoomable: (zoomable: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
 
   // Session setters
@@ -163,6 +167,8 @@ const viewerPersistedStateSchema = z.object({
   showMediaCuesInDialogue: z.boolean().catch(
     defaultPersistedState.showMediaCuesInDialogue,
   ),
+  minimapPannable: z.boolean().catch(defaultPersistedState.minimapPannable),
+  minimapZoomable: z.boolean().catch(defaultPersistedState.minimapZoomable),
   visibleEdgeKinds: z
     .object({
       sequence: z.boolean().catch(
@@ -251,6 +257,8 @@ function migrateLegacyKeys(): string | null {
       showCallReturns: rawCallReturns === "true",
       showAudioAssetCues: true,
       showMediaCuesInDialogue: false,
+      minimapPannable: true,
+      minimapZoomable: true,
       visibleEdgeKinds: {
         sequence: rawSeq !== "false",
         jump: rawJump !== "false",
@@ -334,6 +342,8 @@ export const useViewerStore = create<ViewerStore>()(
         showCallReturns: state.showCallReturns,
         showAudioAssetCues: state.showAudioAssetCues,
         showMediaCuesInDialogue: state.showMediaCuesInDialogue,
+        minimapPannable: state.minimapPannable,
+        minimapZoomable: state.minimapZoomable,
         visibleEdgeKinds: state.visibleEdgeKinds,
       }),
     },

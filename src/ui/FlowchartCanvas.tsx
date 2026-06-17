@@ -38,11 +38,11 @@ import { useViewerLayout } from "./hooks/useViewerLayout.ts";
 import { useViewerSearch } from "./hooks/useViewerSearch.ts";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ViewerAdvancedControls } from "./ViewerAdvancedControls.tsx";
+import { cn } from "./utils/cn.ts";
 import { ViewerInspector } from "./viewerInspector.tsx";
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "./viewerConstants.ts";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
 import { deriveCollapsedLabelChildren } from "./canvasHelpers.ts";
-import { cn } from "./utils/cn.ts";
 
 export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
@@ -88,6 +88,8 @@ export function FlowchartCanvas({
     showCallReturns,
     showAudioAssetCues,
     showMediaCuesInDialogue,
+    minimapPannable,
+    minimapZoomable,
     visibleEdgeKinds,
     focusNodeId,
     largeGraphModeOverride,
@@ -115,6 +117,8 @@ export function FlowchartCanvas({
     showCallReturns: s.showCallReturns,
     showAudioAssetCues: s.showAudioAssetCues,
     showMediaCuesInDialogue: s.showMediaCuesInDialogue,
+    minimapPannable: s.minimapPannable,
+    minimapZoomable: s.minimapZoomable,
     visibleEdgeKinds: s.visibleEdgeKinds,
     focusNodeId: s.focusNodeId,
     largeGraphModeOverride: s.largeGraphModeOverride,
@@ -142,6 +146,8 @@ export function FlowchartCanvas({
     setShowCallReturns,
     setShowAudioAssetCues,
     setShowMediaCuesInDialogue,
+    setMinimapPannable,
+    setMinimapZoomable,
     setEdgeKindVisible,
     setFocusNodeId,
     setLargeGraphModeOverride,
@@ -169,6 +175,8 @@ export function FlowchartCanvas({
     setShowCallReturns: s.setShowCallReturns,
     setShowAudioAssetCues: s.setShowAudioAssetCues,
     setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
+    setMinimapPannable: s.setMinimapPannable,
+    setMinimapZoomable: s.setMinimapZoomable,
     setEdgeKindVisible: s.setEdgeKindVisible,
     setFocusNodeId: s.setFocusNodeId,
     setLargeGraphModeOverride: s.setLargeGraphModeOverride,
@@ -715,6 +723,10 @@ export function FlowchartCanvas({
                 setShowAudioAssetCues={setShowAudioAssetCues}
                 showMediaCuesInDialogue={showMediaCuesInDialogue}
                 setShowMediaCuesInDialogue={setShowMediaCuesInDialogue}
+                minimapPannable={minimapPannable}
+                setMinimapPannable={setMinimapPannable}
+                minimapZoomable={minimapZoomable}
+                setMinimapZoomable={setMinimapZoomable}
                 largeGraphMode={largeGraphMode}
                 largeGraphModeOverride={largeGraphModeOverride}
                 setLargeGraphModeOverride={setLargeGraphModeOverride}
@@ -809,6 +821,12 @@ export function FlowchartCanvas({
             <Background color={THEMES[theme].grid} gap={20} />
             <Controls />
             <MiniMap
+              className={cn(
+                minimapPannable && "minimap-pannable",
+                minimapZoomable && "minimap-zoomable",
+              )}
+              pannable={minimapPannable}
+              zoomable={minimapZoomable}
               nodeColor={(n) =>
                 n.type === "labelNode"
                   ? THEMES[theme].minimapLabel

@@ -43,6 +43,10 @@ export interface ViewerAdvancedControlsProps {
   setShowAudioAssetCues: (v: boolean) => void;
   showMediaCuesInDialogue: boolean;
   setShowMediaCuesInDialogue: (v: boolean) => void;
+  minimapPannable: boolean;
+  setMinimapPannable: (v: boolean) => void;
+  minimapZoomable: boolean;
+  setMinimapZoomable: (v: boolean) => void;
   largeGraphMode: boolean;
   largeGraphModeOverride: boolean | null;
   setLargeGraphModeOverride: (v: boolean | null) => void;
@@ -91,6 +95,10 @@ export function ViewerAdvancedControls({
   setShowAudioAssetCues,
   showMediaCuesInDialogue,
   setShowMediaCuesInDialogue,
+  minimapPannable,
+  setMinimapPannable,
+  minimapZoomable,
+  setMinimapZoomable,
   largeGraphMode,
   largeGraphModeOverride,
   setLargeGraphModeOverride,
@@ -395,6 +403,40 @@ export function ViewerAdvancedControls({
                 )}
               >
                 Show Media Cues in Dialogue
+              </span>
+            </label>
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={minimapPannable}
+                onChange={(e) => setMinimapPannable(e.target.checked)}
+                className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4"
+                aria-label="Enable minimap panning"
+              />
+              <span
+                className={cn(
+                  "font-medium",
+                  isDark ? "text-slate-350" : "text-gray-700",
+                )}
+              >
+                Enable minimap panning
+              </span>
+            </label>
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={minimapZoomable}
+                onChange={(e) => setMinimapZoomable(e.target.checked)}
+                className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4"
+                aria-label="Enable minimap zooming"
+              />
+              <span
+                className={cn(
+                  "font-medium",
+                  isDark ? "text-slate-350" : "text-gray-700",
+                )}
+              >
+                Enable minimap zooming
               </span>
             </label>
             <label className="inline-flex items-center gap-2 cursor-pointer select-none col-span-2">

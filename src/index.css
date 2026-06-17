@@ -75,12 +75,39 @@ body,
   border-radius: 8px !important;
   border: 1px solid rgba(0, 0, 0, 0.08) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 .react-flow__minimap-mask {
   fill: rgba(0, 0, 0, 0.06) !important;
   stroke: rgba(124, 58, 237, 0.35) !important;
   stroke-width: 1.5px !important;
+}
+
+/* Minimap interactive cursors when pannable */
+.react-flow__minimap.minimap-pannable .react-flow__minimap-mask {
+  cursor: grab !important;
+}
+.react-flow__minimap.minimap-pannable .react-flow__minimap-mask:active {
+  cursor: grabbing !important;
+}
+
+/* Minimap hover border/outline highlights per theme */
+[data-theme="violet"] .react-flow__minimap:hover {
+  border-color: rgba(124, 58, 237, 0.5) !important;
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.15), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="colorblind"] .react-flow__minimap:hover {
+  border-color: rgba(0, 114, 178, 0.5) !important;
+  box-shadow: 0 6px 16px rgba(0, 114, 178, 0.15), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="dark"] .react-flow__minimap:hover {
+  border-color: rgba(167, 139, 250, 0.5) !important;
+  box-shadow: 0 6px 16px rgba(167, 139, 250, 0.15), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="highContrast"] .react-flow__minimap:hover {
+  border-color: #000000 !important;
+  box-shadow: 0 0 0 2px #000000 !important;
 }
 
 /* --- Theme-Specific Overrides --- */

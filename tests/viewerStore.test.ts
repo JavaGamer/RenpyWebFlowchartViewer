@@ -8,6 +8,8 @@ const DEFAULTS = {
   theme: "violet" as const,
   layoutDensity: "normal" as const,
   showCallReturns: false,
+  minimapPannable: true,
+  minimapZoomable: true,
   visibleEdgeKinds: {
     sequence: true,
     jump: true,
@@ -56,6 +58,8 @@ describe("useViewerStore persistence", () => {
     const s = useViewerStore.getState();
     expect(s.theme).toBe(DEFAULTS.theme);
     expect(s.showCallReturns).toBe(DEFAULTS.showCallReturns);
+    expect(s.minimapPannable).toBe(DEFAULTS.minimapPannable);
+    expect(s.minimapZoomable).toBe(DEFAULTS.minimapZoomable);
     expect(s.visibleEdgeKinds).toEqual(DEFAULTS.visibleEdgeKinds);
   });
 
@@ -81,6 +85,20 @@ describe("useViewerStore persistence", () => {
     };
     expect(parsed.state?.showCallReturns).toBe(true);
     expect(parsed.state?.visibleEdgeKinds?.jump).toBe(false);
+  });
+
+  it("writes minimapPannable and minimapZoomable under STORAGE_KEYS.viewer", () => {
+    useViewerStore.getState().setMinimapPannable(false);
+    useViewerStore.getState().setMinimapZoomable(false);
+    const raw = globalThis.localStorage.getItem(STORAGE_KEYS.viewer);
+    const parsed = JSON.parse(raw as string) as {
+      state?: {
+        minimapPannable?: boolean;
+        minimapZoomable?: boolean;
+      };
+    };
+    expect(parsed.state?.minimapPannable).toBe(false);
+    expect(parsed.state?.minimapZoomable).toBe(false);
   });
 
   // ── Rehydration / normalisation ──────────────────────────────────────────────
