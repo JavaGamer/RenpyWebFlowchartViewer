@@ -116,7 +116,11 @@ export interface ParseScanState extends ResolveTargetScanState {
   currentLabelHasSplit?: boolean;
   currentLabelHasContentSinceSceneBoundary?: boolean;
   currentSceneDialogueCount?: number;
-  menuStack: Array<{ id: string; optionText: string | null }>;
+  menuStack: Array<{
+    id: string;
+    optionText: string | null;
+    options?: Array<{ text: string; hasExit: boolean }>;
+  }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
   pendingConditionalHeader: PendingConditionalHeader | null;

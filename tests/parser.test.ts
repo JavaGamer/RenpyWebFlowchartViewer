@@ -3701,4 +3701,44 @@ describe("parseRenpyFiles", () => {
     expect(resolvedDict?.get("1")).toBe("label1");
     expect(resolvedDict?.get("2")).toBe("label2");
   });
+
+  it("adds a menu fallthrough sequence edge for mixed menus where one option jumps and another option falls through", async () => {
+    const script = [
+      "label start:",
+      "    menu:",
+      '        "Deny her.":',
+      '            "No."',
+      '        "Accept her.":',
+      "            jump accept_label",
+      "    scene bg school",
+      '    "after split trigger"',
+      "",
+      "label accept_label:",
+      '    "accepted"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "mixed_menu_fallthrough.rpy",
+      content: script,
+    }], { sceneSplitDialogueThreshold: 0 });
+
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode).toBeDefined();
+
+    // 1. Verify the jump edge from the menu
+    const jumpEdge = result.edges.find(
+      (e) => e.source === menuNode?.id && e.kind === "jump"
+    );
+    expect(jumpEdge).toBeDefined();
+    expect(jumpEdge?.target).toBe("accept_label");
+
+    // 2. Verify the fallthrough sequence edge from the menu to the next scene split
+    const fallthroughEdge = result.edges.find(
+      (e) => e.source === menuNode?.id && e.kind === "sequence"
+    );
+    expect(fallthroughEdge).toBeDefined();
+    expect(fallthroughEdge?.target).toBe("start__scene_2");
+    expect(fallthroughEdge?.label).toBe("next");
+  });
 });

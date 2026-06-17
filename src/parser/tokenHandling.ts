@@ -40,6 +40,17 @@ function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
   return state.outgoingByLabel.has(sourceId);
 }
 
+function menuHasFallthrough(menu: {
+  id: string;
+  optionText: string | null;
+  options?: Array<{ text: string; hasExit: boolean }>;
+}): boolean {
+  if (!menu.options || menu.options.length === 0) {
+    return true;
+  }
+  return menu.options.some((opt) => !opt.hasExit);
+}
+
 /**
  * Determines whether the current scanner position lies within the indentation scope
  * of the currently active label block.
@@ -288,10 +299,10 @@ function splitCurrentLabelOnSceneBoundary(
         activeMenu.optionText ?? undefined,
       );
     } else {
-      let fallbackMenu: { id: string; optionText: string | null } | null = null;
+      let fallbackMenu: typeof scanState.menuStack[0] | null = null;
       for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
         const menu = scanState.menuStack[index];
-        if (!hasOutgoingEdge(state, menu.id)) {
+        if (menuHasFallthrough(menu)) {
           fallbackMenu = menu;
           break;
         }
@@ -963,6 +974,14 @@ function emitJumpEdge(
       // explicitly jump to another label.
       addOutgoing(state, source, "jump");
       addIncoming(state, resolvedTargetId, "jump");
+
+      const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
+      if (menu && menu.options) {
+        const lastOpt = menu.options[menu.options.length - 1];
+        if (lastOpt) {
+          lastOpt.hasExit = true;
+        }
+      }
     }
   }
   if (
@@ -1016,7 +1035,16 @@ function emitCallEdge(
     returnTargetId: source,
     callTargetId: resolvedTargetId,
   });
-  if (isInOption) state.calledFromMenuOptionTargets.add(resolvedTargetId);
+  if (isInOption) {
+    state.calledFromMenuOptionTargets.add(resolvedTargetId);
+    const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
+    if (menu && menu.options) {
+      const lastOpt = menu.options[menu.options.length - 1];
+      if (lastOpt) {
+        lastOpt.hasExit = true;
+      }
+    }
+  }
 }
 
 export function parseDictLiteral(
@@ -2128,7 +2156,7 @@ export function handleToken(
     scanState.waitForLabelName = true;
     scanState.pendingMenuFallthroughIds = [];
     for (const openMenu of scanState.menuStack) {
-      if (!hasOutgoingEdge(state, openMenu.id)) {
+      if (menuHasFallthrough(openMenu)) {
         scanState.pendingMenuFallthroughIds.push(openMenu.id);
       }
     }
@@ -2409,7 +2437,7 @@ export function handleToken(
 
   if (isMenuKeywordTokenType(type) && meta.hasMenuStatement) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    const poppedMenus: Array<{ id: string; optionText: string | null }> = [];
+    const poppedMenus: typeof scanState.menuStack = [];
     while (scanState.menuStack.length > parentMenuStackLength(menuDepth)) {
       const closedMenu = scanState.menuStack.pop();
       if (closedMenu) poppedMenus.push(closedMenu);
@@ -2427,7 +2455,7 @@ export function handleToken(
       parentLabelId: scanState.currentLabelId,
     });
     for (const closedMenu of poppedMenus) {
-      if (hasOutgoingEdge(state, closedMenu.id)) continue;
+      if (!menuHasFallthrough(closedMenu)) continue;
       addEdge(state, {
         id: `seq_${closedMenu.id}__${newMenuId}`,
         source: closedMenu.id,
@@ -2470,7 +2498,7 @@ export function handleToken(
       addIncoming(state, newMenuId, "sequence");
     }
 
-    scanState.menuStack.push({ id: newMenuId, optionText: null });
+    scanState.menuStack.push({ id: newMenuId, optionText: null, options: [] });
     assertInvariant(
       scanState.menuStack.length <= menuDepth,
       `menu stack depth exceeded menu meta depth (${scanState.menuStack.length} > ${menuDepth})`,
@@ -2501,7 +2529,13 @@ export function handleToken(
     meta.hasMenuBlock
   ) {
     const menu = menuAtDepth(scanState.menuStack, menuDepth);
-    if (menu) menu.optionText = val();
+    if (menu) {
+      menu.optionText = val();
+      if (!menu.options) {
+        menu.options = [];
+      }
+      menu.options.push({ text: val(), hasExit: false });
+    }
     return;
   }
 
@@ -2584,15 +2618,25 @@ export function handleToken(
     return;
   }
 
-  if (type === PARSER_TOKENS.kwReturn && !meta.hasMenuOptionBlock) {
-    scanState.currentLabelHasContentSinceSceneBoundary = true;
-    const isReliableReturn = scanState.conditionalIndentStack.length === 0;
-    if (isReliableReturn && scanState.currentLabelId !== null) {
-      scanState.labelHasExplicitExit = true;
-      state.hasReliableReturnInLabel.add(scanState.currentLabelId);
-    }
-    if (scanState.currentLabelId !== null) {
-      state.hasReturnInLabel.add(scanState.currentLabelId);
+  if (type === PARSER_TOKENS.kwReturn) {
+    if (meta.hasMenuOptionBlock) {
+      const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
+      if (menu && menu.options) {
+        const lastOpt = menu.options[menu.options.length - 1];
+        if (lastOpt) {
+          lastOpt.hasExit = true;
+        }
+      }
+    } else {
+      scanState.currentLabelHasContentSinceSceneBoundary = true;
+      const isReliableReturn = scanState.conditionalIndentStack.length === 0;
+      if (isReliableReturn && scanState.currentLabelId !== null) {
+        scanState.labelHasExplicitExit = true;
+        state.hasReliableReturnInLabel.add(scanState.currentLabelId);
+      }
+      if (scanState.currentLabelId !== null) {
+        state.hasReturnInLabel.add(scanState.currentLabelId);
+      }
     }
     return;
   }
