@@ -15,10 +15,164 @@ import {
   VolumeX as VolumeXIcon,
 } from "lucide-react";
 
+function renderCueItem(
+  cue: import("../domain/graph.ts").AudioAssetCue,
+  isDark: boolean,
+  effectiveSearch: string,
+) {
+  const style = (() => {
+    switch (cue.type) {
+      case "scene":
+        return isDark
+          ? {
+            backgroundColor: "#172554",
+            borderColor: "#1e40af",
+            color: "#60a5fa",
+          }
+          : {
+            backgroundColor: "#eff6ff",
+            borderColor: "#bfdbfe",
+            color: "#1d4ed8",
+          };
+      case "play":
+      case "queue":
+        return cue.channel === "music"
+          ? isDark
+            ? {
+              backgroundColor: "#022c22",
+              borderColor: "#065f46",
+              color: "#34d399",
+            }
+            : {
+              backgroundColor: "#ecfdf5",
+              borderColor: "#a7f3d0",
+              color: "#047857",
+            }
+          : isDark
+          ? {
+            backgroundColor: "#451a03",
+            borderColor: "#78350f",
+            color: "#fbbf24",
+          }
+          : {
+            backgroundColor: "#fffbeb",
+            borderColor: "#fde68a",
+            color: "#b45309",
+          };
+      case "stop":
+        return isDark
+          ? {
+            backgroundColor: "#4c0519",
+            borderColor: "#881337",
+            color: "#f43f5e",
+          }
+          : {
+            backgroundColor: "#fff1f2",
+            borderColor: "#fecdd3",
+            color: "#be123c",
+          };
+      case "voice":
+        return isDark
+          ? {
+            backgroundColor: "#2e1065",
+            borderColor: "#581c87",
+            color: "#c084fc",
+          }
+          : {
+            backgroundColor: "#faf5ff",
+            borderColor: "#e9d5ff",
+            color: "#7e22ce",
+          };
+      default:
+        return {};
+    }
+  })();
+
+  const icon = (() => {
+    switch (cue.type) {
+      case "scene":
+        return (
+          <ImageIcon
+            size={12}
+            className={cn(
+              "shrink-0",
+              isDark ? "text-blue-400" : "text-blue-700",
+            )}
+          />
+        );
+      case "play":
+      case "queue":
+        return cue.channel === "music"
+          ? (
+            <MusicIcon
+              size={12}
+              className={cn(
+                "shrink-0",
+                isDark ? "text-emerald-400" : "text-emerald-700",
+              )}
+            />
+          )
+          : (
+            <Volume2Icon
+              size={12}
+              className={cn(
+                "shrink-0",
+                isDark ? "text-amber-400" : "text-amber-700",
+              )}
+            />
+          );
+      case "stop":
+        return (
+          <VolumeXIcon
+            size={12}
+            className={cn(
+              "shrink-0",
+              isDark ? "text-rose-400" : "text-rose-700",
+            )}
+          />
+        );
+      case "voice":
+        return (
+          <MicIcon
+            size={12}
+            className={cn(
+              "shrink-0",
+              isDark ? "text-purple-400" : "text-purple-700",
+            )}
+          />
+        );
+      default:
+        return null;
+    }
+  })();
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border shadow-sm font-mono transition-colors duration-200 w-full",
+      )}
+      style={style}
+      title={cue.raw}
+    >
+      {icon}
+      <span className="font-medium tracking-wide uppercase text-[9px] shrink-0 opacity-80">
+        {cue.type}
+      </span>
+      <span className="source-code truncate flex-1">
+        {cue.type === "play" || cue.type === "stop" || cue.type === "queue"
+          ? `${cue.channel}: `
+          : ""}
+        {effectiveSearch ? renderHighlightedText(cue.asset, effectiveSearch) : cue.asset}
+      </span>
+    </div>
+  );
+}
+
 interface SelectedNodeData {
   label?: string;
   dialogueCount?: number;
   dialogueLines?: string[];
+  dialogueLineNums?: number[];
   audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
 }
 
@@ -33,6 +187,8 @@ export interface ViewerInspectorProps {
   selectedNodeId: string;
   selectedDialogueLineIndex: number | null;
   showAllInspectorLines: boolean;
+  showMediaCuesInDialogue: boolean;
+  setShowMediaCuesInDialogue: (show: boolean) => void;
   onToggleShowAllInspectorLines: () => void;
   onSetActiveDialogueResultIndex: (index: number) => void;
   onSelectDialogueSearchResult: (result: DialogueSearchResult) => void;
@@ -50,6 +206,8 @@ export function ViewerInspector({
   selectedNodeId,
   selectedDialogueLineIndex,
   showAllInspectorLines,
+  showMediaCuesInDialogue,
+  setShowMediaCuesInDialogue,
   onToggleShowAllInspectorLines,
   onSetActiveDialogueResultIndex,
   onSelectDialogueSearchResult,
@@ -60,20 +218,73 @@ export function ViewerInspector({
   const dialogueResultsScrollRef = useRef<HTMLDivElement | null>(null);
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const inspectorDialogueLines = useMemo(
-    () =>
-      showAllInspectorLines
-        ? selectedNodeData?.dialogueLines ?? []
-        : (selectedNodeData?.dialogueLines ?? []).slice(
-          0,
-          INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT,
-        ),
-    [selectedNodeData?.dialogueLines, showAllInspectorLines],
-  );
+  const interleavedLines = useMemo(() => {
+    const dialogueLines = selectedNodeData?.dialogueLines ?? [];
+    const dialogueLineNums = selectedNodeData?.dialogueLineNums ?? [];
+    const cues = selectedNodeData?.audioAssetCues ?? [];
+
+    const maxDialogueIdx = showAllInspectorLines
+      ? dialogueLines.length
+      : INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
+
+    const visibleDialogueLines = dialogueLines.slice(0, maxDialogueIdx);
+    const visibleDialogueLineNums = dialogueLineNums.slice(0, maxDialogueIdx);
+
+    if (!showMediaCuesInDialogue) {
+      return visibleDialogueLines.map((line, idx) => ({
+        type: "dialogue" as const,
+        lineNum: visibleDialogueLineNums[idx] ?? idx,
+        dialogueText: line,
+        dialogueIndex: idx + 1,
+      }));
+    }
+
+    const items: Array<{
+      type: "dialogue" | "cue";
+      lineNum: number;
+      dialogueText?: string;
+      dialogueIndex?: number;
+      cue?: import("../domain/graph.ts").AudioAssetCue;
+    }> = [];
+
+    visibleDialogueLines.forEach((line, idx) => {
+      items.push({
+        type: "dialogue",
+        lineNum: visibleDialogueLineNums[idx] ?? idx * 10,
+        dialogueText: line,
+        dialogueIndex: idx + 1,
+      });
+    });
+
+    const lastVisibleLineNum = visibleDialogueLineNums[visibleDialogueLineNums.length - 1] ?? Infinity;
+
+    cues.forEach((cue) => {
+      if (!showAllInspectorLines && cue.lineNum !== undefined && cue.lineNum > lastVisibleLineNum) {
+        return;
+      }
+      items.push({
+        type: "cue",
+        lineNum: cue.lineNum ?? 0,
+        cue,
+      });
+    });
+
+    items.sort((a, b) => {
+      if (a.lineNum !== b.lineNum) {
+        return a.lineNum - b.lineNum;
+      }
+      if (a.type !== b.type) {
+        return a.type === "cue" ? -1 : 1;
+      }
+      return 0;
+    });
+
+    return items;
+  }, [selectedNodeData, showMediaCuesInDialogue, showAllInspectorLines]);
 
   const shouldVirtualizeInspectorResults =
     activeDialogueSearchResults.length > 120;
-  const shouldVirtualizeInspectorLines = inspectorDialogueLines.length > 120;
+  const shouldVirtualizeInspectorLines = interleavedLines.length > 120;
 
   const measureInspectorLineElement = useCallback(
     (element: HTMLDivElement) => element.getBoundingClientRect().height,
@@ -89,7 +300,7 @@ export function ViewerInspector({
     overscan: 6,
   });
   const inspectorLinesVirtualizer = useVirtualizer({
-    count: shouldVirtualizeInspectorLines ? inspectorDialogueLines.length : 0,
+    count: shouldVirtualizeInspectorLines ? interleavedLines.length : 0,
     getScrollElement: () => inspectorLinesScrollRef.current,
     estimateSize: () => 34,
     measureElement: measureInspectorLineElement,
@@ -332,7 +543,7 @@ export function ViewerInspector({
               {selectedNodeData.dialogueCount ?? 0}
             </div>
 
-            {selectedNodeData.audioAssetCues &&
+            {!showMediaCuesInDialogue && selectedNodeData.audioAssetCues &&
               selectedNodeData.audioAssetCues.length > 0 && (
               <div
                 className={cn(
@@ -343,169 +554,36 @@ export function ViewerInspector({
                 <div
                   className={cn(
                     "font-semibold",
-                    isDark ? "text-slate-300" : "text-gray-700",
+                    isDark ? "text-slate-350" : "text-gray-700",
                   )}
                 >
                   Media & Asset Cues
                 </div>
                 <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
-                  {selectedNodeData.audioAssetCues.map((cue, idx) => {
-                    const style = (() => {
-                      switch (cue.type) {
-                        case "scene":
-                          return isDark
-                            ? {
-                              backgroundColor: "#172554",
-                              borderColor: "#1e40af",
-                              color: "#60a5fa",
-                            }
-                            : {
-                              backgroundColor: "#eff6ff",
-                              borderColor: "#bfdbfe",
-                              color: "#1d4ed8",
-                            };
-                        case "play":
-                        case "queue":
-                          return cue.channel === "music"
-                            ? isDark
-                              ? {
-                                backgroundColor: "#022c22",
-                                borderColor: "#065f46",
-                                color: "#34d399",
-                              }
-                              : {
-                                backgroundColor: "#ecfdf5",
-                                borderColor: "#a7f3d0",
-                                color: "#047857",
-                              }
-                            : isDark
-                            ? {
-                              backgroundColor: "#451a03",
-                              borderColor: "#78350f",
-                              color: "#fbbf24",
-                            }
-                            : {
-                              backgroundColor: "#fffbeb",
-                              borderColor: "#fde68a",
-                              color: "#b45309",
-                            };
-                        case "stop":
-                          return isDark
-                            ? {
-                              backgroundColor: "#4c0519",
-                              borderColor: "#881337",
-                              color: "#f43f5e",
-                            }
-                            : {
-                              backgroundColor: "#fff1f2",
-                              borderColor: "#fecdd3",
-                              color: "#be123c",
-                            };
-                        case "voice":
-                          return isDark
-                            ? {
-                              backgroundColor: "#2e1065",
-                              borderColor: "#581c87",
-                              color: "#c084fc",
-                            }
-                            : {
-                              backgroundColor: "#faf5ff",
-                              borderColor: "#e9d5ff",
-                              color: "#7e22ce",
-                            };
-                        default:
-                          return {};
-                      }
-                    })();
-
-                    const icon = (() => {
-                      switch (cue.type) {
-                        case "scene":
-                          return (
-                            <ImageIcon
-                              size={12}
-                              className={cn(
-                                "shrink-0",
-                                isDark ? "text-blue-400" : "text-blue-700",
-                              )}
-                            />
-                          );
-                        case "play":
-                        case "queue":
-                          return cue.channel === "music"
-                            ? (
-                              <MusicIcon
-                                size={12}
-                                className={cn(
-                                  "shrink-0",
-                                  isDark
-                                    ? "text-emerald-400"
-                                    : "text-emerald-700",
-                                )}
-                              />
-                            )
-                            : (
-                              <Volume2Icon
-                                size={12}
-                                className={cn(
-                                  "shrink-0",
-                                  isDark ? "text-amber-400" : "text-amber-700",
-                                )}
-                              />
-                            );
-                        case "stop":
-                          return (
-                            <VolumeXIcon
-                              size={12}
-                              className={cn(
-                                "shrink-0",
-                                isDark ? "text-rose-400" : "text-rose-700",
-                              )}
-                            />
-                          );
-                        case "voice":
-                          return (
-                            <MicIcon
-                              size={12}
-                              className={cn(
-                                "shrink-0",
-                                isDark ? "text-purple-400" : "text-purple-700",
-                              )}
-                            />
-                          );
-                        default:
-                          return null;
-                      }
-                    })();
-
-                    return (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border shadow-sm font-mono transition-colors duration-200",
-                        )}
-                        style={style}
-                        title={cue.raw}
-                      >
-                        {icon}
-                        <span className="font-medium tracking-wide uppercase text-[9px] shrink-0 opacity-80">
-                          {cue.type}
-                        </span>
-                        <span className="truncate flex-1">
-                          {cue.type === "play" || cue.type === "stop" ||
-                              cue.type === "queue"
-                            ? `${cue.channel}: `
-                            : ""}
-                          {cue.asset}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {selectedNodeData.audioAssetCues.map((cue, idx) => (
+                    <div key={idx}>
+                      {renderCueItem(cue, isDark, effectiveSearch)}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            <div className="text-xs font-semibold">Dialogue</div>
+            <div className="flex items-center justify-between border-t pt-2 mt-2">
+              <div className="text-xs font-semibold">Dialogue</div>
+              <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={showMediaCuesInDialogue}
+                  onChange={(e) => setShowMediaCuesInDialogue(e.target.checked)}
+                  className="rounded text-violet-600 focus:ring-violet-500 w-3 h-3"
+                  aria-label="Show Media Cues in Dialogue"
+                />
+                <span className={cn(isDark ? "text-slate-350" : "text-gray-600")}>
+                  Show Media Cues
+                </span>
+              </label>
+            </div>
             <div
               ref={inspectorLinesScrollRef}
               className={shouldVirtualizeInspectorLines
@@ -522,14 +600,36 @@ export function ViewerInspector({
                   >
                     {inspectorLinesVirtualizer.getVirtualItems().map(
                       (virtualItem) => {
-                        const line =
-                          inspectorDialogueLines[virtualItem.index] ?? "";
-                        const absoluteIndex = virtualItem.index + 1;
+                        const item = interleavedLines[virtualItem.index];
+                        if (!item) return null;
+
+                        if (item.type === "cue") {
+                          return (
+                            <div
+                              key={`${selectedNodeId}-cue-${virtualItem.key}`}
+                              ref={inspectorLinesVirtualizer.measureElement}
+                              data-index={virtualItem.index}
+                              style={{
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
+                                width: "100%",
+                                transform: `translateY(${virtualItem.start}px)`,
+                              }}
+                              className="py-0.5"
+                            >
+                              {renderCueItem(item.cue!, isDark, effectiveSearch)}
+                            </div>
+                          );
+                        }
+
+                        const line = item.dialogueText ?? "";
+                        const absoluteIndex = item.dialogueIndex!;
                         const isSelectedLine =
                           selectedDialogueLineIndex === absoluteIndex;
                         return (
                           <div
-                            key={`${selectedNodeId}-${virtualItem.key}`}
+                            key={`${selectedNodeId}-line-${virtualItem.key}`}
                             ref={inspectorLinesVirtualizer.measureElement}
                             data-index={virtualItem.index}
                             className={cn(
@@ -562,13 +662,25 @@ export function ViewerInspector({
                 )
                 : (
                   <div className="space-y-1">
-                    {inspectorDialogueLines.map((line, idx) => {
-                      const absoluteIndex = idx + 1;
+                    {interleavedLines.map((item, idx) => {
+                      if (item.type === "cue") {
+                        return (
+                          <div
+                            key={`${selectedNodeId}-cue-${idx}`}
+                            className="py-0.5"
+                          >
+                            {renderCueItem(item.cue!, isDark, effectiveSearch)}
+                          </div>
+                        );
+                      }
+
+                      const line = item.dialogueText ?? "";
+                      const absoluteIndex = item.dialogueIndex!;
                       const isSelectedLine =
                         selectedDialogueLineIndex === absoluteIndex;
                       return (
                         <div
-                          key={`${selectedNodeId}-${idx}`}
+                          key={`${selectedNodeId}-line-${idx}`}
                           className={cn(
                             "text-xs border rounded px-2 py-1 transition-colors",
                             isDark

@@ -26,6 +26,7 @@ export interface AudioAssetCue {
   channel?: string;
   asset: string;
   raw: string;
+  lineNum?: number;
 }
 
 /** A node in the flowchart graph. */

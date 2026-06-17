@@ -52,6 +52,7 @@ export interface ViewerPersistedState {
   layoutDensity: LayoutDensity;
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
+  showMediaCuesInDialogue: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
 }
 
@@ -93,6 +94,7 @@ export interface ViewerActions {
   setLayoutDensity: (density: LayoutDensity) => void;
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
+  setShowMediaCuesInDialogue: (show: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
 
   // Session setters
@@ -157,6 +159,9 @@ const viewerPersistedStateSchema = z.object({
   showCallReturns: z.boolean().catch(defaultPersistedState.showCallReturns),
   showAudioAssetCues: z.boolean().catch(
     defaultPersistedState.showAudioAssetCues,
+  ),
+  showMediaCuesInDialogue: z.boolean().catch(
+    defaultPersistedState.showMediaCuesInDialogue,
   ),
   visibleEdgeKinds: z
     .object({
@@ -245,6 +250,7 @@ function migrateLegacyKeys(): string | null {
       layoutDensity: "normal",
       showCallReturns: rawCallReturns === "true",
       showAudioAssetCues: true,
+      showMediaCuesInDialogue: false,
       visibleEdgeKinds: {
         sequence: rawSeq !== "false",
         jump: rawJump !== "false",
@@ -327,6 +333,7 @@ export const useViewerStore = create<ViewerStore>()(
         layoutDensity: state.layoutDensity,
         showCallReturns: state.showCallReturns,
         showAudioAssetCues: state.showAudioAssetCues,
+        showMediaCuesInDialogue: state.showMediaCuesInDialogue,
         visibleEdgeKinds: state.visibleEdgeKinds,
       }),
     },

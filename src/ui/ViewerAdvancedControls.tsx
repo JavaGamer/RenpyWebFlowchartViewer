@@ -41,6 +41,8 @@ export interface ViewerAdvancedControlsProps {
   setShowCallReturns: (v: boolean) => void;
   showAudioAssetCues: boolean;
   setShowAudioAssetCues: (v: boolean) => void;
+  showMediaCuesInDialogue: boolean;
+  setShowMediaCuesInDialogue: (v: boolean) => void;
   largeGraphMode: boolean;
   largeGraphModeOverride: boolean | null;
   setLargeGraphModeOverride: (v: boolean | null) => void;
@@ -87,6 +89,8 @@ export function ViewerAdvancedControls({
   setShowCallReturns,
   showAudioAssetCues,
   setShowAudioAssetCues,
+  showMediaCuesInDialogue,
+  setShowMediaCuesInDialogue,
   largeGraphMode,
   largeGraphModeOverride,
   setLargeGraphModeOverride,
@@ -374,6 +378,23 @@ export function ViewerAdvancedControls({
                 )}
               >
                 Show media cues
+              </span>
+            </label>
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showMediaCuesInDialogue}
+                onChange={(e) => setShowMediaCuesInDialogue(e.target.checked)}
+                className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4"
+                aria-label="Show Media Cues in Dialogue"
+              />
+              <span
+                className={cn(
+                  "font-medium",
+                  isDark ? "text-slate-350" : "text-gray-700",
+                )}
+              >
+                Show Media Cues in Dialogue
               </span>
             </label>
             <label className="inline-flex items-center gap-2 cursor-pointer select-none col-span-2">

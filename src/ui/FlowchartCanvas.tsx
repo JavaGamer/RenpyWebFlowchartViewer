@@ -87,6 +87,7 @@ export function FlowchartCanvas({
     collapsedParentLabels,
     showCallReturns,
     showAudioAssetCues,
+    showMediaCuesInDialogue,
     visibleEdgeKinds,
     focusNodeId,
     largeGraphModeOverride,
@@ -113,6 +114,7 @@ export function FlowchartCanvas({
     collapsedParentLabels: s.collapsedParentLabels,
     showCallReturns: s.showCallReturns,
     showAudioAssetCues: s.showAudioAssetCues,
+    showMediaCuesInDialogue: s.showMediaCuesInDialogue,
     visibleEdgeKinds: s.visibleEdgeKinds,
     focusNodeId: s.focusNodeId,
     largeGraphModeOverride: s.largeGraphModeOverride,
@@ -139,6 +141,7 @@ export function FlowchartCanvas({
     setAllParentLabelsCollapsed,
     setShowCallReturns,
     setShowAudioAssetCues,
+    setShowMediaCuesInDialogue,
     setEdgeKindVisible,
     setFocusNodeId,
     setLargeGraphModeOverride,
@@ -165,6 +168,7 @@ export function FlowchartCanvas({
     setAllParentLabelsCollapsed: s.setAllParentLabelsCollapsed,
     setShowCallReturns: s.setShowCallReturns,
     setShowAudioAssetCues: s.setShowAudioAssetCues,
+    setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
     setEdgeKindVisible: s.setEdgeKindVisible,
     setFocusNodeId: s.setFocusNodeId,
     setLargeGraphModeOverride: s.setLargeGraphModeOverride,
@@ -709,6 +713,8 @@ export function FlowchartCanvas({
                 setShowCallReturns={setShowCallReturns}
                 showAudioAssetCues={showAudioAssetCues}
                 setShowAudioAssetCues={setShowAudioAssetCues}
+                showMediaCuesInDialogue={showMediaCuesInDialogue}
+                setShowMediaCuesInDialogue={setShowMediaCuesInDialogue}
                 largeGraphMode={largeGraphMode}
                 largeGraphModeOverride={largeGraphModeOverride}
                 setLargeGraphModeOverride={setLargeGraphModeOverride}
@@ -823,6 +829,8 @@ export function FlowchartCanvas({
           selectedNodeId={selectedNodeId}
           selectedDialogueLineIndex={selectedDialogueLineIndex}
           showAllInspectorLines={showAllInspectorLines}
+          showMediaCuesInDialogue={showMediaCuesInDialogue}
+          setShowMediaCuesInDialogue={setShowMediaCuesInDialogue}
           onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
           onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
           onSelectDialogueSearchResult={onSelectDialogueSearchResult}

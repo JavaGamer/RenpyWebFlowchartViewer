@@ -16,6 +16,7 @@ export interface ThemeSliceState {
   layoutDensity: LayoutDensity;
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
+  showMediaCuesInDialogue: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
 }
 
@@ -26,6 +27,7 @@ export interface ThemeSliceActions {
   setLayoutDensity: (density: LayoutDensity) => void;
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
+  setShowMediaCuesInDialogue: (show: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
 }
 
@@ -38,6 +40,7 @@ export const defaultThemeState: ThemeSliceState = {
   layoutDensity: "normal",
   showCallReturns: false,
   showAudioAssetCues: true,
+  showMediaCuesInDialogue: false,
   visibleEdgeKinds: {
     sequence: true,
     jump: true,
@@ -74,6 +77,11 @@ export const createThemeSlice: StateCreator<
   setShowAudioAssetCues: (show) =>
     set((draft) => {
       draft.showAudioAssetCues = show;
+    }),
+
+  setShowMediaCuesInDialogue: (show) =>
+    set((draft) => {
+      draft.showMediaCuesInDialogue = show;
     }),
 
   setEdgeKindVisible: (kind, visible) =>

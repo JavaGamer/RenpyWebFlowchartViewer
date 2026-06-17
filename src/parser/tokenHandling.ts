@@ -35,10 +35,6 @@ interface HandleTokenInput {
   sceneSplitDialogueThreshold?: number;
 }
 
-/** Checks if a label node has any registered outgoing sequence or jump edges. */
-function hasOutgoingEdge(state: ParseGraphState, sourceId: string): boolean {
-  return state.outgoingByLabel.has(sourceId);
-}
 
 function menuHasFallthrough(menu: {
   id: string;
@@ -2289,6 +2285,7 @@ export function handleToken(
             type: "scene",
             asset: sceneAsset,
             raw: lineText.trim(),
+            lineNum,
           });
         }
       }
@@ -2309,6 +2306,7 @@ export function handleToken(
             channel: cue.channel,
             asset: cue.asset,
             raw: lineText.trim(),
+            lineNum,
           });
         }
       }
@@ -2329,6 +2327,7 @@ export function handleToken(
             channel: cue.channel,
             asset: cue.asset ?? "",
             raw: lineText.trim(),
+            lineNum,
           });
         }
       }
@@ -2349,6 +2348,7 @@ export function handleToken(
             channel: cue.channel,
             asset: cue.asset,
             raw: lineText.trim(),
+            lineNum,
           });
         }
       }
@@ -2373,6 +2373,7 @@ export function handleToken(
             type: "voice",
             asset: voiceAsset,
             raw: lineText.trim(),
+            lineNum,
           });
         }
       }

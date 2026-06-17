@@ -6,6 +6,7 @@ export interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
   dialogueLines?: string[];
+  dialogueLineNums?: number[];
   audioAssetCues?: FlowNode["audioAssetCues"];
   nodeType: "LABEL" | "MENU" | "DECISION";
   chapter?: string;

@@ -3320,40 +3320,45 @@ describe("parseRenpyFiles", () => {
     expect(scene2).toBeDefined();
 
     expect(scene1?.audioAssetCues).toEqual([
-      { type: "scene", asset: "bg room", raw: "scene bg room with fade" },
+      { type: "scene", asset: "bg room", raw: "scene bg room with fade", lineNum: 1 },
       {
         type: "play",
         channel: "music",
         asset: "audio/bgm_chill.ogg",
         raw: 'play music "audio/bgm_chill.ogg" fadein 1.0',
+        lineNum: 2,
       },
       {
         type: "play",
         channel: "sound",
         asset: "audio/sfx_ding.wav",
         raw: 'play sound "audio/sfx_ding.wav"',
+        lineNum: 6,
       },
       {
         type: "voice",
         asset: "audio/voice_line_1.mp3",
         raw: 'voice "audio/voice_line_1.mp3"',
+        lineNum: 7,
       },
       {
         type: "stop",
         channel: "music",
         asset: "",
         raw: "stop music fadeout 2.0",
+        lineNum: 9,
       },
       {
         type: "queue",
         channel: "music",
         asset: "theme_track",
         raw: "queue music theme_track",
+        lineNum: 10,
       },
     ]);
 
     expect(scene2?.audioAssetCues).toEqual([
-      { type: "scene", asset: "bg beach", raw: "scene bg beach" },
+      { type: "scene", asset: "bg beach", raw: "scene bg beach", lineNum: 11 },
     ]);
   });
 
