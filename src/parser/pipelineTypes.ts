@@ -128,6 +128,7 @@ export interface ParseScanState extends ResolveTargetScanState {
   waitForCallTarget: boolean;
   waitForMenuNameForId: string | null;
   lastConditionalLine?: number;
+  lastProcessedCustomLineNum?: number;
 }
 
 export interface ParseGraphState {

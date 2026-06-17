@@ -62,6 +62,7 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.kwScreen,
   PARSER_TOKENS.metaItemAccess,
   PARSER_TOKENS.metaFunctionCall,
+  9999, // Allow processing unrecognized/invalid statement starts (e.g. timedchoice)
 ].filter((t): t is number => typeof t === "number"));
 
 /**

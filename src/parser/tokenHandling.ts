@@ -2105,6 +2105,25 @@ export function handleToken(
   } = input;
   resetStaleWaitFlags(scanState, type);
 
+  if (scanState.currentLabelId !== null && lineNum !== scanState.lastProcessedCustomLineNum) {
+    const trimmed = lineText.trim();
+    const timedChoiceMatch = /^timedchoice\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)\s+([a-zA-Z0-9_]+)/i.exec(trimmed);
+    if (timedChoiceMatch) {
+      scanState.lastProcessedCustomLineNum = lineNum;
+      const durationSeconds = parseFloat(timedChoiceMatch[1]);
+      const target = timedChoiceMatch[2];
+      const context = resolveCallContext(scanState, meta, menuDepth);
+      const timeout = {
+        isTimeout: true as const,
+        durationSeconds,
+      };
+      emitJumpEdge(state, scanState, target, context, false, timeout);
+    } else if (/^gameover\b/i.test(trimmed)) {
+      scanState.lastProcessedCustomLineNum = lineNum;
+      scanState.labelHasExplicitExit = true;
+    }
+  }
+
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
     scanState.pendingMenuFallthroughIds = [];
@@ -2585,6 +2604,11 @@ export function handleToken(
     const isMenuOption = meta.hasMenuOption;
 
     if (isSay && !isMenuOption) {
+      const trimmedLine = lineText.trim();
+      const isCustomStatement = /^(gameover|title|timedchoice)\b/i.test(trimmedLine);
+      if (isCustomStatement) {
+        return;
+      }
       scanState.currentLabelHasContentSinceSceneBoundary = true;
       scanState.currentSceneDialogueCount =
         (scanState.currentSceneDialogueCount ?? 0) + 1;

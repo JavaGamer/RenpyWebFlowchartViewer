@@ -61,5 +61,6 @@ export function createScanState(): ParseScanState {
     waitForCallTarget: false,
     waitForMenuNameForId: null,
     lastConditionalLine: undefined,
+    lastProcessedCustomLineNum: undefined,
   };
 }

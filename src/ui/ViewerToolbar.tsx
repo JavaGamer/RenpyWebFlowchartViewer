@@ -199,8 +199,8 @@ export function ViewerToolbar({
                     aria-describedby="viewer-search-help"
                     aria-keyshortcuts="Control+F Meta+F"
                     className={cn(
-                      "pl-7 pr-2 w-full sm:w-[16rem] max-w-[90vw]",
                       CONTROL_INPUT_CLASS,
+                      "pl-8 pr-2 w-full sm:w-[16rem] max-w-[90vw]",
                       isDark
                         ? "bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500 focus-visible:ring-violet-400"
                         : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",

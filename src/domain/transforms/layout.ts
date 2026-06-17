@@ -191,6 +191,9 @@ export function applyDagreLayout(
         x: pos ? pos.x - NODE_WIDTH / 2 : 0,
         y: pos ? pos.y - h / 2 : 0,
       },
+      width: NODE_WIDTH,
+      height: h,
+      measured: { width: NODE_WIDTH, height: h },
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
@@ -312,6 +315,8 @@ export function applyProgressiveDagreLayout(
         ? "menuNode"
         : "decisionNode",
       position: { x: pos.x, y: pos.y },
+      width: NODE_WIDTH,
+      height: h,
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
@@ -456,6 +461,8 @@ export async function applyElkLayout(
         ? "menuNode"
         : "decisionNode",
       position: { x: pos.x, y: pos.y },
+      width: NODE_WIDTH,
+      height: h,
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
