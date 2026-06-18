@@ -20,6 +20,12 @@ export interface ThemeSliceState {
   minimapPannable: boolean;
   minimapZoomable: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
+  simplifyCollapseLinearChains: boolean;
+  simplifyInlineUtilities: boolean;
+  simplifyInlineDetours: boolean;
+  simplifyInlineStateToggles: boolean;
+  simplifyInlineEmptyLabels: boolean;
+  simplifyInlineDialogueThreshold: number;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -33,6 +39,12 @@ export interface ThemeSliceActions {
   setMinimapPannable: (pannable: boolean) => void;
   setMinimapZoomable: (zoomable: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
+  setSimplifyCollapseLinearChains: (collapse: boolean) => void;
+  setSimplifyInlineUtilities: (inline: boolean) => void;
+  setSimplifyInlineDetours: (inline: boolean) => void;
+  setSimplifyInlineStateToggles: (inline: boolean) => void;
+  setSimplifyInlineEmptyLabels: (inline: boolean) => void;
+  setSimplifyInlineDialogueThreshold: (threshold: number) => void;
 }
 
 export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
@@ -53,6 +65,12 @@ export const defaultThemeState: ThemeSliceState = {
     call: true,
     call_return: true,
   },
+  simplifyCollapseLinearChains: false,
+  simplifyInlineUtilities: false,
+  simplifyInlineDetours: false,
+  simplifyInlineStateToggles: false,
+  simplifyInlineEmptyLabels: false,
+  simplifyInlineDialogueThreshold: 1,
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -103,5 +121,35 @@ export const createThemeSlice: StateCreator<
   setEdgeKindVisible: (kind, visible) =>
     set((draft) => {
       draft.visibleEdgeKinds[kind] = visible;
+    }),
+
+  setSimplifyCollapseLinearChains: (collapse) =>
+    set((draft) => {
+      draft.simplifyCollapseLinearChains = collapse;
+    }),
+
+  setSimplifyInlineUtilities: (inline) =>
+    set((draft) => {
+      draft.simplifyInlineUtilities = inline;
+    }),
+
+  setSimplifyInlineDetours: (inline) =>
+    set((draft) => {
+      draft.simplifyInlineDetours = inline;
+    }),
+
+  setSimplifyInlineStateToggles: (inline) =>
+    set((draft) => {
+      draft.simplifyInlineStateToggles = inline;
+    }),
+
+  setSimplifyInlineEmptyLabels: (inline) =>
+    set((draft) => {
+      draft.simplifyInlineEmptyLabels = inline;
+    }),
+
+  setSimplifyInlineDialogueThreshold: (threshold) =>
+    set((draft) => {
+      draft.simplifyInlineDialogueThreshold = threshold;
     }),
 });

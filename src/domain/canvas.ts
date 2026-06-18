@@ -18,6 +18,7 @@ export interface NodeData extends Record<string, unknown> {
   conditionExpression?: string;
   conditionReferences?: string[];
   theme?: ThemeName;
+  collapsedLabels?: string[];
 }
 
 export interface EdgeData extends Record<string, unknown> {

@@ -94,6 +94,19 @@ export const LabelNodeComponent = memo(
                 Shadowed
               </span>
             )}
+            {data.collapsedLabels && data.collapsedLabels.length > 0 && (
+              <span
+                className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
+                  isDark
+                    ? "bg-slate-800/60 border-slate-700/85 text-slate-300"
+                    : "bg-slate-100 border-transparent text-slate-700",
+                )}
+                title={data.collapsedLabels.join(", ")}
+              >
+                +{data.collapsedLabels.length} labels
+              </span>
+            )}
           </div>
         </div>
         <div

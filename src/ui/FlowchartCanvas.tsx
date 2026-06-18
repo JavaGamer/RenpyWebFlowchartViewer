@@ -17,6 +17,7 @@ import {
   type FlowEdge,
   type FlowNode,
   getNodeCenter,
+  simplifyGraph,
 } from "../domain/index.ts";
 import {
   type DialogueSearchMode,
@@ -106,6 +107,12 @@ export function FlowchartCanvas({
     layoutDensity,
     selectedSearchChapter,
     selectedSearchNodeKinds,
+    simplifyCollapseLinearChains,
+    simplifyInlineUtilities,
+    simplifyInlineDetours,
+    simplifyInlineStateToggles,
+    simplifyInlineEmptyLabels,
+    simplifyInlineDialogueThreshold,
   } = useViewerStore(useShallow((s) => ({
     layoutDirection: s.layoutDirection,
     searchInput: s.searchInput,
@@ -135,6 +142,12 @@ export function FlowchartCanvas({
     layoutDensity: s.layoutDensity,
     selectedSearchChapter: s.selectedSearchChapter,
     selectedSearchNodeKinds: s.selectedSearchNodeKinds,
+    simplifyCollapseLinearChains: s.simplifyCollapseLinearChains,
+    simplifyInlineUtilities: s.simplifyInlineUtilities,
+    simplifyInlineDetours: s.simplifyInlineDetours,
+    simplifyInlineStateToggles: s.simplifyInlineStateToggles,
+    simplifyInlineEmptyLabels: s.simplifyInlineEmptyLabels,
+    simplifyInlineDialogueThreshold: s.simplifyInlineDialogueThreshold,
   })));
   const {
     setLayoutDirection,
@@ -165,6 +178,12 @@ export function FlowchartCanvas({
     setConditionVisibilityMode,
     resetSession,
     setLayoutDensity,
+    setSimplifyCollapseLinearChains,
+    setSimplifyInlineUtilities,
+    setSimplifyInlineDetours,
+    setSimplifyInlineStateToggles,
+    setSimplifyInlineEmptyLabels,
+    setSimplifyInlineDialogueThreshold,
   } = useViewerStore(useShallow((s) => ({
     setLayoutDirection: s.setLayoutDirection,
     setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
@@ -194,6 +213,12 @@ export function FlowchartCanvas({
     setConditionVisibilityMode: s.setConditionVisibilityMode,
     resetSession: s.resetSession,
     setLayoutDensity: s.setLayoutDensity,
+    setSimplifyCollapseLinearChains: s.setSimplifyCollapseLinearChains,
+    setSimplifyInlineUtilities: s.setSimplifyInlineUtilities,
+    setSimplifyInlineDetours: s.setSimplifyInlineDetours,
+    setSimplifyInlineStateToggles: s.setSimplifyInlineStateToggles,
+    setSimplifyInlineEmptyLabels: s.setSimplifyInlineEmptyLabels,
+    setSimplifyInlineDialogueThreshold: s.setSimplifyInlineDialogueThreshold,
   })));
 
   const isDark = theme === "dark";
@@ -226,6 +251,27 @@ export function FlowchartCanvas({
   );
   const dialogueLineSearchEnabled = effectiveDialogueSearchMode === "full";
 
+  // -- Simplify graph --------------------------------------------------------
+  const { nodes: simplifiedNodes, edges: simplifiedEdges } = useMemo(() => {
+    return simplifyGraph(flowNodes, flowEdges, {
+      collapseLinearChains: simplifyCollapseLinearChains,
+      inlineUtilities: simplifyInlineUtilities,
+      inlineDetours: simplifyInlineDetours,
+      inlineStateToggles: simplifyInlineStateToggles,
+      inlineEmptyLabels: simplifyInlineEmptyLabels,
+      inlineDialogueThreshold: simplifyInlineDialogueThreshold,
+    });
+  }, [
+    flowNodes,
+    flowEdges,
+    simplifyCollapseLinearChains,
+    simplifyInlineUtilities,
+    simplifyInlineDetours,
+    simplifyInlineStateToggles,
+    simplifyInlineEmptyLabels,
+    simplifyInlineDialogueThreshold,
+  ]);
+
   // -- Layout hook ------------------------------------------------------------
   const onRelayoutComplete = useCallback(() => {
     flowInstanceRef.current?.fitView({ padding: 0.2 });
@@ -239,8 +285,8 @@ export function FlowchartCanvas({
     relayout,
     isCalculatingLayout,
   } = useViewerLayout({
-    flowNodes,
-    flowEdges,
+    flowNodes: simplifiedNodes,
+    flowEdges: simplifiedEdges,
     layoutDirection,
     layoutDensity,
     perf,
@@ -261,8 +307,8 @@ export function FlowchartCanvas({
   );
 
   const labels = useMemo(
-    () => flowNodes.filter((n) => n.type === "LABEL").map((n) => n.id).sort(),
-    [flowNodes],
+    () => simplifiedNodes.filter((n) => n.type === "LABEL").map((n) => n.id).sort(),
+    [simplifiedNodes],
   );
 
   const labelSubgraphSearch = labelSubgraphSearchInput.trim().toLowerCase();
@@ -306,8 +352,8 @@ export function FlowchartCanvas({
   }, [autoLargeGraphMode, largeGraphModeOverride]);
 
   const collapsedLabelChildren = useMemo(
-    () => deriveCollapsedLabelChildren(flowNodes, collapsedParentLabels),
-    [collapsedParentLabels, flowNodes],
+    () => deriveCollapsedLabelChildren(simplifiedNodes, collapsedParentLabels),
+    [collapsedParentLabels, simplifiedNodes],
   );
 
   const setAllVisibleSubgraphLabelsCollapsed = useCallback(
@@ -752,6 +798,18 @@ export function FlowchartCanvas({
                 resetMockFlags={resetMockFlags}
                 conditionVisibilityMode={conditionVisibilityMode}
                 setConditionVisibilityMode={setConditionVisibilityMode}
+                simplifyCollapseLinearChains={simplifyCollapseLinearChains}
+                setSimplifyCollapseLinearChains={setSimplifyCollapseLinearChains}
+                simplifyInlineUtilities={simplifyInlineUtilities}
+                setSimplifyInlineUtilities={setSimplifyInlineUtilities}
+                simplifyInlineDetours={simplifyInlineDetours}
+                setSimplifyInlineDetours={setSimplifyInlineDetours}
+                simplifyInlineStateToggles={simplifyInlineStateToggles}
+                setSimplifyInlineStateToggles={setSimplifyInlineStateToggles}
+                simplifyInlineEmptyLabels={simplifyInlineEmptyLabels}
+                setSimplifyInlineEmptyLabels={setSimplifyInlineEmptyLabels}
+                simplifyInlineDialogueThreshold={simplifyInlineDialogueThreshold}
+                setSimplifyInlineDialogueThreshold={setSimplifyInlineDialogueThreshold}
               />
             </div>
           </Dialog.Content>

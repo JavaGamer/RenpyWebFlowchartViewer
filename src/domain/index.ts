@@ -26,6 +26,7 @@ export {
   getNodeCenter,
   preWarmElk,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
+  simplifyGraph,
 } from "./transforms/index.ts";
 
 export { extractConditionFlagRefs } from "./conditionLogic.ts";

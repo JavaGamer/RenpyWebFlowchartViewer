@@ -60,6 +60,8 @@ export interface FlowNode {
   dialogueLineNums?: number[];
   /** Internal line number of the dialogue prompt that set this menu's label. */
   menuPromptLineNum?: number;
+  /** Label names collapsed into this node during linear chain collapsing. */
+  collapsedLabels?: string[];
 }
 
 /** A directed edge in the flowchart graph. */

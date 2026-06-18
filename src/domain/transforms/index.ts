@@ -11,3 +11,7 @@ export {
   buildVisibleEdges,
   buildVisibleNodes,
 } from "./visibility.ts";
+
+export { simplifyGraph } from "./simplify.ts";
+export type { GraphSimplificationOptions } from "./simplify.ts";
+

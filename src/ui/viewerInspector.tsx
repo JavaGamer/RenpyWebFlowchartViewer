@@ -174,6 +174,7 @@ interface SelectedNodeData {
   dialogueLines?: string[];
   dialogueLineNums?: number[];
   audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
+  collapsedLabels?: string[];
 }
 
 export interface ViewerInspectorProps {
@@ -542,6 +543,29 @@ export function ViewerInspector({
               </span>{" "}
               {selectedNodeData.dialogueCount ?? 0}
             </div>
+
+            {selectedNodeData.collapsedLabels && selectedNodeData.collapsedLabels.length > 0 && (
+              <div
+                className={cn(
+                  "text-xs space-y-1.5 mt-2 pt-2 border-t",
+                  isDark ? "border-slate-800" : "border-gray-100",
+                )}
+              >
+                <div
+                  className={cn(
+                    "font-semibold",
+                    isDark ? "text-slate-350" : "text-gray-700",
+                  )}
+                >
+                  Collapsed Labels ({selectedNodeData.collapsedLabels.length})
+                </div>
+                <div className="flex flex-col gap-1 max-h-24 overflow-y-auto font-mono text-[10px] text-gray-500 pr-1">
+                  {selectedNodeData.collapsedLabels.map((lbl, idx) => (
+                    <div key={idx} className="truncate">• {lbl}</div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!showMediaCuesInDialogue && selectedNodeData.audioAssetCues &&
               selectedNodeData.audioAssetCues.length > 0 && (

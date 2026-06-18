@@ -56,6 +56,12 @@ export interface ViewerPersistedState {
   minimapPannable: boolean;
   minimapZoomable: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
+  simplifyCollapseLinearChains: boolean;
+  simplifyInlineUtilities: boolean;
+  simplifyInlineDetours: boolean;
+  simplifyInlineStateToggles: boolean;
+  simplifyInlineEmptyLabels: boolean;
+  simplifyInlineDialogueThreshold: number;
 }
 
 // ─── Session slice (reset on each new import) ─────────────────────────────────
@@ -100,6 +106,12 @@ export interface ViewerActions {
   setMinimapPannable: (pannable: boolean) => void;
   setMinimapZoomable: (zoomable: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
+  setSimplifyCollapseLinearChains: (collapse: boolean) => void;
+  setSimplifyInlineUtilities: (inline: boolean) => void;
+  setSimplifyInlineDetours: (inline: boolean) => void;
+  setSimplifyInlineStateToggles: (inline: boolean) => void;
+  setSimplifyInlineEmptyLabels: (inline: boolean) => void;
+  setSimplifyInlineDialogueThreshold: (threshold: number) => void;
 
   // Session setters
   setLayoutDirection: (direction: LayoutDirection) => void;
@@ -181,6 +193,24 @@ const viewerPersistedStateSchema = z.object({
       ),
     })
     .catch(defaultPersistedState.visibleEdgeKinds),
+  simplifyCollapseLinearChains: z.boolean().catch(
+    defaultPersistedState.simplifyCollapseLinearChains,
+  ),
+  simplifyInlineUtilities: z.boolean().catch(
+    defaultPersistedState.simplifyInlineUtilities,
+  ),
+  simplifyInlineDetours: z.boolean().catch(
+    defaultPersistedState.simplifyInlineDetours,
+  ),
+  simplifyInlineStateToggles: z.boolean().catch(
+    defaultPersistedState.simplifyInlineStateToggles,
+  ),
+  simplifyInlineEmptyLabels: z.boolean().catch(
+    defaultPersistedState.simplifyInlineEmptyLabels,
+  ),
+  simplifyInlineDialogueThreshold: z.number().catch(
+    defaultPersistedState.simplifyInlineDialogueThreshold,
+  ),
 });
 
 /**
@@ -265,6 +295,12 @@ function migrateLegacyKeys(): string | null {
         call: rawCall !== "false",
         call_return: rawCallReturn !== "false",
       },
+      simplifyCollapseLinearChains: false,
+      simplifyInlineUtilities: false,
+      simplifyInlineDetours: false,
+      simplifyInlineStateToggles: false,
+      simplifyInlineEmptyLabels: false,
+      simplifyInlineDialogueThreshold: 1,
     };
 
     for (const key of LEGACY_KEYS) {
@@ -345,6 +381,12 @@ export const useViewerStore = create<ViewerStore>()(
         minimapPannable: state.minimapPannable,
         minimapZoomable: state.minimapZoomable,
         visibleEdgeKinds: state.visibleEdgeKinds,
+        simplifyCollapseLinearChains: state.simplifyCollapseLinearChains,
+        simplifyInlineUtilities: state.simplifyInlineUtilities,
+        simplifyInlineDetours: state.simplifyInlineDetours,
+        simplifyInlineStateToggles: state.simplifyInlineStateToggles,
+        simplifyInlineEmptyLabels: state.simplifyInlineEmptyLabels,
+        simplifyInlineDialogueThreshold: state.simplifyInlineDialogueThreshold,
       }),
     },
   ),
