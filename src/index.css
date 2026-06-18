@@ -218,3 +218,25 @@ body,
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* Theme-Aware Text Highlighting */
+mark {
+  background-color: rgba(253, 224, 71, 0.4); /* Soft yellow-300 equivalent */
+  color: inherit;
+  border-radius: 0.25rem;
+  padding: 0 0.125rem;
+}
+
+[data-theme="dark"] mark {
+  background-color: rgba(234, 179, 8, 0.25); /* Subtle dark yellow/amber background */
+  color: #fef08a; /* Soft yellow text */
+}
+
+[data-theme="highContrast"] mark {
+  background-color: #000000;
+  color: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 0;
+  font-weight: bold;
+}
+

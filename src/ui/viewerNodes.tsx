@@ -10,6 +10,7 @@ import {
   Volume2 as Volume2Icon,
 } from "lucide-react";
 import { cn } from "./utils/cn.ts";
+import { renderHighlightedText } from "./viewerText.tsx";
 
 function getTheme(themeName: unknown) {
   if (typeof themeName === "string" && themeName in THEMES) {
@@ -22,6 +23,7 @@ export const LabelNodeComponent = memo(
   function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
     const themeName = useViewerStore((s) => s.theme);
     const theme = getTheme(themeName);
+    const searchInput = useViewerStore((s) => s.searchInput);
     const isDark = themeName === "dark";
     const isShadowed = data.isShadowed === true;
     const isTerminalOutcome = data.isTerminalOutcome === true;
@@ -113,7 +115,7 @@ export const LabelNodeComponent = memo(
           className="font-mono font-bold truncate text-sm"
           style={{ color: theme.labelText, opacity: isShadowed ? 0.8 : 1 }}
         >
-          {data.label}
+          {searchInput ? renderHighlightedText(data.label, searchInput) : data.label}
         </div>
         {isShadowed && data.shadowOfId && (
           <div className="mt-1 text-[10px]" style={{ color: theme.labelTitle }}>
@@ -201,6 +203,7 @@ export const MenuNodeComponent = memo(
   function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
     const themeName = useViewerStore((s) => s.theme);
     const theme = getTheme(themeName);
+    const searchInput = useViewerStore((s) => s.searchInput);
     return (
       <div
         className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
@@ -217,7 +220,7 @@ export const MenuNodeComponent = memo(
           className="font-mono font-bold truncate text-sm"
           style={{ color: theme.menuText }}
         >
-          {data.label}
+          {searchInput ? renderHighlightedText(data.label, searchInput) : data.label}
         </div>
         <Handle type="source" position={Position.Bottom} />
       </div>
@@ -229,6 +232,7 @@ export const DecisionNodeComponent = memo(
   function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
     const themeName = useViewerStore((s) => s.theme);
     const theme = getTheme(themeName);
+    const searchInput = useViewerStore((s) => s.searchInput);
     const expression = data.conditionExpression ?? data.label;
     return (
       <div className="w-[220px] flex items-center justify-center relative py-2">
@@ -251,7 +255,7 @@ export const DecisionNodeComponent = memo(
               className="font-mono text-xs font-semibold break-words"
               style={{ color: theme.decisionText }}
             >
-              {expression}
+              {searchInput ? renderHighlightedText(expression, searchInput) : expression}
             </div>
           </div>
         </div>

@@ -28,7 +28,7 @@ export function renderHighlightedText(text: string, query: string): ReactNode {
     const markKey = `hl-${key}`;
     key += 1;
     nodes.push(
-      <mark key={markKey} className="bg-yellow-200 text-slate-950 rounded px-0.5 font-medium">
+      <mark key={markKey} className="font-medium">
         {matched}
       </mark>,
     );

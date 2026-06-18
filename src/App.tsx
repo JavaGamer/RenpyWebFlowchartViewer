@@ -258,6 +258,7 @@ export default function App() {
         "flex flex-col h-full min-h-screen font-sans transition-colors duration-200",
         isDark ? "bg-slate-950 text-slate-100" : "bg-gray-50 text-gray-900",
       )}
+      data-theme={theme}
     >
       <a
         href="#flowchart-main"
@@ -276,7 +277,14 @@ export default function App() {
             aria-label="Flowchart viewer"
           >
             {/* Re-upload button */}
-            <div className="shrink-0 bg-violet-50 border-b border-violet-100 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-violet-700">
+            <div
+              className={cn(
+                "shrink-0 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm border-b transition-colors duration-200",
+                isDark
+                  ? "bg-violet-950/20 border-violet-900/30 text-violet-350"
+                  : "bg-violet-50 border-violet-100 text-violet-700",
+              )}
+            >
               <span>
                 Parsed <strong>{fileCount}</strong> .rpy file
                 {fileCount !== 1 ? "s" : ""} →{" "}
@@ -294,7 +302,12 @@ export default function App() {
                   setUploadedFiles([]);
                   appActions.reset();
                 }}
-                className="sm:ml-auto text-xs underline text-violet-600 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+                className={cn(
+                  "sm:ml-auto text-xs underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded",
+                  isDark
+                    ? "text-violet-400 hover:text-violet-300"
+                    : "text-violet-600 hover:text-violet-800",
+                )}
               >
                 Upload a different folder
               </button>

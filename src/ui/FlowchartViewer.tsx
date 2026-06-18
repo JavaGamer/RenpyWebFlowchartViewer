@@ -277,6 +277,7 @@ export default function FlowchartViewer({
         backgroundColor: THEMES[theme].pageBg,
         color: THEMES[theme].text,
       }}
+      data-theme={theme}
     >
       {/* Toolbar - always rendered, even when the canvas has errored */}
       <ViewerToolbar
