@@ -25,7 +25,7 @@
     "npm:@xyflow/react@^12.11.0": "12.11.0_@types+react@19.2.14_@types+react-dom@19.2.3__@types+react@19.2.14_react@19.2.5_react-dom@19.2.5__react@19.2.5_immer@11.1.8",
     "npm:clsx@^2.1.1": "2.1.1",
     "npm:comlink@^4.4.2": "4.4.2",
-    "npm:elkjs@~0.9.3": "0.9.3",
+    "npm:elkjs@~0.11.1": "0.11.1",
     "npm:eslint-plugin-react-hooks@^7.1.1": "7.1.1_eslint@9.39.4",
     "npm:eslint-plugin-react-refresh@~0.5.2": "0.5.2_eslint@9.39.4",
     "npm:eslint@*": "9.39.4",
@@ -1640,8 +1640,8 @@
     "electron-to-chromium@1.5.367": {
       "integrity": "sha512-4Mk/mrynCNQ+atY40D3UpmhLWB6AHMbYMlIrPhHcMF6x0L7O0b052FCAsxw1LlaR++UFuNg3D/A6XCuGDa0guQ=="
     },
-    "elkjs@0.9.3": {
-      "integrity": "sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ=="
+    "elkjs@0.11.1": {
+      "integrity": "sha512-zxxR9k+rx5ktMwT/FwyLdPCrq7xN6e4VGGHH8hA01vVYKjTFik7nHOxBnAYtrgYUB1RpAiLvA1/U2YraWxyKKg=="
     },
     "enhanced-resolve@5.21.6": {
       "integrity": "sha512-aNnGCvbJ/RIyWo1IuhNdVjnNF+EjH9wpzpNHt+ci/m9He9LJvUN8wrCcXjp9cWsGNAuvSpVFTx/vraAFQ8qGjQ==",
@@ -2738,7 +2738,7 @@
         "npm:@xyflow/react@^12.11.0",
         "npm:clsx@^2.1.1",
         "npm:comlink@^4.4.2",
-        "npm:elkjs@~0.9.3",
+        "npm:elkjs@~0.11.1",
         "npm:eslint-plugin-react-hooks@^7.1.1",
         "npm:eslint-plugin-react-refresh@~0.5.2",
         "npm:eslint@^9.39.4",
