@@ -209,6 +209,25 @@ function redactEdge(
   privacy: DebugBundlePrivacyOptions,
   graphAliasContext: GraphAliasContext,
 ): Record<string, unknown> {
+  const redactedCondition = edge.condition
+    ? {
+        branchKind: edge.condition.branchKind,
+        ...(privacy.includeRawScriptDetails && edge.condition.expression
+          ? { expression: edge.condition.expression }
+          : {}),
+        ...(privacy.includeRawScriptDetails && edge.condition.references
+          ? { references: edge.condition.references }
+          : {}),
+        ...(edge.condition.decisionNodeId
+          ? {
+              decisionNodeId: privacy.includeRawScriptDetails
+                ? edge.condition.decisionNodeId
+                : getNodeAlias(graphAliasContext, edge.condition.decisionNodeId),
+            }
+          : {}),
+      }
+    : undefined;
+
   return {
     id: privacy.includeRawScriptDetails
       ? edge.id
@@ -223,6 +242,8 @@ function redactEdge(
     ...(privacy.includeRawScriptDetails && edge.label
       ? { label: edge.label }
       : {}),
+    ...(redactedCondition ? { condition: redactedCondition } : {}),
+    ...(edge.timeout ? { timeout: edge.timeout } : {}),
   };
 }
 

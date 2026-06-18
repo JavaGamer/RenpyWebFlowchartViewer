@@ -23,15 +23,18 @@ export function extractConditionFlagRefs(
   expression: string | undefined,
 ): string[] {
   if (!expression || expression.trim().length === 0) return [];
+  const preprocessed = expression
+    .replace(/\bis\s+not\b/gi, "!=")
+    .replace(/\bis\b/gi, "==");
   try {
-    let refs = flagRefsCache.get(expression);
+    let refs = flagRefsCache.get(preprocessed);
     if (!refs) {
-      const vars = parser.parse(expression).variables();
-      const KEYWORDS = new Set(["true", "false", "none", "and", "or", "not"]);
+      const vars = parser.parse(preprocessed).variables();
+      const KEYWORDS = new Set(["true", "false", "none", "null", "and", "or", "not"]);
       refs = vars
         .filter((v) => !KEYWORDS.has(v.toLowerCase()))
         .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-      flagRefsCache.set(expression, refs);
+      flagRefsCache.set(preprocessed, refs);
     }
     return refs;
   } catch {
@@ -56,7 +59,7 @@ function evaluateInstructions(
       const lower = val.toLowerCase();
       if (lower === "true") {
         stack.push("true");
-      } else if (lower === "false") {
+      } else if (lower === "false" || lower === "none" || lower === "null") {
         stack.push("false");
       } else if (val) {
         const flagVal = flags[val];
@@ -138,12 +141,15 @@ export function evaluateConditionExpression(
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return "unknown";
+  const preprocessed = expression
+    .replace(/\bis\s+not\b/gi, "!=")
+    .replace(/\bis\b/gi, "==");
   try {
-    let tokens = parsedExpressionCache.get(expression);
+    let tokens = parsedExpressionCache.get(preprocessed);
     if (!tokens) {
-      const expr = parser.parse(expression);
+      const expr = parser.parse(preprocessed);
       tokens = (expr as unknown as { tokens: EvalInstruction[] }).tokens;
-      parsedExpressionCache.set(expression, tokens);
+      parsedExpressionCache.set(preprocessed, tokens);
     }
     return evaluateInstructions(tokens, flags);
   } catch {

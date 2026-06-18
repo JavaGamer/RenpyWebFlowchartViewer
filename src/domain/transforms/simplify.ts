@@ -189,7 +189,36 @@ function inlineNodes(
             mergedKind = "sequence";
           }
 
-          const mergedCondition = current.condition || edge.condition;
+          let mergedCondition = current.condition || edge.condition;
+          if (current.condition && edge.condition) {
+            const exp1 = current.condition.expression;
+            const exp2 = edge.condition.expression;
+            let mergedExpression: string | undefined;
+            if (exp1 && exp2) {
+              mergedExpression = `(${exp1}) and (${exp2})`;
+            } else {
+              mergedExpression = exp1 || exp2;
+            }
+            const mergedRefs = Array.from(
+              new Set([
+                ...(current.condition.references || []),
+                ...(edge.condition.references || []),
+              ])
+            ).sort();
+
+            mergedCondition = {
+              branchKind:
+                current.condition.branchKind === "if" ||
+                edge.condition.branchKind === "if"
+                  ? "if"
+                  : "elif",
+              expression: mergedExpression,
+              references: mergedRefs,
+              decisionNodeId:
+                current.condition.decisionNodeId ||
+                edge.condition.decisionNodeId,
+            };
+          }
           const mergedTimeout = current.timeout || edge.timeout;
 
           queue.push({
@@ -278,7 +307,11 @@ function collapseLinearChains(
         audioAssetCues: [...(A.audioAssetCues || []), ...(B.audioAssetCues || [])],
         isShadowed: A.isShadowed || B.isShadowed,
         isTerminalOutcome: B.isTerminalOutcome,
-        collapsedLabels: [...(A.collapsedLabels || []), B.label],
+        collapsedLabels: [
+          ...(A.collapsedLabels || []),
+          B.label,
+          ...(B.collapsedLabels || []),
+        ],
       };
 
       currentNodes = currentNodes

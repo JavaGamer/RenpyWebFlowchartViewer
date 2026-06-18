@@ -430,4 +430,106 @@ describe("debug bundle edge cases", () => {
     expect(decoded).toContain("Imported .rpy file count: 5");
     expect(decoded).toContain("Parser warning count: 2");
   });
+
+  it("includes condition and timeout fields in redacted edge according to privacy settings", () => {
+    const bundle = buildDebugBundle({
+      appVersion: "test",
+      state: {
+        phase: "done",
+        fileCount: 1,
+        importRevision: 1,
+        dialogueSearchMode: "auto",
+        errorMsg: "",
+        parseProgress: null,
+      },
+      parser: { selectedVariant: "renpy", customScreenActionRules: [] },
+      graph: {
+        flowNodes: [
+          { id: "start", type: "LABEL", label: "start", dialogueCount: 0 },
+          { id: "target", type: "LABEL", label: "target", dialogueCount: 0 },
+        ],
+        flowEdges: [
+          {
+            id: "e1",
+            source: "start",
+            target: "target",
+            kind: "jump",
+            condition: {
+              branchKind: "if",
+              expression: "score > 5",
+              references: ["score"],
+              decisionNodeId: "start",
+            },
+            timeout: { isTimeout: true, durationSeconds: 5 },
+          },
+        ],
+      },
+      parseDiagnostics: [],
+      privacy: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+    });
+
+    const redactedEdge = bundle.graph.edges[0] as unknown as {
+      timeout?: { isTimeout: boolean; durationSeconds: number };
+      condition?: { branchKind: string; expression?: string; references?: string[]; decisionNodeId?: string };
+    };
+    expect(redactedEdge.timeout).toEqual({ isTimeout: true, durationSeconds: 5 });
+    expect(redactedEdge.condition).toBeDefined();
+    expect(redactedEdge.condition.branchKind).toBe("if");
+    expect(redactedEdge.condition.expression).toBeUndefined();
+    expect(redactedEdge.condition.references).toBeUndefined();
+    expect(redactedEdge.condition.decisionNodeId).toBe("n1"); // aliased node ID
+
+    // Verify when privacy.includeRawScriptDetails is true
+    const bundleOptIn = buildDebugBundle({
+      appVersion: "test",
+      state: {
+        phase: "done",
+        fileCount: 1,
+        importRevision: 1,
+        dialogueSearchMode: "auto",
+        errorMsg: "",
+        parseProgress: null,
+      },
+      parser: { selectedVariant: "renpy", customScreenActionRules: [] },
+      graph: {
+        flowNodes: [
+          { id: "start", type: "LABEL", label: "start", dialogueCount: 0 },
+          { id: "target", type: "LABEL", label: "target", dialogueCount: 0 },
+        ],
+        flowEdges: [
+          {
+            id: "e1",
+            source: "start",
+            target: "target",
+            kind: "jump",
+            condition: {
+              branchKind: "if",
+              expression: "score > 5",
+              references: ["score"],
+              decisionNodeId: "start",
+            },
+            timeout: { isTimeout: true, durationSeconds: 5 },
+          },
+        ],
+      },
+      parseDiagnostics: [],
+      privacy: {
+        includeFileNames: true,
+        includeRawScriptDetails: true,
+        includeExtraDiagnostics: true,
+      },
+    });
+
+    const redactedEdgeOptIn = bundleOptIn.graph.edges[0] as unknown as {
+      timeout?: { isTimeout: boolean; durationSeconds: number };
+      condition?: { branchKind: string; expression?: string; references?: string[]; decisionNodeId?: string };
+    };
+    expect(redactedEdgeOptIn.timeout).toEqual({ isTimeout: true, durationSeconds: 5 });
+    expect(redactedEdgeOptIn.condition).toBeDefined();
+    expect(redactedEdgeOptIn.condition.branchKind).toBe("if");
+    expect(redactedEdgeOptIn.condition.expression).toBe("score > 5");
+    expect(redactedEdgeOptIn.condition.references).toEqual(["score"]);
+    expect(redactedEdgeOptIn.condition.decisionNodeId).toBe("start"); // verbatim node ID
+  });
 });
+

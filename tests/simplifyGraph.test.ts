@@ -107,4 +107,65 @@ describe("simplifyGraph", () => {
     expect(linearNode.dialogueCount).toBe(3);
     expect(linearNode.collapsedLabels).toEqual(["linear2", "end"]);
   });
+
+  it("collapses consecutive linear label chains regardless of edge order without losing collapsed labels", () => {
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1, chapter: "ch1" },
+      { id: "linear1", type: "LABEL", label: "linear1", dialogueCount: 1, chapter: "ch1" },
+      { id: "linear2", type: "LABEL", label: "linear2", dialogueCount: 1, chapter: "ch1" },
+      { id: "end", type: "LABEL", label: "end", dialogueCount: 1, chapter: "ch1" },
+    ];
+    // Put e3 (linear2 -> end) before e2 (linear1 -> linear2) to ensure linear2 & end merge first
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "linear1", kind: "sequence" },
+      { id: "e3", source: "linear2", target: "end", kind: "sequence" },
+      { id: "e2", source: "linear1", target: "linear2", kind: "sequence" },
+    ];
+    const options = { ...defaultOptions, collapseLinearChains: true };
+    const result = simplifyGraph(nodes, edges, options);
+
+    expect(result.nodes).toHaveLength(2);
+    const linearNode = result.nodes.find(n => n.id === "linear1")!;
+    expect(linearNode.dialogueCount).toBe(3);
+    expect(linearNode.collapsedLabels).toEqual(["linear2", "end"]);
+  });
+
+  it("inlines conditional nodes and logically merges their conditions using 'and'", () => {
+    // start -[flag1]-> condNode -[flag2]-> target
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      { id: "condNode", type: "LABEL", label: "condNode", dialogueCount: 0, role: "utility" },
+      { id: "target", type: "LABEL", label: "target", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      {
+        id: "e1",
+        source: "start",
+        target: "condNode",
+        kind: "sequence",
+        condition: { branchKind: "if", expression: "flag1", references: ["flag1"] },
+      },
+      {
+        id: "e2",
+        source: "condNode",
+        target: "target",
+        kind: "jump",
+        condition: { branchKind: "if", expression: "flag2", references: ["flag2"] },
+      },
+    ];
+    const options = { ...defaultOptions, inlineUtilities: true };
+    const result = simplifyGraph(nodes, edges, options);
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes.map(n => n.id)).not.toContain("condNode");
+
+    expect(result.edges).toHaveLength(1);
+    const edge = result.edges[0];
+    expect(edge.source).toBe("start");
+    expect(edge.target).toBe("target");
+    expect(edge.condition).toBeDefined();
+    expect(edge.condition?.expression).toBe("(flag1) and (flag2)");
+    expect(edge.condition?.references).toEqual(["flag1", "flag2"]);
+  });
 });
+
