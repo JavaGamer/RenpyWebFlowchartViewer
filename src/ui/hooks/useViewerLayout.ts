@@ -62,12 +62,11 @@ export function useViewerLayout({
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(
     new Map(),
   );
+  const isWorkerEnabled = !isTestEnv && isWorkerSupported;
   const shouldProgressiveLayout =
     flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
-  const isLargeWorkerEnabled = shouldProgressiveLayout && !isTestEnv &&
-    isWorkerSupported;
   const [isCalculatingLayout, setIsCalculatingLayout] = useState(
-    isLargeWorkerEnabled,
+    isWorkerEnabled,
   );
 
   // Sync state with props changes during render phase to avoid effect layout shifts
@@ -86,15 +85,12 @@ export function useViewerLayout({
     setPrevFlowEdges(flowEdges);
     setPrevDirection(layoutDirection);
     setPrevDensity(layoutDensity);
-    setIsCalculatingLayout(
-      flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT && !isTestEnv &&
-        isWorkerSupported,
-    );
+    setIsCalculatingLayout(isWorkerEnabled);
   }
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
-    if (shouldProgressiveLayout) {
-      // Immediately bypass synchronous layout for large projects
+    if (isWorkerEnabled) {
+      // Immediately bypass synchronous layout for worker execution
       return { nodes: [], edges: [] };
     }
     perf.mark("layout");
@@ -117,6 +113,7 @@ export function useViewerLayout({
     perf,
     shouldProgressiveLayout,
     layoutDensity,
+    isWorkerEnabled,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
@@ -124,7 +121,7 @@ export function useViewerLayout({
 
   const relayout = useCallback(() => {
     setIsCalculatingLayout(true);
-    if (isTestEnv || !isWorkerSupported) {
+    if (!isWorkerEnabled) {
       const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
@@ -176,6 +173,7 @@ export function useViewerLayout({
     setNodes,
     shouldProgressiveLayout,
     layoutDensity,
+    isWorkerEnabled,
   ]);
 
   useEffect(() => {
@@ -186,7 +184,7 @@ export function useViewerLayout({
     nodePositionsRef.current = new Map(
       layoutNodes.map((n) => [n.id, n.position]),
     );
-    if (!shouldProgressiveLayout || isTestEnv || !isWorkerSupported) {
+    if (!isWorkerEnabled) {
       return;
     }
 
@@ -228,6 +226,7 @@ export function useViewerLayout({
     setNodes,
     shouldProgressiveLayout,
     layoutDensity,
+    isWorkerEnabled,
   ]);
 
   useEffect(() => {

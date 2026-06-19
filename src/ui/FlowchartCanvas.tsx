@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -653,6 +653,19 @@ export function FlowchartCanvas({
     visibleNodeIds.size,
   ]);
 
+  // -- Debounced layout spinner (prevents flicker on fast layouts) -------------
+  // Only show the spinner if layout is still calculating after 100ms, so that
+  // small graphs that resolve quickly never flash an overlay.
+  const [showLayoutSpinner, setShowLayoutSpinner] = useState(false);
+  useEffect(() => {
+    if (!isCalculatingLayout) {
+      const id = setTimeout(() => setShowLayoutSpinner(false), 0);
+      return () => clearTimeout(id);
+    }
+    const id = setTimeout(() => setShowLayoutSpinner(true), 100);
+    return () => clearTimeout(id);
+  }, [isCalculatingLayout]);
+
   // -- Performance tracking ---------------------------------------------------
   useEffect(() => {
     if (!perf.enabled) return;
@@ -823,7 +836,7 @@ export function FlowchartCanvas({
           style={{ backgroundColor: THEMES[theme].pageBg }}
           data-theme={theme}
         >
-          {isCalculatingLayout && (
+          {showLayoutSpinner && (
             <div className="absolute inset-0 bg-white/45 backdrop-blur-md z-30 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
               <div className="flex flex-col items-center gap-3">
                 <div

@@ -243,97 +243,195 @@ function collapseLinearChains(
   nodes: FlowNode[],
   edges: FlowEdge[]
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  let currentNodes = [...nodes];
-  let currentEdges = [...edges];
+  const outgoing = new Map<string, FlowEdge[]>();
+  const incoming = new Map<string, FlowEdge[]>();
+  for (const edge of edges) {
+    if (!outgoing.has(edge.source)) outgoing.set(edge.source, []);
+    outgoing.get(edge.source)!.push(edge);
 
-  let changed = true;
-  while (changed) {
-    changed = false;
+    if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+    incoming.get(edge.target)!.push(edge);
+  }
 
-    // Build adjacency maps
-    const incoming = new Map<string, FlowEdge[]>();
-    const outgoing = new Map<string, FlowEdge[]>();
-    for (const edge of currentEdges) {
-      const inc = incoming.get(edge.target) || [];
-      inc.push(edge);
-      incoming.set(edge.target, inc);
+  const nodeMap = new Map<string, FlowNode>(nodes.map((n) => [n.id, n]));
 
-      const out = outgoing.get(edge.source) || [];
-      out.push(edge);
-      outgoing.set(edge.source, out);
-    }
+  const collapsibleEdges = new Map<string, FlowEdge>(); // sourceId -> edge
+  const hasIncomingCollapsible = new Set<string>();
+  const hasOutgoingCollapsible = new Set<string>();
 
-    const nodeMap = new Map(currentNodes.map((n) => [n.id, n]));
+  for (const edge of edges) {
+    if (edge.source === edge.target) continue;
+    const A = nodeMap.get(edge.source);
+    const B = nodeMap.get(edge.target);
+    if (!A || !B) continue;
 
-    let pairToMerge: { sourceId: string; targetId: string; edge: FlowEdge } | null = null;
-    for (const edge of currentEdges) {
-      const A = nodeMap.get(edge.source);
-      const B = nodeMap.get(edge.target);
-
-      if (!A || !B) continue;
-      if (A.type !== "LABEL" || B.type !== "LABEL") continue;
-      if (A.chapter !== B.chapter) continue;
-      if (A.id === "start" || B.id === "start") continue;
-
-      const outA = outgoing.get(A.id) || [];
-      const incB = incoming.get(B.id) || [];
-
-      // Merge B into A if A has exactly B as its single target,
-      // and B has exactly A as its single source, with no conditional branch
-      if (outA.length === 1 && incB.length === 1) {
-        if (
-          !edge.label &&
-          !edge.condition &&
-          !edge.timeout &&
-          (edge.kind === "sequence" || edge.kind === "jump")
-        ) {
-          pairToMerge = { sourceId: A.id, targetId: B.id, edge };
-          break;
-        }
-      }
-    }
-
-    if (pairToMerge) {
-      const { sourceId, targetId, edge } = pairToMerge;
-      const A = nodeMap.get(sourceId)!;
-      const B = nodeMap.get(targetId)!;
-
-      const mergedNode: FlowNode = {
-        ...A,
-        label: A.label,
-        dialogueCount: A.dialogueCount + B.dialogueCount,
-        dialogueLines: [...(A.dialogueLines || []), ...(B.dialogueLines || [])],
-        dialogueLineNums: [...(A.dialogueLineNums || []), ...(B.dialogueLineNums || [])],
-        audioAssetCues: [...(A.audioAssetCues || []), ...(B.audioAssetCues || [])],
-        isShadowed: A.isShadowed || B.isShadowed,
-        isTerminalOutcome: B.isTerminalOutcome,
-        collapsedLabels: [
-          ...(A.collapsedLabels || []),
-          B.label,
-          ...(B.collapsedLabels || []),
-        ],
-      };
-
-      currentNodes = currentNodes
-        .filter((n) => n.id !== targetId)
-        .map((n) => (n.id === sourceId ? mergedNode : n));
-
-      currentEdges = currentEdges
-        .filter((e) => e.id !== edge.id)
-        .map((e) => {
-          if (e.source === targetId) {
-            return {
-              ...e,
-              id: `${e.kind || "sequence"}_${sourceId}__${e.target}__collapsed`,
-              source: sourceId,
-            };
-          }
-          return e;
-        });
-
-      changed = true;
+    if (
+      A.type === "LABEL" &&
+      B.type === "LABEL" &&
+      A.chapter === B.chapter &&
+      A.id !== "start" &&
+      B.id !== "start" &&
+      (outgoing.get(A.id)?.length ?? 0) === 1 &&
+      (incoming.get(B.id)?.length ?? 0) === 1 &&
+      !edge.label &&
+      !edge.condition &&
+      !edge.timeout &&
+      (edge.kind === "sequence" || edge.kind === "jump")
+    ) {
+      collapsibleEdges.set(A.id, edge);
+      hasIncomingCollapsible.add(B.id);
+      hasOutgoingCollapsible.add(A.id);
     }
   }
 
-  return { nodes: currentNodes, edges: currentEdges };
+  const collapsedInto = new Map<string, string>();
+  const mergedNodesMap = new Map<string, FlowNode>();
+  const visited = new Set<string>();
+
+  // 1. Traverse starting from roots (nodes with outgoing collapsible, but no incoming collapsible)
+  const roots = [...hasOutgoingCollapsible].filter((id) => !hasIncomingCollapsible.has(id));
+  for (const rootId of roots) {
+    if (visited.has(rootId)) continue;
+    visited.add(rootId);
+
+    let currentId = rootId;
+    const path: string[] = [rootId];
+
+    while (collapsibleEdges.has(currentId)) {
+      const edge = collapsibleEdges.get(currentId)!;
+      const nextId = edge.target;
+      if (visited.has(nextId)) break; // cycle safety
+      visited.add(nextId);
+      path.push(nextId);
+      currentId = nextId;
+    }
+
+    if (path.length > 1) {
+      const rootNode = nodeMap.get(rootId)!;
+      let dialogueCount = rootNode.dialogueCount;
+      const dialogueLines = [...(rootNode.dialogueLines || [])];
+      const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
+      const audioAssetCues = [...(rootNode.audioAssetCues || [])];
+      const collapsedLabels = [...(rootNode.collapsedLabels || [])];
+      let isShadowed = rootNode.isShadowed;
+      let isTerminalOutcome = rootNode.isTerminalOutcome;
+
+      for (let i = 1; i < path.length; i++) {
+        const node = nodeMap.get(path[i])!;
+        dialogueCount += node.dialogueCount;
+        dialogueLines.push(...(node.dialogueLines || []));
+        dialogueLineNums.push(...(node.dialogueLineNums || []));
+        audioAssetCues.push(...(node.audioAssetCues || []));
+        collapsedLabels.push(node.label);
+        collapsedLabels.push(...(node.collapsedLabels || []));
+        if (node.isShadowed) isShadowed = true;
+        if (i === path.length - 1) {
+          isTerminalOutcome = node.isTerminalOutcome;
+        }
+        collapsedInto.set(node.id, rootId);
+      }
+
+      mergedNodesMap.set(rootId, {
+        ...rootNode,
+        dialogueCount,
+        dialogueLines,
+        dialogueLineNums,
+        audioAssetCues,
+        collapsedLabels,
+        isShadowed,
+        isTerminalOutcome,
+      });
+    }
+  }
+
+  // 2. Traverse remaining nodes with outgoing collapsible (handles cycles)
+  for (const startId of hasOutgoingCollapsible) {
+    if (visited.has(startId)) continue;
+    visited.add(startId);
+
+    let currentId = startId;
+    const path: string[] = [startId];
+
+    while (collapsibleEdges.has(currentId)) {
+      const edge = collapsibleEdges.get(currentId)!;
+      const nextId = edge.target;
+      if (visited.has(nextId)) break;
+      visited.add(nextId);
+      path.push(nextId);
+      currentId = nextId;
+    }
+
+    if (path.length > 1) {
+      const rootId = startId;
+      const rootNode = nodeMap.get(rootId)!;
+      let dialogueCount = rootNode.dialogueCount;
+      const dialogueLines = [...(rootNode.dialogueLines || [])];
+      const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
+      const audioAssetCues = [...(rootNode.audioAssetCues || [])];
+      const collapsedLabels = [...(rootNode.collapsedLabels || [])];
+      let isShadowed = rootNode.isShadowed;
+      let isTerminalOutcome = rootNode.isTerminalOutcome;
+
+      for (let i = 1; i < path.length; i++) {
+        const node = nodeMap.get(path[i])!;
+        dialogueCount += node.dialogueCount;
+        dialogueLines.push(...(node.dialogueLines || []));
+        dialogueLineNums.push(...(node.dialogueLineNums || []));
+        audioAssetCues.push(...(node.audioAssetCues || []));
+        collapsedLabels.push(node.label);
+        collapsedLabels.push(...(node.collapsedLabels || []));
+        if (node.isShadowed) isShadowed = true;
+        if (i === path.length - 1) {
+          isTerminalOutcome = node.isTerminalOutcome;
+        }
+        collapsedInto.set(node.id, rootId);
+      }
+
+      mergedNodesMap.set(rootId, {
+        ...rootNode,
+        dialogueCount,
+        dialogueLines,
+        dialogueLineNums,
+        audioAssetCues,
+        collapsedLabels,
+        isShadowed,
+        isTerminalOutcome,
+      });
+    }
+  }
+
+  // 3. Filter and map nodes
+  const finalNodes: FlowNode[] = [];
+  for (const node of nodes) {
+    if (collapsedInto.has(node.id)) continue;
+    if (mergedNodesMap.has(node.id)) {
+      finalNodes.push(mergedNodesMap.get(node.id)!);
+    } else {
+      finalNodes.push(node);
+    }
+  }
+
+  // 4. Filter and map edges
+  const collapsedEdgeIds = new Set<string>();
+  for (const edge of collapsibleEdges.values()) {
+    collapsedEdgeIds.add(edge.id);
+  }
+
+  const finalEdges: FlowEdge[] = [];
+  for (const edge of edges) {
+    if (collapsedEdgeIds.has(edge.id)) continue;
+
+    if (collapsedInto.has(edge.source)) {
+      const rootId = collapsedInto.get(edge.source)!;
+      finalEdges.push({
+        ...edge,
+        id: `${edge.kind || "sequence"}_${rootId}__${edge.target}__collapsed`,
+        source: rootId,
+      });
+    } else {
+      finalEdges.push(edge);
+    }
+  }
+
+  return { nodes: finalNodes, edges: finalEdges };
 }
