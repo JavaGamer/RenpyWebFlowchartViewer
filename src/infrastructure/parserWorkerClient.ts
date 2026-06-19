@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { proxy, type Remote, wrap } from "comlink";
 import MiniSearch from "minisearch";
 import {
@@ -19,23 +18,23 @@ import {
   type ParseWorkerClientResult,
 } from "./workerProtocol.ts";
 
-class SyncPromise<T> {
-  private value: any;
-  private error: any;
+class SyncPromise<T> implements PromiseLike<T> {
+  private value?: T;
+  private error?: unknown;
   private state: "pending" | "resolved" | "rejected" = "pending";
-  private resolveCallbacks: Array<(v: any) => void> = [];
-  private rejectCallbacks: Array<(e: any) => void> = [];
+  private resolveCallbacks: Array<(v: T) => void> = [];
+  private rejectCallbacks: Array<(e: unknown) => void> = [];
 
   constructor(
-    executor: (resolve: (v: T) => void, reject: (e: any) => void) => void,
+    executor: (resolve: (v: T) => void, reject: (e: unknown) => void) => void,
   ) {
-    const resolve = (val: any) => {
+    const resolve = (val: T) => {
       if (this.state !== "pending") return;
       this.state = "resolved";
       this.value = val;
       for (const cb of this.resolveCallbacks) cb(val);
     };
-    const reject = (err: any) => {
+    const reject = (err: unknown) => {
       if (this.state !== "pending") return;
       this.state = "rejected";
       this.error = err;
@@ -48,43 +47,50 @@ class SyncPromise<T> {
     }
   }
 
-  then<U>(
-    onResolve: (v: T) => any,
-    onReject?: (e: any) => any,
-  ): SyncPromise<U> {
+  then<U = T, V = never>(
+    onResolve?: ((v: T) => U | PromiseLike<U>) | null,
+    onReject?: ((e: unknown) => V | PromiseLike<V>) | null,
+  ): SyncPromise<U | V> {
+    const resolveHandler = onResolve || ((v: T) => v as unknown as U);
     if (this.state === "resolved") {
       try {
-        const nextVal = onResolve(this.value);
-        if (nextVal && typeof (nextVal as any).then === "function") {
-          return nextVal as any;
+        const nextVal = resolveHandler(this.value as T);
+        if (nextVal && typeof (nextVal as { then?: unknown }).then === "function") {
+          return nextVal as unknown as SyncPromise<U | V>;
         }
-        return SyncPromise.resolve(nextVal) as any;
+        return SyncPromise.resolve(nextVal) as unknown as SyncPromise<U | V>;
       } catch (e) {
-        return SyncPromise.reject(e) as any;
+        return SyncPromise.reject(e) as unknown as SyncPromise<U | V>;
       }
     }
     if (this.state === "rejected") {
       if (onReject) {
         try {
           const nextVal = onReject(this.error);
-          if (nextVal && typeof (nextVal as any).then === "function") {
-            return nextVal as any;
+          if (nextVal && typeof (nextVal as { then?: unknown }).then === "function") {
+            return nextVal as unknown as SyncPromise<U | V>;
           }
-          return SyncPromise.resolve(nextVal) as any;
+          return SyncPromise.resolve(nextVal) as unknown as SyncPromise<U | V>;
         } catch (e) {
-          return SyncPromise.reject(e) as any;
+          return SyncPromise.reject(e) as unknown as SyncPromise<U | V>;
         }
       }
-      return SyncPromise.reject(this.error) as any;
+      return SyncPromise.reject(this.error) as unknown as SyncPromise<U | V>;
     }
-    return new SyncPromise<U>((resolve, reject) => {
+    return new SyncPromise<U | V>((resolve, reject) => {
       this.resolveCallbacks.push((val) => {
         try {
-          const res = onResolve(val);
-          if (res && typeof (res as any).then === "function") {
-            (res as any).then(resolve, reject);
+          const res = resolveHandler(val);
+          if (res && typeof (res as { then?: unknown }).then === "function") {
+            const thenable = res as {
+              then: (
+                onfulfilled: (value: unknown) => void,
+                onrejected: (reason: unknown) => void,
+              ) => void;
+            };
+            thenable.then(resolve as (v: unknown) => void, reject);
           } else {
-            resolve(res as any);
+            resolve(res as U);
           }
         } catch (e) {
           reject(e);
@@ -94,10 +100,16 @@ class SyncPromise<T> {
         this.rejectCallbacks.push((err) => {
           try {
             const res = onReject(err);
-            if (res && typeof (res as any).then === "function") {
-              (res as any).then(resolve, reject);
+            if (res && typeof (res as { then?: unknown }).then === "function") {
+              const thenable = res as {
+                then: (
+                  onfulfilled: (value: unknown) => void,
+                  onrejected: (reason: unknown) => void,
+                ) => void;
+              };
+              thenable.then(resolve as (v: unknown) => void, reject);
             } else {
-              resolve(res as any);
+              resolve(res as V);
             }
           } catch (e) {
             reject(e);
@@ -109,18 +121,25 @@ class SyncPromise<T> {
     });
   }
 
-  catch<U>(onReject: (e: any) => any): SyncPromise<T | U> {
-    return this.then((v) => v, onReject) as any;
+  catch<U = never>(onReject: (e: unknown) => U | PromiseLike<U>): SyncPromise<T | U> {
+    return this.then(undefined, onReject);
+  }
+
+  toPromise(): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.then(resolve, reject);
+    });
   }
 
   static resolve<V>(val: V): SyncPromise<V> {
     return new SyncPromise<V>((resolve) => resolve(val));
   }
 
-  static reject(err: any): SyncPromise<any> {
-    return new SyncPromise<any>((_, reject) => reject(err));
+  static reject<V = never>(err: unknown): SyncPromise<V> {
+    return new SyncPromise<V>((_, reject) => reject(err));
   }
 }
+
 
 let requestCounter = 0;
 const textEncoder = new TextEncoder();
@@ -389,7 +408,7 @@ export function parseRenpyFilesInWorker(
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
-    let progressProxy: any;
+    let progressProxy: Parameters<Remote<ParserWorkerApi>["parse"]>[3] = undefined;
 
     computeFileCacheKeys(files)
       .then((fileCacheKeys) => {
@@ -398,7 +417,7 @@ export function parseRenpyFilesInWorker(
         }
 
         if (onProgress) {
-          progressProxy = proxy((progress: any) => onProgress(progress));
+          progressProxy = proxy((progress: ParseProgressPayload) => onProgress(progress));
         }
 
         return getWorkerApi(0).parse(
@@ -419,7 +438,7 @@ export function parseRenpyFilesInWorker(
           progressProxy,
         );
       })
-      .then((result: any) => {
+      .then((result: ParseWorkerClientResult) => {
         signal?.removeEventListener("abort", onAbort);
 
         if (signal?.aborted) {
@@ -435,7 +454,8 @@ export function parseRenpyFilesInWorker(
         signal?.removeEventListener("abort", onAbort);
         reject(error);
       });
-  }) as unknown as Promise<ParseWorkerClientResult>;
+  }).toPromise();
+
 }
 
 interface SearchRequestPayload {
@@ -682,7 +702,7 @@ export function parseChunksInParallel({
           });
       });
     });
-  }) as unknown as Promise<ParseChunkResult>;
+  }).toPromise();
 }
 
 export function getWorkerPoolSize(): number {
