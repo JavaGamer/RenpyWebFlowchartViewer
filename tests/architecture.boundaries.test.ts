@@ -41,7 +41,7 @@ const parserUiForbiddenImportPattern = new RegExp(
   "from ['\"](?:\\.\\.?/)+ui(?:['\"/]|$)",
 );
 const layerImportPattern =
-  /from ['"]((?:\.\.?\/)+(domain|application|infrastructure|ui)(?:\/[^'"]+)?)['"]/g;
+  /from ['"]((?:\.\.?\/)+(domain|application|infrastructure|ui|parser)(?:\/[^'"]+)?)['"]/g;
 
 function detectLayer(
   relativePath: string,

@@ -1,17 +1,19 @@
 import { expose } from "comlink";
-import { parseRenpyFiles } from "../parser/parser.ts";
+import {
+  createGraphState,
+  finalizeRoles,
+  parseRenpyFiles,
+  processTokenizedFile,
+  tokenizeOneFile,
+  type ParseDiagnostic,
+  type ParseInputFile,
+  type TokenizedFile,
+  type ParseGraphState,
+} from "../parser/index.ts";
 import MiniSearch from "minisearch";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
-import { createGraphState } from "../parser/pipelineState.ts";
-import type { ParseDiagnostic, ParseInputFile } from "../parser/pipelineTypes.ts";
 import pLimit from "p-limit";
-import {
-  processTokenizedFile,
-  type TokenizedFile,
-  tokenizeOneFile,
-} from "../parser/filePipeline.ts";
-import { finalizeRoles } from "../parser/roleFinalization.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
@@ -63,18 +65,44 @@ const MAX_TOKENIZED_CACHE_ENTRIES = 200;
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
 const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
-let accumulatedState = createGraphState();
-let dialogueSearchDocs: DialogueSearchDocument[] = [];
-let dialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null = null;
+
+
+interface SessionState {
+  accumulatedState: ParseGraphState;
+  dialogueSearchDocs: DialogueSearchDocument[];
+  dialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null;
+}
+
+const sessions = new Map<string, SessionState>();
+
+function getSession(sessionId: string): SessionState {
+  let session = sessions.get(sessionId);
+  if (!session) {
+    session = {
+      accumulatedState: createGraphState(),
+      dialogueSearchDocs: [],
+      dialogueSearchMiniSearch: null,
+    };
+    sessions.set(sessionId, session);
+  }
+  return session;
+}
+
+function clearSession(sessionId: string) {
+  sessions.delete(sessionId);
+}
+
+
 
 function buildDialogueSearchIndex(
+  session: SessionState,
   nodes: { id: string; label: string; dialogueLines?: string[] }[],
 ) {
-  dialogueSearchDocs = [];
+  session.dialogueSearchDocs = [];
   for (const node of nodes) {
     if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
     for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
-      dialogueSearchDocs.push({
+      session.dialogueSearchDocs.push({
         id: `${node.id}::${idx + 1}`,
         nodeId: node.id,
         nodeLabel: node.label,
@@ -83,11 +111,11 @@ function buildDialogueSearchIndex(
       });
     }
   }
-  if (dialogueSearchDocs.length > 0) {
-    dialogueSearchMiniSearch = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
-    dialogueSearchMiniSearch.addAll(dialogueSearchDocs);
+  if (session.dialogueSearchDocs.length > 0) {
+    session.dialogueSearchMiniSearch = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
+    session.dialogueSearchMiniSearch.addAll(session.dialogueSearchDocs);
   } else {
-    dialogueSearchMiniSearch = null;
+    session.dialogueSearchMiniSearch = null;
   }
 }
 
@@ -114,6 +142,7 @@ const parserApi = {
     requestId: number,
     files: ParseInputFile[],
     options: {
+      sessionId?: string;
       fileCacheKeys?: string[];
       wantsProgress?: boolean;
       maxParallelFiles?: number;
@@ -126,6 +155,8 @@ const parserApi = {
     },
     onProgress?: (progress: ProgressPayload) => void,
   ): Promise<ParseWorkerClientResult> {
+    const sessionId = options.sessionId || "default";
+    const session = getSession(sessionId);
     activeRequestId = requestId;
     const startedAt = performance.now();
     const wantsProgress = options.wantsProgress !== false && !!onProgress;
@@ -140,9 +171,9 @@ const parserApi = {
       let result;
       if (appendToActiveGraph) {
         if (resetActiveGraph) {
-          accumulatedState = createGraphState();
-          dialogueSearchDocs = [];
-          dialogueSearchMiniSearch = null;
+          session.accumulatedState = createGraphState();
+          session.dialogueSearchDocs = [];
+          session.dialogueSearchMiniSearch = null;
         }
 
         const hardwareConcurrency = typeof navigator !== "undefined"
@@ -199,7 +230,7 @@ const parserApi = {
               idx,
             );
           }
-          processTokenizedFile(accumulatedState, tokenized, {
+          processTokenizedFile(session.accumulatedState, tokenized, {
             captureDialogueLines: options.captureDialogueLines !== false,
             parserVariant: options.parserVariant,
             screenActionRules: options.screenActionRules,
@@ -226,14 +257,14 @@ const parserApi = {
           }
         }
         if (isFinalChunk) {
-          finalizeRoles(accumulatedState);
-          buildDialogueSearchIndex(accumulatedState.nodes);
+          finalizeRoles(session.accumulatedState);
+          buildDialogueSearchIndex(session, session.accumulatedState.nodes);
         }
         result = {
-          nodes: accumulatedState.nodes,
-          edges: accumulatedState.edges,
-          diagnostics: accumulatedState.diagnostics.length > 0
-            ? accumulatedState.diagnostics
+          nodes: session.accumulatedState.nodes,
+          edges: session.accumulatedState.edges,
+          diagnostics: session.accumulatedState.diagnostics.length > 0
+            ? session.accumulatedState.diagnostics
             : undefined,
         };
       } else {
@@ -268,10 +299,10 @@ const parserApi = {
             }
           },
         });
-        accumulatedState = createGraphState();
-        accumulatedState.nodes = result.nodes;
-        accumulatedState.edges = result.edges;
-        buildDialogueSearchIndex(result.nodes);
+        session.accumulatedState = createGraphState();
+        session.accumulatedState.nodes = result.nodes;
+        session.accumulatedState.edges = result.edges;
+        buildDialogueSearchIndex(session, result.nodes);
       }
 
       if (wantsProgress && pendingProgress) {
@@ -295,11 +326,7 @@ const parserApi = {
       }
       cancelledRequests.delete(requestId);
       if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
-        accumulatedState = createGraphState();
-      }
-      if (wasCancelled) {
-        dialogueSearchDocs = [];
-        dialogueSearchMiniSearch = null;
+        clearSession(sessionId);
       }
     }
   },
@@ -364,6 +391,7 @@ const parserApi = {
   async finalize(
     requestId: number,
     options: {
+      sessionId?: string;
       nodes: FlowNode[];
       edges: FlowEdge[];
       diagnostics?: ParseDiagnosticPayload[];
@@ -383,45 +411,47 @@ const parserApi = {
       cancelledRequests.delete(requestId);
       throw new Error("Finalize cancelled");
     }
+    const sessionId = options.sessionId || "default";
+    const session = getSession(sessionId);
     const appendToActiveGraph = options.appendToActiveGraph === true;
     const isFinalChunk = options.isFinalChunk !== false;
 
     try {
       if (appendToActiveGraph) {
         if (options.resetActiveGraph) {
-          accumulatedState = createGraphState();
-          dialogueSearchDocs = [];
-          dialogueSearchMiniSearch = null;
+          session.accumulatedState = createGraphState();
+          session.dialogueSearchDocs = [];
+          session.dialogueSearchMiniSearch = null;
         }
 
-        accumulatedState.nodes.push(...options.nodes);
-        accumulatedState.edges.push(...options.edges);
+        session.accumulatedState.nodes.push(...options.nodes);
+        session.accumulatedState.edges.push(...options.edges);
         if (options.diagnostics) {
-          accumulatedState.diagnostics.push(
+          session.accumulatedState.diagnostics.push(
             ...(options.diagnostics as ParseDiagnostic[]),
           );
         }
-        accumulatedState.pendingCallReturns.push(...options.pendingCallReturns);
+        session.accumulatedState.pendingCallReturns.push(...options.pendingCallReturns);
         for (const label of options.hasReliableReturnInLabel) {
-          accumulatedState.hasReliableReturnInLabel.add(label);
+          session.accumulatedState.hasReliableReturnInLabel.add(label);
         }
         for (const screen of options.globalScreens) {
-          accumulatedState.globalScreens.add(screen);
+          session.accumulatedState.globalScreens.add(screen);
         }
         for (const [name, count] of options.labelDefinitionCount) {
-          accumulatedState.labelDefinitionCountByName.set(
+          session.accumulatedState.labelDefinitionCountByName.set(
             name,
-            (accumulatedState.labelDefinitionCountByName.get(name) ?? 0) +
+            (session.accumulatedState.labelDefinitionCountByName.get(name) ?? 0) +
               count,
           );
         }
         for (const [name, id] of options.canonicalLabelIds) {
-          accumulatedState.canonicalLabelIdByName.set(name, id);
+          session.accumulatedState.canonicalLabelIdByName.set(name, id);
         }
 
         if (isFinalChunk) {
-          finalizeRoles(accumulatedState);
-          buildDialogueSearchIndex(accumulatedState.nodes);
+          finalizeRoles(session.accumulatedState);
+          buildDialogueSearchIndex(session, session.accumulatedState.nodes);
         }
 
         if (cancelledRequests.has(requestId)) {
@@ -429,10 +459,10 @@ const parserApi = {
         }
 
         return {
-          nodes: accumulatedState.nodes,
-          edges: accumulatedState.edges,
-          diagnostics: accumulatedState.diagnostics.length > 0
-            ? (accumulatedState.diagnostics as ParseDiagnosticPayload[])
+          nodes: session.accumulatedState.nodes,
+          edges: session.accumulatedState.edges,
+          diagnostics: session.accumulatedState.diagnostics.length > 0
+            ? (session.accumulatedState.diagnostics as ParseDiagnosticPayload[])
             : undefined,
         };
       } else {
@@ -453,7 +483,7 @@ const parserApi = {
         state.canonicalLabelIdByName = new Map(options.canonicalLabelIds);
 
         finalizeRoles(state);
-        buildDialogueSearchIndex(state.nodes);
+        buildDialogueSearchIndex(session, state.nodes);
 
         if (cancelledRequests.has(requestId)) {
           throw new Error("Finalize cancelled");
@@ -471,11 +501,7 @@ const parserApi = {
       const wasCancelled = cancelledRequests.has(requestId);
       cancelledRequests.delete(requestId);
       if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
-        accumulatedState = createGraphState();
-      }
-      if (wasCancelled) {
-        dialogueSearchDocs = [];
-        dialogueSearchMiniSearch = null;
+        clearSession(sessionId);
       }
     }
   },
@@ -484,6 +510,7 @@ const parserApi = {
     requestId: number,
     query: string,
     options: {
+      sessionId?: string;
       nodeIds?: string[];
       maxResults?: number;
     },
@@ -497,14 +524,16 @@ const parserApi = {
       cancelledRequests.delete(requestId);
       return [];
     }
+    const sessionId = options.sessionId || "default";
+    const session = getSession(sessionId);
     const maxResults = Math.max(
       1,
       Math.min(options.maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS),
     );
     const allowedIds = options.nodeIds ? new Set(options.nodeIds) : null;
     let results: DialogueSearchResult[] = [];
-    if (dialogueSearchMiniSearch) {
-      const rawResults = dialogueSearchMiniSearch.search(q);
+    if (session.dialogueSearchMiniSearch) {
+      const rawResults = session.dialogueSearchMiniSearch.search(q);
       const filtered = allowedIds
         ? rawResults.filter((entry) => allowedIds.has(entry.nodeId))
         : rawResults;

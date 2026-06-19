@@ -87,10 +87,7 @@ export function FlowchartCanvas({
     collapsedChapters,
     collapsedParentLabels,
     showCallReturns,
-    showAudioAssetCues,
     showMediaCuesInDialogue,
-    minimapPannable,
-    minimapZoomable,
     visibleEdgeKinds,
     focusNodeId,
     largeGraphModeOverride,
@@ -113,6 +110,8 @@ export function FlowchartCanvas({
     simplifyInlineStateToggles,
     simplifyInlineEmptyLabels,
     simplifyInlineDialogueThreshold,
+    minimapPannable,
+    minimapZoomable,
   } = useViewerStore(useShallow((s) => ({
     layoutDirection: s.layoutDirection,
     searchInput: s.searchInput,
@@ -122,10 +121,7 @@ export function FlowchartCanvas({
     collapsedChapters: s.collapsedChapters,
     collapsedParentLabels: s.collapsedParentLabels,
     showCallReturns: s.showCallReturns,
-    showAudioAssetCues: s.showAudioAssetCues,
     showMediaCuesInDialogue: s.showMediaCuesInDialogue,
-    minimapPannable: s.minimapPannable,
-    minimapZoomable: s.minimapZoomable,
     visibleEdgeKinds: s.visibleEdgeKinds,
     focusNodeId: s.focusNodeId,
     largeGraphModeOverride: s.largeGraphModeOverride,
@@ -148,22 +144,11 @@ export function FlowchartCanvas({
     simplifyInlineStateToggles: s.simplifyInlineStateToggles,
     simplifyInlineEmptyLabels: s.simplifyInlineEmptyLabels,
     simplifyInlineDialogueThreshold: s.simplifyInlineDialogueThreshold,
+    minimapPannable: s.minimapPannable,
+    minimapZoomable: s.minimapZoomable,
   })));
   const {
-    setLayoutDirection,
-    setLabelSubgraphSearchInput,
-    setTheme,
-    toggleChapter,
-    toggleParentLabel,
     setAllParentLabelsCollapsed,
-    setShowCallReturns,
-    setShowAudioAssetCues,
-    setShowMediaCuesInDialogue,
-    setMinimapPannable,
-    setMinimapZoomable,
-    setEdgeKindVisible,
-    setFocusNodeId,
-    setLargeGraphModeOverride,
     setSelectedNodeId,
     setSelectedDialogueLineIndex,
     toggleShowAllInspectorLines,
@@ -171,34 +156,11 @@ export function FlowchartCanvas({
     setActiveDialogueResultIndex,
     setDialogueSearchResults,
     setShowAdvancedControls,
-    toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode,
-    setMockFlag,
-    resetMockFlags,
-    setConditionVisibilityMode,
+    setShowMediaCuesInDialogue,
     resetSession,
-    setLayoutDensity,
-    setSimplifyCollapseLinearChains,
-    setSimplifyInlineUtilities,
-    setSimplifyInlineDetours,
-    setSimplifyInlineStateToggles,
-    setSimplifyInlineEmptyLabels,
-    setSimplifyInlineDialogueThreshold,
   } = useViewerStore(useShallow((s) => ({
-    setLayoutDirection: s.setLayoutDirection,
-    setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
-    setTheme: s.setTheme,
-    toggleChapter: s.toggleChapter,
-    toggleParentLabel: s.toggleParentLabel,
     setAllParentLabelsCollapsed: s.setAllParentLabelsCollapsed,
-    setShowCallReturns: s.setShowCallReturns,
-    setShowAudioAssetCues: s.setShowAudioAssetCues,
-    setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
-    setMinimapPannable: s.setMinimapPannable,
-    setMinimapZoomable: s.setMinimapZoomable,
-    setEdgeKindVisible: s.setEdgeKindVisible,
-    setFocusNodeId: s.setFocusNodeId,
-    setLargeGraphModeOverride: s.setLargeGraphModeOverride,
     setSelectedNodeId: s.setSelectedNodeId,
     setSelectedDialogueLineIndex: s.setSelectedDialogueLineIndex,
     toggleShowAllInspectorLines: s.toggleShowAllInspectorLines,
@@ -206,19 +168,9 @@ export function FlowchartCanvas({
     setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
     setDialogueSearchResults: s.setDialogueSearchResults,
     setShowAdvancedControls: s.setShowAdvancedControls,
-    toggleShowAllLabelSubgraphToggles: s.toggleShowAllLabelSubgraphToggles,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
-    setMockFlag: s.setMockFlag,
-    resetMockFlags: s.resetMockFlags,
-    setConditionVisibilityMode: s.setConditionVisibilityMode,
+    setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
     resetSession: s.resetSession,
-    setLayoutDensity: s.setLayoutDensity,
-    setSimplifyCollapseLinearChains: s.setSimplifyCollapseLinearChains,
-    setSimplifyInlineUtilities: s.setSimplifyInlineUtilities,
-    setSimplifyInlineDetours: s.setSimplifyInlineDetours,
-    setSimplifyInlineStateToggles: s.setSimplifyInlineStateToggles,
-    setSimplifyInlineEmptyLabels: s.setSimplifyInlineEmptyLabels,
-    setSimplifyInlineDialogueThreshold: s.setSimplifyInlineDialogueThreshold,
   })));
 
   const isDark = theme === "dark";
@@ -764,65 +716,19 @@ export function FlowchartCanvas({
               )}
             >
               <ViewerAdvancedControls
-                layoutDirection={layoutDirection}
-                setLayoutDirection={setLayoutDirection}
-                layoutDensity={layoutDensity}
-                setLayoutDensity={setLayoutDensity}
                 onRelayout={relayout}
-                theme={theme}
-                setTheme={setTheme}
-                focusNodeId={focusNodeId}
-                setFocusNodeId={setFocusNodeId}
-                labels={labels}
-                onFocusSelectedNode={onFocusSelectedNode}
                 focusTargetNode={focusTargetNode}
-                showCallReturns={showCallReturns}
-                setShowCallReturns={setShowCallReturns}
-                showAudioAssetCues={showAudioAssetCues}
-                setShowAudioAssetCues={setShowAudioAssetCues}
-                showMediaCuesInDialogue={showMediaCuesInDialogue}
-                setShowMediaCuesInDialogue={setShowMediaCuesInDialogue}
-                minimapPannable={minimapPannable}
-                setMinimapPannable={setMinimapPannable}
-                minimapZoomable={minimapZoomable}
-                setMinimapZoomable={setMinimapZoomable}
+                onFocusSelectedNode={onFocusSelectedNode}
                 largeGraphMode={largeGraphMode}
-                largeGraphModeOverride={largeGraphModeOverride}
-                setLargeGraphModeOverride={setLargeGraphModeOverride}
                 largeGraphModeStatusText={largeGraphModeStatusText}
-                visibleEdgeKinds={visibleEdgeKinds}
-                setEdgeKindVisible={setEdgeKindVisible}
+                labels={labels}
                 chapters={chapters}
-                collapsedChapters={collapsedChapters}
-                toggleChapter={toggleChapter}
                 collapsedLabelCount={collapsedLabelCount}
-                labelSubgraphSearchInput={labelSubgraphSearchInput}
-                setLabelSubgraphSearchInput={setLabelSubgraphSearchInput}
                 visibleSubgraphLabels={visibleSubgraphLabels}
                 visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
                 shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
-                collapsedParentLabels={collapsedParentLabels}
-                toggleParentLabel={toggleParentLabel}
                 setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
-                toggleShowAllLabelSubgraphToggles={toggleShowAllLabelSubgraphToggles}
                 discoveredFlags={conditionalVisibility.discoveredFlags}
-                mockFlags={mockFlags}
-                setMockFlag={setMockFlag}
-                resetMockFlags={resetMockFlags}
-                conditionVisibilityMode={conditionVisibilityMode}
-                setConditionVisibilityMode={setConditionVisibilityMode}
-                simplifyCollapseLinearChains={simplifyCollapseLinearChains}
-                setSimplifyCollapseLinearChains={setSimplifyCollapseLinearChains}
-                simplifyInlineUtilities={simplifyInlineUtilities}
-                setSimplifyInlineUtilities={setSimplifyInlineUtilities}
-                simplifyInlineDetours={simplifyInlineDetours}
-                setSimplifyInlineDetours={setSimplifyInlineDetours}
-                simplifyInlineStateToggles={simplifyInlineStateToggles}
-                setSimplifyInlineStateToggles={setSimplifyInlineStateToggles}
-                simplifyInlineEmptyLabels={simplifyInlineEmptyLabels}
-                setSimplifyInlineEmptyLabels={setSimplifyInlineEmptyLabels}
-                simplifyInlineDialogueThreshold={simplifyInlineDialogueThreshold}
-                setSimplifyInlineDialogueThreshold={setSimplifyInlineDialogueThreshold}
               />
             </div>
           </Dialog.Content>

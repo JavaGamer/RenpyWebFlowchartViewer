@@ -1,4 +1,11 @@
 import { isMenuKeywordTokenType, PARSER_TOKENS } from "./parserTokens.ts";
+import {
+  extractPlayCue,
+  extractQueueCue,
+  extractSceneAsset,
+  extractStopCue,
+  extractVoiceCue,
+} from "./handlers/audioCues.ts";
 import type {
   ExtractedScreenActionExpression,
   ParseGraphState,
@@ -1396,91 +1403,7 @@ function splitTopLevelArguments(argumentList: string): string[] {
   return args;
 }
 
-function stripQuotes(val: string): string {
-  const trimmed = val.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
 
-function extractSceneAsset(lineText: string): string | null {
-  const match = lineText.match(/^\s*scene\s+(.+)$/);
-  if (!match) return null;
-  let content = match[1].trim();
-  if (content.includes("#")) {
-    content = content.split("#")[0].trim();
-  }
-  const paramMatch = content.match(
-    /^(.*?)\s*\b(?:with|at|behind|onlayer|zorder)\b/i,
-  );
-  const asset = paramMatch ? paramMatch[1].trim() : content.trim();
-  return stripQuotes(asset);
-}
-
-function extractPlayCue(
-  lineText: string,
-): { channel: string; asset: string } | null {
-  const match = lineText.match(/^\s*play\s+(\w+)\s+(.+)$/);
-  if (!match) return null;
-  const channel = match[1].trim();
-  let rest = match[2].trim();
-  if (rest.includes("#")) {
-    rest = rest.split("#")[0].trim();
-  }
-  const paramMatch = rest.match(
-    /^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i,
-  );
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
-  return { channel, asset: stripQuotes(asset) };
-}
-
-function extractStopCue(
-  lineText: string,
-): { channel: string; asset?: string } | null {
-  const match = lineText.match(/^\s*stop\s+(\w+)(?:\s+(.+))?$/);
-  if (!match) return null;
-  const channel = match[1].trim();
-  let rest = (match[2] ?? "").trim();
-  if (rest.includes("#")) {
-    rest = rest.split("#")[0].trim();
-  }
-  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadeout|if)\b/i);
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
-  return { channel, asset: stripQuotes(asset) || undefined };
-}
-
-function extractQueueCue(
-  lineText: string,
-): { channel: string; asset: string } | null {
-  const match = lineText.match(/^\s*queue\s+(\w+)\s+(.+)$/);
-  if (!match) return null;
-  const channel = match[1].trim();
-  let rest = match[2].trim();
-  if (rest.includes("#")) {
-    rest = rest.split("#")[0].trim();
-  }
-  const paramMatch = rest.match(
-    /^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i,
-  );
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
-  return { channel, asset: stripQuotes(asset) };
-}
-
-function extractVoiceCue(lineText: string): string | null {
-  const match = lineText.match(/^\s*voice\s+(.+)$/);
-  if (!match) return null;
-  let rest = match[1].trim();
-  if (rest.includes("#")) {
-    rest = rest.split("#")[0].trim();
-  }
-  const paramMatch = rest.match(/^(.*?)\s*\b(?:sustain|volume|if)\b/i);
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
-  return stripQuotes(asset);
-}
 
 // Finds the first delimiter at the current expression depth. This is used for
 // top-level argument splitting/keyword parsing (`=`), dictionary payloads (`:`),

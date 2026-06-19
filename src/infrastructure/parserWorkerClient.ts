@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { proxy, type Remote, wrap } from "comlink";
 import MiniSearch from "minisearch";
-import { createGraphState } from "../parser/pipelineState.ts";
-import { processTokenizedFile, tokenizeOneFile } from "../parser/filePipeline.ts";
-import { finalizeRoles } from "../parser/roleFinalization.ts";
+import {
+  createGraphState,
+  finalizeRoles,
+  processTokenizedFile,
+  tokenizeOneFile,
+} from "../parser/index.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
@@ -230,6 +233,7 @@ function computeFileCacheKeys(
   });
 }
 
+let activeSessionId: string | null = null;
 let fallbackAccumulatedState = createGraphState();
 let fallbackDialogueSearchDocs: DialogueSearchDocument[] = [];
 let fallbackDialogueSearchMiniSearch:
@@ -370,6 +374,10 @@ export function parseRenpyFilesInWorker(
   }
 
   const requestId = ++requestCounter;
+  if (resetActiveGraph || !activeSessionId) {
+    activeSessionId = String(requestCounter);
+  }
+  const sessionId = activeSessionId;
   if (signal?.aborted) {
     return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
   }
@@ -397,6 +405,7 @@ export function parseRenpyFilesInWorker(
           requestId,
           files,
           {
+            sessionId,
             fileCacheKeys,
             wantsProgress: !!onProgress,
             maxParallelFiles,
@@ -480,6 +489,7 @@ export function searchDialogueLinesInWorker({
     signal?.addEventListener("abort", onAbort, { once: true });
 
     getWorkerApi(0).search(requestId, query, {
+      sessionId: activeSessionId || "default",
       nodeIds,
       maxResults,
     })
@@ -535,6 +545,10 @@ export function parseChunksInParallel({
   resetActiveGraph,
   isFinalChunk,
 }: ParseChunkRequest): Promise<ParseChunkResult> {
+  if (resetActiveGraph || !activeSessionId) {
+    activeSessionId = String(requestCounter + 1);
+  }
+  const sessionId = activeSessionId;
   if (signal?.aborted) {
     return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
   }
@@ -641,6 +655,7 @@ export function parseChunksInParallel({
         signal?.addEventListener("abort", onAbortFinalize, { once: true });
 
         getWorkerApi(0).finalize(finalizeRequestId, {
+          sessionId,
           nodes: mergedNodes,
           edges: mergedEdges,
           diagnostics: mergedDiagnostics,
