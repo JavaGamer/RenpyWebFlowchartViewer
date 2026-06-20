@@ -12,11 +12,17 @@ import {
   type FlowEdge,
   type FlowNode,
 } from "../domain/index.ts";
-import { type ParseDiagnosticPayload, readFileAsText } from "../infrastructure/index.ts";
+import {
+  type ParseDiagnosticPayload,
+  readFileAsText,
+} from "../infrastructure/index.ts";
 
 import { validateRpyUpload } from "./uploadValidation.ts";
 import type { AppActions, DialogueSearchMode } from "./appStore.ts";
-import { toFileReadErrorMessage, toParseErrorMessage } from "./errorMessages.ts";
+import {
+  toFileReadErrorMessage,
+  toParseErrorMessage,
+} from "./errorMessages.ts";
 import type { ParseService } from "./parseService.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
@@ -237,107 +243,42 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         });
 
         try {
-          if (shouldUseChunking) {
-            const isLastReadBatch =
-              offset + batch.length >= orderedRpyFiles.length;
-            for (
-              let parseOffset = 0;
-              parseOffset < inputs.length;
-              parseOffset += PARSE_BATCH_SIZE
-            ) {
-              if (!isActiveRun()) return;
-              if (!hasStartedParsing) {
-                hasStartedParsing = true;
-                onParseStarted?.();
-                actions.startParsing();
-              }
-              const parseChunk = inputs.slice(
-                parseOffset,
-                parseOffset + PARSE_BATCH_SIZE,
-              );
-              const chunkFiles = batch.slice(
-                parseOffset,
-                parseOffset + PARSE_BATCH_SIZE,
-              );
-              const isLastParseChunkInBatch =
-                parseOffset + parseChunk.length >= inputs.length;
-              const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
-              const baseCount = parsedFileCount;
+          const parseChunkSize = shouldUseChunking
+            ? PARSE_BATCH_SIZE
+            : inputs.length;
+          const isLastReadBatch =
+            offset + batch.length >= orderedRpyFiles.length;
 
-              const result = await parseService.parse({
-                files: parseChunk,
-                appendToActiveGraph: true,
-                resetActiveGraph: offset === 0 && parseOffset === 0,
-                isFinalChunk: isLastChunk,
-                captureDialogueLines: shouldCaptureDialogueLines,
-                parserVariant,
-                screenActionRules: customScreenActionRules,
-                signal: controller.signal,
-                maxParallelFiles: typeof navigator !== "undefined"
-                  ? navigator.hardwareConcurrency
-                  : 4,
-                onProgress: (progress) => {
-                  if (!isActiveRun()) return;
-                  actions.setProgress({
-                    doneFiles: Math.min(
-                      baseCount + progress.doneFiles,
-                      orderedRpyFiles.length,
-                    ),
-                    totalFiles: orderedRpyFiles.length,
-                    currentFile: progress.currentFile,
-                  });
-
-                  // Update individual progress for chunk files
-                  for (let i = 0; i < chunkFiles.length; i++) {
-                    const f = chunkFiles[i]!;
-                    const id = f.webkitRelativePath || f.name;
-                    if (id === progress.currentFile) {
-                      onFileStatusUpdate?.(id, "parsing");
-                    } else if (i < progress.doneFiles) {
-                      onFileStatusUpdate?.(id, "done");
-                    }
-                  }
-                },
-                onPartialResult: (partial) => {
-                  if (!isActiveRun()) return;
-                  parsedNodes = partial.nodes;
-                  parsedEdges = partial.edges;
-                  parsedDiagnostics = partial.diagnostics ?? parsedDiagnostics;
-                  actions.partialParseSuccess(
-                    parsedNodes,
-                    parsedEdges,
-                    parsedDiagnostics,
-                  );
-                },
-              });
-
-              parsedNodes = result.nodes;
-              parsedEdges = result.edges;
-              parsedDiagnostics = result.diagnostics ?? parsedDiagnostics;
-              parsedFileCount += parseChunk.length;
-
-              // Mark all files in this chunk as successfully completed
-              chunkFiles.forEach((f) => {
-                const id = f.webkitRelativePath || f.name;
-                onFileStatusUpdate?.(id, "done");
-              });
-            }
-          } else {
-            const isFirstReadBatch = offset === 0;
-            const isLastReadBatch =
-              offset + batch.length >= orderedRpyFiles.length;
+          for (
+            let parseOffset = 0;
+            parseOffset < inputs.length;
+            parseOffset += parseChunkSize
+          ) {
+            if (!isActiveRun()) return;
             if (!hasStartedParsing) {
               hasStartedParsing = true;
               onParseStarted?.();
               actions.startParsing();
             }
+
+            const parseChunk = inputs.slice(
+              parseOffset,
+              parseOffset + parseChunkSize,
+            );
+            const chunkFiles = batch.slice(
+              parseOffset,
+              parseOffset + parseChunkSize,
+            );
+            const isLastParseChunkInBatch =
+              parseOffset + parseChunk.length >= inputs.length;
+            const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
             const baseCount = parsedFileCount;
 
             const result = await parseService.parse({
-              files: inputs,
+              files: parseChunk,
               appendToActiveGraph: true,
-              resetActiveGraph: isFirstReadBatch,
-              isFinalChunk: isLastReadBatch,
+              resetActiveGraph: offset === 0 && parseOffset === 0,
+              isFinalChunk: isLastChunk,
               captureDialogueLines: shouldCaptureDialogueLines,
               parserVariant,
               screenActionRules: customScreenActionRules,
@@ -356,9 +297,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   currentFile: progress.currentFile,
                 });
 
-                // Update individual progress for batch files
-                for (let i = 0; i < batch.length; i++) {
-                  const f = batch[i]!;
+                // Update individual progress for chunk files
+                for (let i = 0; i < chunkFiles.length; i++) {
+                  const f = chunkFiles[i]!;
                   const id = f.webkitRelativePath || f.name;
                   if (id === progress.currentFile) {
                     onFileStatusUpdate?.(id, "parsing");
@@ -367,20 +308,33 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                   }
                 }
               },
+              onPartialResult: (partial) => {
+                if (!isActiveRun()) return;
+                parsedNodes = partial.nodes;
+                parsedEdges = partial.edges;
+                parsedDiagnostics = partial.diagnostics ?? parsedDiagnostics;
+                actions.partialParseSuccess(
+                  parsedNodes,
+                  parsedEdges,
+                  parsedDiagnostics,
+                );
+              },
             });
 
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
             parsedDiagnostics = result.diagnostics ?? parsedDiagnostics;
-            parsedFileCount += inputs.length;
-            actions.partialParseSuccess(
-              parsedNodes,
-              parsedEdges,
-              parsedDiagnostics,
-            );
+            parsedFileCount += parseChunk.length;
+            if (!shouldUseChunking) {
+              actions.partialParseSuccess(
+                parsedNodes,
+                parsedEdges,
+                parsedDiagnostics,
+              );
+            }
 
-            // Mark all files in this batch as successfully completed
-            batch.forEach((f) => {
+            // Mark all files in this chunk as successfully completed
+            chunkFiles.forEach((f) => {
               const id = f.webkitRelativePath || f.name;
               onFileStatusUpdate?.(id, "done");
             });

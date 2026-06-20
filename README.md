@@ -117,6 +117,14 @@ Track outcomes with:
 
 ## Running Locally
 
+### With Deno (recommended)
+
+```bash
+deno task dev
+```
+
+### With npm
+
 ```bash
 npm install
 npm run dev
@@ -126,6 +134,15 @@ Then open <http://localhost:5173> in your browser.
 
 ## Building for Production
 
+### With Deno
+
+```bash
+deno task build
+deno task preview
+```
+
+### With npm
+
 ```bash
 npm run build        # outputs to dist/
 npm run preview      # serve the built app locally
@@ -133,10 +150,28 @@ npm run preview      # serve the built app locally
 
 ## Testing
 
+### With Deno
+
+```bash
+deno task test          # run parser unit tests
+deno task test:coverage # run tests with coverage report
+deno task bench:perf    # run performance benchmarks
+```
+
+### With npm
+
 ```bash
 npm run test          # run parser unit tests
 npm run test:coverage # run tests with coverage report
-npm run bench:perf    # run opt-in perf baseline benchmark and write perf-data/baseline-results.json
+npm run bench:perf    # run opt-in perf baseline benchmark
+```
+
+## Code Formatting
+
+Format code using Deno's built-in formatter:
+
+```bash
+deno fmt
 ```
 
 Coverage thresholds are enforced for parser-critical files in CI.

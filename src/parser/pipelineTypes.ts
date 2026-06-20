@@ -1,10 +1,10 @@
-import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { EdgeKind, FlowEdge, FlowNode } from "../domain/index.ts";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
-export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
+export type { EdgeKind };
 export type ConditionalBranchKind = "if" | "elif" | "else";
 
 export interface ExtractedScreenActionExpression {

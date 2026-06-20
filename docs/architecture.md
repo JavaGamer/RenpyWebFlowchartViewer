@@ -19,7 +19,7 @@ responsiveness, and maintainability balanced.
   - Examples: file reader wrapper, parser worker client wrapper, worker protocol
     contract.
 
-- **UI (`src/*.tsx`, `src/flowchartTransforms.ts`, `src/ui`)**
+- **UI (`src/main.tsx`, `src/App.tsx`, `src/ui`)**
   - React components and rendering concerns.
   - Uses application and domain abstractions instead of low-level runtime
     details directly.
@@ -64,12 +64,12 @@ responsiveness, and maintainability balanced.
 
 ## UI Interaction Architecture (Progressive Disclosure)
 
-- `src/FlowchartViewer.tsx` keeps interaction hierarchy in the UI layer:
+- `src/ui/FlowchartViewer.tsx` keeps interaction hierarchy in the UI layer:
   - **Primary controls** are always visible for high-frequency tasks
     (search/filter baseline, fit, zoom, export).
   - **Advanced controls** are revealed on demand for lower-frequency tasks
     (layout/theme/focus/edge toggles/subgraph controls).
-- `src/flowchartTransforms.ts` remains responsible for graph visibility and
+- `src/domain/transforms/` remains responsible for graph visibility and
   transformation decisions (search filtering, edge filtering, large-graph
   edge-label behavior).
 - Conditional simulation is split across parser/UI boundary helpers:
@@ -78,7 +78,7 @@ responsiveness, and maintainability balanced.
   - viewer transforms evaluate branch reachability against mock flag state
     (`true` / `false` / `unknown`)
   - `unknown` evaluations are treated conservatively and not hidden by default
-- `src/flowchartTransforms.ts` also enforces pre-render graph integrity policy:
+- `src/domain/transforms/` also enforces pre-render graph integrity policy:
   - deterministic edge dedupe/kind normalization
   - placeholder node materialization for unresolved edge endpoints
   - deterministic ordering/fallback placement for large progressive layouts

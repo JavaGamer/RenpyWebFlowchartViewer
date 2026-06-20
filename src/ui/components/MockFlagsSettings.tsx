@@ -1,7 +1,13 @@
 import { useShallow } from "zustand/react/shallow";
-import type { ConditionVisibilityMode, MockFlagValue } from "../../domain/index.ts";
+import type {
+  ConditionVisibilityMode,
+  MockFlagValue,
+} from "../../domain/index.ts";
 import { useViewerStore } from "../../application/index.ts";
-import { CONTROL_BUTTON_CLASS, CONTROL_INPUT_CLASS } from "../viewerConstants.ts";
+import {
+  CONTROL_BUTTON_CLASS,
+  CONTROL_INPUT_CLASS,
+} from "../viewerConstants.ts";
 import { cn } from "../utils/cn.ts";
 
 export interface MockFlagsSettingsProps {

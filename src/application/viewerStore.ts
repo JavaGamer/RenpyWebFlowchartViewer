@@ -23,6 +23,7 @@ import type {
   LayoutDirection,
   ThemeName,
 } from "../domain/index.ts";
+import type { DebugBundlePrivacyOptions } from "./debugBundle.ts";
 import { STORAGE_KEYS } from "../config/storageKeys.ts";
 import type { DialogueSearchMode } from "./appStore.ts";
 import type { MockFlagValue } from "../domain/index.ts";
@@ -62,6 +63,7 @@ export interface ViewerPersistedState {
   simplifyInlineStateToggles: boolean;
   simplifyInlineEmptyLabels: boolean;
   simplifyInlineDialogueThreshold: number;
+  debugPrivacyOptions: DebugBundlePrivacyOptions;
 }
 
 // ─── Session slice (reset on each new import) ─────────────────────────────────
@@ -112,6 +114,10 @@ export interface ViewerActions {
   setSimplifyInlineStateToggles: (inline: boolean) => void;
   setSimplifyInlineEmptyLabels: (inline: boolean) => void;
   setSimplifyInlineDialogueThreshold: (threshold: number) => void;
+  setDebugPrivacyOptions: (options: DebugBundlePrivacyOptions) => void;
+  updateDebugPrivacyOptions: (
+    patch: Partial<DebugBundlePrivacyOptions>,
+  ) => void;
 
   // Session setters
   setLayoutDirection: (direction: LayoutDirection) => void;
@@ -211,6 +217,19 @@ const viewerPersistedStateSchema = z.object({
   simplifyInlineDialogueThreshold: z.number().catch(
     defaultPersistedState.simplifyInlineDialogueThreshold,
   ),
+  debugPrivacyOptions: z
+    .object({
+      includeFileNames: z.boolean().catch(
+        defaultPersistedState.debugPrivacyOptions.includeFileNames,
+      ),
+      includeRawScriptDetails: z.boolean().catch(
+        defaultPersistedState.debugPrivacyOptions.includeRawScriptDetails,
+      ),
+      includeExtraDiagnostics: z.boolean().catch(
+        defaultPersistedState.debugPrivacyOptions.includeExtraDiagnostics,
+      ),
+    })
+    .catch(defaultPersistedState.debugPrivacyOptions),
 });
 
 /**

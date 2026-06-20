@@ -3320,7 +3320,12 @@ describe("parseRenpyFiles", () => {
     expect(scene2).toBeDefined();
 
     expect(scene1?.audioAssetCues).toEqual([
-      { type: "scene", asset: "bg room", raw: "scene bg room with fade", lineNum: 1 },
+      {
+        type: "scene",
+        asset: "bg room",
+        raw: "scene bg room with fade",
+        lineNum: 1,
+      },
       {
         type: "play",
         channel: "music",
@@ -3733,14 +3738,14 @@ describe("parseRenpyFiles", () => {
 
     // 1. Verify the jump edge from the menu
     const jumpEdge = result.edges.find(
-      (e) => e.source === menuNode?.id && e.kind === "jump"
+      (e) => e.source === menuNode?.id && e.kind === "jump",
     );
     expect(jumpEdge).toBeDefined();
     expect(jumpEdge?.target).toBe("accept_label");
 
     // 2. Verify the fallthrough sequence edge from the menu to the next scene split
     const fallthroughEdge = result.edges.find(
-      (e) => e.source === menuNode?.id && e.kind === "sequence"
+      (e) => e.source === menuNode?.id && e.kind === "sequence",
     );
     expect(fallthroughEdge).toBeDefined();
     expect(fallthroughEdge?.target).toBe("start__scene_2");

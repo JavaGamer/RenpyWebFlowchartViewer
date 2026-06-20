@@ -17,7 +17,38 @@ const parser = new Parser({
   },
 });
 
-const flagRefsCache = new Map<string, string[]>();
+class BoundedMap<K, V> extends Map<K, V> {
+  private readonly maxEntries: number;
+
+  constructor(maxEntries: number) {
+    super();
+    this.maxEntries = maxEntries;
+  }
+
+  override get(key: K): V | undefined {
+    const value = super.get(key);
+    if (value !== undefined) {
+      super.delete(key);
+      super.set(key, value);
+    }
+    return value;
+  }
+
+  override set(key: K, value: V): this {
+    if (super.has(key)) {
+      super.delete(key);
+    }
+    super.set(key, value);
+    while (this.size > this.maxEntries) {
+      const oldestKey = this.keys().next().value;
+      if (oldestKey === undefined) break;
+      super.delete(oldestKey);
+    }
+    return this;
+  }
+}
+
+const flagRefsCache = new BoundedMap<string, string[]>(200);
 
 export function extractConditionFlagRefs(
   expression: string | undefined,
@@ -30,7 +61,15 @@ export function extractConditionFlagRefs(
     let refs = flagRefsCache.get(preprocessed);
     if (!refs) {
       const vars = parser.parse(preprocessed).variables();
-      const KEYWORDS = new Set(["true", "false", "none", "null", "and", "or", "not"]);
+      const KEYWORDS = new Set([
+        "true",
+        "false",
+        "none",
+        "null",
+        "and",
+        "or",
+        "not",
+      ]);
       refs = vars
         .filter((v) => !KEYWORDS.has(v.toLowerCase()))
         .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -134,7 +173,7 @@ function evaluateInstructions(
   return stack.pop() ?? "unknown";
 }
 
-const parsedExpressionCache = new Map<string, EvalInstruction[]>();
+const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);
 
 export function evaluateConditionExpression(
   expression: string | undefined,

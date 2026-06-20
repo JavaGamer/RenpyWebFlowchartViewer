@@ -1,11 +1,8 @@
 import React, { useCallback, useRef, useState } from "react";
-import {
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  Upload,
-} from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { UploadDropzone } from "./components/UploadDropzone.tsx";
+import { UploadProgress } from "./components/UploadProgress.tsx";
+import { UrlImportForm } from "./components/UrlImportForm.tsx";
 import ParserSettingsSection from "./ParserSettingsSection.tsx";
 import type { FlowNode } from "../domain/index.ts";
 import {
@@ -197,264 +194,29 @@ export default function UploadArea({
         </div>
 
         {/* Drop zone */}
-        <label
-          htmlFor="folder-input"
-          aria-label="Upload Ren'Py project folder"
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          className={cn(
-            "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none",
-            isDark
-              ? "border-violet-800/80 bg-slate-900"
-              : "border-violet-300 bg-white",
-            (phase === "reading" || phase === "parsing")
-              ? "cursor-wait border-violet-200/50"
-              : isDark
-              ? "cursor-pointer hover:bg-violet-950/20 hover:border-violet-755"
-              : "cursor-pointer hover:bg-violet-50/50 hover:border-violet-400",
+        {(phase === "reading" || phase === "parsing")
+          ? (
+            <UploadProgress
+              isDark={isDark}
+              phase={phase}
+              fileCount={fileCount}
+              doneFiles={doneFiles}
+              totalFiles={totalFiles}
+              progressPercent={progressPercent}
+              currentFile={parseProgress?.currentFile}
+              uploadedFiles={uploadedFiles}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+            />
+          )
+          : (
+            <UploadDropzone
+              isDark={isDark}
+              openFilesPicker={openFilesPicker}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+            />
           )}
-        >
-          {phase === "reading" || phase === "parsing"
-            ? (
-              <div className="w-full flex flex-col items-center gap-4">
-                <Loader2
-                  size={40}
-                  className="text-violet-500 animate-spin"
-                  aria-hidden="true"
-                />
-
-                <div className="text-center w-full">
-                  <p
-                    className={cn(
-                      "text-sm font-semibold",
-                      isDark ? "text-slate-200" : "text-gray-700",
-                    )}
-                  >
-                    {phase === "reading"
-                      ? `Reading ${
-                        fileCount === 0
-                          ? "scanning..."
-                          : `${fileCount} file(s)...`
-                      }`
-                      : `Parsing ${doneFiles} / ${totalFiles} .rpy files…`}
-                  </p>
-                  {parseProgress?.currentFile && (
-                    <p
-                      className={cn(
-                        "text-xs mt-1 truncate max-w-md mx-auto",
-                        isDark ? "text-slate-450" : "text-gray-400",
-                      )}
-                      title={parseProgress.currentFile}
-                    >
-                      Current: {parseProgress.currentFile}
-                    </p>
-                  )}
-                </div>
-
-                {/* Global Progress Bar */}
-                <div
-                  className={cn(
-                    "w-full max-w-md rounded-full h-2 overflow-hidden mt-1 border",
-                    isDark
-                      ? "bg-slate-800 border-slate-700/50"
-                      : "bg-gray-100 border-gray-200/50",
-                  )}
-                >
-                  <div
-                    className="bg-violet-600 h-2 rounded-full transition-all duration-300 animate-pulse"
-                    style={{ width: `${progressPercent}%` }}
-                  >
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    "text-[10px] font-semibold",
-                    isDark ? "text-slate-400" : "text-gray-400",
-                  )}
-                >
-                  {progressPercent}% Completed
-                </span>
-
-                {/* File-by-file Status Tracker */}
-                {uploadedFiles.length > 0 && (
-                  <div
-                    className={cn(
-                      "w-full max-w-md mt-4 border rounded-xl p-2.5 max-h-48 overflow-y-auto space-y-1.5 scrollbar-thin",
-                      isDark
-                        ? "border-slate-800 bg-slate-900/50"
-                        : "border-gray-200/60 bg-gray-50/50",
-                    )}
-                  >
-                    {uploadedFiles.map((file) => {
-                      const sizeKB = (file.size / 1024).toFixed(1);
-                      return (
-                        <div
-                          key={file.id}
-                          className={cn(
-                            "flex items-center justify-between gap-3 p-2 border rounded-lg text-[11px] transition-colors duration-200",
-                            isDark
-                              ? "bg-slate-900 border-slate-800"
-                              : "bg-white border-gray-150 shadow-sm",
-                          )}
-                        >
-                          <div className="min-w-0 flex-1 text-left">
-                            <p
-                              className={cn(
-                                "font-semibold truncate",
-                                isDark ? "text-slate-200" : "text-gray-700",
-                              )}
-                              title={file.name}
-                            >
-                              {file.name}
-                            </p>
-                            {file.relativePath && (
-                              <p
-                                className={cn(
-                                  "text-[9px] truncate",
-                                  isDark ? "text-slate-500" : "text-gray-400",
-                                )}
-                                title={file.relativePath}
-                              >
-                                {file.relativePath.substring(
-                                  0,
-                                  file.relativePath.lastIndexOf("/") + 1,
-                                )}
-                              </p>
-                            )}
-                          </div>
-                          <div className="shrink-0 flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "text-[9px]",
-                                isDark ? "text-slate-500" : "text-gray-400",
-                              )}
-                            >
-                              {sizeKB} KB
-                            </span>
-                            <span
-                              className={cn(
-                                "px-1.5 py-0.5 rounded-full text-[9px] font-semibold tracking-wide border",
-                                file.status === "pending"
-                                  ? isDark
-                                    ? "bg-slate-950 text-slate-500 border-slate-800"
-                                    : "bg-gray-50 text-gray-500 border-gray-200"
-                                  : file.status === "reading"
-                                  ? isDark
-                                    ? "bg-blue-950/50 text-blue-300 border-blue-900/60 animate-pulse"
-                                    : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                                  : file.status === "parsing"
-                                  ? isDark
-                                    ? "bg-violet-950/50 text-violet-300 border-violet-900/60 animate-pulse"
-                                    : "bg-violet-50 text-violet-700 border-violet-200 animate-pulse"
-                                  : file.status === "done"
-                                  ? isDark
-                                    ? "bg-green-950/50 text-green-300 border-green-900/60"
-                                    : "bg-green-50 text-green-700 border-green-200"
-                                  : isDark
-                                  ? "bg-red-950/50 text-red-350 border-red-900/60"
-                                  : "bg-red-50 text-red-700 border-red-200",
-                              )}
-                              title={file.error}
-                            >
-                              {file.status.toUpperCase()}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Large project warning */}
-                {totalFiles >= 200 && (
-                  <div
-                    className={cn(
-                      "w-full max-w-md mt-3 flex items-start gap-2 p-3 rounded-xl border text-[11px] text-left shadow-sm transition-colors duration-200",
-                      isDark
-                        ? "bg-amber-955/40 border-amber-900/60 text-amber-300"
-                        : "bg-amber-50 border-amber-200 text-amber-800",
-                    )}
-                  >
-                    <AlertCircle
-                      size={16}
-                      className="shrink-0 mt-0.5"
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <p className="font-semibold">
-                        Large project warning ({totalFiles} files)
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-0.5 text-[10px]",
-                          isDark ? "text-amber-400" : "text-amber-700",
-                        )}
-                      >
-                        Generating flowchart layout may take a few moments.
-                        We've automatically activated performance mode
-                        (label/count search only) to optimize speed.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-            : (
-              <>
-                <Upload
-                  size={40}
-                  className="text-violet-400 animate-bounce"
-                  aria-hidden="true"
-                />
-                <div className="text-center px-4">
-                  <p
-                    className={cn(
-                      "text-base font-semibold",
-                      isDark ? "text-slate-200" : "text-gray-700",
-                    )}
-                  >
-                    Drop your Ren'Py project folder here
-                  </p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    or click to{" "}
-                    <span
-                      className={cn(
-                        "font-semibold underline cursor-pointer px-1 transition-colors duration-205",
-                        isDark
-                          ? "text-violet-400 hover:text-violet-300"
-                          : "text-violet-600 hover:text-violet-800",
-                      )}
-                    >
-                      select a folder
-                    </span>{" "}
-                    or{" "}
-                    <button
-                      type="button"
-                      onClick={openFilesPicker}
-                      className={cn(
-                        "font-semibold underline focus:outline-none focus-visible:ring-2 rounded px-1 transition-colors duration-205",
-                        isDark
-                          ? "text-violet-400 hover:text-violet-300 focus-visible:ring-violet-400"
-                          : "text-violet-600 hover:text-violet-800 focus-visible:ring-violet-500",
-                      )}
-                    >
-                      select files/ZIP
-                    </button>
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "text-xs px-3 py-1 rounded-full transition-colors duration-200",
-                    isDark
-                      ? "text-slate-400 bg-slate-800"
-                      : "text-gray-400 bg-gray-100",
-                  )}
-                >
-                  All processing is local — your files never leave your device
-                </span>
-              </>
-            )}
-        </label>
 
         {/* Collapsible Advanced settings section */}
         {phase !== "reading" && phase !== "parsing" && (
@@ -539,68 +301,14 @@ export default function UploadArea({
           onChange={(e) => void processFiles(e.target.files)}
         />
         {(phase === "idle" || phase === "error") && (
-          <div
-            className={cn(
-              "mt-4 border rounded-xl p-4 shadow-sm text-xs transition-colors duration-200",
-              isDark
-                ? "border-slate-800 bg-slate-900 text-slate-300"
-                : "border-gray-200 bg-white text-gray-700",
-            )}
-          >
-            <h3
-              className={cn(
-                "font-semibold mb-2",
-                isDark ? "text-slate-100" : "text-gray-900",
-              )}
-            >
-              Or Import from Public URL
-            </h3>
-            <form onSubmit={handleUrlSubmit} className="flex gap-2">
-              <input
-                type="text"
-                required
-                disabled={isFetchingUrl}
-                placeholder="Enter .rpy file, .zip URL, or GitHub repo (e.g., github.com/owner/repo)"
-                value={importUrl}
-                onChange={(e) => setImportUrl(e.target.value)}
-                className={cn(
-                  "flex-1 rounded-md border px-3 py-1.5 focus:outline-none focus:ring-1 text-xs transition-colors duration-200",
-                  isDark
-                    ? "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 focus:ring-violet-400"
-                    : "border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:ring-violet-500",
-                )}
-              />
-              <button
-                type="submit"
-                disabled={isFetchingUrl}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-white font-semibold transition-colors focus:outline-none focus-visible:ring-2",
-                  isDark
-                    ? "bg-violet-600 hover:bg-violet-500 focus-visible:ring-violet-400 disabled:bg-violet-800"
-                    : "bg-violet-600 hover:bg-violet-700 focus-visible:ring-violet-500 disabled:bg-violet-400",
-                )}
-              >
-                {isFetchingUrl ? "Loading..." : "Import"}
-              </button>
-            </form>
-            {urlError && (
-              <p
-                className="mt-2 text-[11px] text-red-650 font-semibold"
-                role="alert"
-              >
-                {urlError}
-              </p>
-            )}
-            <p
-              className={cn(
-                "mt-2 text-[10px]",
-                isDark ? "text-slate-500" : "text-gray-400",
-              )}
-            >
-              Note: Remote hosts must support CORS. GitHub repositories and
-              raw.githubusercontent.com files are fully supported.
-            </p>
-          </div>
+          <UrlImportForm
+            isDark={isDark}
+            importUrl={importUrl}
+            setImportUrl={setImportUrl}
+            isFetchingUrl={isFetchingUrl}
+            urlError={urlError}
+            handleUrlSubmit={handleUrlSubmit}
+          />
         )}
 
         {phase === "parsing" && (

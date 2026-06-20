@@ -1,4 +1,10 @@
-import type { FlowNode, FlowEdge, EdgeKind, ConditionMetadata, TimeoutMetadata } from "../graph.ts";
+import type {
+  ConditionMetadata,
+  EdgeKind,
+  FlowEdge,
+  FlowNode,
+  TimeoutMetadata,
+} from "../graph.ts";
 
 export interface GraphSimplificationOptions {
   collapseLinearChains: boolean;
@@ -16,7 +22,7 @@ export interface GraphSimplificationOptions {
 export function simplifyGraph(
   nodes: FlowNode[],
   edges: FlowEdge[],
-  options: GraphSimplificationOptions
+  options: GraphSimplificationOptions,
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   let currentNodes = [...nodes];
   let currentEdges = [...edges];
@@ -31,7 +37,7 @@ export function simplifyGraph(
     const { nodes: inlinedNodes, edges: inlinedEdges } = inlineNodes(
       currentNodes,
       currentEdges,
-      options
+      options,
     );
     currentNodes = inlinedNodes;
     currentEdges = inlinedEdges;
@@ -39,10 +45,11 @@ export function simplifyGraph(
 
   // 2. Collapsing pass
   if (options.collapseLinearChains) {
-    const { nodes: collapsedNodes, edges: collapsedEdges } = collapseLinearChains(
-      currentNodes,
-      currentEdges
-    );
+    const { nodes: collapsedNodes, edges: collapsedEdges } =
+      collapseLinearChains(
+        currentNodes,
+        currentEdges,
+      );
     currentNodes = collapsedNodes;
     currentEdges = collapsedEdges;
   }
@@ -53,7 +60,7 @@ export function simplifyGraph(
 function inlineNodes(
   nodes: FlowNode[],
   edges: FlowEdge[],
-  options: GraphSimplificationOptions
+  options: GraphSimplificationOptions,
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const H = new Set<string>();
 
@@ -68,7 +75,8 @@ function inlineNodes(
     if (node.type !== "LABEL") continue;
 
     // Protect entry start node
-    const isStartNode = node.id === "start" || node.label.toLowerCase() === "start";
+    const isStartNode = node.id === "start" ||
+      node.label.toLowerCase() === "start";
     if (isStartNode) continue;
 
     // Protect terminal outcomes (end of routes)
@@ -149,7 +157,9 @@ function inlineNodes(
       if (!targetNode) {
         newEdges.push({
           id: current.isInlinedPath
-            ? `${current.kind || "sequence"}_${u.id}__${current.nodeId}__inlined_${current.label}`
+            ? `${
+              current.kind || "sequence"
+            }_${u.id}__${current.nodeId}__inlined_${current.label}`
             : current.originalId!,
           source: u.id,
           target: current.nodeId,
@@ -164,7 +174,11 @@ function inlineNodes(
       if (!H.has(current.nodeId)) {
         newEdges.push({
           id: current.isInlinedPath
-            ? `${current.kind || "sequence"}_${u.id}__${current.nodeId}__inlined_${current.label || ""}_${current.condition?.expression || ""}`
+            ? `${
+              current.kind || "sequence"
+            }_${u.id}__${current.nodeId}__inlined_${current.label || ""}_${
+              current.condition?.expression || ""
+            }`
             : current.originalId!,
           source: u.id,
           target: current.nodeId,
@@ -177,7 +191,7 @@ function inlineNodes(
         const nextEdges = outgoingEdges.get(current.nodeId) || [];
         for (const edge of nextEdges) {
           const mergedLabel = current.label || edge.label || "";
-          
+
           let mergedKind = current.kind;
           if (edge.kind === "call_return" || mergedKind === "call_return") {
             mergedKind = "call_return";
@@ -203,19 +217,17 @@ function inlineNodes(
               new Set([
                 ...(current.condition.references || []),
                 ...(edge.condition.references || []),
-              ])
+              ]),
             ).sort();
 
             mergedCondition = {
-              branchKind:
-                current.condition.branchKind === "if" ||
-                edge.condition.branchKind === "if"
-                  ? "if"
-                  : "elif",
+              branchKind: current.condition.branchKind === "if" ||
+                  edge.condition.branchKind === "if"
+                ? "if"
+                : "elif",
               expression: mergedExpression,
               references: mergedRefs,
-              decisionNodeId:
-                current.condition.decisionNodeId ||
+              decisionNodeId: current.condition.decisionNodeId ||
                 edge.condition.decisionNodeId,
             };
           }
@@ -241,7 +253,7 @@ function inlineNodes(
 
 function collapseLinearChains(
   nodes: FlowNode[],
-  edges: FlowEdge[]
+  edges: FlowEdge[],
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const outgoing = new Map<string, FlowEdge[]>();
   const incoming = new Map<string, FlowEdge[]>();
@@ -289,7 +301,9 @@ function collapseLinearChains(
   const visited = new Set<string>();
 
   // 1. Traverse starting from roots (nodes with outgoing collapsible, but no incoming collapsible)
-  const roots = [...hasOutgoingCollapsible].filter((id) => !hasIncomingCollapsible.has(id));
+  const roots = [...hasOutgoingCollapsible].filter((id) =>
+    !hasIncomingCollapsible.has(id)
+  );
   for (const rootId of roots) {
     if (visited.has(rootId)) continue;
     visited.add(rootId);

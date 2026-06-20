@@ -68,7 +68,8 @@ export function SimplificationSettings() {
             <input
               type="checkbox"
               checked={simplifyCollapseLinearChains}
-              onChange={(e) => setSimplifyCollapseLinearChains(e.target.checked)}
+              onChange={(e) =>
+                setSimplifyCollapseLinearChains(e.target.checked)}
               className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
               aria-label="Collapse linear label chains"
             />

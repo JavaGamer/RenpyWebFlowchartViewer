@@ -2,13 +2,13 @@ import { expose } from "comlink";
 import {
   createGraphState,
   finalizeRoles,
+  type ParseDiagnostic,
+  type ParseGraphState,
+  type ParseInputFile,
   parseRenpyFiles,
   processTokenizedFile,
-  tokenizeOneFile,
-  type ParseDiagnostic,
-  type ParseInputFile,
   type TokenizedFile,
-  type ParseGraphState,
+  tokenizeOneFile,
 } from "../parser/index.ts";
 import MiniSearch from "minisearch";
 import type { TextDocument } from "vscode-languageserver-textdocument";
@@ -66,7 +66,6 @@ let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
 const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
 
-
 interface SessionState {
   accumulatedState: ParseGraphState;
   dialogueSearchDocs: DialogueSearchDocument[];
@@ -92,8 +91,6 @@ function clearSession(sessionId: string) {
   sessions.delete(sessionId);
 }
 
-
-
 function buildDialogueSearchIndex(
   session: SessionState,
   nodes: { id: string; label: string; dialogueLines?: string[] }[],
@@ -112,7 +109,9 @@ function buildDialogueSearchIndex(
     }
   }
   if (session.dialogueSearchDocs.length > 0) {
-    session.dialogueSearchMiniSearch = new MiniSearch(DIALOGUE_MINISEARCH_OPTIONS);
+    session.dialogueSearchMiniSearch = new MiniSearch(
+      DIALOGUE_MINISEARCH_OPTIONS,
+    );
     session.dialogueSearchMiniSearch.addAll(session.dialogueSearchDocs);
   } else {
     session.dialogueSearchMiniSearch = null;
@@ -431,7 +430,9 @@ const parserApi = {
             ...(options.diagnostics as ParseDiagnostic[]),
           );
         }
-        session.accumulatedState.pendingCallReturns.push(...options.pendingCallReturns);
+        session.accumulatedState.pendingCallReturns.push(
+          ...options.pendingCallReturns,
+        );
         for (const label of options.hasReliableReturnInLabel) {
           session.accumulatedState.hasReliableReturnInLabel.add(label);
         }
@@ -441,7 +442,8 @@ const parserApi = {
         for (const [name, count] of options.labelDefinitionCount) {
           session.accumulatedState.labelDefinitionCountByName.set(
             name,
-            (session.accumulatedState.labelDefinitionCountByName.get(name) ?? 0) +
+            (session.accumulatedState.labelDefinitionCountByName.get(name) ??
+              0) +
               count,
           );
         }

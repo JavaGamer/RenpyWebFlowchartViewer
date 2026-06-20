@@ -353,11 +353,11 @@ describe("parseRenpyFilesInWorker", () => {
       nodes: [{ id: "partial" }],
       edges: [],
     });
-    expect(onPartialResult).toHaveBeenCalledWith({
+    await expect(request).resolves.toEqual({
       nodes: [{ id: "partial" }],
       edges: [],
     });
-    await expect(request).resolves.toEqual({
+    expect(onPartialResult).toHaveBeenCalledWith({
       nodes: [{ id: "partial" }],
       edges: [],
     });
@@ -394,12 +394,12 @@ describe("parseRenpyFilesInWorker", () => {
       diagnostics,
     });
 
-    expect(onPartialResult).toHaveBeenCalledWith({
+    await expect(request).resolves.toEqual({
       nodes: [{ id: "warned" }],
       edges: [],
       diagnostics,
     });
-    await expect(request).resolves.toEqual({
+    expect(onPartialResult).toHaveBeenCalledWith({
       nodes: [{ id: "warned" }],
       edges: [],
       diagnostics,

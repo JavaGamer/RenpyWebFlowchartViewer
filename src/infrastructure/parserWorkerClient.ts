@@ -14,132 +14,10 @@ import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
 import type { ParserWorkerApi } from "./parserWorker.ts";
 import {
   type DialogueSearchResult,
+  type ParseProgressPayload,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
 } from "./workerProtocol.ts";
-
-class SyncPromise<T> implements PromiseLike<T> {
-  private value?: T;
-  private error?: unknown;
-  private state: "pending" | "resolved" | "rejected" = "pending";
-  private resolveCallbacks: Array<(v: T) => void> = [];
-  private rejectCallbacks: Array<(e: unknown) => void> = [];
-
-  constructor(
-    executor: (resolve: (v: T) => void, reject: (e: unknown) => void) => void,
-  ) {
-    const resolve = (val: T) => {
-      if (this.state !== "pending") return;
-      this.state = "resolved";
-      this.value = val;
-      for (const cb of this.resolveCallbacks) cb(val);
-    };
-    const reject = (err: unknown) => {
-      if (this.state !== "pending") return;
-      this.state = "rejected";
-      this.error = err;
-      for (const cb of this.rejectCallbacks) cb(err);
-    };
-    try {
-      executor(resolve, reject);
-    } catch (e) {
-      reject(e);
-    }
-  }
-
-  then<U = T, V = never>(
-    onResolve?: ((v: T) => U | PromiseLike<U>) | null,
-    onReject?: ((e: unknown) => V | PromiseLike<V>) | null,
-  ): SyncPromise<U | V> {
-    const resolveHandler = onResolve || ((v: T) => v as unknown as U);
-    if (this.state === "resolved") {
-      try {
-        const nextVal = resolveHandler(this.value as T);
-        if (nextVal && typeof (nextVal as { then?: unknown }).then === "function") {
-          return nextVal as unknown as SyncPromise<U | V>;
-        }
-        return SyncPromise.resolve(nextVal) as unknown as SyncPromise<U | V>;
-      } catch (e) {
-        return SyncPromise.reject(e) as unknown as SyncPromise<U | V>;
-      }
-    }
-    if (this.state === "rejected") {
-      if (onReject) {
-        try {
-          const nextVal = onReject(this.error);
-          if (nextVal && typeof (nextVal as { then?: unknown }).then === "function") {
-            return nextVal as unknown as SyncPromise<U | V>;
-          }
-          return SyncPromise.resolve(nextVal) as unknown as SyncPromise<U | V>;
-        } catch (e) {
-          return SyncPromise.reject(e) as unknown as SyncPromise<U | V>;
-        }
-      }
-      return SyncPromise.reject(this.error) as unknown as SyncPromise<U | V>;
-    }
-    return new SyncPromise<U | V>((resolve, reject) => {
-      this.resolveCallbacks.push((val) => {
-        try {
-          const res = resolveHandler(val);
-          if (res && typeof (res as { then?: unknown }).then === "function") {
-            const thenable = res as {
-              then: (
-                onfulfilled: (value: unknown) => void,
-                onrejected: (reason: unknown) => void,
-              ) => void;
-            };
-            thenable.then(resolve as (v: unknown) => void, reject);
-          } else {
-            resolve(res as U);
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-      if (onReject) {
-        this.rejectCallbacks.push((err) => {
-          try {
-            const res = onReject(err);
-            if (res && typeof (res as { then?: unknown }).then === "function") {
-              const thenable = res as {
-                then: (
-                  onfulfilled: (value: unknown) => void,
-                  onrejected: (reason: unknown) => void,
-                ) => void;
-              };
-              thenable.then(resolve as (v: unknown) => void, reject);
-            } else {
-              resolve(res as V);
-            }
-          } catch (e) {
-            reject(e);
-          }
-        });
-      } else {
-        this.rejectCallbacks.push(reject);
-      }
-    });
-  }
-
-  catch<U = never>(onReject: (e: unknown) => U | PromiseLike<U>): SyncPromise<T | U> {
-    return this.then(undefined, onReject);
-  }
-
-  toPromise(): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      this.then(resolve, reject);
-    });
-  }
-
-  static resolve<V>(val: V): SyncPromise<V> {
-    return new SyncPromise<V>((resolve) => resolve(val));
-  }
-
-  static reject<V = never>(err: unknown): SyncPromise<V> {
-    return new SyncPromise<V>((_, reject) => reject(err));
-  }
-}
-
 
 let requestCounter = 0;
 const textEncoder = new TextEncoder();
@@ -223,33 +101,25 @@ function simpleStringHash(input: string): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-function computeFileCacheKeys(
+async function computeFileCacheKeys(
   files: ParseWorkerClientRequest["files"],
-): SyncPromise<string[]> {
+): Promise<string[]> {
   if (!globalThis.crypto?.subtle) {
-    const keys = files.map((file) => {
+    return files.map((file) => {
       const identity = file.relativePath ?? file.name;
       return `${identity}:${file.content.length}:${
         simpleStringHash(file.content)
       }`;
     });
-    return SyncPromise.resolve(keys);
   }
 
-  return new SyncPromise<string[]>((resolve, reject) => {
-    Promise.all(
-      files.map((file) => {
-        const data = textEncoder.encode(file.content);
-        return globalThis.crypto.subtle.digest("SHA-256", data).then(
-          (digest) => {
-            return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
-          },
-        );
-      }),
-    )
-      .then(resolve)
-      .catch(reject);
-  });
+  return Promise.all(
+    files.map(async (file) => {
+      const data = textEncoder.encode(file.content);
+      const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+      return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
+    }),
+  );
 }
 
 let activeSessionId: string | null = null;
@@ -401,14 +271,15 @@ export function parseRenpyFilesInWorker(
     return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
   }
 
-  return new SyncPromise<ParseWorkerClientResult>((resolve, reject) => {
+  return new Promise<ParseWorkerClientResult>((resolve, reject) => {
     const onAbort = () => {
       getWorkerApi(0).cancel(requestId);
       reject(new DOMException("Parsing cancelled", "AbortError"));
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
-    let progressProxy: Parameters<Remote<ParserWorkerApi>["parse"]>[3] = undefined;
+    let progressProxy: Parameters<Remote<ParserWorkerApi>["parse"]>[3] =
+      undefined;
 
     computeFileCacheKeys(files)
       .then((fileCacheKeys) => {
@@ -417,7 +288,9 @@ export function parseRenpyFilesInWorker(
         }
 
         if (onProgress) {
-          progressProxy = proxy((progress: ParseProgressPayload) => onProgress(progress));
+          progressProxy = proxy((progress: ParseProgressPayload) =>
+            onProgress(progress)
+          );
         }
 
         return getWorkerApi(0).parse(
@@ -454,8 +327,7 @@ export function parseRenpyFilesInWorker(
         signal?.removeEventListener("abort", onAbort);
         reject(error);
       });
-  }).toPromise();
-
+  });
 }
 
 interface SearchRequestPayload {
@@ -702,7 +574,7 @@ export function parseChunksInParallel({
           });
       });
     });
-  }).toPromise();
+  });
 }
 
 export function getWorkerPoolSize(): number {

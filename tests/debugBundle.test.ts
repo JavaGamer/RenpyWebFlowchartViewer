@@ -470,9 +470,17 @@ describe("debug bundle edge cases", () => {
 
     const redactedEdge = bundle.graph.edges[0] as unknown as {
       timeout?: { isTimeout: boolean; durationSeconds: number };
-      condition?: { branchKind: string; expression?: string; references?: string[]; decisionNodeId?: string };
+      condition?: {
+        branchKind: string;
+        expression?: string;
+        references?: string[];
+        decisionNodeId?: string;
+      };
     };
-    expect(redactedEdge.timeout).toEqual({ isTimeout: true, durationSeconds: 5 });
+    expect(redactedEdge.timeout).toEqual({
+      isTimeout: true,
+      durationSeconds: 5,
+    });
     expect(redactedEdge.condition).toBeDefined();
     expect(redactedEdge.condition.branchKind).toBe("if");
     expect(redactedEdge.condition.expression).toBeUndefined();
@@ -522,9 +530,17 @@ describe("debug bundle edge cases", () => {
 
     const redactedEdgeOptIn = bundleOptIn.graph.edges[0] as unknown as {
       timeout?: { isTimeout: boolean; durationSeconds: number };
-      condition?: { branchKind: string; expression?: string; references?: string[]; decisionNodeId?: string };
+      condition?: {
+        branchKind: string;
+        expression?: string;
+        references?: string[];
+        decisionNodeId?: string;
+      };
     };
-    expect(redactedEdgeOptIn.timeout).toEqual({ isTimeout: true, durationSeconds: 5 });
+    expect(redactedEdgeOptIn.timeout).toEqual({
+      isTimeout: true,
+      durationSeconds: 5,
+    });
     expect(redactedEdgeOptIn.condition).toBeDefined();
     expect(redactedEdgeOptIn.condition.branchKind).toBe("if");
     expect(redactedEdgeOptIn.condition.expression).toBe("score > 5");
@@ -532,4 +548,3 @@ describe("debug bundle edge cases", () => {
     expect(redactedEdgeOptIn.condition.decisionNodeId).toBe("start"); // verbatim node ID
   });
 });
-

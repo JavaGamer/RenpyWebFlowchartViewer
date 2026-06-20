@@ -6,8 +6,16 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { EdgeKindFilter, LayoutDensity, ThemeName } from "../../domain/index.ts";
+import type {
+  EdgeKindFilter,
+  LayoutDensity,
+  ThemeName,
+} from "../../domain/index.ts";
 import type { ViewerStore } from "../viewerStore.ts";
+import {
+  type DebugBundlePrivacyOptions,
+  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+} from "../debugBundle.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +34,7 @@ export interface ThemeSliceState {
   simplifyInlineStateToggles: boolean;
   simplifyInlineEmptyLabels: boolean;
   simplifyInlineDialogueThreshold: number;
+  debugPrivacyOptions: DebugBundlePrivacyOptions;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -45,6 +54,10 @@ export interface ThemeSliceActions {
   setSimplifyInlineStateToggles: (inline: boolean) => void;
   setSimplifyInlineEmptyLabels: (inline: boolean) => void;
   setSimplifyInlineDialogueThreshold: (threshold: number) => void;
+  setDebugPrivacyOptions: (options: DebugBundlePrivacyOptions) => void;
+  updateDebugPrivacyOptions: (
+    patch: Partial<DebugBundlePrivacyOptions>,
+  ) => void;
 }
 
 export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
@@ -71,6 +84,7 @@ export const defaultThemeState: ThemeSliceState = {
   simplifyInlineStateToggles: false,
   simplifyInlineEmptyLabels: false,
   simplifyInlineDialogueThreshold: 1,
+  debugPrivacyOptions: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -151,5 +165,18 @@ export const createThemeSlice: StateCreator<
   setSimplifyInlineDialogueThreshold: (threshold) =>
     set((draft) => {
       draft.simplifyInlineDialogueThreshold = threshold;
+    }),
+
+  setDebugPrivacyOptions: (options) =>
+    set((draft) => {
+      draft.debugPrivacyOptions = options;
+    }),
+
+  updateDebugPrivacyOptions: (patch) =>
+    set((draft) => {
+      draft.debugPrivacyOptions = {
+        ...draft.debugPrivacyOptions,
+        ...patch,
+      };
     }),
 });

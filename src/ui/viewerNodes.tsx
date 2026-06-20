@@ -1,6 +1,10 @@
 import { memo } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { DecisionNodeType, LabelNodeType, MenuNodeType } from "../domain/index.ts";
+import type {
+  DecisionNodeType,
+  LabelNodeType,
+  MenuNodeType,
+} from "../domain/index.ts";
 import { THEMES } from "./viewerTheme.ts";
 import { useViewerStore } from "../application/index.ts";
 import {
@@ -115,7 +119,9 @@ export const LabelNodeComponent = memo(
           className="font-mono font-bold truncate text-sm"
           style={{ color: theme.labelText, opacity: isShadowed ? 0.8 : 1 }}
         >
-          {searchInput ? renderHighlightedText(data.label, searchInput) : data.label}
+          {searchInput
+            ? renderHighlightedText(data.label, searchInput)
+            : data.label}
         </div>
         {isShadowed && data.shadowOfId && (
           <div className="mt-1 text-[10px]" style={{ color: theme.labelTitle }}>
@@ -220,7 +226,9 @@ export const MenuNodeComponent = memo(
           className="font-mono font-bold truncate text-sm"
           style={{ color: theme.menuText }}
         >
-          {searchInput ? renderHighlightedText(data.label, searchInput) : data.label}
+          {searchInput
+            ? renderHighlightedText(data.label, searchInput)
+            : data.label}
         </div>
         <Handle type="source" position={Position.Bottom} />
       </div>
@@ -255,7 +263,9 @@ export const DecisionNodeComponent = memo(
               className="font-mono text-xs font-semibold break-words"
               style={{ color: theme.decisionText }}
             >
-              {searchInput ? renderHighlightedText(expression, searchInput) : expression}
+              {searchInput
+                ? renderHighlightedText(expression, searchInput)
+                : expression}
             </div>
           </div>
         </div>

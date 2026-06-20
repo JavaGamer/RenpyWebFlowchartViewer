@@ -10,8 +10,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      include: ["src/parser/parser.ts", "src/parser/parserTokens.ts"],
+      include: [
+        "src/parser/parser.ts",
+        "src/parser/parserTokens.ts",
+        "src/parser/tokenHandling.ts",
+        "src/parser/tokenScanStage.ts",
+      ],
       thresholds: {
+        perFile: true,
         lines: 85,
         functions: 85,
         branches: 80,

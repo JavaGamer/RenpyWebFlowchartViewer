@@ -121,7 +121,8 @@ describe("architecture import boundaries", () => {
           normalizedImportPath !== `${targetLayer}/index.tsx` &&
           normalizedImportPath.startsWith(`${targetLayer}/`);
         const isSameLayer = sourceLayer === targetLayer;
-        const isPerfException = normalizedImportPath === "infrastructure/perf" ||
+        const isPerfException =
+          normalizedImportPath === "infrastructure/perf" ||
           normalizedImportPath === "infrastructure/perf.ts";
         if (isDeepImport && !isSameLayer && !isPerfException) {
           offenders.push(`${rel} -> ${importPath}`);

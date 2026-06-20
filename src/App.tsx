@@ -10,15 +10,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { saveAs } from "file-saver";
-import { DiagnosticsSection, FlowchartViewer, Header, UploadArea } from "./ui/index.ts";
-import { createPerfTracker, preWarmLayoutWorker } from "./infrastructure/index.ts";
+import {
+  DiagnosticsSection,
+  FlowchartViewer,
+  Header,
+  UploadArea,
+} from "./ui/index.ts";
+import {
+  createPerfTracker,
+  preWarmLayoutWorker,
+} from "./infrastructure/index.ts";
 import {
   buildDebugBundle,
   buildIssueDraftUrl,
   createProcessUpload,
   type DebugBundlePrivacyOptions,
-  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   toDebugBundleBlob,
   type UploadedFile,
   type UploadFileStatus,
@@ -98,22 +104,24 @@ export default function App() {
   );
 
   // ── Parser settings (Zustand persist store) ─────────────────────────────────
-  const selectedVariant = useParserRuleSettingsStore((s) => s.selectedVariant);
-  const customRulesByVariant = useParserRuleSettingsStore((s) =>
-    s.customRulesByVariant
-  );
-  const setSelectedVariant = useParserRuleSettingsStore((s) =>
-    s.setSelectedVariant
-  );
-  const addCustomRule = useParserRuleSettingsStore((s) => s.addCustomRule);
-  const updateCustomRule = useParserRuleSettingsStore((s) =>
-    s.updateCustomRule
-  );
-  const removeCustomRule = useParserRuleSettingsStore((s) =>
-    s.removeCustomRule
-  );
-  const resetParserRuleSettings = useParserRuleSettingsStore((s) =>
-    s.resetSettings
+  const {
+    selectedVariant,
+    customRulesByVariant,
+    setSelectedVariant,
+    addCustomRule,
+    updateCustomRule,
+    removeCustomRule,
+    resetSettings: resetParserRuleSettings,
+  } = useParserRuleSettingsStore(
+    useShallow((s) => ({
+      selectedVariant: s.selectedVariant,
+      customRulesByVariant: s.customRulesByVariant,
+      setSelectedVariant: s.setSelectedVariant,
+      addCustomRule: s.addCustomRule,
+      updateCustomRule: s.updateCustomRule,
+      removeCustomRule: s.removeCustomRule,
+      resetSettings: s.resetSettings,
+    })),
   );
   const selectedVariantCustomRules = useMemo(
     () => customRulesByVariant[selectedVariant] ?? [],
@@ -126,10 +134,22 @@ export default function App() {
     preWarmLayoutWorker();
   }, []);
 
-  const [debugPrivacyOptions, setDebugPrivacyOptions] = useState<
-    DebugBundlePrivacyOptions
-  >(
-    DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  const debugPrivacyOptions = useViewerStore((s) => s.debugPrivacyOptions);
+  const updateDebugPrivacyOptions = useViewerStore(
+    (s) => s.updateDebugPrivacyOptions,
+  );
+
+  const setDebugPrivacyOptions = useCallback(
+    (value: React.SetStateAction<DebugBundlePrivacyOptions>) => {
+      if (typeof value === "function") {
+        updateDebugPrivacyOptions(
+          value(useViewerStore.getState().debugPrivacyOptions),
+        );
+      } else {
+        updateDebugPrivacyOptions(value);
+      }
+    },
+    [updateDebugPrivacyOptions],
   );
   const parseAbortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef(0);
@@ -184,7 +204,7 @@ export default function App() {
 
   const appVersion = import.meta.env.VITE_APP_VERSION ?? "0.0.0";
   const exportDebugBundle = useCallback(
-    (privacy: DebugBundlePrivacyOptions) => {
+    async (privacy: DebugBundlePrivacyOptions) => {
       const bundle = buildDebugBundle({
         appVersion,
         state: {
@@ -206,6 +226,7 @@ export default function App() {
         parseDiagnostics,
         privacy,
       });
+      const { saveAs } = await import("file-saver");
       saveAs(toDebugBundleBlob(bundle), "renpy-flowchart-debug-bundle.json");
     },
     [

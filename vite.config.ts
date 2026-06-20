@@ -23,4 +23,15 @@ export default defineConfig({
   optimizeDeps: {
     include: ["@renpy/ast"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom"],
+          "react-flow": ["@xyflow/react"],
+          "graph": ["@dagrejs/dagre", "graphology"],
+        },
+      },
+    },
+  },
 });

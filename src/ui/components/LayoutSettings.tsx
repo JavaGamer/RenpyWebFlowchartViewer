@@ -1,8 +1,21 @@
-import { LayoutGrid, LocateFixed, Palette, SlidersHorizontal } from "lucide-react";
+import {
+  LayoutGrid,
+  LocateFixed,
+  Palette,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import type { CanvasNode, LayoutDensity, LayoutDirection, ThemeName } from "../../domain/index.ts";
+import type {
+  CanvasNode,
+  LayoutDensity,
+  LayoutDirection,
+  ThemeName,
+} from "../../domain/index.ts";
 import { useViewerStore } from "../../application/index.ts";
-import { CONTROL_BUTTON_CLASS, CONTROL_INPUT_CLASS } from "../viewerConstants.ts";
+import {
+  CONTROL_BUTTON_CLASS,
+  CONTROL_INPUT_CLASS,
+} from "../viewerConstants.ts";
 import { cn } from "../utils/cn.ts";
 
 export interface LayoutSettingsProps {
@@ -112,8 +125,7 @@ export function LayoutSettings({
           </span>
           <select
             value={layoutDensity}
-            onChange={(e) =>
-              setLayoutDensity(e.target.value as LayoutDensity)}
+            onChange={(e) => setLayoutDensity(e.target.value as LayoutDensity)}
             aria-label="Layout density"
             className={cn(
               CONTROL_INPUT_CLASS,

@@ -14,16 +14,7 @@ import { immer } from "zustand/middleware/immer";
 import type { FlowEdge, FlowNode } from "../domain/index.ts";
 import type { AppPhase } from "./appTypes.ts";
 import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
-
-/**
- * Tracks how many files have been processed by the web worker,
- * enabling the progress bar UI to display live feedback during long parses.
- */
-export type ParseProgress = {
-  doneFiles: number;
-  totalFiles: number;
-  currentFile: string;
-};
+import type { ParseProgress } from "../parser/index.ts";
 
 /**
  * Controls whether dialogue lines are captured per-node during parsing:

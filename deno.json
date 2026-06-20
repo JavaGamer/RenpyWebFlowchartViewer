@@ -6,7 +6,9 @@
     "preview": "deno run -A npm:vite preview",
     "test": "deno run -A npm:vitest run --no-file-parallelism",
     "test:coverage": "deno run -A npm:vitest run --coverage --no-file-parallelism",
-    "bench:perf": "deno run -A npm:vitest run -c vitest.perf.config.ts --no-file-parallelism"
+    "bench:perf": "deno run -A npm:vitest run -c vitest.perf.config.ts --no-file-parallelism",
+    "format": "deno fmt",
+    "format:check": "deno fmt --check"
   },
   "nodeModulesDir": "auto"
 }

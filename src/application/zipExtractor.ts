@@ -4,7 +4,6 @@
  * Selective client-side decompression of .rpy files from .zip archives.
  */
 
-import { strFromU8, unzip } from "fflate";
 import type { UploadedFile } from "./uploadTypes.ts";
 
 export async function extractRpyFilesFromZip(
@@ -19,6 +18,8 @@ export async function extractRpyFilesFromZip(
 
   const buffer = await nativeFile.arrayBuffer();
   const zipData = new Uint8Array(buffer);
+
+  const { unzip, strFromU8 } = await import("fflate");
 
   return new Promise((resolve, reject) => {
     unzip(

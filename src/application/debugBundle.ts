@@ -211,21 +211,21 @@ function redactEdge(
 ): Record<string, unknown> {
   const redactedCondition = edge.condition
     ? {
-        branchKind: edge.condition.branchKind,
-        ...(privacy.includeRawScriptDetails && edge.condition.expression
-          ? { expression: edge.condition.expression }
-          : {}),
-        ...(privacy.includeRawScriptDetails && edge.condition.references
-          ? { references: edge.condition.references }
-          : {}),
-        ...(edge.condition.decisionNodeId
-          ? {
-              decisionNodeId: privacy.includeRawScriptDetails
-                ? edge.condition.decisionNodeId
-                : getNodeAlias(graphAliasContext, edge.condition.decisionNodeId),
-            }
-          : {}),
-      }
+      branchKind: edge.condition.branchKind,
+      ...(privacy.includeRawScriptDetails && edge.condition.expression
+        ? { expression: edge.condition.expression }
+        : {}),
+      ...(privacy.includeRawScriptDetails && edge.condition.references
+        ? { references: edge.condition.references }
+        : {}),
+      ...(edge.condition.decisionNodeId
+        ? {
+          decisionNodeId: privacy.includeRawScriptDetails
+            ? edge.condition.decisionNodeId
+            : getNodeAlias(graphAliasContext, edge.condition.decisionNodeId),
+        }
+        : {}),
+    }
     : undefined;
 
   return {

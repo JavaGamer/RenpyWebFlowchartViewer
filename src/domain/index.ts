@@ -1,4 +1,9 @@
-export type { ConditionMetadata, FlowEdge, FlowNode } from "./graph.ts";
+export type {
+  ConditionMetadata,
+  EdgeKind,
+  FlowEdge,
+  FlowNode,
+} from "./graph.ts";
 
 export type {
   CanvasEdge,

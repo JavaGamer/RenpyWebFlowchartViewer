@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Background,
   Controls,
@@ -37,8 +43,8 @@ import { edgeTypes, nodeTypes } from "./viewerReactFlowRegistry.ts";
 import type { DialogueSearchResult } from "../infrastructure/index.ts";
 import { useViewerLayout } from "./hooks/useViewerLayout.ts";
 import { useViewerSearch } from "./hooks/useViewerSearch.ts";
-import * as Dialog from "@radix-ui/react-dialog";
-import { ViewerAdvancedControls } from "./ViewerAdvancedControls.tsx";
+import { AdvancedControlsModal } from "./components/AdvancedControlsModal.tsx";
+import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
 import { cn } from "./utils/cn.ts";
 import { ViewerInspector } from "./viewerInspector.tsx";
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "./viewerConstants.ts";
@@ -96,7 +102,6 @@ export function FlowchartCanvas({
     showAllInspectorLines,
     activeDialogueResultIndex,
     dialogueSearchResults,
-    showAdvancedControls,
     showAllLabelSubgraphToggles,
     standaloneDialogueSearchMode,
     mockFlags,
@@ -130,7 +135,6 @@ export function FlowchartCanvas({
     showAllInspectorLines: s.showAllInspectorLines,
     activeDialogueResultIndex: s.activeDialogueResultIndex,
     dialogueSearchResults: s.dialogueSearchResults,
-    showAdvancedControls: s.showAdvancedControls,
     showAllLabelSubgraphToggles: s.showAllLabelSubgraphToggles,
     standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
     mockFlags: s.mockFlags,
@@ -155,7 +159,6 @@ export function FlowchartCanvas({
     setShowAllInspectorLines,
     setActiveDialogueResultIndex,
     setDialogueSearchResults,
-    setShowAdvancedControls,
     setStandaloneDialogueSearchMode,
     setShowMediaCuesInDialogue,
     resetSession,
@@ -167,13 +170,10 @@ export function FlowchartCanvas({
     setShowAllInspectorLines: s.setShowAllInspectorLines,
     setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
     setDialogueSearchResults: s.setDialogueSearchResults,
-    setShowAdvancedControls: s.setShowAdvancedControls,
     setStandaloneDialogueSearchMode: s.setStandaloneDialogueSearchMode,
     setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
     resetSession: s.resetSession,
   })));
-
-  const isDark = theme === "dark";
 
   // Reset session state when this component unmounts (e.g. on new import).
   useEffect(() => () => resetSession(), [resetSession]);
@@ -259,7 +259,8 @@ export function FlowchartCanvas({
   );
 
   const labels = useMemo(
-    () => simplifiedNodes.filter((n) => n.type === "LABEL").map((n) => n.id).sort(),
+    () =>
+      simplifiedNodes.filter((n) => n.type === "LABEL").map((n) => n.id).sort(),
     [simplifiedNodes],
   );
 
@@ -605,19 +606,6 @@ export function FlowchartCanvas({
     visibleNodeIds.size,
   ]);
 
-  // -- Debounced layout spinner (prevents flicker on fast layouts) -------------
-  // Only show the spinner if layout is still calculating after 100ms, so that
-  // small graphs that resolve quickly never flash an overlay.
-  const [showLayoutSpinner, setShowLayoutSpinner] = useState(false);
-  useEffect(() => {
-    if (!isCalculatingLayout) {
-      const id = setTimeout(() => setShowLayoutSpinner(false), 0);
-      return () => clearTimeout(id);
-    }
-    const id = setTimeout(() => setShowLayoutSpinner(true), 100);
-    return () => clearTimeout(id);
-  }, [isCalculatingLayout]);
-
   // -- Performance tracking ---------------------------------------------------
   useEffect(() => {
     if (!perf.enabled) return;
@@ -634,106 +622,21 @@ export function FlowchartCanvas({
   // -- Render -----------------------------------------------------------------
   return (
     <>
-      <Dialog.Root
-        open={showAdvancedControls}
-        onOpenChange={setShowAdvancedControls}
-        modal={false}
-      >
-        <Dialog.Portal>
-          {/* Radix does not render Dialog.Overlay in non-modal mode — use a plain div instead */}
-          <div
-            className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in"
-            aria-hidden="true"
-          />
-          <Dialog.Content
-            className={cn(
-              "fixed right-0 top-0 bottom-0 w-full max-w-md shadow-2xl z-50 flex flex-col focus:outline-none animate-slide-in transition-colors duration-200",
-              isDark
-                ? "bg-slate-900 border-l border-slate-800 text-slate-100"
-                : "bg-white text-gray-900",
-            )}
-            aria-modal="true"
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <div
-              className={cn(
-                "flex items-center justify-between px-6 py-4 border-b shrink-0 transition-colors duration-200",
-                isDark
-                  ? "border-slate-800 bg-slate-850"
-                  : "border-gray-100 bg-gray-50/50",
-              )}
-            >
-              <div>
-                <Dialog.Title
-                  className={cn(
-                    "text-base font-semibold",
-                    isDark ? "text-slate-100" : "text-gray-900",
-                  )}
-                >
-                  Advanced Settings
-                </Dialog.Title>
-                <Dialog.Description
-                  className={cn(
-                    "text-xs mt-0.5",
-                    isDark ? "text-slate-400" : "text-gray-500",
-                  )}
-                >
-                  Configure graph layouts, filters, themes, and path
-                  simulations.
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "rounded-full p-1.5 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500",
-                    isDark
-                      ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                      : "text-gray-400 hover:bg-gray-100 hover:text-gray-700",
-                  )}
-                  aria-label="Close advanced controls"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </Dialog.Close>
-            </div>
-            <div
-              className={cn(
-                "flex-1 overflow-y-auto px-6 py-4",
-                isDark ? "bg-slate-900" : "bg-white",
-              )}
-            >
-              <ViewerAdvancedControls
-                onRelayout={relayout}
-                focusTargetNode={focusTargetNode}
-                onFocusSelectedNode={onFocusSelectedNode}
-                largeGraphMode={largeGraphMode}
-                largeGraphModeStatusText={largeGraphModeStatusText}
-                labels={labels}
-                chapters={chapters}
-                collapsedLabelCount={collapsedLabelCount}
-                visibleSubgraphLabels={visibleSubgraphLabels}
-                visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
-                shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
-                setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
-                discoveredFlags={conditionalVisibility.discoveredFlags}
-              />
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <AdvancedControlsModal
+        relayout={relayout}
+        focusTargetNode={focusTargetNode}
+        onFocusSelectedNode={onFocusSelectedNode}
+        largeGraphMode={largeGraphMode}
+        largeGraphModeStatusText={largeGraphModeStatusText}
+        labels={labels}
+        chapters={chapters}
+        collapsedLabelCount={collapsedLabelCount}
+        visibleSubgraphLabels={visibleSubgraphLabels}
+        visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
+        shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
+        setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
+        discoveredFlags={conditionalVisibility.discoveredFlags}
+      />
 
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
         <div
@@ -742,33 +645,7 @@ export function FlowchartCanvas({
           style={{ backgroundColor: THEMES[theme].pageBg }}
           data-theme={theme}
         >
-          {showLayoutSpinner && (
-            <div className="absolute inset-0 bg-white/45 backdrop-blur-md z-30 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
-              <div className="flex flex-col items-center gap-3">
-                <div
-                  className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin"
-                  style={{
-                    borderColor: `${THEMES[theme].labelBorder}22`,
-                    borderTopColor: THEMES[theme].labelBorder,
-                  }}
-                />
-                <div className="text-center">
-                  <p
-                    className="text-sm font-semibold text-gray-950"
-                    style={{ color: THEMES[theme].text }}
-                  >
-                    Generating Flowchart Layout
-                  </p>
-                  <p
-                    className="text-xs text-gray-500 mt-1"
-                    style={{ color: THEMES[theme].subtleText }}
-                  >
-                    Optimizing nodes and branching paths...
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <CanvasOverlay isCalculatingLayout={isCalculatingLayout} />
           <ReactFlow
             colorMode={theme === "dark" ? "dark" : "light"}
             nodes={visibleNodes}

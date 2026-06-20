@@ -8,7 +8,10 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { ConditionVisibilityMode, LayoutDirection } from "../../domain/index.ts";
+import type {
+  ConditionVisibilityMode,
+  LayoutDirection,
+} from "../../domain/index.ts";
 import type { ViewerStore } from "../viewerStore.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────

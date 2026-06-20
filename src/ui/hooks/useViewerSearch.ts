@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MiniSearch from "minisearch";
-import debounce from "lodash.debounce";
 import type { CanvasNode } from "../../domain/index.ts";
 import type { ParseService } from "../../application/index.ts";
 import type { DialogueSearchResult } from "../../infrastructure/index.ts";
@@ -57,20 +56,15 @@ export function useViewerSearch({
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
 
-  const debouncedSetSearch = useMemo(
-    () =>
-      debounce(
-        (value: string) => setDebouncedSearch(value),
-        SEARCH_DEBOUNCE_MS,
-      ),
-    [],
-  );
-
   useEffect(() => {
-    debouncedSetSearch(searchInput);
-  }, [debouncedSetSearch, searchInput]);
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, SEARCH_DEBOUNCE_MS);
 
-  useEffect(() => () => debouncedSetSearch.cancel(), [debouncedSetSearch]);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchInput]);
 
   const effectiveSearch = largeGraphMode ? debouncedSearch : searchInput;
   const trimmedSearch = effectiveSearch.trim();

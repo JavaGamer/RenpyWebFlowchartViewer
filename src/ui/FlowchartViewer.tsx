@@ -8,12 +8,15 @@ import {
 } from "react";
 import { type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { toBlob, toSvg } from "html-to-image";
-import { saveAs } from "file-saver";
 import { ErrorBoundary } from "react-error-boundary";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import type { CanvasEdge, CanvasNode, FlowEdge, FlowNode } from "../domain/index.ts";
+import type {
+  CanvasEdge,
+  CanvasNode,
+  FlowEdge,
+  FlowNode,
+} from "../domain/index.ts";
 import {
   type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -164,22 +167,25 @@ export default function FlowchartViewer({
   );
 
   // -- Toolbar callbacks ------------------------------------------------------
-  const onExportJson = useCallback(() => {
+  const onExportJson = useCallback(async () => {
     const graphJson = JSON.stringify(
       { nodes: flowNodes, edges: flowEdges },
       null,
       2,
     );
     const blob = new Blob([graphJson], { type: "application/json" });
+    const { saveAs } = await import("file-saver");
     saveAs(blob, "renpy-flowchart.json");
   }, [flowEdges, flowNodes]);
 
-  const onExport = useCallback(() => {
+  const onExport = useCallback(async () => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
     const { isLargeExportTarget, visibleNodeCount, visibleEdgeCount } =
       canvasMetrics;
     const pixelRatio = isLargeExportTarget ? 1 : 2;
+    const { toBlob } = await import("html-to-image");
+    const { saveAs } = await import("file-saver");
     toBlob(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       pixelRatio,
@@ -199,10 +205,12 @@ export default function FlowchartViewer({
       });
   }, [canvasMetrics, perf, theme]);
 
-  const onExportSvg = useCallback(() => {
+  const onExportSvg = useCallback(async () => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
     const { visibleNodeCount, visibleEdgeCount } = canvasMetrics;
+    const { toSvg } = await import("html-to-image");
+    const { saveAs } = await import("file-saver");
     toSvg(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       width: flowRef.current.offsetWidth,
