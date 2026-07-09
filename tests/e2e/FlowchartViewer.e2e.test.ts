@@ -35,7 +35,7 @@ describe("Flowchart Viewer E2E Tests", () => {
         // 5. Create a mock .rpy file and upload it
         const [fileChooser] = await Promise.all([
           page.waitForEvent("filechooser"),
-          page.locator("input[type=file]").click(),
+          page.locator("input#files-input").click(),
         ]);
 
         await fileChooser.setFiles([
