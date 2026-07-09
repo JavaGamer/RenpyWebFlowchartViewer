@@ -32,7 +32,7 @@ export default function Header() {
                 isDark ? "text-slate-100" : "text-gray-900",
               )}
             >
-              Ren'Py Flowchart Viewer
+              Ren'Py Web Flowchart Viewer
             </h1>
             <p
               className={cn(
