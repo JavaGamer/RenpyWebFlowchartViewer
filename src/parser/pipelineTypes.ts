@@ -45,7 +45,11 @@ export interface ParseDiagnosticContext {
     | "invalid_edge_kind"
     | "duplicate_semantic_edge"
     | "shadowed_label"
-    | "shadowed_target_resolution";
+    | "shadowed_target_resolution"
+    | "unreachable_label"
+    | "infinite_loop"
+    | "missing_return"
+    | "uncalled_return";
   detail?: string;
 }
 

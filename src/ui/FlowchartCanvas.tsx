@@ -21,6 +21,7 @@ import {
   type CanvasNode,
   type FlowEdge,
   type FlowNode,
+  type NodeData,
   getNodeCenter,
   simplifyGraph,
 } from "../domain/index.ts";
@@ -456,12 +457,7 @@ export function FlowchartCanvas({
     [selectedNodeId, visibleNodes],
   );
 
-  const selectedNodeData = selectedNode?.data as {
-    label?: string;
-    dialogueCount?: number;
-    dialogueLines?: string[];
-    audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
-  } | undefined;
+  const selectedNodeData = selectedNode?.data as NodeData | undefined;
 
   const nodeSearchMatchCount = useMemo(() => {
     if (!nodeSearchMatchIds) return 0;

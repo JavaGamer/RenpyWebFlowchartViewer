@@ -108,6 +108,7 @@ export interface ViewerActions {
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
   setShowMediaCuesInDialogue: (show: boolean) => void;
+  setShowPacingHeatmap: (show: boolean) => void;
   setMinimapPannable: (pannable: boolean) => void;
   setMinimapZoomable: (zoomable: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
@@ -318,6 +319,7 @@ function migrateLegacyKeys(): string | null {
       showCallReturns: rawCallReturns === "true",
       showAudioAssetCues: true,
       showMediaCuesInDialogue: false,
+      showPacingHeatmap: defaultPersistedState.showPacingHeatmap,
       minimapPannable: true,
       minimapZoomable: true,
       visibleEdgeKinds: {

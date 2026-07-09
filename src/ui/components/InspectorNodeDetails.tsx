@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { renderHighlightedText } from "../viewerText.tsx";
 import { cn } from "../utils/cn.ts";
+import type { NodeData } from "../../domain/index.ts";
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../../config/viewerConfig.ts";
 import {
   calculateReadingTimeSeconds,
@@ -137,16 +138,7 @@ function renderCueItem(
   );
 }
 
-interface SelectedNodeData {
-  label?: string;
-  dialogueCount?: number;
-  wordCount?: number;
-  pauseDuration?: number;
-  dialogueLines?: string[];
-  dialogueLineNums?: number[];
-  audioAssetCues?: import("../../domain/graph.ts").AudioAssetCue[];
-  collapsedLabels?: string[];
-}
+type SelectedNodeData = NodeData;
 
 interface InspectorNodeDetailsProps {
   selectedNodeData: SelectedNodeData;

@@ -1,20 +1,11 @@
 import { cn } from "./utils/cn.ts";
 import { useViewerStore } from "../application/index.ts";
-import { type CanvasNode } from "../domain/index.ts";
+import { type CanvasNode, type NodeData } from "../domain/index.ts";
 import type { DialogueSearchResult } from "../infrastructure/index.ts";
 import { InspectorSearchResults } from "./components/InspectorSearchResults.tsx";
 import { InspectorNodeDetails } from "./components/InspectorNodeDetails.tsx";
 
-interface SelectedNodeData {
-  label?: string;
-  dialogueCount?: number;
-  wordCount?: number;
-  pauseDuration?: number;
-  dialogueLines?: string[];
-  dialogueLineNums?: number[];
-  audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
-  collapsedLabels?: string[];
-}
+type SelectedNodeData = NodeData;
 
 export interface ViewerInspectorProps {
   effectiveSearch: string;
