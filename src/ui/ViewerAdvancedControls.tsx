@@ -3,7 +3,11 @@ import { LayoutSettings } from "./components/LayoutSettings.tsx";
 import { ThemeSettings } from "./components/ThemeSettings.tsx";
 import { SimplificationSettings } from "./components/SimplificationSettings.tsx";
 import { MockFlagsSettings } from "./components/MockFlagsSettings.tsx";
-import { ChapterFiltersSettings } from "./components/ChapterFiltersSettings.tsx";
+import {
+  ChapterFiltersSettings,
+  type ChapterStats,
+} from "./components/ChapterFiltersSettings.tsx";
+import { ReadingSettings } from "./components/ReadingSettings.tsx";
 
 export interface ViewerAdvancedControlsProps {
   onRelayout: () => void;
@@ -19,6 +23,8 @@ export interface ViewerAdvancedControlsProps {
   visibleLabelSubgraphToggles: string[];
   shouldShowAllLabelSubgraphToggles: boolean;
   setAllVisibleSubgraphLabelsCollapsed: (collapsed: boolean) => void;
+  /** Per-chapter reading stats for the chapter filter buttons. */
+  chapterStats?: ChapterStats;
 
   discoveredFlags: string[];
 }
@@ -36,6 +42,7 @@ export function ViewerAdvancedControls({
   visibleLabelSubgraphToggles,
   shouldShowAllLabelSubgraphToggles,
   setAllVisibleSubgraphLabelsCollapsed,
+  chapterStats,
   discoveredFlags,
 }: ViewerAdvancedControlsProps) {
   return (
@@ -51,6 +58,8 @@ export function ViewerAdvancedControls({
         focusTargetNode={focusTargetNode}
         labels={labels}
       />
+
+      <ReadingSettings />
 
       <ThemeSettings
         largeGraphMode={largeGraphMode}
@@ -69,6 +78,7 @@ export function ViewerAdvancedControls({
         visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
         shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
         setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
+        chapterStats={chapterStats}
       />
     </div>
   );

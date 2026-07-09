@@ -92,6 +92,7 @@ export default function FlowchartViewer({
     standaloneDialogueSearchMode,
     selectedSearchChapter,
     selectedSearchNodeKinds,
+    readingSpeedWpm,
   } = useViewerStore(useShallow((s) => ({
     searchInput: s.searchInput,
     minDialogue: s.minDialogue,
@@ -100,6 +101,7 @@ export default function FlowchartViewer({
     standaloneDialogueSearchMode: s.standaloneDialogueSearchMode,
     selectedSearchChapter: s.selectedSearchChapter,
     selectedSearchNodeKinds: s.selectedSearchNodeKinds,
+    readingSpeedWpm: s.readingSpeedWpm,
   })));
   const {
     setSearchInput,
@@ -148,6 +150,10 @@ export default function FlowchartViewer({
     visibleEdgeCount: flowEdges.length,
     dialogueLineSearchEnabled: false,
     isLargeExportTarget: false,
+    totalWordCount: 0,
+    totalPauseDuration: 0,
+    visibleWordCount: 0,
+    visiblePauseDuration: 0,
   });
 
   // -- Dialogue mode ----------------------------------------------------------
@@ -294,6 +300,11 @@ export default function FlowchartViewer({
         totalNodeCount={flowNodes.length}
         visibleEdgeCount={canvasMetrics.visibleEdgeCount}
         totalEdgeCount={flowEdges.length}
+        totalWordCount={canvasMetrics.totalWordCount}
+        totalPauseDuration={canvasMetrics.totalPauseDuration}
+        visibleWordCount={canvasMetrics.visibleWordCount}
+        visiblePauseDuration={canvasMetrics.visiblePauseDuration}
+        readingSpeedWpm={readingSpeedWpm}
         searchInput={searchInput}
         setSearchInput={setSearchInput}
         searchInputRef={searchInputRef}

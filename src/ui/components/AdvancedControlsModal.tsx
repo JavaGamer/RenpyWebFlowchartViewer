@@ -1,10 +1,10 @@
-import React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useViewerStore } from "../../application/index.ts";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "../utils/cn.ts";
 import { ViewerAdvancedControls } from "../ViewerAdvancedControls.tsx";
 import type { CanvasNode } from "../../domain/index.ts";
+import type { ChapterStats } from "./ChapterFiltersSettings.tsx";
 
 interface AdvancedControlsModalProps {
   relayout: () => void;
@@ -20,6 +20,7 @@ interface AdvancedControlsModalProps {
   shouldShowAllLabelSubgraphToggles: boolean;
   setAllVisibleSubgraphLabelsCollapsed: (collapsed: boolean) => void;
   discoveredFlags: string[];
+  chapterStats?: ChapterStats;
 }
 
 export function AdvancedControlsModal({
@@ -36,6 +37,7 @@ export function AdvancedControlsModal({
   shouldShowAllLabelSubgraphToggles,
   setAllVisibleSubgraphLabelsCollapsed,
   discoveredFlags,
+  chapterStats,
 }: AdvancedControlsModalProps) {
   const { showAdvancedControls, setShowAdvancedControls, theme } =
     useViewerStore(
@@ -142,6 +144,7 @@ export function AdvancedControlsModal({
               shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
               setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
               discoveredFlags={discoveredFlags}
+              chapterStats={chapterStats}
             />
           </div>
         </Dialog.Content>

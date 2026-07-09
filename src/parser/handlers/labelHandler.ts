@@ -13,7 +13,7 @@ import {
   addNode,
   addOutgoing,
 } from "../graphMutations.ts";
-import { addParseDiagnostic } from "../diagnostics.ts";
+
 
 /**
  * Determines whether the current scanner position lies within the indentation scope

@@ -38,6 +38,7 @@ import {
   processDirectScreenActionCalls,
   resetStaleWaitFlags,
 } from "./handlers/screenHandler.ts";
+import type { ScreenActionKind } from "../config/parserRules.ts";
 
 export {
   extractLiteralTarget,
@@ -45,6 +46,34 @@ export {
   resolveStaticTargetExpression,
 } from "./handlers/jumpCallHandler.ts";
 export { stripInlineComment } from "./handlers/screenHandler.ts";
+
+/**
+ * Computes word count and explicit pause duration from a Ren'Py dialogue line.
+ *
+ * Word count: Strips all curly-brace Ren'Py text tags (e.g. {b}, {w=1.5},
+ * {/i}) before splitting on whitespace so only spoken words are counted.
+ *
+ * Pause duration: Only tags with an explicit numeric argument are counted
+ * (e.g. {w=2.5} or {p=1.0} contributes their duration in seconds). Plain
+ * {w} / {p} (click-to-continue pauses) contribute 0 seconds.
+ */
+export function computeTextStats(
+  text: string,
+): { wordCount: number; pauseDuration: number } {
+  // Extract explicit pause durations: {w=N} or {p=N}
+  let pauseDuration = 0;
+  const pausePattern = /\{[wp]=([0-9]+(?:\.[0-9]*)?)\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = pausePattern.exec(text)) !== null) {
+    pauseDuration += parseFloat(match[1]!);
+  }
+
+  // Strip all Ren'Py text tags to count words (including alpha tags, wait, etc.)
+  const stripped = text.replace(/\{[^}]*\}/g, "");
+  const wordCount = stripped.trim() === "" ? 0 : stripped.trim().split(/\s+/).length;
+
+  return { wordCount, pauseDuration };
+}
 
 interface HandleTokenInput {
   type: number;
@@ -56,7 +85,7 @@ interface HandleTokenInput {
   lineText: string;
   lineNum: number;
   captureDialogueLines: boolean;
-  screenActionRuleMap: Map<string, any>;
+  screenActionRuleMap: Map<string, ScreenActionKind>;
   sceneSplitDialogueThreshold?: number;
 }
 
@@ -666,6 +695,11 @@ export function handleToken(
         if (ownerNode) {
           ownerNode.dialogueCount += 1;
           const line = val();
+          // Always compute text stats regardless of captureDialogueLines
+          const stats = computeTextStats(line);
+          ownerNode.wordCount = (ownerNode.wordCount ?? 0) + stats.wordCount;
+          ownerNode.pauseDuration = (ownerNode.pauseDuration ?? 0) +
+            stats.pauseDuration;
           if (captureDialogueLines) {
             if (!ownerNode.dialogueLines) {
               ownerNode.dialogueLines = [];

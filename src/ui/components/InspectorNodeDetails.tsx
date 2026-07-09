@@ -1,9 +1,12 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type CanvasNode } from "../../domain/index.ts";
 import { renderHighlightedText } from "../viewerText.tsx";
 import { cn } from "../utils/cn.ts";
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../../config/viewerConfig.ts";
+import {
+  calculateReadingTimeSeconds,
+  formatReadingTime,
+} from "../utils/readingTime.ts";
 import {
   Image as ImageIcon,
   Mic as MicIcon,
@@ -137,6 +140,8 @@ function renderCueItem(
 interface SelectedNodeData {
   label?: string;
   dialogueCount?: number;
+  wordCount?: number;
+  pauseDuration?: number;
   dialogueLines?: string[];
   dialogueLineNums?: number[];
   audioAssetCues?: import("../../domain/graph.ts").AudioAssetCue[];
@@ -144,7 +149,6 @@ interface SelectedNodeData {
 }
 
 interface InspectorNodeDetailsProps {
-  selectedNode: CanvasNode;
   selectedNodeData: SelectedNodeData;
   selectedNodeId: string;
   selectedDialogueLineIndex: number | null;
@@ -155,11 +159,12 @@ interface InspectorNodeDetailsProps {
   effectiveSearch: string;
   theme: string;
   isDark: boolean;
+  /** Reading speed WPM from the viewer store. */
+  readingSpeedWpm: number;
 }
 
 /* eslint-disable react-hooks/incompatible-library */
 export function InspectorNodeDetails({
-  selectedNode,
   selectedNodeData,
   selectedNodeId,
   selectedDialogueLineIndex,
@@ -170,6 +175,7 @@ export function InspectorNodeDetails({
   effectiveSearch,
   theme,
   isDark,
+  readingSpeedWpm,
 }: InspectorNodeDetailsProps) {
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -271,7 +277,27 @@ export function InspectorNodeDetails({
         </span>{" "}
         {selectedNodeData.dialogueCount ?? 0}
       </div>
-
+      {(selectedNodeData.wordCount ?? 0) > 0 && (
+        <div className="text-xs">
+          <span className="font-semibold text-gray-500">Reading time:</span>{" "}
+          <span
+            title={`${(selectedNodeData.wordCount ?? 0).toLocaleString()} words · ${(selectedNodeData.pauseDuration ?? 0).toFixed(1)}s pauses`}
+            style={{ cursor: "help" }}
+          >
+            {formatReadingTime(
+              calculateReadingTimeSeconds(
+                selectedNodeData.wordCount ?? 0,
+                selectedNodeData.pauseDuration ?? 0,
+                readingSpeedWpm,
+              ),
+            )}
+          </span>
+          {" "}
+          <span className="text-gray-400">
+            ({(selectedNodeData.wordCount ?? 0).toLocaleString()} words)
+          </span>
+        </div>
+      )}
       {selectedNodeData.collapsedLabels &&
         selectedNodeData.collapsedLabels.length > 0 && (
         <div

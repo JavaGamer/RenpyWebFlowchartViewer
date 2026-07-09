@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { cn } from "./utils/cn.ts";
 import { renderHighlightedText } from "./viewerText.tsx";
+import {
+  calculateReadingTimeSeconds,
+  formatReadingTime,
+} from "./utils/readingTime.ts";
 
 function getTheme(themeName: unknown) {
   if (typeof themeName === "string" && themeName in THEMES) {
@@ -28,6 +32,7 @@ export const LabelNodeComponent = memo(
     const themeName = useViewerStore((s) => s.theme);
     const theme = getTheme(themeName);
     const searchInput = useViewerStore((s) => s.searchInput);
+    const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
     const isDark = themeName === "dark";
     const isShadowed = data.isShadowed === true;
     const isTerminalOutcome = data.isTerminalOutcome === true;
@@ -132,6 +137,21 @@ export const LabelNodeComponent = memo(
           <div className="mt-1 text-xs" style={{ color: theme.labelTitle }}>
             {data.dialogueCount}{" "}
             dialogue line{data.dialogueCount !== 1 ? "s" : ""}
+            {(data.wordCount ?? 0) > 0 && (() => {
+              const secs = calculateReadingTimeSeconds(
+                data.wordCount ?? 0,
+                data.pauseDuration ?? 0,
+                readingSpeedWpm,
+              );
+              return (
+                <span
+                  title={`~${(data.wordCount ?? 0).toLocaleString()} words`}
+                  style={{ opacity: 0.75, cursor: "help" }}
+                >
+                  {" · "}{formatReadingTime(secs)}
+                </span>
+              );
+            })()}
           </div>
         )}
         {showAudioAssetCues && cues.length > 0 && (
@@ -210,6 +230,7 @@ export const MenuNodeComponent = memo(
     const themeName = useViewerStore((s) => s.theme);
     const theme = getTheme(themeName);
     const searchInput = useViewerStore((s) => s.searchInput);
+    const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
     return (
       <div
         className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
@@ -230,6 +251,27 @@ export const MenuNodeComponent = memo(
             ? renderHighlightedText(data.label, searchInput)
             : data.label}
         </div>
+        {data.dialogueCount > 0 && (
+          <div className="mt-1 text-xs" style={{ color: theme.menuTitle }}>
+            {data.dialogueCount}{" "}
+            dialogue line{data.dialogueCount !== 1 ? "s" : ""}
+            {(data.wordCount ?? 0) > 0 && (() => {
+              const secs = calculateReadingTimeSeconds(
+                data.wordCount ?? 0,
+                data.pauseDuration ?? 0,
+                readingSpeedWpm,
+              );
+              return (
+                <span
+                  title={`~${(data.wordCount ?? 0).toLocaleString()} words`}
+                  style={{ opacity: 0.75, cursor: "help" }}
+                >
+                  {" · "}{formatReadingTime(secs)}
+                </span>
+              );
+            })()}
+          </div>
+        )}
         <Handle type="source" position={Position.Bottom} />
       </div>
     );

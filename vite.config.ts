@@ -26,10 +26,18 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          "react-vendor": ["react", "react-dom"],
-          "react-flow": ["@xyflow/react"],
-          "graph": ["@dagrejs/dagre", "graphology"],
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("react") || id.includes("react-dom")) {
+              return "react-vendor";
+            }
+            if (id.includes("@xyflow/react")) {
+              return "react-flow";
+            }
+            if (id.includes("@dagrejs/dagre") || id.includes("graphology")) {
+              return "graph";
+            }
+          }
         },
       },
     },

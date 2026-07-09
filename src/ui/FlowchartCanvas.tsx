@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useState,
 } from "react";
 import {
   Background,
@@ -50,6 +49,7 @@ import { ViewerInspector } from "./viewerInspector.tsx";
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "./viewerConstants.ts";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
 import { deriveCollapsedLabelChildren } from "./canvasHelpers.ts";
+import type { ChapterStats } from "./components/ChapterFiltersSettings.tsx";
 
 export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
@@ -117,7 +117,9 @@ export function FlowchartCanvas({
     simplifyInlineDialogueThreshold,
     minimapPannable,
     minimapZoomable,
+    readingSpeedWpm,
   } = useViewerStore(useShallow((s) => ({
+
     layoutDirection: s.layoutDirection,
     searchInput: s.searchInput,
     labelSubgraphSearchInput: s.labelSubgraphSearchInput,
@@ -150,6 +152,7 @@ export function FlowchartCanvas({
     simplifyInlineDialogueThreshold: s.simplifyInlineDialogueThreshold,
     minimapPannable: s.minimapPannable,
     minimapZoomable: s.minimapZoomable,
+    readingSpeedWpm: s.readingSpeedWpm,
   })));
   const {
     setAllParentLabelsCollapsed,
@@ -493,6 +496,25 @@ export function FlowchartCanvas({
     [focusNodeId, visibleNodes],
   );
 
+  // Per-chapter reading stats for the chapter filter buttons
+  const chapterStats = useMemo<ChapterStats>(() => {
+    const map: ChapterStats = new Map();
+    for (const node of flowNodes) {
+      if (!node.chapter) continue;
+      const existing = map.get(node.chapter);
+      if (existing) {
+        existing.wordCount += node.wordCount ?? 0;
+        existing.pauseDuration += node.pauseDuration ?? 0;
+      } else {
+        map.set(node.chapter, {
+          wordCount: node.wordCount ?? 0,
+          pauseDuration: node.pauseDuration ?? 0,
+        });
+      }
+    }
+    return map;
+  }, [flowNodes]);
+
   // -- Callbacks --------------------------------------------------------------
   const onFocusSelectedNode = useCallback(() => {
     if (!focusNodeId || !flowInstanceRef.current) return;
@@ -592,18 +614,42 @@ export function FlowchartCanvas({
 
   // -- Report metrics to outer toolbar ----------------------------------------
   useEffect(() => {
+    // Compute totals across all parsed nodes (not affected by visibility filters)
+    let totalWordCount = 0;
+    let totalPauseDuration = 0;
+    for (const node of flowNodes) {
+      totalWordCount += node.wordCount ?? 0;
+      totalPauseDuration += node.pauseDuration ?? 0;
+    }
+
+    // Compute visible totals from currently non-hidden canvas nodes
+    let visibleWordCount = 0;
+    let visiblePauseDuration = 0;
+    for (const node of visibleNodes) {
+      if (node.hidden) continue;
+      visibleWordCount += (node.data.wordCount ?? 0);
+      visiblePauseDuration += (node.data.pauseDuration ?? 0);
+    }
+
     onMetrics({
       visibleNodeCount: visibleNodeIds.size,
       visibleEdgeCount: visibleEdges.length,
       dialogueLineSearchEnabled,
       isLargeExportTarget,
+      totalWordCount,
+      totalPauseDuration,
+      visibleWordCount,
+      visiblePauseDuration,
     });
   }, [
     dialogueLineSearchEnabled,
+    flowNodes,
     isLargeExportTarget,
     onMetrics,
+    readingSpeedWpm,
     visibleEdges.length,
     visibleNodeIds.size,
+    visibleNodes,
   ]);
 
   // -- Performance tracking ---------------------------------------------------
@@ -636,6 +682,7 @@ export function FlowchartCanvas({
         shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
         setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
         discoveredFlags={conditionalVisibility.discoveredFlags}
+        chapterStats={chapterStats}
       />
 
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">

@@ -1,4 +1,3 @@
-import React from "react";
 import { Download, ZoomIn } from "lucide-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { cn } from "../utils/cn.ts";

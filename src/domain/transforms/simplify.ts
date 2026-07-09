@@ -323,6 +323,8 @@ function collapseLinearChains(
     if (path.length > 1) {
       const rootNode = nodeMap.get(rootId)!;
       let dialogueCount = rootNode.dialogueCount;
+      let wordCount = rootNode.wordCount ?? 0;
+      let pauseDuration = rootNode.pauseDuration ?? 0;
       const dialogueLines = [...(rootNode.dialogueLines || [])];
       const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
       const audioAssetCues = [...(rootNode.audioAssetCues || [])];
@@ -333,6 +335,8 @@ function collapseLinearChains(
       for (let i = 1; i < path.length; i++) {
         const node = nodeMap.get(path[i])!;
         dialogueCount += node.dialogueCount;
+        wordCount += node.wordCount ?? 0;
+        pauseDuration += node.pauseDuration ?? 0;
         dialogueLines.push(...(node.dialogueLines || []));
         dialogueLineNums.push(...(node.dialogueLineNums || []));
         audioAssetCues.push(...(node.audioAssetCues || []));
@@ -348,6 +352,8 @@ function collapseLinearChains(
       mergedNodesMap.set(rootId, {
         ...rootNode,
         dialogueCount,
+        wordCount,
+        pauseDuration,
         dialogueLines,
         dialogueLineNums,
         audioAssetCues,
@@ -379,6 +385,8 @@ function collapseLinearChains(
       const rootId = startId;
       const rootNode = nodeMap.get(rootId)!;
       let dialogueCount = rootNode.dialogueCount;
+      let wordCount = rootNode.wordCount ?? 0;
+      let pauseDuration = rootNode.pauseDuration ?? 0;
       const dialogueLines = [...(rootNode.dialogueLines || [])];
       const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
       const audioAssetCues = [...(rootNode.audioAssetCues || [])];
@@ -389,6 +397,8 @@ function collapseLinearChains(
       for (let i = 1; i < path.length; i++) {
         const node = nodeMap.get(path[i])!;
         dialogueCount += node.dialogueCount;
+        wordCount += node.wordCount ?? 0;
+        pauseDuration += node.pauseDuration ?? 0;
         dialogueLines.push(...(node.dialogueLines || []));
         dialogueLineNums.push(...(node.dialogueLineNums || []));
         audioAssetCues.push(...(node.audioAssetCues || []));
@@ -404,6 +414,8 @@ function collapseLinearChains(
       mergedNodesMap.set(rootId, {
         ...rootNode,
         dialogueCount,
+        wordCount,
+        pauseDuration,
         dialogueLines,
         dialogueLineNums,
         audioAssetCues,

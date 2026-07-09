@@ -1,4 +1,8 @@
 import { useShallow } from "zustand/react/shallow";
+import {
+  calculateReadingTimeSeconds,
+  formatReadingTime,
+} from "../utils/readingTime.ts";
 import { useViewerStore } from "../../application/index.ts";
 import {
   CONTROL_BUTTON_CLASS,
@@ -6,6 +10,9 @@ import {
   MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES,
 } from "../viewerConstants.ts";
 import { cn } from "../utils/cn.ts";
+
+/** Per-chapter word count and pause duration aggregated from parsed nodes. */
+export type ChapterStats = Map<string, { wordCount: number; pauseDuration: number }>;
 
 export interface ChapterFiltersSettingsProps {
   chapters: string[];
@@ -15,6 +22,8 @@ export interface ChapterFiltersSettingsProps {
   visibleLabelSubgraphToggles: string[];
   shouldShowAllLabelSubgraphToggles: boolean;
   setAllVisibleSubgraphLabelsCollapsed: (collapsed: boolean) => void;
+  /** Optional stats keyed by chapter name for reading time display. */
+  chapterStats?: ChapterStats;
 }
 
 export function ChapterFiltersSettings({
@@ -25,12 +34,14 @@ export function ChapterFiltersSettings({
   visibleLabelSubgraphToggles,
   shouldShowAllLabelSubgraphToggles,
   setAllVisibleSubgraphLabelsCollapsed,
+  chapterStats,
 }: ChapterFiltersSettingsProps) {
   const {
     theme,
     collapsedChapters,
     labelSubgraphSearchInput,
     collapsedParentLabels,
+    readingSpeedWpm,
 
     toggleChapter,
     setLabelSubgraphSearchInput,
@@ -42,6 +53,7 @@ export function ChapterFiltersSettings({
       collapsedChapters: s.collapsedChapters,
       labelSubgraphSearchInput: s.labelSubgraphSearchInput,
       collapsedParentLabels: s.collapsedParentLabels,
+      readingSpeedWpm: s.readingSpeedWpm,
 
       toggleChapter: s.toggleChapter,
       setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
@@ -89,24 +101,46 @@ export function ChapterFiltersSettings({
               Chapter Subgraphs
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {chapters.map((chapter) => (
-                <button
-                  key={chapter}
-                  onClick={() => toggleChapter(chapter)}
-                  className={cn(
-                    CONTROL_BUTTON_CLASS,
-                    "cursor-pointer transition-colors",
-                    isDark
-                      ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
-                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-100",
-                  )}
-                  aria-label={`${
-                    collapsedChapters[chapter] ? "Expand" : "Collapse"
-                  } chapter ${chapter}`}
-                >
-                  {collapsedChapters[chapter] ? "▸" : "▾"} {chapter}
-                </button>
-              ))}
+              {chapters.map((chapter) => {
+                const stats = chapterStats?.get(chapter);
+                const hasTime = stats && stats.wordCount > 0;
+                const readingTime = hasTime
+                  ? formatReadingTime(
+                    calculateReadingTimeSeconds(
+                      stats.wordCount,
+                      stats.pauseDuration,
+                      readingSpeedWpm,
+                    ),
+                  )
+                  : null;
+                return (
+                  <button
+                    key={chapter}
+                    onClick={() => toggleChapter(chapter)}
+                    className={cn(
+                      CONTROL_BUTTON_CLASS,
+                      "cursor-pointer transition-colors",
+                      isDark
+                        ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+                        : "bg-white border-gray-300 text-gray-700 hover:bg-gray-100",
+                    )}
+                    aria-label={`${
+                      collapsedChapters[chapter] ? "Expand" : "Collapse"
+                    } chapter ${chapter}${
+                      readingTime ? ` (${readingTime} reading time)` : ""
+                    }`}
+                  >
+                    {collapsedChapters[chapter] ? "▸" : "▾"} {chapter}
+                    {readingTime && (
+                      <span
+                        style={{ opacity: 0.6, marginLeft: "0.25em", fontSize: "0.85em" }}
+                      >
+                        {readingTime}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

@@ -1,4 +1,3 @@
-import React from "react";
 import { cn } from "./utils/cn.ts";
 import { useViewerStore } from "../application/index.ts";
 import { type CanvasNode } from "../domain/index.ts";
@@ -9,6 +8,8 @@ import { InspectorNodeDetails } from "./components/InspectorNodeDetails.tsx";
 interface SelectedNodeData {
   label?: string;
   dialogueCount?: number;
+  wordCount?: number;
+  pauseDuration?: number;
   dialogueLines?: string[];
   dialogueLineNums?: number[];
   audioAssetCues?: import("../domain/graph.ts").AudioAssetCue[];
@@ -52,6 +53,7 @@ export function ViewerInspector({
 }: ViewerInspectorProps) {
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
+  const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
 
   return (
     <aside
@@ -102,7 +104,6 @@ export function ViewerInspector({
         )
         : (
           <InspectorNodeDetails
-            selectedNode={selectedNode}
             selectedNodeData={selectedNodeData}
             selectedNodeId={selectedNodeId}
             selectedDialogueLineIndex={selectedDialogueLineIndex}
@@ -113,6 +114,7 @@ export function ViewerInspector({
             effectiveSearch={effectiveSearch}
             theme={theme}
             isDark={isDark}
+            readingSpeedWpm={readingSpeedWpm}
           />
         )}
     </aside>

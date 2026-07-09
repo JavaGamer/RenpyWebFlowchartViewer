@@ -40,6 +40,10 @@ export interface FlowNode {
   label: string;
   /** Number of dialogue lines inside this block. */
   dialogueCount: number;
+  /** Total word count from dialogue lines in this block. */
+  wordCount?: number;
+  /** Total pause duration in seconds from explicit Ren'Py pause tags (e.g. {w=2.5}). */
+  pauseDuration?: number;
   /** Dialogue line text captured from say statements in this block. */
   dialogueLines?: string[];
   /** Optional audio and asset cues parsed in this block. */

@@ -59,6 +59,8 @@ export function resolveGraphIntegrity(
         type: "LABEL",
         label: `(unresolved) ${edge.source}`,
         dialogueCount: 0,
+        wordCount: 0,
+        pauseDuration: 0,
         chapter: "__unresolved__",
       };
       nodeMap.set(edge.source, sourcePlaceholder);
@@ -70,6 +72,8 @@ export function resolveGraphIntegrity(
         type: "LABEL",
         label: `(unresolved) ${edge.target}`,
         dialogueCount: 0,
+        wordCount: 0,
+        pauseDuration: 0,
         chapter: "__unresolved__",
       };
       nodeMap.set(edge.target, targetPlaceholder);

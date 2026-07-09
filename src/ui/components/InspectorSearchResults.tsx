@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { DialogueSearchResult } from "../../infrastructure/index.ts";
 import { renderHighlightedText, truncateForAria } from "../viewerText.tsx";

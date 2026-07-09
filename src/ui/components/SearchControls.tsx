@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import type { DialogueSearchMode } from "../../application/index.ts";
 import {
@@ -10,7 +10,6 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 
 interface SearchControlsProps {
   isDark: boolean;
-  theme: string;
   searchInput: string;
   setSearchInput: (v: string) => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
@@ -32,7 +31,6 @@ interface SearchControlsProps {
 
 export function SearchControls({
   isDark,
-  theme,
   searchInput,
   setSearchInput,
   searchInputRef,

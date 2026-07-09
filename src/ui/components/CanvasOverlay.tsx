@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useViewerStore } from "../../application/index.ts";
 import { THEMES } from "../viewerTheme.ts";
 

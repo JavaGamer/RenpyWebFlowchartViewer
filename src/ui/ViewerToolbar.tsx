@@ -13,6 +13,10 @@ import { SearchControls } from "./components/SearchControls.tsx";
 import { ExportMenu } from "./components/ExportMenu.tsx";
 import { CONTROL_BUTTON_CLASS } from "./viewerConstants.ts";
 import { cn } from "./utils/cn.ts";
+import {
+  calculateReadingTimeSeconds,
+  formatReadingTime,
+} from "./utils/readingTime.ts";
 
 interface TooltipWrapperProps {
   content: ReactNode;
@@ -44,6 +48,12 @@ export interface ViewerToolbarProps {
   totalNodeCount: number;
   visibleEdgeCount: number;
   totalEdgeCount: number;
+  /** Word count and pause duration for reading time display. */
+  totalWordCount: number;
+  totalPauseDuration: number;
+  visibleWordCount: number;
+  visiblePauseDuration: number;
+  readingSpeedWpm: number;
 
   searchInput: string;
   setSearchInput: (v: string) => void;
@@ -90,6 +100,11 @@ export function ViewerToolbar({
   totalNodeCount,
   visibleEdgeCount,
   totalEdgeCount,
+  totalWordCount,
+  totalPauseDuration,
+  visibleWordCount,
+  visiblePauseDuration,
+  readingSpeedWpm,
   searchInput,
   setSearchInput,
   searchInputRef,
@@ -143,6 +158,27 @@ export function ViewerToolbar({
             {visibleNodeCount} / {totalNodeCount}{" "}
             node{totalNodeCount !== 1 ? "s" : ""} · {visibleEdgeCount} /{" "}
             {totalEdgeCount} edge{totalEdgeCount !== 1 ? "s" : ""}
+            {(totalWordCount > 0) && (() => {
+              const visibleTime = formatReadingTime(
+                calculateReadingTimeSeconds(visibleWordCount, visiblePauseDuration, readingSpeedWpm),
+              );
+              const totalTime = formatReadingTime(
+                calculateReadingTimeSeconds(totalWordCount, totalPauseDuration, readingSpeedWpm),
+              );
+              const tooltip = `${visibleWordCount.toLocaleString()} words visible / ${totalWordCount.toLocaleString()} words total`;
+              return (
+                <>
+                  {" · "}
+                  <span
+                    title={tooltip}
+                    style={{ cursor: "help" }}
+                    aria-label={`Reading time: ${visibleTime} visible / ${totalTime} total. ${tooltip}`}
+                  >
+                    {visibleTime}{" / "}{totalTime} read
+                  </span>
+                </>
+              );
+            })()}
           </div>
           <div
             className="flex flex-wrap items-start gap-2 md:gap-3"
@@ -151,7 +187,6 @@ export function ViewerToolbar({
           >
             <SearchControls
               isDark={isDark}
-              theme={theme}
               searchInput={searchInput}
               setSearchInput={setSearchInput}
               searchInputRef={searchInputRef}

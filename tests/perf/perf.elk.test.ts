@@ -95,7 +95,9 @@ function readDataset(datasetName: string) {
 }
 
 describe("performance ELK benchmarks", () => {
-  it(
+  const isDeno = "Deno" in globalThis;
+
+  it.skipIf(isDeno)(
     "captures ELK timings for small/medium/large datasets",
     async () => {
       ensureBenchmarkDatasets();

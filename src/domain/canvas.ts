@@ -5,6 +5,8 @@ import type { EdgeMarker, Position } from "@xyflow/react";
 export interface NodeData extends Record<string, unknown> {
   label: string;
   dialogueCount: number;
+  wordCount?: number;
+  pauseDuration?: number;
   dialogueLines?: string[];
   dialogueLineNums?: number[];
   audioAssetCues?: FlowNode["audioAssetCues"];

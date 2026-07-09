@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("Playwright Library in Vitest", () => {
   const isWindowsDeno = process.platform === "win32" &&
-    (globalThis as any).Deno !== undefined;
+    "Deno" in globalThis;
 
   it.skipIf(isWindowsDeno)(
     "should launch chromium and get version",

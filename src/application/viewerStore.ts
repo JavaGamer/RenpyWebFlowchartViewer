@@ -64,6 +64,8 @@ export interface ViewerPersistedState {
   simplifyInlineEmptyLabels: boolean;
   simplifyInlineDialogueThreshold: number;
   debugPrivacyOptions: DebugBundlePrivacyOptions;
+  /** Reading speed in words per minute for reading time calculations. */
+  readingSpeedWpm: number;
 }
 
 // ─── Session slice (reset on each new import) ─────────────────────────────────
@@ -118,6 +120,7 @@ export interface ViewerActions {
   updateDebugPrivacyOptions: (
     patch: Partial<DebugBundlePrivacyOptions>,
   ) => void;
+  setReadingSpeedWpm: (wpm: number) => void;
 
   // Session setters
   setLayoutDirection: (direction: LayoutDirection) => void;
@@ -217,6 +220,11 @@ const viewerPersistedStateSchema = z.object({
   simplifyInlineDialogueThreshold: z.number().catch(
     defaultPersistedState.simplifyInlineDialogueThreshold,
   ),
+  readingSpeedWpm: z
+    .number()
+    .min(100)
+    .max(400)
+    .catch(defaultPersistedState.readingSpeedWpm),
   debugPrivacyOptions: z
     .object({
       includeFileNames: z.boolean().catch(
@@ -320,6 +328,8 @@ function migrateLegacyKeys(): string | null {
       simplifyInlineStateToggles: false,
       simplifyInlineEmptyLabels: false,
       simplifyInlineDialogueThreshold: 1,
+      debugPrivacyOptions: defaultPersistedState.debugPrivacyOptions,
+      readingSpeedWpm: defaultPersistedState.readingSpeedWpm,
     };
 
     for (const key of LEGACY_KEYS) {
@@ -406,6 +416,8 @@ export const useViewerStore = create<ViewerStore>()(
         simplifyInlineStateToggles: state.simplifyInlineStateToggles,
         simplifyInlineEmptyLabels: state.simplifyInlineEmptyLabels,
         simplifyInlineDialogueThreshold: state.simplifyInlineDialogueThreshold,
+        debugPrivacyOptions: state.debugPrivacyOptions,
+        readingSpeedWpm: state.readingSpeedWpm,
       }),
     },
   ),

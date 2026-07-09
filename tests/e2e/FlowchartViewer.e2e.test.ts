@@ -5,7 +5,7 @@ import type { ViteDevServer } from "vite";
 
 describe("Flowchart Viewer E2E Tests", () => {
   const isWindowsDeno = process.platform === "win32" &&
-    (globalThis as any).Deno !== undefined;
+    "Deno" in globalThis;
 
   it.skipIf(isWindowsDeno)(
     "should load the app, upload a mock .rpy file, and display parsed stats",

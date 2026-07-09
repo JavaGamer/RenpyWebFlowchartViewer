@@ -197,6 +197,8 @@ export function applyDagreLayout(
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
+        wordCount: n.wordCount,
+        pauseDuration: n.pauseDuration,
         dialogueLines: n.dialogueLines,
         dialogueLineNums: n.dialogueLineNums,
         audioAssetCues: n.audioAssetCues,
@@ -321,6 +323,8 @@ export function applyProgressiveDagreLayout(
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
+        wordCount: n.wordCount,
+        pauseDuration: n.pauseDuration,
         dialogueLines: n.dialogueLines,
         dialogueLineNums: n.dialogueLineNums,
         audioAssetCues: n.audioAssetCues,
@@ -468,6 +472,8 @@ export async function applyElkLayout(
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
+        wordCount: n.wordCount,
+        pauseDuration: n.pauseDuration,
         dialogueLines: n.dialogueLines,
         dialogueLineNums: n.dialogueLineNums,
         audioAssetCues: n.audioAssetCues,

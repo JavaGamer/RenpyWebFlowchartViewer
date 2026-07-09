@@ -15,6 +15,7 @@ import type { FlowEdge, FlowNode } from "../domain/index.ts";
 import type { AppPhase } from "./appTypes.ts";
 import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
 import type { ParseProgress } from "../parser/index.ts";
+export type { ParseProgress };
 
 /**
  * Controls whether dialogue lines are captured per-node during parsing:

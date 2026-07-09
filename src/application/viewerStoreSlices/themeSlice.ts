@@ -35,6 +35,8 @@ export interface ThemeSliceState {
   simplifyInlineEmptyLabels: boolean;
   simplifyInlineDialogueThreshold: number;
   debugPrivacyOptions: DebugBundlePrivacyOptions;
+  /** Reading speed in words per minute used for reading time calculations. */
+  readingSpeedWpm: number;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -58,6 +60,8 @@ export interface ThemeSliceActions {
   updateDebugPrivacyOptions: (
     patch: Partial<DebugBundlePrivacyOptions>,
   ) => void;
+  /** Sets the reading speed in words per minute. Clamped to 100–400. */
+  setReadingSpeedWpm: (wpm: number) => void;
 }
 
 export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
@@ -85,6 +89,7 @@ export const defaultThemeState: ThemeSliceState = {
   simplifyInlineEmptyLabels: false,
   simplifyInlineDialogueThreshold: 1,
   debugPrivacyOptions: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  readingSpeedWpm: 200,
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -178,5 +183,10 @@ export const createThemeSlice: StateCreator<
         ...draft.debugPrivacyOptions,
         ...patch,
       };
+    }),
+
+  setReadingSpeedWpm: (wpm) =>
+    set((draft) => {
+      draft.readingSpeedWpm = Math.max(100, Math.min(400, Math.round(wpm)));
     }),
 });
