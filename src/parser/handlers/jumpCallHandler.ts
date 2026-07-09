@@ -275,6 +275,68 @@ export function parseDictLiteral(
   return result.size > 0 ? result : null;
 }
 
+export function parseListLiteral(
+  expression: string,
+): string[] | null {
+  const trimmed = expression.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+  const content = trimmed.substring(1, trimmed.length - 1);
+  const result: string[] = [];
+
+  let i = 0;
+  function skipWhitespace() {
+    while (i < content.length && /\s/.test(content[i])) {
+      i++;
+    }
+  }
+
+  function parseStringLiteral(): string | null {
+    if (i >= content.length) return null;
+    const quoteChar = content[i];
+    if (quoteChar !== '"' && quoteChar !== "'") return null;
+    i++; // consume quote
+    let str = "";
+    while (i < content.length) {
+      const char = content[i];
+      if (char === "\\") {
+        i++;
+        if (i < content.length) {
+          const nextChar = content[i];
+          if (nextChar === "n") str += "\n";
+          else if (nextChar === "t") str += "\t";
+          else if (nextChar === "r") str += "\r";
+          else str += nextChar;
+          i++;
+        }
+      } else if (char === quoteChar) {
+        i++; // consume closing quote
+        return str;
+      } else {
+        str += char;
+        i++;
+      }
+    }
+    return null; // unclosed string
+  }
+
+  while (i < content.length) {
+    skipWhitespace();
+    if (i >= content.length) break;
+    const val = parseStringLiteral();
+    if (val === null) return null;
+
+    result.push(val);
+
+    skipWhitespace();
+    if (i < content.length) {
+      if (content[i] !== ",") return null;
+      i++; // consume ','
+    }
+  }
+
+  return result.length > 0 ? result : null;
+}
+
 export function extractLiteralTarget(expression: string): string | null {
   const trimmed = expression.trim();
   const prefixMatch = /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[rR]|[uU]|[bB])?/
@@ -340,6 +402,7 @@ export function resolveStaticTargetExpression(
   const trimmed = expression.trim();
   const literal = extractLiteralTarget(trimmed);
   if (literal) return literal;
+  if (/^\d+$/.test(trimmed)) return trimmed;
   const identifier = extractIdentifierTarget(trimmed);
   if (identifier) {
     const localVal = scanState.labelVariableLiteralTargets.get(identifier);
@@ -368,6 +431,23 @@ export function resolveStaticTargetExpression(
       );
       if (resolvedKey) {
         return dict.get(resolvedKey) ?? null;
+      }
+    } else {
+      const localList = scanState.labelVariableListTargets.get(dictName);
+      const globalList = state?.globalLabelVariableListTargets.get(dictName);
+      const list = localList || globalList;
+      if (list) {
+        const resolvedKey = resolveStaticTargetExpression(
+          keyExpr,
+          scanState,
+          state,
+        );
+        if (resolvedKey) {
+          const index = parseInt(resolvedKey, 10);
+          if (Number.isInteger(index) && index >= 0 && index < list.length) {
+            return list[index] ?? null;
+          }
+        }
       }
     }
   }
@@ -427,6 +507,26 @@ export function resolveExpressionTargets(
           return val ? [val] : [];
         } else {
           return Array.from(dict.values());
+        }
+      } else {
+        const localList = scanState.labelVariableListTargets.get(dictName);
+        const globalList = state?.globalLabelVariableListTargets.get(dictName);
+        const list = localList || globalList;
+        if (list) {
+          const resolvedKey = resolveStaticTargetExpression(
+            keyExpr,
+            scanState,
+            state,
+          );
+          if (resolvedKey) {
+            const index = parseInt(resolvedKey, 10);
+            if (Number.isInteger(index) && index >= 0 && index < list.length) {
+              const val = list[index];
+              return val ? [val] : [];
+            }
+          } else {
+            return list.filter((val): val is string => !!val);
+          }
         }
       }
     }

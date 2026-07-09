@@ -17,6 +17,7 @@ export function ThemeSettings({
     showCallReturns,
     showAudioAssetCues,
     showMediaCuesInDialogue,
+    showPacingHeatmap,
     minimapPannable,
     minimapZoomable,
     largeGraphModeOverride,
@@ -24,6 +25,7 @@ export function ThemeSettings({
     setShowCallReturns,
     setShowAudioAssetCues,
     setShowMediaCuesInDialogue,
+    setShowPacingHeatmap,
     setMinimapPannable,
     setMinimapZoomable,
     setLargeGraphModeOverride,
@@ -34,6 +36,7 @@ export function ThemeSettings({
       showCallReturns: s.showCallReturns,
       showAudioAssetCues: s.showAudioAssetCues,
       showMediaCuesInDialogue: s.showMediaCuesInDialogue,
+      showPacingHeatmap: s.showPacingHeatmap,
       minimapPannable: s.minimapPannable,
       minimapZoomable: s.minimapZoomable,
       largeGraphModeOverride: s.largeGraphModeOverride,
@@ -41,6 +44,7 @@ export function ThemeSettings({
       setShowCallReturns: s.setShowCallReturns,
       setShowAudioAssetCues: s.setShowAudioAssetCues,
       setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
+      setShowPacingHeatmap: s.setShowPacingHeatmap,
       setMinimapPannable: s.setMinimapPannable,
       setMinimapZoomable: s.setMinimapZoomable,
       setLargeGraphModeOverride: s.setLargeGraphModeOverride,
@@ -156,6 +160,23 @@ export function ThemeSettings({
               )}
             >
               Enable minimap zooming
+            </span>
+          </label>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showPacingHeatmap}
+              onChange={(e) => setShowPacingHeatmap(e.target.checked)}
+              className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
+              aria-label="Show pacing heatmap"
+            />
+            <span
+              className={cn(
+                "font-medium",
+                isDark ? "text-slate-300" : "text-gray-700",
+              )}
+            >
+              Show pacing heatmap
             </span>
           </label>
           <label className="inline-flex items-center gap-2 cursor-pointer select-none col-span-2">

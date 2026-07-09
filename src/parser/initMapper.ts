@@ -6,6 +6,7 @@ import type {
 import {
   extractLiteralTarget,
   parseDictLiteral,
+  parseListLiteral,
   resolveStaticTargetExpression,
   stripInlineComment,
 } from "./tokenHandling.ts";
@@ -450,11 +451,13 @@ function processAssignment(
     if (literalVal !== null) {
       state.globalLabelVariableLiteralTargets.set(variableName, literalVal);
       state.globalLabelVariableDictTargets.delete(variableName);
+      state.globalLabelVariableListTargets.delete(variableName);
     } else {
       // Mock ParseScanState for resolving global maps (since we only look up in global maps during pre-parse)
       const mockScanState: ResolveTargetScanState = {
         labelVariableLiteralTargets: state.globalLabelVariableLiteralTargets,
         labelVariableDictTargets: state.globalLabelVariableDictTargets,
+        labelVariableListTargets: state.globalLabelVariableListTargets,
       };
 
       const staticResolved = resolveStaticTargetExpression(
@@ -468,15 +471,25 @@ function processAssignment(
           staticResolved,
         );
         state.globalLabelVariableDictTargets.delete(variableName);
+        state.globalLabelVariableListTargets.delete(variableName);
       } else {
         const dictVal = parseDictLiteral(cleanExpr);
         if (dictVal !== null) {
           state.globalLabelVariableDictTargets.set(variableName, dictVal);
           state.globalLabelVariableLiteralTargets.delete(variableName);
+          state.globalLabelVariableListTargets.delete(variableName);
         } else {
-          // If we can't resolve it, remove any stale definition
-          state.globalLabelVariableLiteralTargets.delete(variableName);
-          state.globalLabelVariableDictTargets.delete(variableName);
+          const listVal = parseListLiteral(cleanExpr);
+          if (listVal !== null) {
+            state.globalLabelVariableListTargets.set(variableName, listVal);
+            state.globalLabelVariableLiteralTargets.delete(variableName);
+            state.globalLabelVariableDictTargets.delete(variableName);
+          } else {
+            // If we can't resolve it, remove any stale definition
+            state.globalLabelVariableLiteralTargets.delete(variableName);
+            state.globalLabelVariableDictTargets.delete(variableName);
+            state.globalLabelVariableListTargets.delete(variableName);
+          }
         }
       }
     }

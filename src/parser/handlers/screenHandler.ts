@@ -12,6 +12,7 @@ import {
   emitCallEdge,
   emitJumpEdge,
   parseDictLiteral,
+  parseListLiteral,
   resolveCallContext,
   resolveExpressionTargets,
   resolveStaticTargetExpression,
@@ -914,6 +915,7 @@ export function processDirectRenpyBlockCalls(
     variableName: string;
     assignedTarget: string | null;
     assignedDict?: Map<string, string> | null;
+    assignedList?: string[] | null;
   }
 
   interface PythonRenpyCallEvent {
@@ -961,12 +963,14 @@ export function processDirectRenpyBlockCalls(
       state,
     );
     const assignedDict = parseDictLiteral(assignedExpression);
+    const assignedList = parseListLiteral(assignedExpression);
     events.push({
       kind: "assignment",
       index: match.index,
       variableName,
       assignedTarget,
       assignedDict,
+      assignedList,
     });
   }
 
@@ -980,15 +984,25 @@ export function processDirectRenpyBlockCalls(
           event.assignedTarget,
         );
         scanState.labelVariableDictTargets.delete(event.variableName);
+        scanState.labelVariableListTargets.delete(event.variableName);
       } else if (event.assignedDict) {
         scanState.labelVariableDictTargets.set(
           event.variableName,
           event.assignedDict,
         );
         scanState.labelVariableLiteralTargets.delete(event.variableName);
+        scanState.labelVariableListTargets.delete(event.variableName);
+      } else if (event.assignedList) {
+        scanState.labelVariableListTargets.set(
+          event.variableName,
+          event.assignedList,
+        );
+        scanState.labelVariableLiteralTargets.delete(event.variableName);
+        scanState.labelVariableDictTargets.delete(event.variableName);
       } else {
         scanState.labelVariableLiteralTargets.delete(event.variableName);
         scanState.labelVariableDictTargets.delete(event.variableName);
+        scanState.labelVariableListTargets.delete(event.variableName);
       }
       continue;
     }

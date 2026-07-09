@@ -78,7 +78,11 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | "invalid_edge_kind"
       | "duplicate_semantic_edge"
       | "shadowed_label"
-      | "shadowed_target_resolution";
+      | "shadowed_target_resolution"
+      | "unreachable_label"
+      | "infinite_loop"
+      | "missing_return"
+      | "uncalled_return";
     detail?: string;
   };
 }
@@ -105,6 +109,7 @@ export type ParseDiagnostic =
 export interface ResolveTargetScanState {
   labelVariableLiteralTargets: Map<string, string>;
   labelVariableDictTargets: Map<string, Map<string, string>>;
+  labelVariableListTargets: Map<string, string[]>;
 }
 
 export interface ParseScanState extends ResolveTargetScanState {
@@ -158,6 +163,7 @@ export interface ParseGraphState {
   labelDefinitionCountByName: Map<string, number>;
   globalLabelVariableLiteralTargets: Map<string, string>;
   globalLabelVariableDictTargets: Map<string, Map<string, string>>;
+  globalLabelVariableListTargets: Map<string, string[]>;
   globalScreens: Set<string>;
   globalCharacters: Set<string>;
   diagnostics: ParseDiagnostic[];

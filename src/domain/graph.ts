@@ -66,6 +66,10 @@ export interface FlowNode {
   menuPromptLineNum?: number;
   /** Label names collapsed into this node during linear chain collapsing. */
   collapsedLabels?: string[];
+  /** Dialogue stats grouped by character identifier. */
+  characterDialogue?: Record<string, { lineCount: number; wordCount: number }>;
+  /** True when this node is unreachable from entry points. */
+  isOrphan?: boolean;
 }
 
 /** A directed edge in the flowchart graph. */

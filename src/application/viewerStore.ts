@@ -54,6 +54,7 @@ export interface ViewerPersistedState {
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
   showMediaCuesInDialogue: boolean;
+  showPacingHeatmap: boolean;
   minimapPannable: boolean;
   minimapZoomable: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
@@ -187,6 +188,9 @@ const viewerPersistedStateSchema = z.object({
   ),
   showMediaCuesInDialogue: z.boolean().catch(
     defaultPersistedState.showMediaCuesInDialogue,
+  ),
+  showPacingHeatmap: z.boolean().catch(
+    defaultPersistedState.showPacingHeatmap,
   ),
   minimapPannable: z.boolean().catch(defaultPersistedState.minimapPannable),
   minimapZoomable: z.boolean().catch(defaultPersistedState.minimapZoomable),
@@ -407,6 +411,7 @@ export const useViewerStore = create<ViewerStore>()(
         showCallReturns: state.showCallReturns,
         showAudioAssetCues: state.showAudioAssetCues,
         showMediaCuesInDialogue: state.showMediaCuesInDialogue,
+        showPacingHeatmap: state.showPacingHeatmap,
         minimapPannable: state.minimapPannable,
         minimapZoomable: state.minimapZoomable,
         visibleEdgeKinds: state.visibleEdgeKinds,

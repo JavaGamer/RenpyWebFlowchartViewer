@@ -81,7 +81,11 @@ export default function DiagnosticsSection(
         >
           {parseDiagnostics.map((warning, idx) => (
             <li key={`${warning.code}-${warning.message}-${idx}`}>
-              <span className="font-medium uppercase">{warning.code}</span>
+              <span className="font-medium uppercase">
+                {warning.context?.category
+                  ? warning.context.category.replace(/_/g, " ")
+                  : warning.code}
+              </span>
               {warning.location?.construct
                 ? (
                   <>

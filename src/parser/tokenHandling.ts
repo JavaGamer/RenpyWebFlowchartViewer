@@ -43,6 +43,7 @@ import type { ScreenActionKind } from "../config/parserRules.ts";
 export {
   extractLiteralTarget,
   parseDictLiteral,
+  parseListLiteral,
   resolveStaticTargetExpression,
 } from "./handlers/jumpCallHandler.ts";
 export { stripInlineComment } from "./handlers/screenHandler.ts";
@@ -98,6 +99,9 @@ export function ensureScanStateInitialized(scanState: ParseScanState): void {
   }
   if (!scanState.labelVariableDictTargets) {
     scanState.labelVariableDictTargets = new Map();
+  }
+  if (!scanState.labelVariableListTargets) {
+    scanState.labelVariableListTargets = new Map();
   }
   if (scanState.pendingConditionalHeader === undefined) {
     scanState.pendingConditionalHeader = null;
@@ -233,6 +237,7 @@ export function handleToken(
     scanState.currentSceneDialogueCount = 0;
     scanState.labelVariableLiteralTargets.clear();
     scanState.labelVariableDictTargets.clear();
+    scanState.labelVariableListTargets.clear();
     for (const menuId of scanState.pendingMenuFallthroughIds) {
       addEdge(state, {
         id: `seq_${menuId}__${newLabelId}`,
@@ -700,6 +705,22 @@ export function handleToken(
           ownerNode.wordCount = (ownerNode.wordCount ?? 0) + stats.wordCount;
           ownerNode.pauseDuration = (ownerNode.pauseDuration ?? 0) +
             stats.pauseDuration;
+
+          let speaker = "narrator";
+          const charMatch = /^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\b/.exec(lineText);
+          if (charMatch) {
+            speaker = charMatch[1]!;
+          }
+          if (!ownerNode.characterDialogue) {
+            ownerNode.characterDialogue = {};
+          }
+          if (!ownerNode.characterDialogue[speaker]) {
+            ownerNode.characterDialogue[speaker] = { lineCount: 0, wordCount: 0 };
+          }
+          const charStats = ownerNode.characterDialogue[speaker]!;
+          charStats.lineCount += 1;
+          charStats.wordCount += stats.wordCount;
+
           if (captureDialogueLines) {
             if (!ownerNode.dialogueLines) {
               ownerNode.dialogueLines = [];

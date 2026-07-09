@@ -25,6 +25,7 @@ export interface ThemeSliceState {
   showCallReturns: boolean;
   showAudioAssetCues: boolean;
   showMediaCuesInDialogue: boolean;
+  showPacingHeatmap: boolean;
   minimapPannable: boolean;
   minimapZoomable: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
@@ -47,6 +48,7 @@ export interface ThemeSliceActions {
   setShowCallReturns: (show: boolean) => void;
   setShowAudioAssetCues: (show: boolean) => void;
   setShowMediaCuesInDialogue: (show: boolean) => void;
+  setShowPacingHeatmap: (show: boolean) => void;
   setMinimapPannable: (pannable: boolean) => void;
   setMinimapZoomable: (zoomable: boolean) => void;
   setEdgeKindVisible: (kind: EdgeKindFilter, visible: boolean) => void;
@@ -74,6 +76,7 @@ export const defaultThemeState: ThemeSliceState = {
   showCallReturns: false,
   showAudioAssetCues: true,
   showMediaCuesInDialogue: false,
+  showPacingHeatmap: false,
   minimapPannable: true,
   minimapZoomable: true,
   visibleEdgeKinds: {
@@ -125,6 +128,11 @@ export const createThemeSlice: StateCreator<
   setShowMediaCuesInDialogue: (show) =>
     set((draft) => {
       draft.showMediaCuesInDialogue = show;
+    }),
+
+  setShowPacingHeatmap: (show) =>
+    set((draft) => {
+      draft.showPacingHeatmap = show;
     }),
 
   setMinimapPannable: (pannable) =>

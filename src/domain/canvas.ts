@@ -21,6 +21,8 @@ export interface NodeData extends Record<string, unknown> {
   conditionReferences?: string[];
   theme?: ThemeName;
   collapsedLabels?: string[];
+  isOrphan?: boolean;
+  characterDialogue?: FlowNode["characterDialogue"];
 }
 
 export interface EdgeData extends Record<string, unknown> {

@@ -35,8 +35,10 @@ export const LabelNodeComponent = memo(
     const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
     const isDark = themeName === "dark";
     const isShadowed = data.isShadowed === true;
+    const isOrphan = data.isOrphan === true;
     const isTerminalOutcome = data.isTerminalOutcome === true;
     const showAudioAssetCues = useViewerStore((s) => s.showAudioAssetCues);
+    const showPacingHeatmap = useViewerStore((s) => s.showPacingHeatmap);
 
     const cues = data.audioAssetCues ?? [];
     const sceneCues = cues.filter((c) => c.type === "scene");
@@ -62,14 +64,28 @@ export const LabelNodeComponent = memo(
     const soundTooltip = soundCues.map((c) => c.raw).join("\n");
     const voiceTooltip = voiceCues.map((c) => c.raw).join("\n");
 
+    const wordCount = data.wordCount ?? 0;
+    let customBg = theme.labelBg;
+    if (showPacingHeatmap && wordCount > 0) {
+      if (wordCount > 150) {
+        customBg = isDark ? "#450a0a" : "#fee2e2";
+      } else if (wordCount >= 50) {
+        customBg = isDark ? "#451a03" : "#fef3c7";
+      } else {
+        customBg = isDark ? "#022c22" : "#d1fadf";
+      }
+    }
+
     return (
       <div
         className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
         style={{
-          borderColor: theme.labelBorder,
-          backgroundColor: theme.labelBg,
-          borderStyle: isShadowed ? "dashed" : "solid",
-          opacity: isShadowed ? 0.9 : 1,
+          borderColor: isOrphan
+            ? (isDark ? "#ef4444" : "#f87171")
+            : theme.labelBorder,
+          backgroundColor: customBg,
+          borderStyle: isOrphan || isShadowed ? "dashed" : "solid",
+          opacity: isOrphan ? 0.65 : (isShadowed ? 0.9 : 1),
         }}
       >
         <Handle type="target" position={Position.Top} />
@@ -81,7 +97,20 @@ export const LabelNodeComponent = memo(
             Label
           </div>
           <div className="flex items-center gap-1">
-            {isTerminalOutcome && (
+            {isOrphan && (
+              <span
+                className={cn(
+                  "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border",
+                  isDark
+                    ? "bg-rose-950/60 border-rose-800/80 text-rose-300"
+                    : "bg-rose-100 border-transparent text-rose-800",
+                )}
+                title="This label is unreachable from entry points (dead code)."
+              >
+                Unreachable
+              </span>
+            )}
+            {isTerminalOutcome && !isOrphan && (
               <span
                 className={cn(
                   "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border",

@@ -292,10 +292,45 @@ export function InspectorNodeDetails({
               ),
             )}
           </span>
-          {" "}
           <span className="text-gray-400">
             ({(selectedNodeData.wordCount ?? 0).toLocaleString()} words)
           </span>
+        </div>
+      )}
+      {selectedNodeData.isOrphan && (
+        <div className={cn(
+          "text-xs p-2 rounded-lg border border-red-200 bg-red-50 text-red-800 flex flex-col gap-1 mt-2",
+          isDark && "border-red-950 bg-red-950/40 text-red-200"
+        )}>
+          <div className="font-semibold flex items-center gap-1">
+            <span>⚠️ Unreachable Code</span>
+          </div>
+          <p className="text-[10px] text-gray-500">
+            This label is not connected to the main story flow and cannot be reached in gameplay.
+          </p>
+        </div>
+      )}
+      {selectedNodeData.characterDialogue && Object.keys(selectedNodeData.characterDialogue).length > 0 && (
+        <div className={cn(
+          "text-xs space-y-1.5 mt-2 pt-2 border-t",
+          isDark ? "border-slate-800" : "border-gray-100",
+        )}>
+          <div className={cn("font-semibold", isDark ? "text-slate-300" : "text-gray-700")}>
+            Character Dialogue
+          </div>
+          <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+            {Object.entries(selectedNodeData.characterDialogue).map(([speaker, stats]) => {
+              const pct = ((stats.lineCount / (selectedNodeData.dialogueCount || 1)) * 100).toFixed(0);
+              return (
+                <div key={speaker} className="flex items-center justify-between text-[11px]">
+                  <span className="font-mono text-violet-500 font-semibold">{speaker}</span>
+                  <span className="text-gray-400">
+                    {stats.lineCount} line{stats.lineCount !== 1 ? "s" : ""} ({pct}%) · {stats.wordCount} words
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
       {selectedNodeData.collapsedLabels &&

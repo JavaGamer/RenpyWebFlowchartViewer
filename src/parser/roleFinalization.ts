@@ -3,6 +3,7 @@ import { materializeCallReturnEdges } from "./callReturnFinalization.ts";
 import { classifyNodeRole } from "./roleClassification.ts";
 import { normalizeGraphState } from "./graphNormalization.ts";
 import { addParseDiagnostic } from "./diagnostics.ts";
+import { runControlFlowAnalysis } from "./controlFlowAnalysis.ts";
 
 function emitShadowedTargetResolutionDiagnostics(state: ParseGraphState): void {
   const shadowedCanonicalIds = new Set<string>();
@@ -63,4 +64,6 @@ export function finalizeRoles(state: ParseGraphState) {
     );
     node.isTerminalOutcome = node.role === "story" && !hasForwardFlow;
   }
+
+  runControlFlowAnalysis(state);
 }
