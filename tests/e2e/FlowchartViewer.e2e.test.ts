@@ -35,7 +35,7 @@ describe("Flowchart Viewer E2E Tests", () => {
         // 5. Create a mock .rpy file and upload it
         const [fileChooser] = await Promise.all([
           page.waitForEvent("filechooser"),
-          page.locator("input#files-input").click(),
+          page.locator("button:has-text('select files/ZIP')").click(),
         ]);
 
         await fileChooser.setFiles([
@@ -49,7 +49,7 @@ describe("Flowchart Viewer E2E Tests", () => {
         ]);
 
         // 6. Wait for parse success and assert stats
-        const statsNode = page.locator("text=Files parsed");
+        const statsNode = page.locator("text=Parsed");
         await statsNode.waitFor({ state: "visible", timeout: 15000 });
         expect(await statsNode.isVisible()).toBe(true);
 
