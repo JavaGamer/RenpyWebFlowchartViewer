@@ -104,7 +104,7 @@ export function MockFlagsSettings({ discoveredFlags }: MockFlagsSettingsProps) {
         <div
           className={cn(
             "flex flex-col gap-2 border-t pt-2.5",
-            isDark ? "border-slate-750" : "border-gray-105",
+            isDark ? "border-slate-700" : "border-gray-100",
           )}
         >
           <span
@@ -121,7 +121,7 @@ export function MockFlagsSettings({ discoveredFlags }: MockFlagsSettingsProps) {
                 <span
                   className={cn(
                     "text-[11px]",
-                    isDark ? "text-slate-450" : "text-gray-500",
+                    isDark ? "text-slate-400" : "text-gray-500",
                   )}
                 >
                   No condition flags discovered.
@@ -152,7 +152,7 @@ export function MockFlagsSettings({ discoveredFlags }: MockFlagsSettingsProps) {
                         "px-1 py-0.5 border rounded text-[11px] shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-1",
                         isDark
                           ? "bg-slate-700 border-slate-600 text-slate-100 focus-visible:ring-violet-400"
-                          : "bg-gray-50 border-gray-300 text-gray-750 focus-visible:ring-violet-500",
+                          : "bg-gray-50 border-gray-300 text-gray-700 focus-visible:ring-violet-500",
                       )}
                       aria-label={`Mock value for ${flag}`}
                     >

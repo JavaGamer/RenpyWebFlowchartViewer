@@ -72,7 +72,7 @@ export function InspectorSearchResults({
             <div
               className={cn(
                 "text-xs",
-                isDark ? "text-slate-450" : "text-gray-505",
+                isDark ? "text-slate-400" : "text-gray-500",
               )}
             >
               <div role="status" aria-live="polite">
@@ -119,11 +119,11 @@ export function InspectorSearchResults({
                             ? virtualItem.index ===
                                 resolvedActiveDialogueResultIndex
                               ? "border-violet-500 bg-violet-950/50 text-violet-200"
-                              : "border-slate-800 bg-slate-800/20 hover:bg-slate-850 text-slate-300"
+                              : "border-slate-800 bg-slate-800/20 hover:bg-slate-800 text-slate-300"
                             : virtualItem.index ===
                                 resolvedActiveDialogueResultIndex
                             ? "border-violet-400 bg-violet-50 text-violet-900"
-                            : "border-gray-200 bg-white hover:bg-gray-50 text-gray-755",
+                            : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700",
                         )}
                       >
                         <div className="text-xs font-medium">
@@ -169,10 +169,10 @@ export function InspectorSearchResults({
                       isDark
                         ? resultIndex === resolvedActiveDialogueResultIndex
                           ? "border-violet-500 bg-violet-950/50 text-violet-200"
-                          : "border-slate-800 bg-slate-800/20 hover:bg-slate-850 text-slate-300"
+                          : "border-slate-800 bg-slate-800/20 hover:bg-slate-800 text-slate-300"
                         : resultIndex === resolvedActiveDialogueResultIndex
                         ? "border-violet-400 bg-violet-50 text-violet-900"
-                        : "border-gray-200 bg-white hover:bg-gray-50 text-gray-755",
+                        : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700",
                     )}
                   >
                     <div className="text-xs font-medium">
@@ -196,7 +196,7 @@ export function InspectorSearchResults({
         <div
           className={cn(
             "mt-1 text-[11px]",
-            isDark ? "text-slate-500" : "text-gray-505",
+            isDark ? "text-slate-500" : "text-gray-500",
           )}
           role="status"
           aria-live="polite"

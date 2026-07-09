@@ -258,7 +258,7 @@ export default function UploadArea({
                 id="advanced-parser-settings"
                 className={cn(
                   "px-4 pb-4 border-t",
-                  isDark ? "border-slate-850" : "border-gray-100",
+                  isDark ? "border-slate-800" : "border-gray-100",
                 )}
               >
                 <ParserSettingsSection

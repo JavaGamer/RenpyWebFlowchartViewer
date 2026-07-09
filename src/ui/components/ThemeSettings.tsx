@@ -84,7 +84,7 @@ export function ThemeSettings({
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Show call returns
@@ -101,7 +101,7 @@ export function ThemeSettings({
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Show media cues
@@ -118,7 +118,7 @@ export function ThemeSettings({
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Show Media Cues in Dialogue
@@ -135,7 +135,7 @@ export function ThemeSettings({
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Enable minimap panning
@@ -152,7 +152,7 @@ export function ThemeSettings({
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Enable minimap zooming
@@ -181,7 +181,7 @@ export function ThemeSettings({
                   CONTROL_BUTTON_CLASS,
                   "py-0.5 px-1.5 ml-auto text-[10px] cursor-pointer",
                   isDark
-                    ? "bg-slate-850 border-slate-700 text-slate-300 hover:bg-slate-750"
+                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                     : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50",
                 )}
                 onClick={() => setLargeGraphModeOverride(null)}
@@ -197,8 +197,8 @@ export function ThemeSettings({
           className={cn(
             "text-[11px] border-t pt-2",
             isDark
-              ? "text-slate-400 border-slate-750"
-              : "text-gray-500 border-gray-105",
+              ? "text-slate-400 border-slate-700"
+              : "text-gray-500 border-gray-100",
           )}
           role="status"
           aria-live="polite"
@@ -209,7 +209,7 @@ export function ThemeSettings({
         <div
           className={cn(
             "flex flex-col gap-2 border-t pt-2",
-            isDark ? "border-slate-750" : "border-gray-105",
+            isDark ? "border-slate-700" : "border-gray-100",
           )}
         >
           <span

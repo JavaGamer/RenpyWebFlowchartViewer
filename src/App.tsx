@@ -302,7 +302,7 @@ export default function App() {
               className={cn(
                 "shrink-0 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm border-b transition-colors duration-200",
                 isDark
-                  ? "bg-violet-950/20 border-violet-900/30 text-violet-350"
+                  ? "bg-violet-950/20 border-violet-900/30 text-violet-300"
                   : "bg-violet-50 border-violet-100 text-violet-700",
               )}
             >

@@ -24,7 +24,7 @@ export function UploadDropzone({
       className={cn(
         "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none",
         isDark
-          ? "border-violet-850 bg-slate-900 cursor-pointer hover:bg-violet-950/20 hover:border-violet-700"
+          ? "border-violet-800 bg-slate-900 cursor-pointer hover:bg-violet-950/20 hover:border-violet-700"
           : "border-violet-300 bg-white cursor-pointer hover:bg-violet-50/50 hover:border-violet-400",
       )}
     >

@@ -19,6 +19,26 @@ describe("resolveGithubUrl", () => {
     );
   });
 
+  it("resolves GitHub blob file URL to raw content URL", () => {
+    expect(
+      resolveGithubUrl(
+        "https://github.com/JavaGamer/RenpyWebFlowchartViewer/blob/main/tests/fixtures/simple.rpy",
+      ),
+    ).toBe(
+      "https://raw.githubusercontent.com/JavaGamer/RenpyWebFlowchartViewer/main/tests/fixtures/simple.rpy",
+    );
+  });
+
+  it("resolves GitHub raw file URL to raw content URL", () => {
+    expect(
+      resolveGithubUrl(
+        "https://github.com/JavaGamer/RenpyWebFlowchartViewer/raw/main/tests/fixtures/simple.rpy",
+      ),
+    ).toBe(
+      "https://raw.githubusercontent.com/JavaGamer/RenpyWebFlowchartViewer/main/tests/fixtures/simple.rpy",
+    );
+  });
+
   it("keeps raw script URL unmodified", () => {
     const rawUrl =
       "https://raw.githubusercontent.com/JavaGamer/RenpyWebFlowchartViewer/main/src/App.tsx";

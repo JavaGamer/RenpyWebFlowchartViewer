@@ -56,8 +56,8 @@ export function UrlImportForm({
           className={cn(
             "rounded-md px-3 py-1.5 text-white font-semibold transition-colors focus:outline-none focus-visible:ring-2",
             isDark
-              ? "bg-violet-600 hover:bg-violet-500 focus-visible:ring-violet-400 disabled:bg-violet-805"
-              : "bg-violet-600 hover:bg-violet-750 focus-visible:ring-violet-500 disabled:bg-violet-400",
+              ? "bg-violet-600 hover:bg-violet-500 focus-visible:ring-violet-400 disabled:bg-violet-800"
+              : "bg-violet-600 hover:bg-violet-700 focus-visible:ring-violet-500 disabled:bg-violet-400",
           )}
         >
           {isFetchingUrl ? "Loading..." : "Import"}

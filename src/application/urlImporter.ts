@@ -16,12 +16,24 @@ export function resolveGithubUrl(urlStr: string): string {
   const url = urlStr.trim();
   const githubRepoRegex =
     /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/?$/;
-  const match = url.match(githubRepoRegex);
-  if (match) {
-    const owner = match[2];
-    const repo = match[3];
+  const repoMatch = url.match(githubRepoRegex);
+  if (repoMatch) {
+    const owner = repoMatch[2];
+    const repo = repoMatch[3];
     return `https://github.com/${owner}/${repo}/archive/refs/heads/main.zip`;
   }
+
+  const githubFileRegex =
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/(?:blob|raw)\/([^/]+)\/(.+)$/;
+  const fileMatch = url.match(githubFileRegex);
+  if (fileMatch) {
+    const owner = fileMatch[2];
+    const repo = fileMatch[3];
+    const branch = fileMatch[4];
+    const path = fileMatch[5];
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  }
+
   return url;
 }
 

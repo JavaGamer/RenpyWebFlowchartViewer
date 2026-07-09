@@ -71,7 +71,7 @@ export function ViewerInspector({
           <div
             className={cn(
               "text-xs mb-1",
-              isDark ? "text-slate-350" : "text-gray-700",
+              isDark ? "text-slate-300" : "text-gray-700",
             )}
             role="status"
             aria-live="polite"
@@ -94,7 +94,7 @@ export function ViewerInspector({
           <div
             className={cn(
               "text-xs",
-              isDark ? "text-slate-450" : "text-gray-550",
+              isDark ? "text-slate-400" : "text-gray-500",
             )}
           >
             {effectiveSearch.trim().length > 0

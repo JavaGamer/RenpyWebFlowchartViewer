@@ -63,7 +63,7 @@ export function UploadProgress({
             <p
               className={cn(
                 "text-xs mt-1 truncate max-w-md mx-auto",
-                isDark ? "text-slate-450" : "text-gray-450",
+                isDark ? "text-slate-400" : "text-gray-400",
               )}
               title={currentFile}
             >
@@ -114,7 +114,7 @@ export function UploadProgress({
                     "flex items-center justify-between gap-3 p-2 border rounded-lg text-[11px] transition-colors duration-200",
                     isDark
                       ? "bg-slate-900 border-slate-800"
-                      : "bg-white border-gray-150 shadow-sm",
+                      : "bg-white border-gray-200 shadow-sm",
                   )}
                 >
                   <div className="min-w-0 flex-1 text-left">
@@ -156,22 +156,22 @@ export function UploadProgress({
                         "px-1.5 py-0.5 rounded-full text-[9px] font-semibold tracking-wide border",
                         file.status === "pending"
                           ? isDark
-                            ? "bg-slate-950 text-slate-550 border-slate-800"
+                            ? "bg-slate-950 text-slate-500 border-slate-800"
                             : "bg-gray-50 text-gray-500 border-gray-200"
                           : file.status === "reading"
                           ? isDark
-                            ? "bg-blue-955/50 text-blue-300 border-blue-900/60 animate-pulse"
+                            ? "bg-blue-950/50 text-blue-300 border-blue-900/60 animate-pulse"
                             : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
                           : file.status === "parsing"
                           ? isDark
-                            ? "bg-violet-955/50 text-violet-300 border-violet-900/60 animate-pulse"
+                            ? "bg-violet-950/50 text-violet-300 border-violet-900/60 animate-pulse"
                             : "bg-violet-50 text-violet-700 border-violet-200 animate-pulse"
                           : file.status === "done"
                           ? isDark
                             ? "bg-green-950/50 text-green-300 border-green-900/60"
                             : "bg-green-50 text-green-700 border-green-200"
                           : isDark
-                          ? "bg-red-955/50 text-red-350 border-red-900/60"
+                          ? "bg-red-950/50 text-red-300 border-red-900/60"
                           : "bg-red-50 text-red-700 border-red-200",
                       )}
                       title={file.error}
@@ -191,7 +191,7 @@ export function UploadProgress({
             className={cn(
               "w-full max-w-md mt-3 flex items-start gap-2 p-3 rounded-xl border text-[11px] text-left shadow-sm transition-colors duration-200",
               isDark
-                ? "bg-amber-955/40 border-amber-900/60 text-amber-300"
+                ? "bg-amber-950/40 border-amber-900/60 text-amber-300"
                 : "bg-amber-50 border-amber-200 text-amber-800",
             )}
           >

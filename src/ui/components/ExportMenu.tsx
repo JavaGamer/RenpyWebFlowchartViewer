@@ -49,7 +49,7 @@ export function ExportMenu({
             className={cn(
               "text-xs border rounded px-2 py-1",
               isDark
-                ? "text-amber-400 bg-amber-955/40 border-amber-900/60"
+                ? "text-amber-400 bg-amber-950/40 border-amber-900/60"
                 : "text-amber-700 bg-amber-50 border border-amber-200",
             )}
           >
@@ -92,7 +92,7 @@ export function ExportMenu({
               className={cn(
                 PRIMARY_BUTTON_CLASS,
                 isDark
-                  ? "text-violet-300 border border-violet-850 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  ? "text-violet-300 border border-violet-800 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
                   : "text-violet-700 border border-violet-300 bg-white hover:bg-violet-50 focus-visible:ring-violet-500",
               )}
             >
@@ -146,8 +146,8 @@ export function ExportMenu({
               className={cn(
                 PRIMARY_BUTTON_CLASS,
                 isDark
-                  ? "text-amber-300 border border-amber-900/60 bg-amber-955/40 hover:bg-amber-955/80 focus-visible:ring-violet-400"
-                  : "text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-105 focus-visible:ring-violet-500",
+                  ? "text-amber-300 border border-amber-900/60 bg-amber-950/40 hover:bg-amber-950/80 focus-visible:ring-violet-400"
+                  : "text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100 focus-visible:ring-violet-500",
               )}
             >
               <Download size={14} aria-hidden="true" />
@@ -173,7 +173,7 @@ export function ExportMenu({
               className={cn(
                 PRIMARY_BUTTON_CLASS,
                 isDark
-                  ? "text-sky-300 border border-sky-900/60 bg-sky-955/40 hover:bg-sky-955/80 focus-visible:ring-violet-400"
+                  ? "text-sky-300 border border-sky-900/60 bg-sky-950/40 hover:bg-sky-950/80 focus-visible:ring-violet-400"
                   : "text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100 focus-visible:ring-violet-500",
               )}
             >
@@ -195,7 +195,7 @@ export function ExportMenu({
       <div
         className={cn(
           "flex flex-wrap items-center gap-3 text-[11px] w-full",
-          isDark ? "text-slate-450" : "text-gray-600",
+          isDark ? "text-slate-400" : "text-gray-600",
         )}
         role="group"
         aria-label="Debug bundle privacy options"

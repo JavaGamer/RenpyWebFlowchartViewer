@@ -46,7 +46,7 @@ export function ReadingSettings() {
               htmlFor="reading-speed-wpm"
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Reading speed

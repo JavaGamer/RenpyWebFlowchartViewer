@@ -95,7 +95,7 @@ export function ChapterFiltersSettings({
             <span
               className={cn(
                 "font-semibold text-xs",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Chapter Subgraphs
@@ -148,7 +148,7 @@ export function ChapterFiltersSettings({
           <div
             className={cn(
               "flex flex-col gap-2.5 border-t pt-2.5",
-              isDark ? "border-slate-750" : "border-gray-105",
+              isDark ? "border-slate-700" : "border-gray-100",
             )}
           >
             <div className="flex justify-between items-center">
@@ -163,7 +163,7 @@ export function ChapterFiltersSettings({
               <span
                 className={cn(
                   "text-[11px]",
-                  isDark ? "text-slate-455" : "text-gray-500",
+                  isDark ? "text-slate-400" : "text-gray-500",
                 )}
                 aria-live="polite"
               >
@@ -223,7 +223,7 @@ export function ChapterFiltersSettings({
                   <span
                     className={cn(
                       "text-[11px]",
-                      isDark ? "text-slate-455" : "text-gray-500",
+                      isDark ? "text-slate-400" : "text-gray-500",
                     )}
                   >
                     No labels match the filter.
@@ -258,7 +258,7 @@ export function ChapterFiltersSettings({
                           CONTROL_BUTTON_CLASS,
                           "cursor-pointer",
                           isDark
-                            ? "bg-violet-955/40 text-violet-300 hover:bg-violet-955/80 border-violet-800/80"
+                            ? "bg-violet-950/40 text-violet-300 hover:bg-violet-950/80 border-violet-800/80"
                             : "bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200",
                         )}
                         aria-label={shouldShowAllLabelSubgraphToggles

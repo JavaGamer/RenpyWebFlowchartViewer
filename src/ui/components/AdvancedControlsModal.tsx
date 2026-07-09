@@ -75,7 +75,7 @@ export function AdvancedControlsModal({
             className={cn(
               "flex items-center justify-between px-6 py-4 border-b shrink-0 transition-colors duration-200",
               isDark
-                ? "border-slate-800 bg-slate-850"
+                ? "border-slate-800 bg-slate-800"
                 : "border-gray-100 bg-gray-50/50",
             )}
           >

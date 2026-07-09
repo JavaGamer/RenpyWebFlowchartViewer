@@ -62,7 +62,7 @@ export function SearchControls({
           htmlFor="viewer-search-input"
           className={cn(
             "text-xs font-medium",
-            isDark ? "text-slate-350" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
         >
           Search
@@ -110,7 +110,7 @@ export function SearchControls({
                       ? "bg-violet-950/60 text-violet-300 border-violet-700/80"
                       : "bg-violet-50 text-violet-700 border-violet-200"
                     : isDark
-                    ? "bg-slate-800 border-slate-700 text-slate-350 hover:bg-slate-700"
+                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                     : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50",
                 )}
               >
@@ -146,7 +146,7 @@ export function SearchControls({
         <label
           className={cn(
             "text-xs flex items-center gap-1",
-            isDark ? "text-slate-355" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
           htmlFor="min-dialogue-input"
         >
@@ -170,7 +170,7 @@ export function SearchControls({
         <label
           className={cn(
             "text-xs flex items-center gap-1",
-            isDark ? "text-slate-355" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
           htmlFor="dialogue-search-mode-input"
         >
@@ -202,7 +202,7 @@ export function SearchControls({
             className={cn(
               "text-[11px] border rounded px-2 py-1",
               isDark
-                ? "text-amber-400 bg-amber-955/40 border-amber-900/60"
+                ? "text-amber-400 bg-amber-950/40 border-amber-900/60"
                 : "text-amber-700 bg-amber-50 border border-amber-200",
             )}
           >
@@ -217,8 +217,8 @@ export function SearchControls({
           className={cn(
             "flex flex-wrap items-center gap-4 p-3 rounded-lg border text-sm transition-all duration-200 animate-fade-in animate-duration-150 w-full",
             isDark
-              ? "bg-slate-955/40 border-slate-800 text-slate-200"
-              : "bg-gray-50 border-gray-150 text-gray-750",
+              ? "bg-slate-950/40 border-slate-800 text-slate-200"
+              : "bg-gray-50 border-gray-200 text-gray-700",
           )}
         >
           {/* Chapter select */}
@@ -257,7 +257,7 @@ export function SearchControls({
             <span
               className={cn(
                 "text-xs font-bold uppercase tracking-wider",
-                isDark ? "text-slate-555" : "text-gray-450",
+                isDark ? "text-slate-500" : "text-gray-400",
               )}
             >
               Match Node Kinds:
@@ -276,14 +276,14 @@ export function SearchControls({
                 };
                 const activeClassMap = {
                   LABEL: isDark
-                    ? "bg-violet-955/80 text-violet-300 border-violet-700"
-                    : "bg-violet-100 text-violet-850 border-violet-300",
+                    ? "bg-violet-950/80 text-violet-300 border-violet-700"
+                    : "bg-violet-100 text-violet-800 border-violet-300",
                   MENU: isDark
-                    ? "bg-amber-955/80 text-amber-300 border-amber-700"
-                    : "bg-amber-100 text-amber-855 border-amber-300",
+                    ? "bg-amber-950/80 text-amber-300 border-amber-700"
+                    : "bg-amber-100 text-amber-800 border-amber-300",
                   DECISION: isDark
-                    ? "bg-emerald-955/80 text-emerald-300 border-emerald-700"
-                    : "bg-emerald-100 text-emerald-855 border-emerald-300",
+                    ? "bg-emerald-950/80 text-emerald-300 border-emerald-700"
+                    : "bg-emerald-100 text-emerald-800 border-emerald-300",
                 };
                 return (
                   <button
@@ -300,8 +300,8 @@ export function SearchControls({
                       isActive
                         ? activeClassMap[kind]
                         : isDark
-                        ? "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-350 hover:border-slate-700"
-                        : "bg-white border-gray-200 text-gray-450 hover:text-gray-605 hover:border-gray-300",
+                        ? "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
+                        : "bg-white border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300",
                     )}
                   >
                     {labelMap[kind]}
@@ -326,7 +326,7 @@ export function SearchControls({
               className={cn(
                 "ml-auto text-xs font-semibold px-2 py-1 rounded transition-colors duration-150 cursor-pointer",
                 isDark
-                  ? "text-rose-400 hover:bg-rose-955/30"
+                  ? "text-rose-400 hover:bg-rose-950/30"
                   : "text-rose-600 hover:bg-rose-50",
               )}
             >

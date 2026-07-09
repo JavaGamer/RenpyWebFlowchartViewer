@@ -85,7 +85,7 @@ export default function ParserSettingsSection({
       <p
         className={cn(
           "mt-2 text-[11px]",
-          isDark ? "text-slate-450" : "text-gray-505",
+          isDark ? "text-slate-400" : "text-gray-500",
         )}
       >
         Custom screen-action rules are stored in your browser and reused across
@@ -149,8 +149,8 @@ export default function ParserSettingsSection({
         className={cn(
           "mt-3 rounded-md border px-2 py-1 text-[11px] transition-colors duration-205",
           isDark
-            ? "border-violet-800 bg-slate-800 text-violet-300 hover:bg-slate-750"
-            : "border-violet-300 bg-white text-violet-750 hover:bg-violet-50",
+            ? "border-violet-800 bg-slate-800 text-violet-300 hover:bg-slate-700"
+            : "border-violet-300 bg-white text-violet-700 hover:bg-violet-50",
         )}
       >
         Add custom rule

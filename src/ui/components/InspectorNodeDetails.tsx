@@ -309,7 +309,7 @@ export function InspectorNodeDetails({
           <div
             className={cn(
               "font-semibold",
-              isDark ? "text-slate-350" : "text-gray-700",
+              isDark ? "text-slate-300" : "text-gray-700",
             )}
           >
             Collapsed Labels ({selectedNodeData.collapsedLabels.length})
@@ -333,7 +333,7 @@ export function InspectorNodeDetails({
           <div
             className={cn(
               "font-semibold",
-              isDark ? "text-slate-350" : "text-gray-700",
+              isDark ? "text-slate-300" : "text-gray-700",
             )}
           >
             Media & Asset Cues
@@ -359,7 +359,7 @@ export function InspectorNodeDetails({
             aria-label="Show Media Cues in Dialogue"
           />
           <span
-            className={cn(isDark ? "text-slate-350" : "text-gray-600")}
+            className={cn(isDark ? "text-slate-300" : "text-gray-600")}
           >
             Show Media Cues
           </span>
@@ -425,7 +425,7 @@ export function InspectorNodeDetails({
                             : "border-slate-800 bg-slate-800/10 text-slate-300"
                           : isSelectedLine
                           ? "border-violet-400 bg-violet-50 text-violet-900"
-                          : "border-gray-200 bg-white text-gray-805",
+                          : "border-gray-200 bg-white text-gray-800",
                       )}
                       style={{
                         position: "absolute",
@@ -474,7 +474,7 @@ export function InspectorNodeDetails({
                           : "border-slate-800 bg-slate-800/10 text-slate-300"
                         : isSelectedLine
                         ? "border-violet-400 bg-violet-50 text-violet-900"
-                        : "border-gray-200 bg-white text-gray-805",
+                        : "border-gray-200 bg-white text-gray-800",
                     )}
                   >
                     <span className="font-medium mr-1">

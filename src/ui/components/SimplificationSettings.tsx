@@ -76,7 +76,7 @@ export function SimplificationSettings() {
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-350" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Collapse linear chains
@@ -97,7 +97,7 @@ export function SimplificationSettings() {
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-355" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Inline utility labels
@@ -118,7 +118,7 @@ export function SimplificationSettings() {
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-355" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Inline detour labels
@@ -139,7 +139,7 @@ export function SimplificationSettings() {
             <span
               className={cn(
                 "font-medium",
-                isDark ? "text-slate-355" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Inline state-toggle labels
@@ -149,7 +149,7 @@ export function SimplificationSettings() {
           <div
             className={cn(
               "flex flex-col gap-2 pt-2 border-t",
-              isDark ? "border-slate-750" : "border-gray-105",
+              isDark ? "border-slate-700" : "border-gray-100",
             )}
           >
             <label
