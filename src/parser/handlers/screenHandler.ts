@@ -180,12 +180,12 @@ class TopLevelPythonAssignmentPattern extends RegExp {
     return null;
   }
 
-  override [Symbol.matchAll](text: string): IterableIterator<RegExpMatchArray> {
+  override [Symbol.matchAll](text: string): RegExpStringIterator<RegExpExecArray> {
     const source = this.source;
     const flags = this.flags.includes("g") ? this.flags : `${this.flags}g`;
     return (function* matchAll(
       this: TopLevelPythonAssignmentPattern,
-    ): IterableIterator<RegExpMatchArray> {
+    ): Generator<RegExpExecArray, undefined, undefined> {
       const matcher = new RegExp(source, flags);
       let match: RegExpExecArray | null;
       while ((match = matcher.exec(text)) !== null) {
@@ -202,7 +202,8 @@ class TopLevelPythonAssignmentPattern extends RegExp {
         }
       }
       this.lastIndex = 0;
-    }).call(this);
+      return undefined;
+    }).call(this) as RegExpStringIterator<RegExpExecArray>;
   }
 }
 
