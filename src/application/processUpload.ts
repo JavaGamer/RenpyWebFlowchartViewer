@@ -11,6 +11,7 @@ import {
   compareDeterministicStrings,
   type FlowEdge,
   type FlowNode,
+  UploadValidationError,
 } from "../domain/index.ts";
 import {
   type ParseDiagnosticPayload,
@@ -154,7 +155,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       }
     } catch (err: unknown) {
       if (!isActiveRun()) return;
-      actions.fail(err instanceof Error ? err.message : String(err));
+      actions.fail(toFileReadErrorMessage(err));
       return;
     }
 
@@ -162,7 +163,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     const { rpyFiles, errorMessage } = validateRpyUpload(consolidatedFiles);
     if (errorMessage) {
-      actions.fail(errorMessage);
+      const err = new UploadValidationError(errorMessage);
+      actions.fail(err.message);
       return;
     }
 

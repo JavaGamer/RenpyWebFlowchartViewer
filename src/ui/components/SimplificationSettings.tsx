@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useViewerStore } from "../../application/index.ts";
 import { CONTROL_INPUT_CLASS } from "../viewerConstants.ts";
 import { cn } from "../utils/cn.ts";
+import { SectionHeader, Toggle } from "../primitives/index.ts";
 
 export function SimplificationSettings() {
   const {
@@ -44,14 +45,7 @@ export function SimplificationSettings() {
       role="group"
       aria-label="Graph simplification settings"
     >
-      <h3
-        className={cn(
-          "text-[11px] font-bold uppercase tracking-wider",
-          isDark ? "text-slate-500" : "text-gray-400",
-        )}
-      >
-        Simplify Graph
-      </h3>
+      <SectionHeader title="Simplify Graph" isDark={isDark} />
       <div
         className={cn(
           "flex flex-col gap-3 p-3 rounded-lg border text-xs",
@@ -61,90 +55,37 @@ export function SimplificationSettings() {
         )}
       >
         <div className="flex flex-col gap-2.5">
-          <label
-            className="inline-flex items-center gap-2 cursor-pointer select-none"
+          <Toggle
+            checked={simplifyCollapseLinearChains}
+            onChange={setSimplifyCollapseLinearChains}
+            label="Collapse linear chains"
             title="Collapses consecutive label nodes that flow 1-to-1 without choices into a single node."
-          >
-            <input
-              type="checkbox"
-              checked={simplifyCollapseLinearChains}
-              onChange={(e) =>
-                setSimplifyCollapseLinearChains(e.target.checked)}
-              className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
-              aria-label="Collapse linear label chains"
-            />
-            <span
-              className={cn(
-                "font-medium",
-                isDark ? "text-slate-300" : "text-gray-700",
-              )}
-            >
-              Collapse linear chains
-            </span>
-          </label>
+            isDark={isDark}
+          />
 
-          <label
-            className="inline-flex items-center gap-2 cursor-pointer select-none"
+          <Toggle
+            checked={simplifyInlineUtilities}
+            onChange={setSimplifyInlineUtilities}
+            label="Inline utility labels"
             title="Hides and bypasses labels classified as utility subroutines (shared cutscenes, system helpers)."
-          >
-            <input
-              type="checkbox"
-              checked={simplifyInlineUtilities}
-              onChange={(e) => setSimplifyInlineUtilities(e.target.checked)}
-              className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
-              aria-label="Inline utility subroutines"
-            />
-            <span
-              className={cn(
-                "font-medium",
-                isDark ? "text-slate-300" : "text-gray-700",
-              )}
-            >
-              Inline utility labels
-            </span>
-          </label>
+            isDark={isDark}
+          />
 
-          <label
-            className="inline-flex items-center gap-2 cursor-pointer select-none"
+          <Toggle
+            checked={simplifyInlineDetours}
+            onChange={setSimplifyInlineDetours}
+            label="Inline detour labels"
             title="Hides and bypasses detour labels called from menus that return back to the menu."
-          >
-            <input
-              type="checkbox"
-              checked={simplifyInlineDetours}
-              onChange={(e) => setSimplifyInlineDetours(e.target.checked)}
-              className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
-              aria-label="Inline detour subroutines"
-            />
-            <span
-              className={cn(
-                "font-medium",
-                isDark ? "text-slate-300" : "text-gray-700",
-              )}
-            >
-              Inline detour labels
-            </span>
-          </label>
+            isDark={isDark}
+          />
 
-          <label
-            className="inline-flex items-center gap-2 cursor-pointer select-none"
+          <Toggle
+            checked={simplifyInlineStateToggles}
+            onChange={setSimplifyInlineStateToggles}
+            label="Inline state-toggle labels"
             title="Hides and bypasses labels representing side-effect logic (variable updates, flags) with no story flow."
-          >
-            <input
-              type="checkbox"
-              checked={simplifyInlineStateToggles}
-              onChange={(e) => setSimplifyInlineStateToggles(e.target.checked)}
-              className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
-              aria-label="Inline state-toggle subroutines"
-            />
-            <span
-              className={cn(
-                "font-medium",
-                isDark ? "text-slate-300" : "text-gray-700",
-              )}
-            >
-              Inline state-toggle labels
-            </span>
-          </label>
+            isDark={isDark}
+          />
 
           <div
             className={cn(
@@ -152,26 +93,13 @@ export function SimplificationSettings() {
               isDark ? "border-slate-700" : "border-gray-100",
             )}
           >
-            <label
-              className="inline-flex items-center gap-2 cursor-pointer select-none"
+            <Toggle
+              checked={simplifyInlineEmptyLabels}
+              onChange={setSimplifyInlineEmptyLabels}
+              label="Inline empty/low-dialogue labels"
               title="Hides and bypasses label nodes containing fewer dialogue lines than the specified threshold."
-            >
-              <input
-                type="checkbox"
-                checked={simplifyInlineEmptyLabels}
-                onChange={(e) => setSimplifyInlineEmptyLabels(e.target.checked)}
-                className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
-                aria-label="Inline empty/low-dialogue labels"
-              />
-              <span
-                className={cn(
-                  "font-medium",
-                  isDark ? "text-slate-355" : "text-gray-700",
-                )}
-              >
-                Inline empty/low-dialogue labels
-              </span>
-            </label>
+              isDark={isDark}
+            />
 
             {simplifyInlineEmptyLabels && (
               <div className="flex items-center gap-2 pl-6 mt-1">

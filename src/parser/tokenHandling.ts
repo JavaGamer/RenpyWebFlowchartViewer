@@ -37,7 +37,7 @@ import {
   processDirectRenpyBlockCalls,
   processDirectScreenActionCalls,
   resetStaleWaitFlags,
-} from "./handlers/screenHandler.ts";
+} from "./handlers/screen/screenHandlerEntry.ts";
 import type { ScreenActionKind } from "../config/parserRules.ts";
 
 export {
@@ -46,7 +46,7 @@ export {
   parseListLiteral,
   resolveStaticTargetExpression,
 } from "./handlers/jumpCallHandler.ts";
-export { stripInlineComment } from "./handlers/screenHandler.ts";
+export { stripInlineComment } from "./handlers/screen/screenHandlerEntry.ts";
 
 /**
  * Computes word count and explicit pause duration from a Ren'Py dialogue line.

@@ -23,19 +23,32 @@ export type {
 } from "./canvas.ts";
 
 export {
-  applyDagreLayout,
-  applyElkLayout,
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
-  preWarmElk,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   simplifyGraph,
+  type GraphSimplificationOptions,
+  NODE_WIDTH,
+  getLabelHeight,
+  getNodeHeight,
+  resolveGraphIntegrity,
+  NODE_HEIGHT_LABEL,
+  NODE_HEIGHT_MENU,
+  NODE_HEIGHT_DECISION,
 } from "./transforms/index.ts";
 
 export { extractConditionFlagRefs } from "./conditionLogic.ts";
 
 export type { MockFlagValue } from "./conditionLogic.ts";
+
+export {
+  BaseDomainError,
+  FileReadError,
+  UploadValidationError,
+  ParseError,
+  LayoutError,
+} from "./errors.ts";
 
 export { compareDeterministicStrings } from "./sortUtils.ts";

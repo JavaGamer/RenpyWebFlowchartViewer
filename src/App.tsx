@@ -8,7 +8,7 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   DiagnosticsSection,
@@ -17,55 +17,19 @@ import {
   UploadArea,
 } from "./ui/index.ts";
 import {
-  createPerfTracker,
   preWarmLayoutWorker,
 } from "./infrastructure/index.ts";
 import {
-  buildDebugBundle,
-  buildIssueDraftUrl,
-  createProcessUpload,
-  type DebugBundlePrivacyOptions,
-  toDebugBundleBlob,
-  type UploadedFile,
-  type UploadFileStatus,
   useAppStore,
   useParserRuleSettingsStore,
-  useTelemetryStore,
   useViewerStore,
-  workerParseService,
+  useUploadOrchestrator,
+  useDebugBundle,
 } from "./application/index.ts";
 import { cn } from "./ui/utils/cn.ts";
 import { getParserVariantPlugins } from "./config/parserRules.ts";
 
 export default function App() {
-  const perf = useMemo(() =>
-    createPerfTracker("app", {
-      onEvent: (event) => {
-        const store = useTelemetryStore.getState();
-        if (event.metric === "read_files_ms") {
-          store.recordRead(event.ms);
-          if (typeof event.detail?.files === "number") {
-            store.setFileCount(event.detail.files);
-          }
-        } else if (event.metric === "parse_ms") {
-          store.recordParse(
-            event.ms,
-            event.detail as { files?: number; nodes?: number; edges?: number },
-          );
-          if (typeof event.detail?.nodes === "number") {
-            store.setGraphMetrics(
-              event.detail.nodes as number,
-              (event.detail.edges as number) ?? 0,
-            );
-          }
-        } else if (event.metric === "layout_ms") {
-          store.recordLayout(event.ms);
-        } else if (event.metric === "render_commit_ms") {
-          store.recordRender(event.ms);
-        }
-      },
-    }), []);
-
   // ── App state (Zustand store) ───────────────────────────────────────────────
   const {
     phase,
@@ -134,141 +98,20 @@ export default function App() {
     preWarmLayoutWorker();
   }, []);
 
-  const debugPrivacyOptions = useViewerStore((s) => s.debugPrivacyOptions);
-  const updateDebugPrivacyOptions = useViewerStore(
-    (s) => s.updateDebugPrivacyOptions,
-  );
+  // ── Hooks extracted ────────────────────────────────────────────────────────
+  const {
+    uploadedFiles,
+    setUploadedFiles,
+    processFiles,
+    cancelParsing,
+  } = useUploadOrchestrator();
 
-  const setDebugPrivacyOptions = useCallback(
-    (value: React.SetStateAction<DebugBundlePrivacyOptions>) => {
-      if (typeof value === "function") {
-        updateDebugPrivacyOptions(
-          value(useViewerStore.getState().debugPrivacyOptions),
-        );
-      } else {
-        updateDebugPrivacyOptions(value);
-      }
-    },
-    [updateDebugPrivacyOptions],
-  );
-  const parseAbortControllerRef = useRef<AbortController | null>(null);
-  const activeRunIdRef = useRef(0);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadFileStatus[]>([]);
-
-  // ── Process selected files ─────────────────────────────────────────────────
-  const processFilesWithPerf = useCallback(
-    async (files: FileList | UploadedFile[] | null) => {
-      // Warm up worker on import initiation
-      preWarmLayoutWorker();
-      perf.mark("read");
-      const processFiles = createProcessUpload({
-        parseService: workerParseService,
-        actions: appActions,
-        activeRunIdRef,
-        parseAbortControllerRef,
-        dialogueSearchMode,
-        parserVariant: selectedVariant,
-        customScreenActionRules: selectedVariantCustomRules,
-        onReadMeasured: (fileCount) => {
-          perf.measure("read", "read_files_ms", { files: fileCount });
-        },
-        onParseStarted: () => {
-          perf.mark("parse");
-        },
-        onParseMeasured: ({ fileCount, nodeCount, edgeCount }) => {
-          perf.measure("parse", "parse_ms", {
-            files: fileCount,
-            nodes: nodeCount,
-            edges: edgeCount,
-          });
-        },
-        onFilesDiscovered: (files) => {
-          setUploadedFiles(files);
-        },
-        onFileStatusUpdate: (id, status, error) => {
-          setUploadedFiles((prev) =>
-            prev.map((f) => (f.id === id ? { ...f, status, error } : f))
-          );
-        },
-      });
-      await processFiles(files);
-    },
-    [
-      appActions,
-      perf,
-      selectedVariant,
-      selectedVariantCustomRules,
-      dialogueSearchMode,
-    ],
-  );
-
-  const appVersion = import.meta.env.VITE_APP_VERSION ?? "0.0.0";
-  const exportDebugBundle = useCallback(
-    async (privacy: DebugBundlePrivacyOptions) => {
-      const bundle = buildDebugBundle({
-        appVersion,
-        state: {
-          phase,
-          fileCount,
-          importRevision,
-          dialogueSearchMode,
-          errorMsg,
-          parseProgress,
-        },
-        parser: {
-          selectedVariant,
-          customScreenActionRules: selectedVariantCustomRules,
-        },
-        graph: {
-          flowNodes,
-          flowEdges,
-        },
-        parseDiagnostics,
-        privacy,
-      });
-      const { saveAs } = await import("file-saver");
-      saveAs(toDebugBundleBlob(bundle), "renpy-flowchart-debug-bundle.json");
-    },
-    [
-      appVersion,
-      selectedVariant,
-      selectedVariantCustomRules,
-      dialogueSearchMode,
-      errorMsg,
-      fileCount,
-      flowEdges,
-      flowNodes,
-      importRevision,
-      parseProgress,
-      parseDiagnostics,
-      phase,
-    ],
-  );
-  const openNewIssue = useCallback(
-    (privacy: DebugBundlePrivacyOptions) => {
-      const issueUrl = buildIssueDraftUrl({
-        owner: "JavaGamer",
-        repo: "RenpyWebFlowchartViewer",
-        privacy,
-        state: {
-          phase,
-          dialogueSearchMode,
-          selectedVariant,
-          fileCount,
-          warningCount: parseDiagnostics.length,
-        },
-      });
-      if (typeof globalThis.open !== "function") return;
-      globalThis.open(issueUrl, "_blank", "noopener,noreferrer");
-    },
-    [
-      selectedVariant,
-      dialogueSearchMode,
-      fileCount,
-      parseDiagnostics.length,
-      phase,
-    ],
-  );
+  const {
+    debugPrivacyOptions,
+    setDebugPrivacyOptions,
+    exportDebugBundle,
+    openNewIssue,
+  } = useDebugBundle();
 
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -359,8 +202,8 @@ export default function App() {
             errorMsg={errorMsg}
             debugPrivacyOptions={debugPrivacyOptions}
             setDebugPrivacyOptions={setDebugPrivacyOptions}
-            processFiles={processFilesWithPerf}
-            onCancelParsing={() => parseAbortControllerRef.current?.abort()}
+            processFiles={processFiles}
+            onCancelParsing={cancelParsing}
             onReset={() => {
               setUploadedFiles([]);
               appActions.reset();

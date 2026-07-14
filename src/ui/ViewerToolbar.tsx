@@ -1,10 +1,10 @@
 import {
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
   type RefObject,
 } from "react";
 import { Redo, Undo } from "lucide-react";
-import * as Tooltip from "@radix-ui/react-tooltip";
+import { Tooltip } from "./primitives/index.ts";
+import * as RadixTooltip from "@radix-ui/react-tooltip";
 import type { DialogueSearchMode } from "../application/index.ts";
 import type { DebugBundlePrivacyOptions } from "../application/index.ts";
 import type { ThemeName } from "../domain/index.ts";
@@ -18,29 +18,7 @@ import {
   formatReadingTime,
 } from "./utils/readingTime.ts";
 
-interface TooltipWrapperProps {
-  content: ReactNode;
-  children: ReactNode;
-}
 
-function TooltipWrapper({ content, children }: TooltipWrapperProps) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        {children}
-      </Tooltip.Trigger>
-      <Tooltip.Portal>
-        <Tooltip.Content
-          className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-          sideOffset={5}
-        >
-          {content}
-          <Tooltip.Arrow className="fill-gray-900" />
-        </Tooltip.Content>
-      </Tooltip.Portal>
-    </Tooltip.Root>
-  );
-}
 
 export interface ViewerToolbarProps {
   theme: ThemeName;
@@ -138,7 +116,7 @@ export function ViewerToolbar({
 }: ViewerToolbarProps) {
   const isDark = theme === "dark";
   return (
-    <Tooltip.Provider>
+    <RadixTooltip.Provider>
       <div
         className={cn(
           "px-3 sm:px-4 py-3 border-b shrink-0 transition-colors duration-200",
@@ -202,7 +180,7 @@ export function ViewerToolbar({
               setSelectedSearchNodeKinds={setSelectedSearchNodeKinds}
               uniqueChapters={uniqueChapters}
             />
-            <TooltipWrapper content="Fit graph to view (Ctrl/Cmd+L)">
+            <Tooltip content="Fit graph to view (Ctrl/Cmd+L)">
               <button
                 type="button"
                 onClick={onFitView}
@@ -217,8 +195,8 @@ export function ViewerToolbar({
               >
                 Fit view
               </button>
-            </TooltipWrapper>
-            <TooltipWrapper content="Undo last action (Ctrl/Cmd+Z)">
+            </Tooltip>
+            <Tooltip content="Undo last action (Ctrl/Cmd+Z)">
               <button
                 type="button"
                 disabled={!canUndo}
@@ -236,8 +214,8 @@ export function ViewerToolbar({
                 <Undo size={12} className="inline mr-1" aria-hidden="true" />
                 Undo
               </button>
-            </TooltipWrapper>
-            <TooltipWrapper content="Redo last action (Ctrl/Cmd+Y)">
+            </Tooltip>
+            <Tooltip content="Redo last action (Ctrl/Cmd+Y)">
               <button
                 type="button"
                 disabled={!canRedo}
@@ -255,7 +233,7 @@ export function ViewerToolbar({
                 <Redo size={12} className="inline mr-1" aria-hidden="true" />
                 Redo
               </button>
-            </TooltipWrapper>
+            </Tooltip>
           </div>
 
           <ExportMenu
@@ -274,6 +252,6 @@ export function ViewerToolbar({
           />
         </div>
       </div>
-    </Tooltip.Provider>
+    </RadixTooltip.Provider>
   );
 }

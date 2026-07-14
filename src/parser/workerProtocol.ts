@@ -1,0 +1,273 @@
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import type { ParseInputFile } from "./pipelineTypes.ts";
+
+export const PARSER_WORKER_PROTOCOL_VERSION = 3 as const;
+
+export interface ParseProgressPayload {
+  doneFiles: number;
+  totalFiles: number;
+  currentFile: string;
+  elapsedMs?: number;
+}
+
+/**
+ * Client-side parse request shape used by the worker wrapper.
+ * This is not a structured-cloneable worker protocol payload because it may
+ * contain callbacks and an AbortSignal.
+ */
+export interface ParseWorkerClientRequest {
+  files: ParseInputFile[];
+  onProgress?: (progress: ParseProgressPayload) => void;
+  signal?: AbortSignal;
+  maxParallelFiles?: number;
+  captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
+  appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+  onPartialResult?: (partial: ParseWorkerClientResult) => void;
+}
+
+/**
+ * Client-side parse result shape returned by the worker wrapper.
+ * This is distinct from the wire-level worker protocol message types below.
+ */
+export interface ParseWorkerClientResult {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+}
+
+export interface ParseRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "parse";
+  requestId: number;
+  files: ParseInputFile[];
+  fileCacheKeys?: string[];
+  wantsProgress?: boolean;
+  maxParallelFiles?: number;
+  captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
+  appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+}
+
+export interface DialogueSearchResult {
+  nodeId: string;
+  nodeLabel: string;
+  lineIndex: number;
+  lineText: string;
+}
+
+export interface SearchRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "search";
+  requestId: number;
+  query: string;
+  nodeIds?: string[];
+  maxResults?: number;
+}
+
+export interface ParseChunkRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "parse_chunk";
+  requestId: number;
+  files: ParseInputFile[];
+  fileCacheKeys?: string[];
+  captureDialogueLines?: boolean;
+  parserVariant?: ParserVariant;
+  screenActionRules?: ScreenActionRule[];
+}
+
+export interface FinalizeRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "finalize";
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  hasReliableReturnInLabel: string[];
+  globalScreens: string[];
+  labelDefinitionCount: Array<[string, number]>;
+  canonicalLabelIds: Array<[string, string]>;
+  appendToActiveGraph?: boolean;
+  resetActiveGraph?: boolean;
+  isFinalChunk?: boolean;
+}
+
+export interface CancelRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "cancel";
+  requestId: number;
+}
+
+export type WorkerRequestMessage =
+  | ParseRequestMessage
+  | ParseChunkRequestMessage
+  | FinalizeRequestMessage
+  | SearchRequestMessage
+  | CancelRequestMessage;
+
+export interface ProgressResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "progress";
+  requestId: number;
+  doneFiles: number;
+  totalFiles: number;
+  currentFile: string;
+  elapsedMs?: number;
+}
+
+export interface ResultResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "result";
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  elapsedMs?: number;
+  partial?: boolean;
+}
+
+export interface ParseDiagnosticPayload {
+  code:
+    | "dynamic_target"
+    | "normalization"
+    | "unresolved_target"
+    | "shadowed_label";
+  severity: "warning" | "error";
+  message: string;
+  location?: {
+    chapter?: string;
+    construct?: string;
+    targetExpression?: string;
+    edgeId?: string;
+    sourceId?: string;
+    targetId?: string;
+  };
+  context?: {
+    category?:
+      | "invalid_node"
+      | "duplicate_node"
+      | "missing_edge_source"
+      | "missing_edge_target"
+      | "invalid_edge_kind"
+      | "duplicate_semantic_edge"
+      | "shadowed_label"
+      | "shadowed_target_resolution"
+      | "unreachable_label"
+      | "infinite_loop"
+      | "missing_return"
+      | "uncalled_return";
+    detail?: string;
+  };
+  recoveryAction?: string;
+}
+
+export interface DynamicTargetParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "dynamic_target";
+  location: {
+    chapter: string;
+    construct: string;
+    targetExpression: string;
+    sourceId?: string;
+  };
+}
+
+export interface UnresolvedTargetParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "unresolved_target";
+  location: {
+    edgeId: string;
+    sourceId: string;
+    targetId: string;
+  };
+}
+
+export interface NormalizationParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "normalization";
+  context: {
+    category:
+      | "invalid_node"
+      | "duplicate_node"
+      | "missing_edge_source"
+      | "missing_edge_target"
+      | "invalid_edge_kind"
+      | "duplicate_semantic_edge"
+      | "shadowed_label"
+      | "shadowed_target_resolution"
+      | "unreachable_label"
+      | "infinite_loop"
+      | "missing_return"
+      | "uncalled_return";
+    detail?: string;
+  };
+}
+
+export interface ShadowedLabelParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "shadowed_label";
+}
+
+export type StrictParseDiagnosticPayload =
+  | DynamicTargetParseDiagnosticPayload
+  | UnresolvedTargetParseDiagnosticPayload
+  | NormalizationParseDiagnosticPayload
+  | ShadowedLabelParseDiagnosticPayload;
+
+export interface ErrorResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "error";
+  requestId: number;
+  message: string;
+  elapsedMs?: number;
+}
+
+export interface SearchResultResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "search_result";
+  requestId: number;
+  results: DialogueSearchResult[];
+  elapsedMs?: number;
+}
+
+export interface ChunkResultResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "chunk_result";
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  pendingCallReturns?: Array<{ returnTargetId: string; callTargetId: string }>;
+  hasReliableReturnInLabel?: string[];
+  globalScreens?: string[];
+  labelDefinitionCount?: Array<[string, number]>;
+  canonicalLabelIds?: Array<[string, string]>;
+  elapsedMs?: number;
+}
+
+export interface FinalizeResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "finalize_result";
+  requestId: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  diagnostics?: ParseDiagnosticPayload[];
+  elapsedMs?: number;
+  partial?: boolean;
+}
+
+export type WorkerResponseMessage =
+  | ProgressResponseMessage
+  | ResultResponseMessage
+  | ChunkResultResponseMessage
+  | FinalizeResponseMessage
+  | ErrorResponseMessage
+  | SearchResultResponseMessage;

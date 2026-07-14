@@ -14,6 +14,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@": resolve(__dirname, "./src"),
       // Browser stubs for Node.js built-ins used by @renpy/ast
       "node:fs/promises": resolve(__dirname, "src/stubs/fs-stub.ts"),
       "node:fs": resolve(__dirname, "src/stubs/fs-stub.ts"),
@@ -33,6 +34,9 @@ export default defineConfig({
             }
             if (id.includes("@xyflow/react")) {
               return "react-flow";
+            }
+            if (id.includes("elkjs")) {
+              return "elkjs";
             }
             if (id.includes("@dagrejs/dagre") || id.includes("graphology")) {
               return "graph";

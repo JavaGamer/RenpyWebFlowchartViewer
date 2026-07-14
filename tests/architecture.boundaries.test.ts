@@ -37,8 +37,8 @@ const legacyTypesImportPattern =
 const infraForbiddenImportPattern = new RegExp(
   "from ['\"](?:\\.\\.?/)+(?:ui|application)(?:['\"/]|$)",
 );
-const parserUiForbiddenImportPattern = new RegExp(
-  "from ['\"](?:\\.\\.?/)+ui(?:['\"/]|$)",
+const domainForbiddenImportPattern = new RegExp(
+  "from ['\"](?:\\.\\.?/)+(?:ui|application|infrastructure|parser)(?:['\"/]|$)",
 );
 const layerImportPattern =
   /from ['"]((?:\.\.?\/)+(domain|application|infrastructure|ui|parser)(?:\/[^'"]+)?)['"]/g;
@@ -89,13 +89,38 @@ describe("architecture import boundaries", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("disallows parser modules importing from ui layer", () => {
+  it("disallows parser modules importing from application, infrastructure, or ui layers", () => {
     const offenders: string[] = [];
     for (const file of tsFiles) {
       const rel = relativeFromSrc(file);
       if (!rel.startsWith("parser/")) continue;
       const source = readFileSync(file, "utf8");
-      if (parserUiForbiddenImportPattern.test(source)) {
+      for (const match of source.matchAll(layerImportPattern)) {
+        const importPath = match[1];
+        const targetLayer = match[2];
+        const normalizedImportPath = importPath.replace(/^(\.\.\/|\.\/)+/, "");
+        const isPerfException =
+          normalizedImportPath === "infrastructure/perf" ||
+          normalizedImportPath === "infrastructure/perf.ts";
+        if (
+          targetLayer === "ui" ||
+          targetLayer === "application" ||
+          (targetLayer === "infrastructure" && !isPerfException)
+        ) {
+          offenders.push(`${rel} -> ${importPath}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("disallows domain modules importing from parser, application, infrastructure, or ui layers", () => {
+    const offenders: string[] = [];
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      if (!rel.startsWith("domain/")) continue;
+      const source = readFileSync(file, "utf8");
+      if (domainForbiddenImportPattern.test(source)) {
         offenders.push(rel);
       }
     }

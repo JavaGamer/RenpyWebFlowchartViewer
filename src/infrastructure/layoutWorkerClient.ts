@@ -6,6 +6,7 @@ import type {
   FlowNode,
   LayoutDensity,
   ThemeName,
+  GraphSimplificationOptions,
 } from "../domain/index.ts";
 import type { LayoutWorkerApi } from "./layoutWorker.ts";
 
@@ -72,6 +73,7 @@ export function runLayoutInWorker(
       | Array<[string, { x: number; y: number }]>;
     theme?: ThemeName;
     layoutDensity?: LayoutDensity;
+    simplifyOptions?: GraphSimplificationOptions;
   } | undefined,
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
   onError?: (error: Error) => void,
@@ -103,6 +105,7 @@ export function runLayoutInWorker(
     theme: options?.theme,
     layoutDensity: options?.layoutDensity,
     previousPositions: serializedPreviousPositions,
+    simplifyOptions: options?.simplifyOptions,
   })
     .then((result) => {
       if (cancelled) return;

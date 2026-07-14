@@ -1,10 +1,15 @@
 import { expose } from "comlink";
-import { applyElkLayout, preWarmElk } from "../domain/index.ts";
-import type {
-  FlowEdge,
-  FlowNode,
-  LayoutDensity,
-  ThemeName,
+import {
+  applyElkLayout,
+  preWarmElk,
+} from "./layoutEngines.ts";
+import {
+  simplifyGraph,
+  type FlowEdge,
+  type FlowNode,
+  type LayoutDensity,
+  type ThemeName,
+  type GraphSimplificationOptions,
 } from "../domain/index.ts";
 
 const layoutApi = {
@@ -19,11 +24,20 @@ const layoutApi = {
       theme?: ThemeName;
       layoutDensity?: LayoutDensity;
       previousPositions?: Array<[string, { x: number; y: number }]>;
+      simplifyOptions?: GraphSimplificationOptions;
     },
   ) {
-    return applyElkLayout(rawNodes, rawEdges, direction, {
+    let nodes = rawNodes;
+    let edges = rawEdges;
+    if (options?.simplifyOptions) {
+      const simplified = simplifyGraph(rawNodes, rawEdges, options.simplifyOptions);
+      nodes = simplified.nodes;
+      edges = simplified.edges;
+    }
+    return applyElkLayout(nodes, edges, direction, {
       theme: options?.theme,
       layoutDensity: options?.layoutDensity,
+      previousPositions: options?.previousPositions,
     });
   },
 };
@@ -32,3 +46,4 @@ expose(layoutApi);
 
 export type LayoutWorkerApi = typeof layoutApi;
 export default null as unknown;
+

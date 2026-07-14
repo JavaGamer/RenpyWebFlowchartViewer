@@ -95,14 +95,14 @@ vi.mock("@xyflow/react", () => {
   };
 });
 
-// html-to-image requires canvas; return a stub Blob.
-vi.mock("../src/infrastructure", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/infrastructure")>();
+vi.mock("../src/infrastructure/parserWorkerClient", () => {
   return {
-    ...actual,
     parseRenpyFilesInWorker: vi.fn(async (
       { files }: { files: Array<{ name: string; content: string }> },
     ) => parser.parseRenpyFiles(files)),
+    searchDialogueLinesInWorker: vi.fn(async () => []),
+    areWorkersSupported: () => true,
+    getWorkerPoolSize: () => 1,
   };
 });
 

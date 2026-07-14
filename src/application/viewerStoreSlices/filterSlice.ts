@@ -12,7 +12,7 @@ import type {
   ConditionVisibilityMode,
   LayoutDirection,
 } from "../../domain/index.ts";
-import type { ViewerStore } from "../viewerStore.ts";
+import type { ViewerStore } from "../viewerStoreTypes.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 

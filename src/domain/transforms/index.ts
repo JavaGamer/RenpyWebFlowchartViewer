@@ -1,10 +1,14 @@
 export {
-  applyDagreLayout,
-  applyElkLayout,
   getNodeCenter,
-  preWarmElk,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
+  NODE_WIDTH,
+  getLabelHeight,
+  getNodeHeight,
+  NODE_HEIGHT_LABEL,
+  NODE_HEIGHT_MENU,
+  NODE_HEIGHT_DECISION,
 } from "./layout.ts";
+export { resolveGraphIntegrity } from "./integrity.ts";
 
 export {
   buildConditionalVisibility,

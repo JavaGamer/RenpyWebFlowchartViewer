@@ -23,10 +23,9 @@ import {
   type DialogueSearchMode,
   type ParseService,
   useViewerStore,
-  workerParseService,
 } from "../application/index.ts";
 
-import { createPerfTracker } from "../infrastructure/index.ts";
+import { createPerfTracker, workerParseService } from "../infrastructure/index.ts";
 import { THEMES } from "./viewerTheme.ts";
 import { ViewerToolbar } from "./ViewerToolbar.tsx";
 import { CanvasErrorFallback } from "./CanvasErrorFallback.tsx";
@@ -64,13 +63,7 @@ export default function FlowchartViewer({
   >(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Issue 10: useRef instead of useState for identity-preserving cache maps
-  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(
-    new Map(),
-  );
-  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(
-    new Map(),
-  );
+
 
   // Registry ref: inner component writes current onSearchInputKeyDown here;
   // outer provides a stable wrapper that calls it.
@@ -350,8 +343,6 @@ export default function FlowchartViewer({
           flowRef={flowRef}
           flowInstanceRef={flowInstanceRef}
           searchInputRef={searchInputRef}
-          previousVisibleNodesByIdRef={previousVisibleNodesByIdRef}
-          previousVisibleEdgesByIdRef={previousVisibleEdgesByIdRef}
           canvasCallbacksRef={canvasCallbacksRef}
           parseService={parseService}
           dialogueSearchMode={dialogueSearchMode}

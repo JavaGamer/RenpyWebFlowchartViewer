@@ -12,11 +12,8 @@ import type {
   ThemeName,
 } from "../../domain/index.ts";
 import { useViewerStore } from "../../application/index.ts";
-import {
-  CONTROL_BUTTON_CLASS,
-  CONTROL_INPUT_CLASS,
-} from "../viewerConstants.ts";
 import { cn } from "../utils/cn.ts";
+import { SectionHeader, Select, Button } from "../primitives/index.ts";
 
 export interface LayoutSettingsProps {
   onRelayout: () => void;
@@ -55,20 +52,36 @@ export function LayoutSettings({
 
   const isDark = theme === "dark";
 
+  const directionOptions = [
+    { value: "TB", label: "Top-Bottom" },
+    { value: "LR", label: "Left-Right" },
+  ];
+
+  const densityOptions = [
+    { value: "compact", label: "Compact" },
+    { value: "normal", label: "Normal" },
+    { value: "spacious", label: "Spacious" },
+  ];
+
+  const themeOptions = [
+    { value: "violet", label: "Default" },
+    { value: "highContrast", label: "Contrast" },
+    { value: "colorblind", label: "Colorblind" },
+    { value: "dark", label: "Dark Mode" },
+  ];
+
+  const focusLabelOptions = [
+    { value: "", label: "Select label" },
+    ...labels.map((l) => ({ value: l, label: l })),
+  ];
+
   return (
     <div
       className="flex flex-col gap-2"
       role="group"
       aria-label="Layout and focus controls"
     >
-      <h3
-        className={cn(
-          "text-[11px] font-bold uppercase tracking-wider",
-          isDark ? "text-slate-500" : "text-gray-400",
-        )}
-      >
-        Layout & Focus
-      </h3>
+      <SectionHeader title="Layout & Focus" isDark={isDark} />
       <div
         className={cn(
           "grid grid-cols-3 gap-2 p-3 rounded-lg border",
@@ -77,10 +90,11 @@ export function LayoutSettings({
             : "bg-gray-50/50 border-gray-100",
         )}
       >
+        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
         <label
           className={cn(
             "text-xs flex flex-col gap-1 font-medium",
-            isDark ? "text-slate-350" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
         >
           <span
@@ -92,26 +106,19 @@ export function LayoutSettings({
             <LayoutGrid size={13} aria-hidden="true" />
             Direction
           </span>
-          <select
+          <Select
             value={layoutDirection}
-            onChange={(e) =>
-              setLayoutDirection(e.target.value as LayoutDirection)}
+            onChange={(val) => setLayoutDirection(val as LayoutDirection)}
+            options={directionOptions}
+            isDark={isDark}
             aria-label="Auto layout direction"
-            className={cn(
-              CONTROL_INPUT_CLASS,
-              isDark
-                ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
-                : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
-            )}
-          >
-            <option value="TB">Top-Bottom</option>
-            <option value="LR">Left-Right</option>
-          </select>
+          />
         </label>
+        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
         <label
           className={cn(
             "text-xs flex flex-col gap-1 font-medium",
-            isDark ? "text-slate-350" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
         >
           <span
@@ -123,26 +130,19 @@ export function LayoutSettings({
             <SlidersHorizontal size={13} aria-hidden="true" />
             Density
           </span>
-          <select
+          <Select
             value={layoutDensity}
-            onChange={(e) => setLayoutDensity(e.target.value as LayoutDensity)}
+            onChange={(val) => setLayoutDensity(val as LayoutDensity)}
+            options={densityOptions}
+            isDark={isDark}
             aria-label="Layout density"
-            className={cn(
-              CONTROL_INPUT_CLASS,
-              isDark
-                ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
-                : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
-            )}
-          >
-            <option value="compact">Compact</option>
-            <option value="normal">Normal</option>
-            <option value="spacious">Spacious</option>
-          </select>
+          />
         </label>
+        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
         <label
           className={cn(
             "text-xs flex flex-col gap-1 font-medium",
-            isDark ? "text-slate-350" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
         >
           <span
@@ -154,61 +154,37 @@ export function LayoutSettings({
             <Palette size={13} aria-hidden="true" />
             Theme
           </span>
-          <select
+          <Select
             value={theme}
-            onChange={(e) => setTheme(e.target.value as ThemeName)}
+            onChange={(val) => setTheme(val as ThemeName)}
+            options={themeOptions}
+            isDark={isDark}
             aria-label="Color theme"
-            className={cn(
-              CONTROL_INPUT_CLASS,
-              isDark
-                ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
-                : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
-            )}
-          >
-            <option value="violet">Default</option>
-            <option value="highContrast">Contrast</option>
-            <option value="colorblind">Colorblind</option>
-            <option value="dark">Dark Mode</option>
-          </select>
+          />
         </label>
+        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
         <label
           className={cn(
             "text-xs flex flex-col gap-1 font-medium col-span-3",
-            isDark ? "text-slate-350" : "text-gray-700",
+            isDark ? "text-slate-300" : "text-gray-700",
           )}
         >
           Focus label
           <div className="flex gap-2">
-            <select
+            <Select
               value={focusNodeId}
-              onChange={(e) => setFocusNodeId(e.target.value)}
+              onChange={setFocusNodeId}
+              options={focusLabelOptions}
+              isDark={isDark}
+              className="flex-1 min-w-0"
               aria-label="Focus label"
-              className={cn(
-                "flex-1 min-w-0",
-                CONTROL_INPUT_CLASS,
-                isDark
-                  ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
-                  : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
-              )}
-            >
-              <option value="">Select label</option>
-              {labels.map((label) => (
-                <option key={label} value={label}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <button
+            />
+            <Button
               type="button"
               onClick={onFocusSelectedNode}
               disabled={!focusNodeId}
-              className={cn(
-                CONTROL_BUTTON_CLASS,
-                "px-3 py-1 cursor-pointer",
-                isDark
-                  ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:ring-violet-500",
-              )}
+              isDark={isDark}
+              className="px-3 py-1 cursor-pointer"
               aria-label="Center selected label"
             >
               <LocateFixed
@@ -217,23 +193,18 @@ export function LayoutSettings({
                 aria-hidden="true"
               />
               Center
-            </button>
+            </Button>
           </div>
         </label>
         <div className="col-span-2 flex justify-between items-center pt-1">
-          <button
+          <Button
             onClick={onRelayout}
-            className={cn(
-              CONTROL_BUTTON_CLASS,
-              "px-3 py-1 cursor-pointer",
-              isDark
-                ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 focus-visible:ring-violet-400"
-                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:ring-violet-500",
-            )}
+            isDark={isDark}
+            className="px-3 py-1 cursor-pointer"
             aria-label="Re-run auto layout"
           >
             Re-run layout
-          </button>
+          </Button>
           <span
             className={cn(
               "text-[11px]",

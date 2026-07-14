@@ -11,7 +11,7 @@ import type {
   LayoutDensity,
   ThemeName,
 } from "../../domain/index.ts";
-import type { ViewerStore } from "../viewerStore.ts";
+import type { ViewerStore } from "../viewerStoreTypes.ts";
 import {
   type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,

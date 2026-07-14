@@ -20,3 +20,4 @@ export type {
   ParseProgress,
   ParseResult,
 } from "./pipelineTypes.ts";
+export * from "./workerProtocol.ts";

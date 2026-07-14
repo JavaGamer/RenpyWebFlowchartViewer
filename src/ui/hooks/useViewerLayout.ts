@@ -6,19 +6,21 @@ import {
   useRef,
   useState,
 } from "react";
-import { useEdgesState, useNodesState } from "@xyflow/react";
+import { useEdgesState, useNodesState, type NodeChange } from "@xyflow/react";
 import {
-  applyDagreLayout,
+  simplifyGraph,
   type CanvasEdge,
   type CanvasNode,
   type FlowEdge,
   type FlowNode,
   type LayoutDensity,
   type LayoutDirection,
+  type GraphSimplificationOptions,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from "../../domain/index.ts";
 import type { createPerfTracker } from "../../infrastructure/index.ts";
 import {
+  applyDagreLayout,
   areWorkersSupported,
   runLayoutInWorker,
   terminateLayoutWorker,
@@ -37,15 +39,30 @@ interface UseViewerLayoutParams {
   flowEdges: FlowEdge[];
   layoutDirection: LayoutDirection;
   layoutDensity: LayoutDensity;
+  simplifyOptions: GraphSimplificationOptions;
   perf: PerfTracker;
   onRelayoutComplete?: () => void;
 }
+
+const areSimplifyOptionsEqual = (
+  a: GraphSimplificationOptions | undefined,
+  b: GraphSimplificationOptions | undefined,
+): boolean => {
+  if (!a || !b) return false;
+  return a.collapseLinearChains === b.collapseLinearChains &&
+    a.inlineUtilities === b.inlineUtilities &&
+    a.inlineDetours === b.inlineDetours &&
+    a.inlineStateToggles === b.inlineStateToggles &&
+    a.inlineEmptyLabels === b.inlineEmptyLabels &&
+    a.inlineDialogueThreshold === b.inlineDialogueThreshold;
+};
 
 export function useViewerLayout({
   flowNodes,
   flowEdges,
   layoutDirection,
   layoutDensity,
+  simplifyOptions,
   perf,
   onRelayoutComplete,
 }: UseViewerLayoutParams): {
@@ -74,17 +91,20 @@ export function useViewerLayout({
   const [prevFlowEdges, setPrevFlowEdges] = useState(flowEdges);
   const [prevDirection, setPrevDirection] = useState(layoutDirection);
   const [prevDensity, setPrevDensity] = useState(layoutDensity);
+  const [prevSimplifyOptions, setPrevSimplifyOptions] = useState(simplifyOptions);
 
   if (
     flowNodes !== prevFlowNodes ||
     flowEdges !== prevFlowEdges ||
     layoutDirection !== prevDirection ||
-    layoutDensity !== prevDensity
+    layoutDensity !== prevDensity ||
+    !areSimplifyOptionsEqual(simplifyOptions, prevSimplifyOptions)
   ) {
     setPrevFlowNodes(flowNodes);
     setPrevFlowEdges(flowEdges);
     setPrevDirection(layoutDirection);
     setPrevDensity(layoutDensity);
+    setPrevSimplifyOptions(simplifyOptions);
     setIsCalculatingLayout(isWorkerEnabled);
   }
 
@@ -95,7 +115,8 @@ export function useViewerLayout({
     }
     perf.mark("layout");
     const progressive = shouldProgressiveLayout;
-    const laidOut = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
+    const simplified = simplifyGraph(flowNodes, flowEdges, simplifyOptions);
+    const laidOut = applyDagreLayout(simplified.nodes, simplified.edges, layoutDirection, {
       progressive,
       layoutDensity,
     });
@@ -114,15 +135,30 @@ export function useViewerLayout({
     shouldProgressiveLayout,
     layoutDensity,
     isWorkerEnabled,
+    simplifyOptions,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
 
+  // Intercept and wrap onNodesChange to record manual dragging coordinates
+  const onNodesChangeWrapped = useCallback(
+    (changes: NodeChange<CanvasNode>[]) => {
+      onNodesChange(changes);
+      for (const change of changes) {
+        if (change.type === "position" && change.position && change.id) {
+          nodePositionsRef.current.set(change.id, change.position);
+        }
+      }
+    },
+    [onNodesChange],
+  );
+
   const relayout = useCallback(() => {
     setIsCalculatingLayout(true);
     if (!isWorkerEnabled) {
-      const next = applyDagreLayout(flowNodes, flowEdges, layoutDirection, {
+      const simplified = simplifyGraph(flowNodes, flowEdges, simplifyOptions);
+      const next = applyDagreLayout(simplified.nodes, simplified.edges, layoutDirection, {
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         layoutDensity,
@@ -147,6 +183,7 @@ export function useViewerLayout({
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         layoutDensity,
+        simplifyOptions,
       },
       (next) => {
         nodePositionsRef.current = new Map(
@@ -174,6 +211,7 @@ export function useViewerLayout({
     shouldProgressiveLayout,
     layoutDensity,
     isWorkerEnabled,
+    simplifyOptions,
   ]);
 
   useEffect(() => {
@@ -196,6 +234,7 @@ export function useViewerLayout({
         progressive: shouldProgressiveLayout,
         previousPositions: nodePositionsRef.current,
         layoutDensity,
+        simplifyOptions,
       },
       (refined) => {
         nodePositionsRef.current = new Map(
@@ -227,6 +266,7 @@ export function useViewerLayout({
     shouldProgressiveLayout,
     layoutDensity,
     isWorkerEnabled,
+    simplifyOptions,
   ]);
 
   useEffect(() => {
@@ -240,7 +280,7 @@ export function useViewerLayout({
     edges,
     setNodes,
     setEdges,
-    onNodesChange,
+    onNodesChange: onNodesChangeWrapped,
     onEdgesChange,
     nodePositionsRef,
     relayout,

@@ -14,7 +14,6 @@ export {
   type ParseService,
   type ParseServiceRequest,
   type ParseServiceResult,
-  workerParseService,
 } from "./parseService.ts";
 export {
   defaultParserRuleSettings,
@@ -73,3 +72,6 @@ export {
   traverseFileSystemEntry,
 } from "./dropTraversal.ts";
 export { fetchFilesFromUrl, resolveGithubUrl } from "./urlImporter.ts";
+export { useUploadOrchestrator } from "./useUploadOrchestrator.ts";
+export { useDebugBundle } from "./useDebugBundle.ts";
+

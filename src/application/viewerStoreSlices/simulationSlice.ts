@@ -8,7 +8,7 @@
 
 import type { StateCreator } from "zustand";
 import type { MockFlagValue } from "../../domain/index.ts";
-import type { ViewerStore } from "../viewerStore.ts";
+import type { ViewerStore } from "../viewerStoreTypes.ts";
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 

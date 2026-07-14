@@ -1,4 +1,4 @@
-import { FileReadError } from "../infrastructure/index.ts";
+import { FileReadError, ParseError } from "../domain/index.ts";
 
 export function toFileReadErrorMessage(err: unknown): string {
   if (err instanceof FileReadError) {
@@ -11,6 +11,9 @@ export function toFileReadErrorMessage(err: unknown): string {
 export function toParseErrorMessage(err: unknown): string {
   if (err instanceof DOMException && err.name === "AbortError") {
     return "Parsing was cancelled.";
+  }
+  if (err instanceof ParseError) {
+    return err.message;
   }
   const detail = err instanceof Error ? err.message : String(err);
   return `Failed to parse Ren'Py scripts: ${detail}. Ensure your .rpy files contain valid Ren'Py syntax.`;

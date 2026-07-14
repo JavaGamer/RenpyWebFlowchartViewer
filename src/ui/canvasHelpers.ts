@@ -1,14 +1,23 @@
-import type { FlowNode } from "../domain/index.ts";
 
 export function deriveCollapsedLabelChildren(
-  nodes: FlowNode[],
+  nodes: Array<{
+    id: string;
+    type?: string;
+    parentLabelId?: string | null;
+    data?: {
+      nodeType?: string;
+      parentLabelId?: string | null;
+    };
+  }>,
   collapsedParentLabels: Record<string, boolean>,
 ): Set<string> {
   const collapsedChildren = new Set<string>();
   for (const node of nodes) {
-    if (node.type !== "MENU") continue;
-    if (!node.parentLabelId) continue;
-    if (!collapsedParentLabels[node.parentLabelId]) continue;
+    const type = node.data?.nodeType ?? node.type;
+    const parentLabelId = node.data?.parentLabelId ?? node.parentLabelId;
+    if (type !== "MENU") continue;
+    if (!parentLabelId) continue;
+    if (!collapsedParentLabels[parentLabelId]) continue;
     collapsedChildren.add(node.id);
   }
   return collapsedChildren;

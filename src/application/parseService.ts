@@ -1,10 +1,8 @@
-import {
-  type DialogueSearchResult,
-  parseRenpyFilesInWorker,
-  type ParseWorkerClientRequest,
-  type ParseWorkerClientResult,
-  searchDialogueLinesInWorker,
-} from "../infrastructure/index.ts";
+import type {
+  ParseWorkerClientRequest,
+  ParseWorkerClientResult,
+  DialogueSearchResult,
+} from "../parser/index.ts";
 
 export type ParseServiceRequest = ParseWorkerClientRequest;
 export type ParseServiceResult = ParseWorkerClientResult;
@@ -18,12 +16,3 @@ export interface ParseService {
     signal?: AbortSignal;
   }): Promise<DialogueSearchResult[]>;
 }
-
-export const workerParseService: ParseService = {
-  parse(request) {
-    return parseRenpyFilesInWorker(request);
-  },
-  searchDialogueLines(request) {
-    return searchDialogueLinesInWorker(request);
-  },
-};

@@ -15,14 +15,20 @@ export {
   parseRenpyFilesInWorker,
   searchDialogueLinesInWorker,
 } from "./parserWorkerClient.ts";
-export { FileReadError, readFileAsText } from "./fileReader.ts";
+export { readFileAsText } from "./fileReader.ts";
 export {
   preWarmLayoutWorker,
   runLayoutInWorker,
   terminateLayoutWorker,
 } from "./layoutWorkerClient.ts";
 export {
+  applyDagreLayout,
+  applyElkLayout,
+  preWarmElk,
+} from "./layoutEngines.ts";
+export {
   createPerfTracker,
   type PerfEvent,
   type PerfTrackerOptions,
 } from "./perf.ts";
+export { workerParseService } from "./workerParseAdapter.ts";
