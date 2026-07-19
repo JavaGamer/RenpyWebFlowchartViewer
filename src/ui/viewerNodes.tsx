@@ -177,7 +177,8 @@ export const LabelNodeComponent = memo(
                   title={`~${(data.wordCount ?? 0).toLocaleString()} words`}
                   style={{ opacity: 0.75, cursor: "help" }}
                 >
-                  {" · "}{formatReadingTime(secs)}
+                  {" · "}
+                  {formatReadingTime(secs)}
                 </span>
               );
             })()}
@@ -295,7 +296,8 @@ export const MenuNodeComponent = memo(
                   title={`~${(data.wordCount ?? 0).toLocaleString()} words`}
                   style={{ opacity: 0.75, cursor: "help" }}
                 >
-                  {" · "}{formatReadingTime(secs)}
+                  {" · "}
+                  {formatReadingTime(secs)}
                 </span>
               );
             })()}

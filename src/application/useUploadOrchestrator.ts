@@ -4,7 +4,11 @@ import { useAppStore } from "./appStore.ts";
 import { useParserRuleSettingsStore } from "./parserRuleSettingsStore.ts";
 import { useTelemetryStore } from "./telemetryStore.ts";
 import { createProcessUpload } from "./processUpload.ts";
-import { createPerfTracker, preWarmLayoutWorker, workerParseService } from "../infrastructure/index.ts";
+import {
+  createPerfTracker,
+  preWarmLayoutWorker,
+  workerParseService,
+} from "../infrastructure/index.ts";
 import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
 
 export interface UseUploadOrchestratorResult {

@@ -1,21 +1,29 @@
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useViewerStore } from "../../application/index.ts";
-import type { CanvasNode, CanvasEdge, FlowNode, FlowEdge } from "../../domain/index.ts";
+import type {
+  CanvasEdge,
+  CanvasNode,
+  FlowEdge,
+  FlowNode,
+} from "../../domain/index.ts";
 import {
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
 } from "../../domain/index.ts";
 import { THEMES } from "../viewerTheme.ts";
-import type { DialogueSearchMode, ParseService } from "../../application/index.ts";
+import type {
+  DialogueSearchMode,
+  ParseService,
+} from "../../application/index.ts";
 import { useViewerSearch } from "./useViewerSearch.ts";
 import { deriveCollapsedLabelChildren } from "../canvasHelpers.ts";
 import type { ChapterStats } from "../components/ChapterFiltersSettings.tsx";
 import {
+  LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
   LARGE_GRAPH_EDGE_THRESHOLD,
   LARGE_GRAPH_NODE_THRESHOLD,
-  LARGE_EXPORT_GRAPH_ELEMENTS_THRESHOLD,
 } from "../../config/viewerConfig.ts";
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "../viewerConstants.ts";
 
@@ -84,12 +92,13 @@ export function useGraphVisibility({
     })),
   );
 
-  const { setAllParentLabelsCollapsed, setDialogueSearchResults } = useViewerStore(
-    useShallow((s) => ({
-      setAllParentLabelsCollapsed: s.setAllParentLabelsCollapsed,
-      setDialogueSearchResults: s.setDialogueSearchResults,
-    })),
-  );
+  const { setAllParentLabelsCollapsed, setDialogueSearchResults } =
+    useViewerStore(
+      useShallow((s) => ({
+        setAllParentLabelsCollapsed: s.setAllParentLabelsCollapsed,
+        setDialogueSearchResults: s.setDialogueSearchResults,
+      })),
+    );
 
   const selectedDialogueSearchMode = dialogueSearchMode !== "auto"
     ? dialogueSearchMode

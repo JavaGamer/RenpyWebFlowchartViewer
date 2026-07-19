@@ -1,8 +1,4 @@
-import type {
-  CanvasNode,
-  FlowNode,
-  NodeData,
-} from "../index.ts";
+import type { CanvasNode, FlowNode, NodeData } from "../index.ts";
 
 /** Standard node width in pixels used across all node types in the layout. */
 export const NODE_WIDTH = 220;

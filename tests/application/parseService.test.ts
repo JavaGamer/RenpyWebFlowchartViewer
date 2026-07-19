@@ -25,7 +25,9 @@ vi.mock(
 
 describe("parseService", () => {
   it("delegates parse requests to parseRenpyFilesInWorker", async () => {
-    const parseInWorker = await import("../../src/infrastructure/parserWorkerClient");
+    const parseInWorker = await import(
+      "../../src/infrastructure/parserWorkerClient"
+    );
     const { workerParseService } = await import(
       "../../src/infrastructure"
     );
@@ -44,7 +46,9 @@ describe("parseService", () => {
   });
 
   it("delegates dialogue search requests to searchDialogueLinesInWorker", async () => {
-    const parseInWorker = await import("../../src/infrastructure/parserWorkerClient");
+    const parseInWorker = await import(
+      "../../src/infrastructure/parserWorkerClient"
+    );
     const { workerParseService } = await import(
       "../../src/infrastructure"
     );

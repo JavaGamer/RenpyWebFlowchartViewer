@@ -6,16 +6,16 @@ import type {
 import type { FlowEdge } from "../../../domain/index.ts";
 import { resolveExpressionTargets } from "../jumpCallHandler.ts";
 import {
-  isIdentifierStart,
-  isIdentifierPart,
+  buildIgnoredPositionMask,
+  findTopLevelDelimiterIndex,
   isIdentifierBoundary,
-  skipWhitespace,
-  readParenthesizedArgument,
+  isIdentifierPart,
+  isIdentifierStart,
   readBalancedSegment,
   readIdentifier,
+  readParenthesizedArgument,
+  skipWhitespace,
   splitTopLevelArguments,
-  findTopLevelDelimiterIndex,
-  buildIgnoredPositionMask,
 } from "./bracketMatcher.ts";
 
 const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
@@ -65,7 +65,9 @@ export function allowsActionExtractionOnLine(keyword: string): boolean {
   return keyword.toLowerCase() !== "default";
 }
 
-export function parseTimerDurationFromLine(lineText: string): number | undefined {
+export function parseTimerDurationFromLine(
+  lineText: string,
+): number | undefined {
   const trimmed = lineText.trimStart();
   if (!trimmed.toLowerCase().startsWith("timer")) return undefined;
   const durationMatch = /^timer\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?=[\s:]|$)/i

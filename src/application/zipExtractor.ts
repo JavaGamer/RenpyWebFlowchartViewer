@@ -42,6 +42,11 @@ export async function extractRpyFilesFromZip(
               size: data.length,
               webkitRelativePath: path,
               text: async () => strFromU8(data),
+              arrayBuffer: async () =>
+                data.buffer.slice(
+                  data.byteOffset,
+                  data.byteOffset + data.byteLength,
+                ),
             };
           },
         );

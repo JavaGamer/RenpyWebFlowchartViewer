@@ -32,21 +32,20 @@ import {
 } from "./viewerStoreSlices/index.ts";
 
 import type {
+  ViewerActions,
   ViewerPersistedState,
   ViewerSessionState,
-  ViewerActions,
   ViewerStore,
 } from "./viewerStoreTypes.ts";
 
 export type {
+  ViewerActions,
   ViewerPersistedState,
   ViewerSessionState,
-  ViewerActions,
   ViewerStore,
 };
 
 // ─── Default values ───────────────────────────────────────────────────────────
-
 
 const defaultPersistedState: ViewerPersistedState = { ...defaultThemeState };
 

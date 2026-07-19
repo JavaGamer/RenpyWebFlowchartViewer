@@ -89,13 +89,16 @@ class SyncPromise {
 }
 
 export const mockWorkersSupported = true;
-vi.mock("../../src/infrastructure/parserWorkerClient", async (importOriginal) => {
-  const original = await importOriginal<any>();
-  return {
-    ...original,
-    areWorkersSupported: () => mockWorkersSupported,
-  };
-});
+vi.mock(
+  "../../src/infrastructure/parserWorkerClient",
+  async (importOriginal) => {
+    const original = await importOriginal<any>();
+    return {
+      ...original,
+      areWorkersSupported: () => mockWorkersSupported,
+    };
+  },
+);
 
 vi.mock("comlink", () => {
   let activeRequestId = 0;

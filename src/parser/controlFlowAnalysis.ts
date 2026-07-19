@@ -65,7 +65,8 @@ function analyzeReachability(state: ParseGraphState): void {
             detail: node.label,
           },
           message: `Label "${node.label}" is unreachable from entry points.`,
-          recoveryAction: "Ensure there is a jump, call, or sequence path to this label.",
+          recoveryAction:
+            "Ensure there is a jump, call, or sequence path to this label.",
         },
         `unreachable_label|${node.id}`,
       );
@@ -115,7 +116,8 @@ function analyzeTightCycles(state: ParseGraphState): void {
             message: `Dialogue-less infinite loop detected: ${cycleLabels} -> ${
               state.nodeMap.get(nodeId)?.label ?? nodeId
             }`,
-            recoveryAction: "Add a dialogue line, a menu choice, or a pause statement to break the tight loop.",
+            recoveryAction:
+              "Add a dialogue line, a menu choice, or a pause statement to break the tight loop.",
           },
           `infinite_loop|${cycleKey}`,
         );
@@ -128,7 +130,8 @@ function analyzeTightCycles(state: ParseGraphState): void {
     currentPath.push(nodeId);
 
     const outgoingEdges = state.edges.filter(
-      (e) => e.source === nodeId && (e.kind === "sequence" || e.kind === "jump"),
+      (e) =>
+        e.source === nodeId && (e.kind === "sequence" || e.kind === "jump"),
     );
     for (const edge of outgoingEdges) {
       dfsCycle(edge.target, currentPath);
@@ -187,8 +190,10 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
               category: "missing_return",
               detail: node.label,
             },
-            message: `Called label "${node.label}" has no path to a return statement.`,
-            recoveryAction: "Add a return statement at the end of the called label block.",
+            message:
+              `Called label "${node.label}" has no path to a return statement.`,
+            recoveryAction:
+              "Add a return statement at the end of the called label block.",
           },
           `missing_return|${calledId}`,
         );
@@ -214,8 +219,10 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
               category: "uncalled_return",
               detail: node.label,
             },
-            message: `Label "${node.label}" contains a return statement but is never invoked via call.`,
-            recoveryAction: "Verify if this label should be jumped to or called.",
+            message:
+              `Label "${node.label}" contains a return statement but is never invoked via call.`,
+            recoveryAction:
+              "Verify if this label should be jumped to or called.",
           },
           `uncalled_return|${labelId}`,
         );

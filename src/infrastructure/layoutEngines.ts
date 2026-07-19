@@ -5,12 +5,12 @@ import {
   type CanvasNode,
   type FlowEdge,
   type FlowNode,
+  getNodeHeight,
   type LayoutDensity,
-  type ThemeName,
-  resolveGraphIntegrity,
   NODE_WIDTH,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
-  getNodeHeight,
+  resolveGraphIntegrity,
+  type ThemeName,
 } from "../domain/index.ts";
 
 interface ElkNode {
@@ -40,7 +40,6 @@ interface ElkInstance {
 
 let elkInstance: ElkInstance | null = null;
 const PROGRESSIVE_FALLBACK_MAX_COLUMNS = 16;
-
 
 /**
  * Fallback grid placement used when a graph is too large for comfortable standard layout.
@@ -124,8 +123,12 @@ function applyProgressiveDagreLayout(
         x = prevPos.x;
         y = prevPos.y;
       } else {
-        const overflowIndex = overflowNodes.findIndex((node) => node.id === n.id);
-        const row = Math.floor(overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS);
+        const overflowIndex = overflowNodes.findIndex((node) =>
+          node.id === n.id
+        );
+        const row = Math.floor(
+          overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS,
+        );
         const col = overflowIndex % PROGRESSIVE_FALLBACK_MAX_COLUMNS;
         x = col * (NODE_WIDTH + 40) + 40;
         y = row * (150 + 40) + 800; // Place it well below the primary layout
@@ -400,12 +403,12 @@ export async function applyElkLayout(
   };
 
   const laidOutGraph = await instance.layout(graph);
-  
+
   // Translation alignment to minimize visual jumping
   const previousPositionsMap = options?.previousPositions
     ? (options.previousPositions instanceof Map
-        ? options.previousPositions
-        : new Map(options.previousPositions))
+      ? options.previousPositions
+      : new Map(options.previousPositions))
     : null;
 
   if (previousPositionsMap && previousPositionsMap.size > 0) {

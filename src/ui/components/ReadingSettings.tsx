@@ -82,7 +82,8 @@ export function ReadingSettings() {
           >
             <span>{MIN_WPM} WPM</span>
             <span className={cn(isDark ? "text-slate-500" : "text-gray-400")}>
-              Affects reading time on node cards, inspector, toolbar &amp; chapters
+              Affects reading time on node cards, inspector, toolbar &amp;
+              chapters
             </span>
             <span>{MAX_WPM} WPM</span>
           </div>

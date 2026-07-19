@@ -7,7 +7,9 @@ export class BaseDomainError extends Error {
 
 export class FileReadError extends BaseDomainError {
   constructor(filename: string) {
-    super(`Could not read "${filename}". The file may be inaccessible or corrupted.`);
+    super(
+      `Could not read "${filename}". The file may be inaccessible or corrupted.`,
+    );
     this.name = "FileReadError";
   }
 }

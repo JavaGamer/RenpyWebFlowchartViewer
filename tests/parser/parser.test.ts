@@ -886,5 +886,4 @@ describe("parseRenpyFiles", () => {
     );
     expect(fallthroughEdge).toBeUndefined();
   });
-
 });

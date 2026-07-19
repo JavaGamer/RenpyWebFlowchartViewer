@@ -188,7 +188,7 @@ export interface ParseProgress {
 
 export interface ParseInputFile {
   name: string;
-  content: string;
+  content: string | Uint8Array;
   relativePath?: string;
 }
 
@@ -204,6 +204,7 @@ export interface ParseOptions {
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
   sceneSplitDialogueThreshold?: number;
+  signal?: AbortSignal;
 }
 
 export interface TokenMetaFlags {

@@ -49,6 +49,13 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
+  // Ensure all file content is decoded to string for the parsing pipeline
+  for (const file of files) {
+    if (file.content instanceof Uint8Array) {
+      file.content = new TextDecoder("utf-8").decode(file.content);
+    }
+  }
+
   const perf = createPerfTracker("parser");
   perf.mark("total");
   const state = createGraphState();
@@ -67,6 +74,12 @@ export async function parseRenpyFiles(
 
   if (maxParallelFiles === 1) {
     for (let idx = 0; idx < orderedFiles.length; idx += 1) {
+      if (options.signal?.aborted) {
+        throw new DOMException("Parsing cancelled", "AbortError");
+      }
+      if (idx > 0 && idx % 5 === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
       const file = orderedFiles[idx];
       perf.mark(`file:${idx}`);
       await parseOneFile(state, file, options, idx);
@@ -82,6 +95,12 @@ export async function parseRenpyFiles(
     const tokenizedFiles = await Promise.all(
       orderedFiles.map((file, idx) =>
         limit(async () => {
+          if (options.signal?.aborted) {
+            throw new DOMException("Parsing cancelled", "AbortError");
+          }
+          if (idx > 0 && idx % 5 === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          }
           perf.mark(`file:${idx}:tokenize`);
           const tokenized = await tokenizeOneFile(file, options, idx);
           perf.measure(`file:${idx}:tokenize`, "parse_file_tokenize_ms", {
@@ -93,6 +112,12 @@ export async function parseRenpyFiles(
     );
 
     for (let idx = 0; idx < orderedFiles.length; idx += 1) {
+      if (options.signal?.aborted) {
+        throw new DOMException("Parsing cancelled", "AbortError");
+      }
+      if (idx > 0 && idx % 5 === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
       const tokenized = tokenizedFiles[idx];
       if (!tokenized) {
         throw new Error(

@@ -4,9 +4,9 @@ import type {
   CanvasNode,
   FlowEdge,
   FlowNode,
+  GraphSimplificationOptions,
   LayoutDensity,
   ThemeName,
-  GraphSimplificationOptions,
 } from "../domain/index.ts";
 import type { LayoutWorkerApi } from "./layoutWorker.ts";
 

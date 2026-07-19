@@ -11,8 +11,8 @@ import type {
   EdgeKindFilter,
   LayoutDensity,
   LayoutDirection,
-  ThemeName,
   MockFlagValue,
+  ThemeName,
 } from "../domain/index.ts";
 import type { DebugBundlePrivacyOptions } from "./debugBundle.ts";
 import type { DialogueSearchMode } from "./appStore.ts";

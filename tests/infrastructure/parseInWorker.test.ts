@@ -237,14 +237,20 @@ vi.mock("comlink", () => {
       };
     },
     proxy: (fn: any) => fn,
+    transfer: (value: any) => value,
     releaseProxy: Symbol("releaseProxy"),
   };
 });
 
 let workerMessageHandlers = new Set<(event: MessageEvent) => void>();
 let postedMessages: unknown[] = [];
+let mockWorkers: MockWorker[] = [];
 
 class MockWorker {
+  terminate = vi.fn();
+  constructor() {
+    mockWorkers.push(this);
+  }
   addEventListener(type: string, handler: (event: MessageEvent) => void) {
     if (type === "message") workerMessageHandlers.add(handler);
   }
@@ -255,8 +261,6 @@ class MockWorker {
     postedMessages.push(message);
   }
 }
-
-vi.stubGlobal("Worker", MockWorker as unknown as typeof Worker);
 
 const emitWorkerMessage = (data: unknown) => {
   const handlers = Array.from(workerMessageHandlers);
@@ -279,11 +283,15 @@ describe("parseRenpyFilesInWorker", () => {
   beforeEach(() => {
     postedMessages = [];
     workerMessageHandlers = new Set();
+    mockWorkers = [];
+    vi.stubGlobal("Worker", MockWorker as unknown as typeof Worker);
     vi.resetModules();
   });
 
   it("supports concurrent requests and resolves each by requestId", async () => {
-    const { parseRenpyFilesInWorker } = await import("../../src/infrastructure");
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
 
     const first = parseRenpyFilesInWorker({
       files: [{ name: "a.rpy", content: "label a:" }],
@@ -336,7 +344,9 @@ describe("parseRenpyFilesInWorker", () => {
   });
 
   it("accepts partial result messages and resolves request for chunk responses", async () => {
-    const { parseRenpyFilesInWorker } = await import("../../src/infrastructure");
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
     const onPartialResult = vi.fn();
     const request = parseRenpyFilesInWorker({
       files: [{ name: "a.rpy", content: "label a:" }],
@@ -365,7 +375,9 @@ describe("parseRenpyFilesInWorker", () => {
   });
 
   it("propagates diagnostics from worker result messages to partial callback and resolve value", async () => {
-    const { parseRenpyFilesInWorker } = await import("../../src/infrastructure");
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
     const onPartialResult = vi.fn();
     const request = parseRenpyFilesInWorker({
       files: [{ name: "warned.rpy", content: "label warned:" }],
@@ -407,7 +419,9 @@ describe("parseRenpyFilesInWorker", () => {
   });
 
   it("ignores stale responses with a different requestId for the active request", async () => {
-    const { parseRenpyFilesInWorker } = await import("../../src/infrastructure");
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
 
     const request = parseRenpyFilesInWorker({
       files: [{ name: "a.rpy", content: "label a:" }],
@@ -440,7 +454,9 @@ describe("parseRenpyFilesInWorker", () => {
   });
 
   it("posts cancel message and rejects with AbortError when signal aborts", async () => {
-    const { parseRenpyFilesInWorker } = await import("../../src/infrastructure");
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
     const controller = new AbortController();
     const promise = parseRenpyFilesInWorker({
       files: [{ name: "a.rpy", content: "label a:" }],
@@ -543,16 +559,18 @@ describe("parseRenpyFilesInWorker", () => {
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
   });
 
-  it("runs parallel chunk parsing and finalizes when files count > 1 and multiple workers available", async () => {
-    vi.stubGlobal("navigator", { hardwareConcurrency: 4 });
-    const { parseRenpyFilesInWorker } = await import("../../src/infrastructure");
+  it("runs parallel chunk parsing and finalizes when files count >= 20 and multiple workers available", async () => {
+    vi.stubGlobal("navigator", { hardwareConcurrency: 2 });
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
 
     const promise = parseRenpyFilesInWorker({
-      files: [
-        { name: "a.rpy", content: "label a:" },
-        { name: "b.rpy", content: "label b:" },
-      ],
-      maxParallelFiles: 4,
+      files: Array.from({ length: 20 }, (_, idx) => ({
+        name: idx === 0 ? "a.rpy" : idx === 10 ? "b.rpy" : `file${idx}.rpy`,
+        content: `label label${idx}:`,
+      })),
+      maxParallelFiles: 2,
     });
 
     await waitForPostedMessages(2);
@@ -613,5 +631,144 @@ describe("parseRenpyFilesInWorker", () => {
     });
 
     vi.unstubAllGlobals();
+  });
+
+  it("does not terminate the worker on cancellation under normal conditions", async () => {
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
+    const controller = new AbortController();
+    const promise = parseRenpyFilesInWorker({
+      files: [{ name: "a.rpy", content: "label a:" }],
+      signal: controller.signal,
+    });
+    promise.catch(() => {});
+
+    await waitForPostedMessages(1);
+    controller.abort();
+
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    // Check that terminate has NOT been called on the primary worker
+    expect(mockWorkers[0]).toBeDefined();
+    expect(mockWorkers[0]?.terminate).not.toHaveBeenCalled();
+  });
+
+  it("terminates the worker using failsafe timeout if cancellation hangs", async () => {
+    vi.useFakeTimers();
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
+    const controller = new AbortController();
+    const promise = parseRenpyFilesInWorker({
+      files: [{ name: "a.rpy", content: "label a:" }],
+      signal: controller.signal,
+    });
+    promise.catch(() => {});
+
+    // Advance fake timers to resolve cache keys and trigger parsing
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    controller.abort();
+
+    // Advance time by 3 seconds to trigger failsafe
+    await vi.advanceTimersByTimeAsync(3000);
+
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    expect(mockWorkers[0]?.terminate).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("terminates helper workers after 30 seconds of idle inactivity", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("navigator", { hardwareConcurrency: 2 });
+    const { parseRenpyFilesInWorker } = await import(
+      "../../src/infrastructure"
+    );
+
+    const promise = parseRenpyFilesInWorker({
+      files: Array.from({ length: 20 }, (_, idx) => ({
+        name: idx === 0 ? "a.rpy" : idx === 10 ? "b.rpy" : `file${idx}.rpy`,
+        content: `label label${idx}:`,
+      })),
+      maxParallelFiles: 2,
+    });
+
+    // Advance fake timers to resolve cache keys and chunk parsing
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    const parseChunks = postedMessages.filter((
+      m,
+    ): m is ParseChunkRequestMessage =>
+      (m as { type: string }).type === "parse_chunk"
+    );
+    expect(parseChunks.length).toBe(2);
+
+    // Resolve chunk parsing to trigger finalization
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: "chunk_result",
+      requestId: parseChunks[0].requestId,
+      nodes: [{ id: "a" }],
+      edges: [],
+      pendingCallReturns: [],
+      hasReliableReturnInLabel: [],
+      globalScreens: [],
+      labelDefinitionCount: [],
+      canonicalLabelIds: [],
+    });
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: "chunk_result",
+      requestId: parseChunks[1].requestId,
+      nodes: [{ id: "b" }],
+      edges: [],
+      pendingCallReturns: [],
+      hasReliableReturnInLabel: [],
+      globalScreens: [],
+      labelDefinitionCount: [],
+      canonicalLabelIds: [],
+    });
+
+    // Advance fake timers to resolve chunk results and post finalize request
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    const finalizeMsg = postedMessages.find((m): m is FinalizeRequestMessage =>
+      (m as { type: string }).type === "finalize"
+    );
+    expect(finalizeMsg).toBeDefined();
+
+    emitWorkerMessage({
+      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+      type: "finalize_result",
+      requestId: finalizeMsg!.requestId,
+      nodes: [{ id: "a", role: "story" }, { id: "b", role: "story" }],
+      edges: [],
+    });
+
+    // Resolve finalize and complete promise
+    await vi.advanceTimersByTimeAsync(0);
+    await promise;
+
+    // Verify helper worker is spawned (mockWorkers[1])
+    expect(mockWorkers[1]).toBeDefined();
+    expect(mockWorkers[1]?.terminate).not.toHaveBeenCalled();
+
+    // Advance timers by 30 seconds
+    await vi.advanceTimersByTimeAsync(30000);
+
+    // Helper worker should be terminated due to idle timeout
+    expect(mockWorkers[1]?.terminate).toHaveBeenCalledTimes(1);
+
+    // Primary worker should NOT be terminated
+    expect(mockWorkers[0]?.terminate).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 });

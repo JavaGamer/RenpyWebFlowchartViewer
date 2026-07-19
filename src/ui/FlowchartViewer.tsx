@@ -19,13 +19,17 @@ import type {
 } from "../domain/index.ts";
 import {
   type DebugBundlePrivacyOptions,
-  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   type DialogueSearchMode,
   type ParseService,
+  useAppStore,
+  useDebugBundle,
   useViewerStore,
 } from "../application/index.ts";
 
-import { createPerfTracker, workerParseService } from "../infrastructure/index.ts";
+import {
+  createPerfTracker,
+  workerParseService,
+} from "../infrastructure/index.ts";
 import { THEMES } from "./viewerTheme.ts";
 import { ViewerToolbar } from "./ViewerToolbar.tsx";
 import { CanvasErrorFallback } from "./CanvasErrorFallback.tsx";
@@ -34,8 +38,8 @@ import { dataUrlToBlob } from "./canvasHelpers.ts";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
 
 export interface FlowchartViewerProps {
-  flowNodes: FlowNode[];
-  flowEdges: FlowEdge[];
+  flowNodes?: FlowNode[];
+  flowEdges?: FlowEdge[];
   dialogueSearchMode?: DialogueSearchMode;
   onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
   parseService?: ParseService;
@@ -46,24 +50,44 @@ export interface FlowchartViewerProps {
 }
 
 export default function FlowchartViewer({
-  flowNodes,
-  flowEdges,
-  dialogueSearchMode = "auto",
-  onDialogueSearchModeChange,
+  flowNodes: propFlowNodes,
+  flowEdges: propFlowEdges,
+  dialogueSearchMode: propDialogueSearchMode,
+  onDialogueSearchModeChange: propOnDialogueSearchModeChange,
   parseService = workerParseService,
-  debugPrivacyOptions = DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
-  onDebugPrivacyOptionsChange,
-  onExportDebugBundle,
-  onOpenIssue,
+  debugPrivacyOptions: propDebugPrivacyOptions,
+  onDebugPrivacyOptionsChange: propOnDebugPrivacyOptionsChange,
+  onExportDebugBundle: propOnExportDebugBundle,
+  onOpenIssue: propOnOpenIssue,
 }: FlowchartViewerProps) {
+  const storeNodes = useAppStore((s) => s.flowNodes);
+  const storeEdges = useAppStore((s) => s.flowEdges);
+  const flowNodes = propFlowNodes ?? storeNodes;
+  const flowEdges = propFlowEdges ?? storeEdges;
+
+  const storeDialogueSearchMode = useAppStore((s) => s.dialogueSearchMode);
+  const storeSetDialogueSearchMode = useAppStore((s) =>
+    s.setDialogueSearchMode
+  );
+  const dialogueSearchMode = propDialogueSearchMode ?? storeDialogueSearchMode;
+  const onDialogueSearchModeChange = propOnDialogueSearchModeChange ??
+    storeSetDialogueSearchMode;
+
+  const debug = useDebugBundle();
+  const debugPrivacyOptions = propDebugPrivacyOptions ??
+    debug.debugPrivacyOptions;
+  const onDebugPrivacyOptionsChange = propOnDebugPrivacyOptionsChange ??
+    debug.setDebugPrivacyOptions;
+  const onExportDebugBundle = propOnExportDebugBundle ??
+    debug.exportDebugBundle;
+  const onOpenIssue = propOnOpenIssue ?? debug.openNewIssue;
+
   const perf = useMemo(() => createPerfTracker("viewer"), []);
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<
     ReactFlowInstance<CanvasNode, CanvasEdge> | null
   >(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-
 
   // Registry ref: inner component writes current onSearchInputKeyDown here;
   // outer provides a stable wrapper that calls it.
@@ -150,19 +174,29 @@ export default function FlowchartViewer({
   });
 
   // -- Dialogue mode ----------------------------------------------------------
-  const selectedDialogueSearchMode = onDialogueSearchModeChange
+  const useAppStoreDialogueMode = !!propOnDialogueSearchModeChange ||
+    !propFlowNodes;
+
+  const selectedDialogueSearchMode = useAppStoreDialogueMode
     ? dialogueSearchMode
     : standaloneDialogueSearchMode;
 
   const handleDialogueModeChange = useCallback(
     (mode: DialogueSearchMode) => {
-      if (onDialogueSearchModeChange) {
-        onDialogueSearchModeChange(mode);
+      if (propOnDialogueSearchModeChange) {
+        propOnDialogueSearchModeChange(mode);
+      } else if (!propFlowNodes) {
+        storeSetDialogueSearchMode(mode);
       } else {
         setStandaloneDialogueSearchMode(mode);
       }
     },
-    [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
+    [
+      propOnDialogueSearchModeChange,
+      propFlowNodes,
+      storeSetDialogueSearchMode,
+      setStandaloneDialogueSearchMode,
+    ],
   );
 
   // -- Toolbar callbacks ------------------------------------------------------

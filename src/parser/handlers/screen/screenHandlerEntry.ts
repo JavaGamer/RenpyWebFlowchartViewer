@@ -58,12 +58,18 @@ class TopLevelPythonAssignmentPattern extends RegExp {
     return null;
   }
 
-  override [Symbol.matchAll](text: string): RegExpStringIterator<RegExpExecArray> {
+  override [Symbol.matchAll](
+    text: string,
+  ): RegExpStringIterator<RegExpExecArray> {
     const source = this.source;
     const flags = this.flags.includes("g") ? this.flags : `${this.flags}g`;
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
-    return (function* matchAll(): Generator<RegExpExecArray, undefined, undefined> {
+    return (function* matchAll(): Generator<
+      RegExpExecArray,
+      undefined,
+      undefined
+    > {
       const matcher = new RegExp(source, flags);
       let match: RegExpExecArray | null;
       while ((match = matcher.exec(text)) !== null) {

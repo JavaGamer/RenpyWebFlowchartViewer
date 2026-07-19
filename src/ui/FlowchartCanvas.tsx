@@ -1,8 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Background,
   Controls,
@@ -20,9 +16,9 @@ import {
   type NodeData,
 } from "../domain/index.ts";
 import {
-  useViewerStore,
   type DialogueSearchMode,
   type ParseService,
+  useViewerStore,
 } from "../application/index.ts";
 
 import type { createPerfTracker } from "../infrastructure/index.ts";
@@ -119,8 +115,12 @@ export function FlowchartCanvas({
   useEffect(() => () => resetSession(), [resetSession]);
 
   // -- Identity-preserving refs for visible node/edge caches -----------------
-  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(new Map());
-  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(new Map());
+  const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(
+    new Map(),
+  );
+  const previousVisibleEdgesByIdRef = useRef<Map<string, CanvasEdge>>(
+    new Map(),
+  );
 
   // -- Simplify Options ------------------------------------------------------
   const simplifyOptions = useMemo(() => ({

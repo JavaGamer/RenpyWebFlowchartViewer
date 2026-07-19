@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createProcessUpload } from "../../src/application/processUpload";
 import { FileReadError } from "../../src/domain";
-import { readFileAsText } from "../../src/infrastructure/fileReader";
+import {
+  readFileAsArrayBuffer,
+  readFileAsText,
+} from "../../src/infrastructure/fileReader";
 import type { ParseService } from "../../src/application/parseService";
 import type { AppActions } from "../../src/application/appStore";
 
 vi.mock("../../src/infrastructure/fileReader", () => ({
   readFileAsText: vi.fn(),
+  readFileAsArrayBuffer: vi.fn(),
 }));
 
 function toFileList(files: File[]): FileList {
@@ -70,6 +74,10 @@ const LAST_CHUNK_INDEX = EXPECTED_CHUNKED_PARSE_CALLS - 1;
 describe("createProcessUpload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(readFileAsArrayBuffer).mockImplementation(async (file) => {
+      const text = await readFileAsText(file);
+      return new TextEncoder().encode(text).buffer;
+    });
   });
 
   it("returns early for null uploads", async () => {

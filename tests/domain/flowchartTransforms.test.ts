@@ -7,7 +7,12 @@ import {
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from "../../src/domain";
 import { applyDagreLayout } from "../../src/infrastructure";
-import type { CanvasEdge, CanvasNode, FlowEdge, FlowNode } from "../../src/domain";
+import type {
+  CanvasEdge,
+  CanvasNode,
+  FlowEdge,
+  FlowNode,
+} from "../../src/domain";
 
 describe("flowchartTransforms", () => {
   const flowNodes: FlowNode[] = [

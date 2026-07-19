@@ -8,7 +8,7 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   DiagnosticsSection,
@@ -16,18 +16,9 @@ import {
   Header,
   UploadArea,
 } from "./ui/index.ts";
-import {
-  preWarmLayoutWorker,
-} from "./infrastructure/index.ts";
-import {
-  useAppStore,
-  useParserRuleSettingsStore,
-  useViewerStore,
-  useUploadOrchestrator,
-  useDebugBundle,
-} from "./application/index.ts";
+import { preWarmLayoutWorker } from "./infrastructure/index.ts";
+import { useAppStore, useViewerStore } from "./application/index.ts";
 import { cn } from "./ui/utils/cn.ts";
-import { getParserVariantPlugins } from "./config/parserRules.ts";
 
 export default function App() {
   // ── App state (Zustand store) ───────────────────────────────────────────────
@@ -36,82 +27,24 @@ export default function App() {
     flowNodes,
     flowEdges,
     parseDiagnostics,
-    errorMsg,
     fileCount,
-    parseProgress,
     importRevision,
-    dialogueSearchMode,
   } = useAppStore(
     useShallow((s) => ({
       phase: s.phase,
       flowNodes: s.flowNodes,
       flowEdges: s.flowEdges,
       parseDiagnostics: s.parseDiagnostics,
-      errorMsg: s.errorMsg,
       fileCount: s.fileCount,
-      parseProgress: s.parseProgress,
       importRevision: s.importRevision,
-      dialogueSearchMode: s.dialogueSearchMode,
     })),
   );
-  const appActions = useAppStore(
-    useShallow((s) => ({
-      reset: s.reset,
-      startReading: s.startReading,
-      startParsing: s.startParsing,
-      setProgress: s.setProgress,
-      partialParseSuccess: s.partialParseSuccess,
-      parseSuccess: s.parseSuccess,
-      setDialogueSearchMode: s.setDialogueSearchMode,
-      fail: s.fail,
-    })),
-  );
-
-  // ── Parser settings (Zustand persist store) ─────────────────────────────────
-  const {
-    selectedVariant,
-    customRulesByVariant,
-    setSelectedVariant,
-    addCustomRule,
-    updateCustomRule,
-    removeCustomRule,
-    resetSettings: resetParserRuleSettings,
-  } = useParserRuleSettingsStore(
-    useShallow((s) => ({
-      selectedVariant: s.selectedVariant,
-      customRulesByVariant: s.customRulesByVariant,
-      setSelectedVariant: s.setSelectedVariant,
-      addCustomRule: s.addCustomRule,
-      updateCustomRule: s.updateCustomRule,
-      removeCustomRule: s.removeCustomRule,
-      resetSettings: s.resetSettings,
-    })),
-  );
-  const selectedVariantCustomRules = useMemo(
-    () => customRulesByVariant[selectedVariant] ?? [],
-    [customRulesByVariant, selectedVariant],
-  );
-  const parserVariantPlugins = useMemo(() => getParserVariantPlugins(), []);
+  const reset = useAppStore((s) => s.reset);
 
   // Pre-warm the layout worker on boot
   useEffect(() => {
     preWarmLayoutWorker();
   }, []);
-
-  // ── Hooks extracted ────────────────────────────────────────────────────────
-  const {
-    uploadedFiles,
-    setUploadedFiles,
-    processFiles,
-    cancelParsing,
-  } = useUploadOrchestrator();
-
-  const {
-    debugPrivacyOptions,
-    setDebugPrivacyOptions,
-    exportDebugBundle,
-    openNewIssue,
-  } = useDebugBundle();
 
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -162,10 +95,7 @@ export default function App() {
                 </span>
               )}
               <button
-                onClick={() => {
-                  setUploadedFiles([]);
-                  appActions.reset();
-                }}
+                onClick={reset}
                 className={cn(
                   "sm:ml-auto text-xs underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded",
                   isDark
@@ -179,48 +109,10 @@ export default function App() {
 
             <DiagnosticsSection parseDiagnostics={parseDiagnostics} />
 
-            <FlowchartViewer
-              key={importRevision}
-              flowNodes={flowNodes}
-              flowEdges={flowEdges}
-              dialogueSearchMode={dialogueSearchMode}
-              onDialogueSearchModeChange={(mode) =>
-                appActions.setDialogueSearchMode(mode)}
-              debugPrivacyOptions={debugPrivacyOptions}
-              onDebugPrivacyOptionsChange={setDebugPrivacyOptions}
-              onExportDebugBundle={exportDebugBundle}
-              onOpenIssue={openNewIssue}
-            />
+            <FlowchartViewer key={importRevision} />
           </main>
         )
-        : (
-          <UploadArea
-            phase={phase}
-            fileCount={fileCount}
-            parseProgress={parseProgress}
-            flowNodes={flowNodes}
-            errorMsg={errorMsg}
-            debugPrivacyOptions={debugPrivacyOptions}
-            setDebugPrivacyOptions={setDebugPrivacyOptions}
-            processFiles={processFiles}
-            onCancelParsing={cancelParsing}
-            onReset={() => {
-              setUploadedFiles([]);
-              appActions.reset();
-            }}
-            onExportDebugBundle={exportDebugBundle}
-            onOpenIssue={openNewIssue}
-            selectedVariant={selectedVariant}
-            setSelectedVariant={setSelectedVariant}
-            parserVariantPlugins={parserVariantPlugins}
-            resetParserRuleSettings={resetParserRuleSettings}
-            selectedVariantCustomRules={selectedVariantCustomRules}
-            uploadedFiles={uploadedFiles}
-            updateCustomRule={updateCustomRule}
-            removeCustomRule={removeCustomRule}
-            addCustomRule={addCustomRule}
-          />
-        )}
+        : <UploadArea />}
     </div>
   );
 }

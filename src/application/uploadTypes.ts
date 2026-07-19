@@ -9,6 +9,7 @@ export interface UploadedFile {
   size: number;
   webkitRelativePath?: string;
   text: () => Promise<string>;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
   file?: File;
 }
 

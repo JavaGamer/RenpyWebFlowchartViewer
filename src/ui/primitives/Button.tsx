@@ -1,8 +1,12 @@
 import React from "react";
 import { cn } from "../utils/cn.ts";
-import { CONTROL_BUTTON_CLASS, PRIMARY_BUTTON_CLASS } from "../viewerConstants.ts";
+import {
+  CONTROL_BUTTON_CLASS,
+  PRIMARY_BUTTON_CLASS,
+} from "../viewerConstants.ts";
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost";
   isDark?: boolean;
   children?: React.ReactNode;
@@ -20,7 +24,8 @@ export function Button({
       className={cn(
         variant === "primary" && PRIMARY_BUTTON_CLASS,
         variant === "secondary" && CONTROL_BUTTON_CLASS,
-        variant === "ghost" && "px-2 py-1 rounded transition-colors text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
+        variant === "ghost" &&
+          "px-2 py-1 rounded transition-colors text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
         variant === "primary" && (isDark
           ? "bg-violet-700 hover:bg-violet-600 text-white"
           : "bg-violet-600 hover:bg-violet-700 text-white"),

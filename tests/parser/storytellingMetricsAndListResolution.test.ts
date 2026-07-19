@@ -57,7 +57,7 @@ label lake:
     ];
 
     const result = await parseRenpyFiles(files);
-    
+
     // Jump edge should target forest
     expect(result.edges).toContainEqual(
       expect.objectContaining({
@@ -88,7 +88,7 @@ label lake:
     ];
 
     const result = await parseRenpyFiles(files);
-    
+
     // Jump edge should target both forest and lake
     expect(result.edges).toContainEqual(
       expect.objectContaining({

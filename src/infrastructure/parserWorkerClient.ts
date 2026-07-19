@@ -1,4 +1,4 @@
-import { proxy, type Remote, wrap } from "comlink";
+import { proxy, type Remote, transfer, wrap } from "comlink";
 import MiniSearch from "minisearch";
 import {
   createGraphState,
@@ -40,6 +40,7 @@ const MAX_POOL_SIZE = Math.max(
 const workerPool: (Worker | null)[] = new Array(MAX_POOL_SIZE).fill(null);
 const apiPool: (Remote<ParserWorkerApi> | null)[] = new Array(MAX_POOL_SIZE)
   .fill(null);
+const idleTimeoutIds: (number | null)[] = new Array(MAX_POOL_SIZE).fill(null);
 let isWorkerSpawningFailed = false;
 
 export function areWorkersSupported(): boolean {
@@ -48,12 +49,29 @@ export function areWorkersSupported(): boolean {
   return true;
 }
 
+function clearIdleTimeout(index: number) {
+  const id = idleTimeoutIds[index];
+  if (id !== null) {
+    clearTimeout(id);
+    idleTimeoutIds[index] = null;
+  }
+}
+
+function resetIdleTimeout(index: number) {
+  clearIdleTimeout(index);
+  if (index === 0) return; // Keep primary worker 0 active for search queries
+  idleTimeoutIds[index] = setTimeout(() => {
+    terminateWorker(index);
+  }, 30000) as unknown as number; // 30s idle timeout
+}
+
 function getWorker(index: number): Worker {
   if (index < 0 || index >= MAX_POOL_SIZE) {
     throw new Error(
       `Worker index ${index} out of bounds [0, ${MAX_POOL_SIZE})`,
     );
   }
+  clearIdleTimeout(index);
   let w = workerPool[index];
   if (!w) {
     try {
@@ -73,6 +91,21 @@ function getWorker(index: number): Worker {
 function getWorkerApi(index: number): Remote<ParserWorkerApi> {
   getWorker(index);
   return apiPool[index]!;
+}
+
+function terminateWorker(index: number): void {
+  if (index < 0 || index >= MAX_POOL_SIZE) return;
+  clearIdleTimeout(index);
+  const w = workerPool[index];
+  if (w) {
+    try {
+      w.terminate();
+    } catch {
+      // Ignore worker termination errors
+    }
+    workerPool[index] = null;
+    apiPool[index] = null;
+  }
 }
 
 /** Returns the effective pool size (at least 1). */
@@ -107,15 +140,18 @@ async function computeFileCacheKeys(
   if (!globalThis.crypto?.subtle) {
     return files.map((file) => {
       const identity = file.relativePath ?? file.name;
-      return `${identity}:${file.content.length}:${
-        simpleStringHash(file.content)
-      }`;
+      const contentStr = typeof file.content === "string"
+        ? file.content
+        : new TextDecoder("utf-8").decode(file.content);
+      return `${identity}:${contentStr.length}:${simpleStringHash(contentStr)}`;
     });
   }
 
   return Promise.all(
     files.map(async (file) => {
-      const data = textEncoder.encode(file.content);
+      const data = typeof file.content === "string"
+        ? textEncoder.encode(file.content)
+        : file.content;
       const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
       return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
     }),
@@ -172,6 +208,13 @@ async function parseRenpyFilesFallback(
 
   if (signal?.aborted) {
     throw new DOMException("Parsing cancelled", "AbortError");
+  }
+
+  // Convert any Uint8Array contents to strings
+  for (const file of files) {
+    if (file.content instanceof Uint8Array) {
+      file.content = new TextDecoder("utf-8").decode(file.content);
+    }
   }
 
   try {
@@ -246,7 +289,8 @@ export function parseRenpyFilesInWorker(
     maxParallelFiles,
   } = request;
 
-  const shouldRunParallel = files.length > 1 && getPoolSize() > 1 &&
+  // Run parallel chunk parsing only for projects with >= 20 files
+  const shouldRunParallel = files.length >= 20 && getPoolSize() > 1 &&
     maxParallelFiles !== 1;
 
   if (shouldRunParallel) {
@@ -272,9 +316,20 @@ export function parseRenpyFilesInWorker(
   }
 
   return new Promise<ParseWorkerClientResult>((resolve, reject) => {
+    let cancelTimeout: number | undefined;
+
     const onAbort = () => {
-      getWorkerApi(0).cancel(requestId);
+      try {
+        getWorkerApi(0).cancel(requestId);
+      } catch {
+        // Ignore
+      }
       reject(new DOMException("Parsing cancelled", "AbortError"));
+
+      // 3-second failsafe timeout: if worker is hung, terminate it
+      cancelTimeout = setTimeout(() => {
+        terminateWorker(0);
+      }, 3000) as unknown as number;
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -293,9 +348,20 @@ export function parseRenpyFilesInWorker(
           );
         }
 
+        const transfers: Transferable[] = [];
+        for (const file of files) {
+          if (file.content instanceof Uint8Array) {
+            transfers.push(file.content.buffer);
+          }
+        }
+
+        const filesArg = transfers.length > 0
+          ? transfer(files, transfers)
+          : files;
+
         return getWorkerApi(0).parse(
           requestId,
-          files,
+          filesArg,
           {
             sessionId,
             fileCacheKeys,
@@ -313,6 +379,10 @@ export function parseRenpyFilesInWorker(
       })
       .then((result: ParseWorkerClientResult) => {
         signal?.removeEventListener("abort", onAbort);
+        if (cancelTimeout !== undefined) {
+          clearTimeout(cancelTimeout);
+        }
+        resetIdleTimeout(0);
 
         if (signal?.aborted) {
           reject(new DOMException("Parsing cancelled", "AbortError"));
@@ -325,7 +395,14 @@ export function parseRenpyFilesInWorker(
       })
       .catch((error) => {
         signal?.removeEventListener("abort", onAbort);
-        reject(error);
+        if (cancelTimeout !== undefined) {
+          clearTimeout(cancelTimeout);
+        }
+        resetIdleTimeout(0);
+
+        if (!signal?.aborted) {
+          reject(error);
+        }
       });
   });
 }
@@ -387,6 +464,7 @@ export function searchDialogueLinesInWorker({
     })
       .then((results) => {
         signal?.removeEventListener("abort", onAbort);
+        resetIdleTimeout(0);
         if (signal?.aborted) {
           reject(new DOMException("Search cancelled", "AbortError"));
         } else {
@@ -395,6 +473,7 @@ export function searchDialogueLinesInWorker({
       })
       .catch((err) => {
         signal?.removeEventListener("abort", onAbort);
+        resetIdleTimeout(0);
         reject(err);
       });
   });
@@ -475,13 +554,34 @@ export function parseChunksInParallel({
       );
 
       return new Promise<InternalChunkResult>((resolve, reject) => {
+        let cancelTimeout: number | undefined;
+
         const onAbort = () => {
-          getWorkerApi(workerIdx).cancel(chunkRequestId);
+          try {
+            getWorkerApi(workerIdx).cancel(chunkRequestId);
+          } catch {
+            // Ignore
+          }
           reject(new DOMException("Parsing cancelled", "AbortError"));
+
+          cancelTimeout = setTimeout(() => {
+            terminateWorker(workerIdx);
+          }, 3000) as unknown as number;
         };
         signal?.addEventListener("abort", onAbort, { once: true });
 
-        getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFiles, {
+        const transfers: Transferable[] = [];
+        for (const file of chunkFiles) {
+          if (file.content instanceof Uint8Array) {
+            transfers.push(file.content.buffer);
+          }
+        }
+
+        const chunkFilesArg = transfers.length > 0
+          ? transfer(chunkFiles, transfers)
+          : chunkFiles;
+
+        getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFilesArg, {
           fileCacheKeys: chunkCacheKeys,
           captureDialogueLines,
           parserVariant,
@@ -489,6 +589,11 @@ export function parseChunksInParallel({
         })
           .then((chunkResult) => {
             signal?.removeEventListener("abort", onAbort);
+            if (cancelTimeout !== undefined) {
+              clearTimeout(cancelTimeout);
+            }
+            resetIdleTimeout(workerIdx);
+
             if (signal?.aborted) {
               reject(new DOMException("Parsing cancelled", "AbortError"));
             } else {
@@ -497,7 +602,14 @@ export function parseChunksInParallel({
           })
           .catch((err) => {
             signal?.removeEventListener("abort", onAbort);
-            reject(err);
+            if (cancelTimeout !== undefined) {
+              clearTimeout(cancelTimeout);
+            }
+            resetIdleTimeout(workerIdx);
+
+            if (!signal?.aborted) {
+              reject(err);
+            }
           });
       });
     });
@@ -540,9 +652,19 @@ export function parseChunksInParallel({
       const finalizeRequestId = ++requestCounter;
 
       return new Promise<ParseChunkResult>((resolve, reject) => {
+        let cancelTimeout: number | undefined;
+
         const onAbortFinalize = () => {
-          getWorkerApi(0).cancel(finalizeRequestId);
+          try {
+            getWorkerApi(0).cancel(finalizeRequestId);
+          } catch {
+            // Ignore
+          }
           reject(new DOMException("Parsing cancelled", "AbortError"));
+
+          cancelTimeout = setTimeout(() => {
+            terminateWorker(0);
+          }, 3000) as unknown as number;
         };
         signal?.addEventListener("abort", onAbortFinalize, { once: true });
 
@@ -562,6 +684,11 @@ export function parseChunksInParallel({
         })
           .then((finalResult) => {
             signal?.removeEventListener("abort", onAbortFinalize);
+            if (cancelTimeout !== undefined) {
+              clearTimeout(cancelTimeout);
+            }
+            resetIdleTimeout(0);
+
             if (signal?.aborted) {
               reject(new DOMException("Parsing cancelled", "AbortError"));
             } else {
@@ -570,7 +697,14 @@ export function parseChunksInParallel({
           })
           .catch((err) => {
             signal?.removeEventListener("abort", onAbortFinalize);
-            reject(err);
+            if (cancelTimeout !== undefined) {
+              clearTimeout(cancelTimeout);
+            }
+            resetIdleTimeout(0);
+
+            if (!signal?.aborted) {
+              reject(err);
+            }
           });
       });
     });

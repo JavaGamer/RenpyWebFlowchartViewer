@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { UploadDropzone } from "./components/UploadDropzone.tsx";
 import { UploadProgress } from "./components/UploadProgress.tsx";
@@ -11,13 +12,18 @@ import {
   traverseDataTransferItems,
   type UploadedFile,
   type UploadFileStatus,
+  useAppStore,
+  useDebugBundle,
+  useParserRuleSettingsStore,
+  useUploadOrchestrator,
   useViewerStore,
 } from "../application/index.ts";
 import { cn } from "./utils/cn.ts";
-import type {
-  ParserVariant,
-  ParserVariantPlugin,
-  ScreenActionRule,
+import {
+  getParserVariantPlugins,
+  type ParserVariant,
+  type ParserVariantPlugin,
+  type ScreenActionRule,
 } from "../config/parserRules.ts";
 import {
   MAX_RPY_FILE_COUNT,
@@ -25,58 +31,121 @@ import {
 } from "../config/uploadLimits.ts";
 
 export interface UploadAreaProps {
-  phase: string;
-  fileCount: number;
-  parseProgress:
+  phase?: string;
+  fileCount?: number;
+  parseProgress?:
     | { doneFiles: number; totalFiles: number; currentFile?: string }
     | null;
-  flowNodes: FlowNode[];
-  errorMsg: string | null;
-  debugPrivacyOptions: DebugBundlePrivacyOptions;
-  setDebugPrivacyOptions: React.Dispatch<
+  flowNodes?: FlowNode[];
+  errorMsg?: string | null;
+  debugPrivacyOptions?: DebugBundlePrivacyOptions;
+  setDebugPrivacyOptions?: React.Dispatch<
     React.SetStateAction<DebugBundlePrivacyOptions>
   >;
-  processFiles: (files: FileList | UploadedFile[] | null) => Promise<void>;
-  onCancelParsing: () => void;
-  onReset: () => void;
-  onExportDebugBundle: (privacy: DebugBundlePrivacyOptions) => void;
-  onOpenIssue: (privacy: DebugBundlePrivacyOptions) => void;
-  uploadedFiles: UploadFileStatus[];
+  processFiles?: (files: FileList | UploadedFile[] | null) => Promise<void>;
+  onCancelParsing?: () => void;
+  onReset?: () => void;
+  onExportDebugBundle?: (privacy: DebugBundlePrivacyOptions) => void;
+  onOpenIssue?: (privacy: DebugBundlePrivacyOptions) => void;
+  uploadedFiles?: UploadFileStatus[];
 
   // ParserSettingsSection props
-  selectedVariant: ParserVariant;
-  setSelectedVariant: (variant: ParserVariant) => void;
-  parserVariantPlugins: ParserVariantPlugin[];
-  resetParserRuleSettings: () => void;
-  selectedVariantCustomRules: ScreenActionRule[];
-  updateCustomRule: (index: number, patch: Partial<ScreenActionRule>) => void;
-  removeCustomRule: (index: number, patch?: Partial<ScreenActionRule>) => void;
-  addCustomRule: () => void;
+  selectedVariant?: ParserVariant;
+  setSelectedVariant?: (variant: ParserVariant) => void;
+  parserVariantPlugins?: ParserVariantPlugin[];
+  resetParserRuleSettings?: () => void;
+  selectedVariantCustomRules?: ScreenActionRule[];
+  updateCustomRule?: (index: number, patch: Partial<ScreenActionRule>) => void;
+  removeCustomRule?: (index: number, patch?: Partial<ScreenActionRule>) => void;
+  addCustomRule?: () => void;
 }
 
 export default function UploadArea({
-  phase,
-  fileCount,
-  parseProgress,
-  flowNodes,
-  errorMsg,
-  debugPrivacyOptions,
-  setDebugPrivacyOptions,
-  processFiles,
-  onCancelParsing,
-  onReset,
-  onExportDebugBundle,
-  onOpenIssue,
-  uploadedFiles,
-  selectedVariant,
-  setSelectedVariant,
-  parserVariantPlugins,
-  resetParserRuleSettings,
-  selectedVariantCustomRules,
-  updateCustomRule,
-  removeCustomRule,
-  addCustomRule,
+  phase: propPhase,
+  fileCount: propFileCount,
+  parseProgress: propParseProgress,
+  flowNodes: propFlowNodes,
+  errorMsg: propErrorMsg,
+  debugPrivacyOptions: propDebugPrivacyOptions,
+  setDebugPrivacyOptions: propSetDebugPrivacyOptions,
+  processFiles: propProcessFiles,
+  onCancelParsing: propOnCancelParsing,
+  onReset: propOnReset,
+  onExportDebugBundle: propOnExportDebugBundle,
+  onOpenIssue: propOnOpenIssue,
+  uploadedFiles: propUploadedFiles,
+  selectedVariant: propSelectedVariant,
+  setSelectedVariant: propSetSelectedVariant,
+  parserVariantPlugins: propParserVariantPlugins,
+  resetParserRuleSettings: propResetParserRuleSettings,
+  selectedVariantCustomRules: propSelectedVariantCustomRules,
+  updateCustomRule: propUpdateCustomRule,
+  removeCustomRule: propRemoveCustomRule,
+  addCustomRule: propAddCustomRule,
 }: UploadAreaProps) {
+  // App store
+  const {
+    phase: storePhase,
+    fileCount: storeFileCount,
+    parseProgress: storeParseProgress,
+    flowNodes: storeFlowNodes,
+    errorMsg: storeErrorMsg,
+    reset: storeReset,
+  } = useAppStore(
+    useShallow((s) => ({
+      phase: s.phase,
+      fileCount: s.fileCount,
+      parseProgress: s.parseProgress,
+      flowNodes: s.flowNodes,
+      errorMsg: s.errorMsg,
+      reset: s.reset,
+    })),
+  );
+
+  const phase = propPhase ?? storePhase;
+  const fileCount = propFileCount ?? storeFileCount;
+  const parseProgress = propParseProgress ?? storeParseProgress;
+  const flowNodes = propFlowNodes ?? storeFlowNodes;
+  const errorMsg = propErrorMsg ?? storeErrorMsg;
+
+  // Upload orchestrator hook
+  const orchestrator = useUploadOrchestrator();
+  const uploadedFiles = propUploadedFiles ?? orchestrator.uploadedFiles;
+  const processFiles = propProcessFiles ?? orchestrator.processFiles;
+  const onCancelParsing = propOnCancelParsing ?? orchestrator.cancelParsing;
+
+  // Debug bundle hook
+  const debug = useDebugBundle();
+  const debugPrivacyOptions = propDebugPrivacyOptions ??
+    debug.debugPrivacyOptions;
+  const setDebugPrivacyOptions = propSetDebugPrivacyOptions ??
+    debug.setDebugPrivacyOptions;
+  const onExportDebugBundle = propOnExportDebugBundle ??
+    debug.exportDebugBundle;
+  const onOpenIssue = propOnOpenIssue ?? debug.openNewIssue;
+
+  // Parser settings store
+  const settings = useParserRuleSettingsStore();
+  const selectedVariant = propSelectedVariant ?? settings.selectedVariant;
+  const setSelectedVariant = propSetSelectedVariant ??
+    settings.setSelectedVariant;
+  const resetParserRuleSettings = propResetParserRuleSettings ??
+    settings.resetSettings;
+  const customRulesByVariant = settings.customRulesByVariant;
+  const selectedVariantCustomRules = propSelectedVariantCustomRules ??
+    (customRulesByVariant[selectedVariant] ?? []);
+
+  const updateCustomRule = propUpdateCustomRule ?? settings.updateCustomRule;
+  const removeCustomRule = propRemoveCustomRule ?? settings.removeCustomRule;
+  const addCustomRule = propAddCustomRule ?? settings.addCustomRule;
+
+  const parserVariantPlugins = propParserVariantPlugins ??
+    getParserVariantPlugins();
+
+  const onReset = propOnReset ?? (() => {
+    orchestrator.setUploadedFiles([]);
+    storeReset();
+  });
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const filesInputRef = useRef<HTMLInputElement | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);

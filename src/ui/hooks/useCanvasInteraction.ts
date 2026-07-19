@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useViewerStore } from "../../application/index.ts";
-import type { CanvasNode, CanvasEdge, FlowNode } from "../../domain/index.ts";
+import type { CanvasEdge, CanvasNode, FlowNode } from "../../domain/index.ts";
 import { getNodeCenter } from "../../domain/index.ts";
 import type { DialogueSearchResult } from "../../infrastructure/index.ts";
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../../config/viewerConfig.ts";
@@ -18,7 +18,9 @@ export interface UseCanvasInteractionProps {
   isLargeExportTarget: boolean;
   activeDialogueSearchResults: DialogueSearchResult[];
   resolvedActiveDialogueResultIndex: number;
-  flowInstanceRef: React.MutableRefObject<ReactFlowInstance<CanvasNode, CanvasEdge> | null>;
+  flowInstanceRef: React.MutableRefObject<
+    ReactFlowInstance<CanvasNode, CanvasEdge> | null
+  >;
   canvasCallbacksRef: React.MutableRefObject<CanvasCallbacksRegistry>;
   perf: ReturnType<typeof createPerfTracker>;
   onMetrics: (metrics: CanvasMetrics) => void;
@@ -68,13 +70,21 @@ export function useCanvasInteraction({
     setSelectedNodeId("");
     setSelectedDialogueLineIndex(null);
     setShowAllInspectorLines(false);
-  }, [setSelectedNodeId, setSelectedDialogueLineIndex, setShowAllInspectorLines]);
+  }, [
+    setSelectedNodeId,
+    setSelectedDialogueLineIndex,
+    setShowAllInspectorLines,
+  ]);
 
   const onNodeClick = useCallback((_: unknown, node: CanvasNode) => {
     setSelectedNodeId(node.id);
     setSelectedDialogueLineIndex(null);
     setShowAllInspectorLines(false);
-  }, [setSelectedNodeId, setSelectedDialogueLineIndex, setShowAllInspectorLines]);
+  }, [
+    setSelectedNodeId,
+    setSelectedDialogueLineIndex,
+    setShowAllInspectorLines,
+  ]);
 
   const onPaneClick = useCallback(() => {
     clearSelection();
@@ -188,8 +198,8 @@ export function useCanvasInteraction({
     let visiblePauseDuration = 0;
     for (const node of visibleNodes) {
       if (node.hidden) continue;
-      visibleWordCount += (node.data.wordCount ?? 0);
-      visiblePauseDuration += (node.data.pauseDuration ?? 0);
+      visibleWordCount += node.data.wordCount ?? 0;
+      visiblePauseDuration += node.data.pauseDuration ?? 0;
     }
 
     onMetrics({

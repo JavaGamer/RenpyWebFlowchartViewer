@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { parseRenpyFiles } from "../../src/parser/parser";
 
 describe("parseRenpyFiles", () => {
-
   // ── Call parsing ─────────────────────────────────────────────────────────────
 
   it('parses a call statement and creates a directed call edge labeled "call"', async () => {
@@ -444,5 +443,4 @@ describe("parseRenpyFiles", () => {
     const menuNode = result.nodes.find((n) => n.type === "MENU");
     expect(menuNode?.role).toBe("menu");
   });
-
 });

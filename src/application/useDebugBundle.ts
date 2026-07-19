@@ -3,11 +3,18 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "./appStore.ts";
 import { useParserRuleSettingsStore } from "./parserRuleSettingsStore.ts";
 import { useViewerStore } from "./viewerStore.ts";
-import { buildDebugBundle, toDebugBundleBlob, buildIssueDraftUrl, type DebugBundlePrivacyOptions } from "./debugBundle.ts";
+import {
+  buildDebugBundle,
+  buildIssueDraftUrl,
+  type DebugBundlePrivacyOptions,
+  toDebugBundleBlob,
+} from "./debugBundle.ts";
 
 export interface UseDebugBundleResult {
   debugPrivacyOptions: DebugBundlePrivacyOptions;
-  setDebugPrivacyOptions: (value: React.SetStateAction<DebugBundlePrivacyOptions>) => void;
+  setDebugPrivacyOptions: (
+    value: React.SetStateAction<DebugBundlePrivacyOptions>,
+  ) => void;
   exportDebugBundle: (privacy: DebugBundlePrivacyOptions) => Promise<void>;
   openNewIssue: (privacy: DebugBundlePrivacyOptions) => void;
 }
@@ -50,7 +57,9 @@ export function useDebugBundle(): UseDebugBundleResult {
   );
 
   const debugPrivacyOptions = useViewerStore((s) => s.debugPrivacyOptions);
-  const updateDebugPrivacyOptions = useViewerStore((s) => s.updateDebugPrivacyOptions);
+  const updateDebugPrivacyOptions = useViewerStore((s) =>
+    s.updateDebugPrivacyOptions
+  );
 
   const setDebugPrivacyOptions = useCallback(
     (value: React.SetStateAction<DebugBundlePrivacyOptions>) => {

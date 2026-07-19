@@ -51,7 +51,9 @@ describe("computeTextStats", () => {
   });
 
   it("handles mixed tags and pauses", () => {
-    const result = computeTextStats("She said {b}wait{/b}.{w=0.5} Then smiled.");
+    const result = computeTextStats(
+      "She said {b}wait{/b}.{w=0.5} Then smiled.",
+    );
     expect(result.wordCount).toBe(5); // "She", "said", "wait.", "Then", "smiled."
     expect(result.pauseDuration).toBeCloseTo(0.5);
   });

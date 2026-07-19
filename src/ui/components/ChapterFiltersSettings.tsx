@@ -12,7 +12,10 @@ import {
 import { cn } from "../utils/cn.ts";
 
 /** Per-chapter word count and pause duration aggregated from parsed nodes. */
-export type ChapterStats = Map<string, { wordCount: number; pauseDuration: number }>;
+export type ChapterStats = Map<
+  string,
+  { wordCount: number; pauseDuration: number }
+>;
 
 export interface ChapterFiltersSettingsProps {
   chapters: string[];
@@ -133,7 +136,11 @@ export function ChapterFiltersSettings({
                     {collapsedChapters[chapter] ? "▸" : "▾"} {chapter}
                     {readingTime && (
                       <span
-                        style={{ opacity: 0.6, marginLeft: "0.25em", fontSize: "0.85em" }}
+                        style={{
+                          opacity: 0.6,
+                          marginLeft: "0.25em",
+                          fontSize: "0.85em",
+                        }}
                       >
                         {readingTime}
                       </span>

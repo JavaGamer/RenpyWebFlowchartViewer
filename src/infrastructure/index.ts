@@ -15,7 +15,7 @@ export {
   parseRenpyFilesInWorker,
   searchDialogueLinesInWorker,
 } from "./parserWorkerClient.ts";
-export { readFileAsText } from "./fileReader.ts";
+export { readFileAsArrayBuffer, readFileAsText } from "./fileReader.ts";
 export {
   preWarmLayoutWorker,
   runLayoutInWorker,

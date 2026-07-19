@@ -15,7 +15,7 @@ import {
 } from "../domain/index.ts";
 import {
   type ParseDiagnosticPayload,
-  readFileAsText,
+  readFileAsArrayBuffer,
 } from "../infrastructure/index.ts";
 
 import { validateRpyUpload } from "./uploadValidation.ts";
@@ -138,6 +138,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         size: f.size,
         webkitRelativePath: getFileRelativePath(f),
         text: () => f.text(),
+        arrayBuffer: () => f.arrayBuffer(),
         file: f,
       }));
     }
@@ -213,9 +214,17 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             const id = f.webkitRelativePath || f.name;
             try {
               onFileStatusUpdate?.(id, "reading");
-              const content = f.file
-                ? await readFileAsText(f.file)
-                : await f.text();
+              let content: Uint8Array;
+              if (f.file) {
+                const buf = await readFileAsArrayBuffer(f.file);
+                content = new Uint8Array(buf);
+              } else if (f.arrayBuffer) {
+                const buf = await f.arrayBuffer();
+                content = new Uint8Array(buf);
+              } else {
+                const text = await f.text();
+                content = new TextEncoder().encode(text);
+              }
               return {
                 name: f.name,
                 relativePath: f.webkitRelativePath,

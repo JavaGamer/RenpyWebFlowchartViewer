@@ -1,7 +1,10 @@
 type OpeningDelimiter = "(" | "[" | "{";
 type ClosingDelimiter = ")" | "]" | "}";
 
-export const CLOSING_DELIMITER_BY_OPENING: Record<OpeningDelimiter, ClosingDelimiter> = {
+export const CLOSING_DELIMITER_BY_OPENING: Record<
+  OpeningDelimiter,
+  ClosingDelimiter
+> = {
   "(": ")",
   "[": "]",
   "{": "}",

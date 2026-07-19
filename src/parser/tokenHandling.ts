@@ -71,7 +71,9 @@ export function computeTextStats(
 
   // Strip all Ren'Py text tags to count words (including alpha tags, wait, etc.)
   const stripped = text.replace(/\{[^}]*\}/g, "");
-  const wordCount = stripped.trim() === "" ? 0 : stripped.trim().split(/\s+/).length;
+  const wordCount = stripped.trim() === ""
+    ? 0
+    : stripped.trim().split(/\s+/).length;
 
   return { wordCount, pauseDuration };
 }
@@ -715,7 +717,10 @@ export function handleToken(
             ownerNode.characterDialogue = {};
           }
           if (!ownerNode.characterDialogue[speaker]) {
-            ownerNode.characterDialogue[speaker] = { lineCount: 0, wordCount: 0 };
+            ownerNode.characterDialogue[speaker] = {
+              lineCount: 0,
+              wordCount: 0,
+            };
           }
           const charStats = ownerNode.characterDialogue[speaker]!;
           charStats.lineCount += 1;

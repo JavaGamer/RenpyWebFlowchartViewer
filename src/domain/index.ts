@@ -26,17 +26,17 @@ export {
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
-  getNodeCenter,
-  PROGRESSIVE_LAYOUT_NODE_LIMIT,
-  simplifyGraph,
-  type GraphSimplificationOptions,
-  NODE_WIDTH,
   getLabelHeight,
+  getNodeCenter,
   getNodeHeight,
-  resolveGraphIntegrity,
+  type GraphSimplificationOptions,
+  NODE_HEIGHT_DECISION,
   NODE_HEIGHT_LABEL,
   NODE_HEIGHT_MENU,
-  NODE_HEIGHT_DECISION,
+  NODE_WIDTH,
+  PROGRESSIVE_LAYOUT_NODE_LIMIT,
+  resolveGraphIntegrity,
+  simplifyGraph,
 } from "./transforms/index.ts";
 
 export { extractConditionFlagRefs } from "./conditionLogic.ts";
@@ -46,9 +46,9 @@ export type { MockFlagValue } from "./conditionLogic.ts";
 export {
   BaseDomainError,
   FileReadError,
-  UploadValidationError,
-  ParseError,
   LayoutError,
+  ParseError,
+  UploadValidationError,
 } from "./errors.ts";
 
 export { compareDeterministicStrings } from "./sortUtils.ts";

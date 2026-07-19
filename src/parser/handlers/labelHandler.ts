@@ -14,7 +14,6 @@ import {
   addOutgoing,
 } from "../graphMutations.ts";
 
-
 /**
  * Determines whether the current scanner position lies within the indentation scope
  * of the currently active label block.

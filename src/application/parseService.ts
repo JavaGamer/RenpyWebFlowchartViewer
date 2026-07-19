@@ -1,7 +1,7 @@
 import type {
+  DialogueSearchResult,
   ParseWorkerClientRequest,
   ParseWorkerClientResult,
-  DialogueSearchResult,
 } from "../parser/index.ts";
 
 export type ParseServiceRequest = ParseWorkerClientRequest;

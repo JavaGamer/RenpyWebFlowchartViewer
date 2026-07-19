@@ -18,8 +18,6 @@ import {
   formatReadingTime,
 } from "./utils/readingTime.ts";
 
-
-
 export interface ViewerToolbarProps {
   theme: ThemeName;
   visibleNodeCount: number;
@@ -138,12 +136,21 @@ export function ViewerToolbar({
             {totalEdgeCount} edge{totalEdgeCount !== 1 ? "s" : ""}
             {(totalWordCount > 0) && (() => {
               const visibleTime = formatReadingTime(
-                calculateReadingTimeSeconds(visibleWordCount, visiblePauseDuration, readingSpeedWpm),
+                calculateReadingTimeSeconds(
+                  visibleWordCount,
+                  visiblePauseDuration,
+                  readingSpeedWpm,
+                ),
               );
               const totalTime = formatReadingTime(
-                calculateReadingTimeSeconds(totalWordCount, totalPauseDuration, readingSpeedWpm),
+                calculateReadingTimeSeconds(
+                  totalWordCount,
+                  totalPauseDuration,
+                  readingSpeedWpm,
+                ),
               );
-              const tooltip = `${visibleWordCount.toLocaleString()} words visible / ${totalWordCount.toLocaleString()} words total`;
+              const tooltip =
+                `${visibleWordCount.toLocaleString()} words visible / ${totalWordCount.toLocaleString()} words total`;
               return (
                 <>
                   {" · "}
@@ -152,7 +159,9 @@ export function ViewerToolbar({
                     style={{ cursor: "help" }}
                     aria-label={`Reading time: ${visibleTime} visible / ${totalTime} total. ${tooltip}`}
                   >
-                    {visibleTime}{" / "}{totalTime} read
+                    {visibleTime}
+                    {" / "}
+                    {totalTime} read
                   </span>
                 </>
               );

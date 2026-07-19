@@ -13,7 +13,7 @@ import type {
 } from "../../domain/index.ts";
 import { useViewerStore } from "../../application/index.ts";
 import { cn } from "../utils/cn.ts";
-import { SectionHeader, Select, Button } from "../primitives/index.ts";
+import { Button, SectionHeader, Select } from "../primitives/index.ts";
 
 export interface LayoutSettingsProps {
   onRelayout: () => void;

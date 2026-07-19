@@ -11,7 +11,6 @@ function loadFixture(name: string): string {
 }
 
 describe("parseRenpyFiles", () => {
-
   // ── Fixture-based regression cases ───────────────────────────────────────────
 
   it("fixture: nested menus preserve menu-option jump edges, including nested options", async () => {

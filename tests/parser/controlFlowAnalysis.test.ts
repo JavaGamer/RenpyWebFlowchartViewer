@@ -22,7 +22,9 @@ label finished:
 
     const result = await parseRenpyFiles(files);
 
-    const unreachableNode = result.nodes.find((n) => n.id === "unreachable_label");
+    const unreachableNode = result.nodes.find((n) =>
+      n.id === "unreachable_label"
+    );
     expect(unreachableNode).toBeDefined();
     expect(unreachableNode?.isOrphan).toBe(true);
 
@@ -88,7 +90,7 @@ label loop_a:
     const result = await parseRenpyFiles(files);
 
     const loopDiagnostics = result.diagnostics?.filter(
-      (d) => d.context?.category === "infinite_loop"
+      (d) => d.context?.category === "infinite_loop",
     );
     expect(loopDiagnostics ?? []).toHaveLength(0);
   });

@@ -166,6 +166,13 @@ const parserApi = {
     let lastProgressAt = 0;
     let pendingProgress: ProgressPayload | null = null;
 
+    // Decode files if they are in Uint8Array format
+    for (const file of files) {
+      if (file.content instanceof Uint8Array) {
+        file.content = new TextDecoder("utf-8").decode(file.content);
+      }
+    }
+
     try {
       let result;
       if (appendToActiveGraph) {
@@ -216,6 +223,10 @@ const parserApi = {
           }
           if (cancelledRequests.has(requestId)) {
             throw new Error("Parsing cancelled");
+          }
+          // Yield to event loop every 5 files to allow cancellation processing
+          if (idx > 0 && idx % 5 === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
           }
           const file = files[idx];
           let tokenized = tokenizedFiles[idx];
@@ -340,15 +351,21 @@ const parserApi = {
       screenActionRules?: ScreenActionRule[];
     },
   ): Promise<InternalChunkResult> {
-    if (cancelledRequests.has(requestId)) {
-      cancelledRequests.delete(requestId);
-      throw new Error("Chunk parsing cancelled");
+    // Decode files if they are in Uint8Array format
+    for (const file of files) {
+      if (file.content instanceof Uint8Array) {
+        file.content = new TextDecoder("utf-8").decode(file.content);
+      }
     }
     try {
       const chunkState = createGraphState();
       for (let idx = 0; idx < files.length; idx += 1) {
         if (cancelledRequests.has(requestId)) {
           throw new Error("Chunk parsing cancelled");
+        }
+        // Yield to event loop every 5 files to allow cancellation processing
+        if (idx > 0 && idx % 5 === 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
         const tokenized = await tokenizeOneFile(
           files[idx],

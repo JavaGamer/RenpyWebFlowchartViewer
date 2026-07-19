@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { analyzeTokenMeta } from "../../src/parser/tokenMeta";
 import { PARSER_TOKENS } from "../../src/parser/parserTokens";
-import { createGraphState, createScanState } from "../../src/parser/pipelineState";
+import {
+  createGraphState,
+  createScanState,
+} from "../../src/parser/pipelineState";
 import { finalizeRoles } from "../../src/parser/roleFinalization";
 import {
   addIncoming,

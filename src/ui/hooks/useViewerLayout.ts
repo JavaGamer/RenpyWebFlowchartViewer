@@ -6,17 +6,17 @@ import {
   useRef,
   useState,
 } from "react";
-import { useEdgesState, useNodesState, type NodeChange } from "@xyflow/react";
+import { type NodeChange, useEdgesState, useNodesState } from "@xyflow/react";
 import {
-  simplifyGraph,
   type CanvasEdge,
   type CanvasNode,
   type FlowEdge,
   type FlowNode,
+  type GraphSimplificationOptions,
   type LayoutDensity,
   type LayoutDirection,
-  type GraphSimplificationOptions,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
+  simplifyGraph,
 } from "../../domain/index.ts";
 import type { createPerfTracker } from "../../infrastructure/index.ts";
 import {
@@ -91,7 +91,9 @@ export function useViewerLayout({
   const [prevFlowEdges, setPrevFlowEdges] = useState(flowEdges);
   const [prevDirection, setPrevDirection] = useState(layoutDirection);
   const [prevDensity, setPrevDensity] = useState(layoutDensity);
-  const [prevSimplifyOptions, setPrevSimplifyOptions] = useState(simplifyOptions);
+  const [prevSimplifyOptions, setPrevSimplifyOptions] = useState(
+    simplifyOptions,
+  );
 
   if (
     flowNodes !== prevFlowNodes ||
@@ -116,10 +118,15 @@ export function useViewerLayout({
     perf.mark("layout");
     const progressive = shouldProgressiveLayout;
     const simplified = simplifyGraph(flowNodes, flowEdges, simplifyOptions);
-    const laidOut = applyDagreLayout(simplified.nodes, simplified.edges, layoutDirection, {
-      progressive,
-      layoutDensity,
-    });
+    const laidOut = applyDagreLayout(
+      simplified.nodes,
+      simplified.edges,
+      layoutDirection,
+      {
+        progressive,
+        layoutDensity,
+      },
+    );
     perf.measure("layout", "layout_ms", {
       nodes: flowNodes.length,
       edges: flowEdges.length,
@@ -158,11 +165,16 @@ export function useViewerLayout({
     setIsCalculatingLayout(true);
     if (!isWorkerEnabled) {
       const simplified = simplifyGraph(flowNodes, flowEdges, simplifyOptions);
-      const next = applyDagreLayout(simplified.nodes, simplified.edges, layoutDirection, {
-        progressive: shouldProgressiveLayout,
-        previousPositions: nodePositionsRef.current,
-        layoutDensity,
-      });
+      const next = applyDagreLayout(
+        simplified.nodes,
+        simplified.edges,
+        layoutDirection,
+        {
+          progressive: shouldProgressiveLayout,
+          previousPositions: nodePositionsRef.current,
+          layoutDensity,
+        },
+      );
       nodePositionsRef.current = new Map(
         next.nodes.map((n) => [n.id, n.position]),
       );
