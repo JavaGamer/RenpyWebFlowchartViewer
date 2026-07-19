@@ -128,20 +128,16 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     // Transition to reading early to show zip extraction/scanning status
     actions.startReading(0);
 
-    let initialFiles: UploadedFile[] = [];
-    if (Array.isArray(files)) {
-      initialFiles = files;
-    } else {
-      const fileList = files as FileList;
-      initialFiles = Array.from(fileList).map((f: File) => ({
-        name: f.name,
-        size: f.size,
-        webkitRelativePath: getFileRelativePath(f),
-        text: () => f.text(),
-        arrayBuffer: () => f.arrayBuffer(),
-        file: f,
-      }));
-    }
+    const initialFiles: UploadedFile[] = Array.isArray(files)
+      ? files
+      : Array.from(files as FileList).map((f: File) => ({
+          name: f.name,
+          size: f.size,
+          webkitRelativePath: getFileRelativePath(f),
+          text: () => f.text(),
+          arrayBuffer: () => f.arrayBuffer(),
+          file: f,
+        }));
 
     const consolidatedFiles: UploadedFile[] = [];
     try {
