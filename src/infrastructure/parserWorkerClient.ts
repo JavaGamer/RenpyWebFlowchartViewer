@@ -152,7 +152,10 @@ async function computeFileCacheKeys(
       const data = typeof file.content === "string"
         ? textEncoder.encode(file.content)
         : file.content;
-      const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+      const digest = await globalThis.crypto.subtle.digest(
+        "SHA-256",
+        data as unknown as BufferSource,
+      );
       return `${file.relativePath ?? file.name}:${hashToHex(digest)}`;
     }),
   );

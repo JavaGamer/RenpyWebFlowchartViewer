@@ -4,15 +4,21 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { z } from "zod";
 import {
   DEFAULT_PARSER_VARIANT,
-  getParserVariants,
   isParserVariant,
   normalizeScreenActionRule,
   type ParserVariant,
   type ScreenActionRule,
 } from "../config/parserRules.ts";
 import { STORAGE_KEYS } from "../config/storageKeys.ts";
+import {
+  createCustomRulesSlice,
+  createEmptyRulesByVariant,
+  createVariantSlice,
 
-export type RulesByVariant = Record<string, ScreenActionRule[]>;
+  type RulesByVariant,
+} from "./parserRuleSettingsSlices/index.ts";
+
+export type { RulesByVariant };
 
 export interface ParserRuleSettings {
   selectedVariant: ParserVariant;
@@ -35,12 +41,6 @@ export interface ParserRuleSettingsActions {
 export type ParserRuleSettingsStore =
   & ParserRuleSettings
   & ParserRuleSettingsActions;
-
-function createEmptyRulesByVariant(): RulesByVariant {
-  return Object.fromEntries(
-    getParserVariants().map((variant) => [variant, []] as const),
-  );
-}
 
 export const defaultParserRuleSettings: ParserRuleSettings = {
   selectedVariant: DEFAULT_PARSER_VARIANT,
@@ -98,44 +98,9 @@ function mergePersistedState(
 
 export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
   persist(
-    immer((set) => ({
-      ...defaultParserRuleSettings,
-
-      setSelectedVariant: (variant) =>
-        set((draft) => {
-          draft.selectedVariant = variant;
-        }),
-
-      addCustomRule: () =>
-        set((draft) => {
-          if (!draft.customRulesByVariant[draft.selectedVariant]) {
-            draft.customRulesByVariant[draft.selectedVariant] = [];
-          }
-          draft.customRulesByVariant[draft.selectedVariant].push({
-            actionName: "",
-            actionKind: "jump",
-          });
-        }),
-
-      updateCustomRule: (idx, patch) =>
-        set((draft) => {
-          const rule = draft.customRulesByVariant[draft.selectedVariant][idx];
-          if (!rule) return;
-          if (patch.actionName !== undefined) {
-            rule.actionName = patch.actionName;
-          }
-          if (patch.actionKind !== undefined) {
-            rule.actionKind = patch.actionKind;
-          }
-        }),
-
-      removeCustomRule: (idx) =>
-        set((draft) => {
-          if (!draft.customRulesByVariant[draft.selectedVariant]) return;
-          draft.customRulesByVariant[draft.selectedVariant].splice(idx, 1);
-        }),
-
-      resetSettings: () => set(() => ({ ...defaultParserRuleSettings })),
+    immer((set, get, api) => ({
+      ...createVariantSlice(set, get, api),
+      ...createCustomRulesSlice(set, get, api),
     })),
     {
       name: STORAGE_KEYS.parserSettings,

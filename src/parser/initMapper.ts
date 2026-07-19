@@ -244,7 +244,10 @@ export function preParseInitialization(
 
   for (const file of files) {
     const filePath = file.relativePath ?? file.name;
-    const lines = file.content.split(/\r?\n/);
+    const contentStr = typeof file.content === "string"
+      ? file.content
+      : new TextDecoder("utf-8").decode(file.content);
+    const lines = contentStr.split(/\r?\n/);
     let currentOffset = 0;
     let idx = 0;
 

@@ -5,7 +5,7 @@ import type { ParseGraphState } from "./pipelineTypes.ts";
 import { createScanState } from "./pipelineState.ts";
 import { processTokenTreeStream } from "./tokenScanStage.ts";
 import type { ParseInputFile, ParseOptions } from "./pipelineTypes.ts";
-import { createPerfTracker } from "../infrastructure/perf.ts";
+import { createPerfTracker } from "../domain/index.ts";
 
 const parserPerf = createPerfTracker("parser:file");
 
@@ -66,7 +66,10 @@ export async function tokenizeOneFile(
 
   const tokenizeMark = `tokenize:${cacheKey ?? file.name}:${fileIndex ?? -1}`;
   parserPerf?.mark(tokenizeMark);
-  const { document, nodes: tokenTree } = await renpyParse(file.content);
+  const textContent = typeof file.content === "string"
+    ? file.content
+    : new TextDecoder("utf-8").decode(file.content);
+  const { document, nodes: tokenTree } = await renpyParse(textContent);
   parserPerf?.measure(tokenizeMark, "parse_tokenize_ms", { file: file.name });
   if (cacheKey && tokenizedCache) {
     tokenizedCache.set(cacheKey, { document, tokenTree });

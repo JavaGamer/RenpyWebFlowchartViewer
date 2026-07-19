@@ -98,14 +98,10 @@ describe("architecture import boundaries", () => {
       for (const match of source.matchAll(layerImportPattern)) {
         const importPath = match[1];
         const targetLayer = match[2];
-        const normalizedImportPath = importPath.replace(/^(\.\.\/|\.\/)+/, "");
-        const isPerfException =
-          normalizedImportPath === "infrastructure/perf" ||
-          normalizedImportPath === "infrastructure/perf.ts";
         if (
           targetLayer === "ui" ||
           targetLayer === "application" ||
-          (targetLayer === "infrastructure" && !isPerfException)
+          targetLayer === "infrastructure"
         ) {
           offenders.push(`${rel} -> ${importPath}`);
         }
@@ -146,10 +142,7 @@ describe("architecture import boundaries", () => {
           normalizedImportPath !== `${targetLayer}/index.tsx` &&
           normalizedImportPath.startsWith(`${targetLayer}/`);
         const isSameLayer = sourceLayer === targetLayer;
-        const isPerfException =
-          normalizedImportPath === "infrastructure/perf" ||
-          normalizedImportPath === "infrastructure/perf.ts";
-        if (isDeepImport && !isSameLayer && !isPerfException) {
+        if (isDeepImport && !isSameLayer) {
           offenders.push(`${rel} -> ${importPath}`);
         }
       }

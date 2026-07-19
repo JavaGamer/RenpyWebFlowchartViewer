@@ -14,7 +14,7 @@ import {
 } from "./filePipeline.ts";
 import { finalizeRoles } from "./roleFinalization.ts";
 import { preParseInitialization } from "./initMapper.ts";
-import { createPerfTracker } from "../infrastructure/perf.ts";
+import { createPerfTracker } from "../domain/index.ts";
 import type {
   ParseInputFile,
   ParseOptions,

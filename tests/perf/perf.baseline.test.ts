@@ -10,11 +10,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { parseRenpyFiles } from "../../src/parser/parser";
-import {
-  applyDagreLayout,
-  buildVisibleEdges,
-  buildVisibleNodes,
-} from "../../src/domain";
+import { buildVisibleEdges, buildVisibleNodes } from "../../src/domain";
+import { applyDagreLayout } from "../../src/infrastructure";
 
 const thisDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(thisDir, "../..");

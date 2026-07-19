@@ -22,6 +22,8 @@ export {
   type RulesByVariant,
   useParserRuleSettingsStore,
 } from "./parserRuleSettingsStore.ts";
+export * from "./appStoreSlices/index.ts";
+export * from "./parserRuleSettingsSlices/index.ts";
 export {
   toFileReadErrorMessage,
   toParseErrorMessage,
