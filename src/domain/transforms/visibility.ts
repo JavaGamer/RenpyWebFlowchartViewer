@@ -46,6 +46,7 @@ export function buildVisibleNodes(params: {
   collapsedChapters: Record<string, boolean>;
   collapsedLabelChildren: Set<string>;
   conditionHiddenNodeIds?: Set<string>;
+  activePathNodes?: Set<string> | null;
   theme: ThemeName;
   previousById?: Map<string, CanvasNode>;
 }): CanvasNode[] {
@@ -59,6 +60,7 @@ export function buildVisibleNodes(params: {
     collapsedChapters,
     collapsedLabelChildren,
     conditionHiddenNodeIds,
+    activePathNodes,
     theme,
     previousById,
   } = params;
@@ -88,6 +90,9 @@ export function buildVisibleNodes(params: {
         !matchesSearch ||
         !matchesDialogue,
     );
+
+    const dimmed = activePathNodes ? !activePathNodes.has(n.id) : false;
+
     const previous = previousById?.get(n.id);
     if (previous) {
       const prevData = previous.data as NodeData;
@@ -108,7 +113,8 @@ export function buildVisibleNodes(params: {
         prevData.shadowOfId === nodeData.shadowOfId &&
         prevData.isTerminalOutcome === nodeData.isTerminalOutcome &&
         prevData.isOrphan === nodeData.isOrphan &&
-        prevData.characterDialogue === nodeData.characterDialogue
+        prevData.characterDialogue === nodeData.characterDialogue &&
+        previous.style?.opacity === (dimmed ? 0.28 : undefined)
       ) {
         return previous;
       }
@@ -117,6 +123,10 @@ export function buildVisibleNodes(params: {
       ...n,
       data: { ...nodeData, theme },
       hidden,
+      style: {
+        ...(n.style || {}),
+        opacity: dimmed ? 0.28 : undefined,
+      },
     };
   });
 }
@@ -155,6 +165,7 @@ export function buildVisibleEdges(params: {
   largeGraphMode: boolean;
   conditionVisibilityMode?: ConditionVisibilityMode;
   edgeConditionStateById?: Map<string, ConditionReachability>;
+  activePathEdges?: Set<string> | null;
   previousById?: Map<string, CanvasEdge>;
 }): CanvasEdge[] {
   const {
@@ -169,6 +180,7 @@ export function buildVisibleEdges(params: {
     largeGraphMode,
     conditionVisibilityMode = "fade",
     edgeConditionStateById,
+    activePathEdges,
     previousById,
   } = params;
   const visible: CanvasEdge[] = [];
@@ -204,6 +216,8 @@ export function buildVisibleEdges(params: {
     }
 
     const timeoutDash = edgeData.timeout?.isTimeout ? "8 4" : undefined;
+    const isPathEdge = activePathEdges?.has(edge.id) ?? false;
+    const isDimmed = activePathEdges ? !isPathEdge : false;
 
     const unreachableStyle =
       conditionVisibilityMode === "fade" && conditionState === "unreachable"
@@ -215,6 +229,8 @@ export function buildVisibleEdges(params: {
 
     const finalStrokeDasharray = timeoutDash ||
       unreachableStyle.strokeDasharray || baseDash;
+
+    const finalOpacity = isDimmed ? 0.15 : (unreachableStyle.opacity ?? 1);
 
     const previous = previousById?.get(edge.id);
     const previousData = previous?.data as EdgeData | undefined;
@@ -229,7 +245,9 @@ export function buildVisibleEdges(params: {
       previous.source === edge.source &&
       previous.target === edge.target &&
       previous.style?.stroke === stroke &&
-      previous.style?.strokeDasharray === finalStrokeDasharray
+      previous.style?.strokeDasharray === finalStrokeDasharray &&
+      previous.style?.opacity === finalOpacity &&
+      previous.animated === isPathEdge
     ) {
       visible.push(previous);
       continue;
@@ -238,13 +256,15 @@ export function buildVisibleEdges(params: {
     visible.push({
       ...edge,
       data: { ...edgeData, label: edgeLabel, kind, conditionState },
+      animated: isPathEdge,
       style: {
         ...(edge.style || {}),
-        ...unreachableStyle,
         stroke,
-        strokeWidth: 1.5,
+        strokeWidth: isPathEdge ? 2.5 : 1.5,
         strokeDasharray: finalStrokeDasharray,
+        opacity: finalOpacity,
       },
+      zIndex: isPathEdge ? 1000 : undefined,
     });
   }
   return visible;

@@ -20,6 +20,9 @@ import type {
 import {
   type DebugBundlePrivacyOptions,
   type DialogueSearchMode,
+  exportMermaid,
+  exportNarrativeOutline,
+  exportStandaloneHtml,
   type ParseService,
   useAppStore,
   useDebugBundle,
@@ -211,6 +214,27 @@ export default function FlowchartViewer({
     saveAs(blob, "renpy-flowchart.json");
   }, [flowEdges, flowNodes]);
 
+  const onExportMermaid = useCallback(async () => {
+    const mermaid = exportMermaid(flowNodes, flowEdges);
+    const blob = new Blob([mermaid], { type: "text/plain" });
+    const { saveAs } = await import("file-saver");
+    saveAs(blob, "renpy-flowchart.mmd");
+  }, [flowEdges, flowNodes]);
+
+  const onExportNarrative = useCallback(async () => {
+    const outline = exportNarrativeOutline(flowNodes, flowEdges);
+    const blob = new Blob([outline], { type: "text/markdown" });
+    const { saveAs } = await import("file-saver");
+    saveAs(blob, "renpy-flowchart-outline.md");
+  }, [flowEdges, flowNodes]);
+
+  const onExportStandalone = useCallback(async () => {
+    const html = exportStandaloneHtml(flowNodes, flowEdges);
+    const blob = new Blob([html], { type: "text/html" });
+    const { saveAs } = await import("file-saver");
+    saveAs(blob, "renpy-flowchart-standalone.html");
+  }, [flowEdges, flowNodes]);
+
   const onExport = useCallback(async () => {
     if (!flowRef.current) return;
     const startedAt = performance.now();
@@ -345,6 +369,9 @@ export default function FlowchartViewer({
         onExport={onExport}
         onExportSvg={onExportSvg}
         onExportJson={onExportJson}
+        onExportMermaid={onExportMermaid}
+        onExportNarrative={onExportNarrative}
+        onExportStandalone={onExportStandalone}
         onExportDebugBundle={onExportDebugBundle}
         onOpenIssue={onOpenIssue}
         debugPrivacyOptions={debugPrivacyOptions}

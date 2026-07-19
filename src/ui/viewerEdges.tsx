@@ -45,7 +45,9 @@ export const LabeledEdge = memo(function LabeledEdge({
               transform:
                 `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
-              opacity: data.conditionState === "unreachable" ? 0.45 : 1,
+              opacity: style?.opacity !== undefined
+                ? style.opacity
+                : (data.conditionState === "unreachable" ? 0.45 : 1),
             }}
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] max-w-[120px] truncate shadow-sm nodrag nopan border transition-colors duration-200",

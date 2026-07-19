@@ -3,6 +3,7 @@ import {
   extractPlayCue,
   extractQueueCue,
   extractSceneAsset,
+  extractShowAsset,
   extractStopCue,
   extractVoiceCue,
 } from "./handlers/audioCues.ts";
@@ -316,6 +317,25 @@ export function handleToken(
           ownerNode.audioAssetCues.push({
             type: "scene",
             asset: sceneAsset,
+            raw: lineText.trim(),
+            lineNum,
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  if (PARSER_TOKENS.kwShow !== undefined && type === PARSER_TOKENS.kwShow) {
+    if (scanState.currentLabelId) {
+      const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+      if (ownerNode) {
+        const showAsset = extractShowAsset(lineText);
+        if (showAsset) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: "show",
+            asset: showAsset,
             raw: lineText.trim(),
             lineNum,
           });

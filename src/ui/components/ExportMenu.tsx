@@ -14,6 +14,9 @@ interface ExportMenuProps {
   onExport: () => void;
   onExportSvg: () => void;
   onExportJson: () => void;
+  onExportMermaid: () => void;
+  onExportNarrative: () => void;
+  onExportStandalone: () => void;
   onExportDebugBundle?: (opts: DebugBundlePrivacyOptions) => void;
   onOpenIssue?: (opts: DebugBundlePrivacyOptions) => void;
   debugPrivacyOptions: DebugBundlePrivacyOptions;
@@ -29,6 +32,9 @@ export function ExportMenu({
   onExport,
   onExportSvg,
   onExportJson,
+  onExportMermaid,
+  onExportNarrative,
+  onExportStandalone,
   onExportDebugBundle,
   onOpenIssue,
   debugPrivacyOptions,
@@ -133,6 +139,87 @@ export function ExportMenu({
               sideOffset={5}
             >
               Export graph as JSON
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={onExportMermaid}
+              aria-label="Export Mermaid"
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                isDark
+                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+              )}
+            >
+              <Download size={14} aria-hidden="true" />
+              Mermaid
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              Export Mermaid (.mmd)
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={onExportNarrative}
+              aria-label="Export Narrative Outline"
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                isDark
+                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+              )}
+            >
+              <Download size={14} aria-hidden="true" />
+              Outline
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              Export Narrative Outline (.md)
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={onExportStandalone}
+              aria-label="Export Standalone HTML"
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                isDark
+                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+              )}
+            >
+              <Download size={14} aria-hidden="true" />
+              Standalone HTML
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              Export standalone self-contained HTML Viewer
               <Tooltip.Arrow className="fill-gray-900" />
             </Tooltip.Content>
           </Tooltip.Portal>

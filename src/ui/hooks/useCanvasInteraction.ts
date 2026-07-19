@@ -240,6 +240,7 @@ export function useCanvasInteraction({
     onNodeClick,
     onPaneClick,
     onFocusSelectedNode,
+    focusVisibleNode,
     onSelectDialogueSearchResult,
   };
 }

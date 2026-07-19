@@ -16,6 +16,8 @@ export interface SelectionSliceState {
   selectedNodeId: string;
   selectedDialogueLineIndex: number | null;
   showAllInspectorLines: boolean;
+  pathStartNodeId: string | null;
+  pathTargetNodeId: string | null;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -26,6 +28,8 @@ export interface SelectionSliceActions {
   setSelectedDialogueLineIndex: (index: number | null) => void;
   toggleShowAllInspectorLines: () => void;
   setShowAllInspectorLines: (show: boolean) => void;
+  setPathStartNodeId: (id: string | null) => void;
+  setPathTargetNodeId: (id: string | null) => void;
 }
 
 export type SelectionSlice = SelectionSliceState & SelectionSliceActions;
@@ -37,6 +41,8 @@ export const defaultSelectionState: SelectionSliceState = {
   selectedNodeId: "",
   selectedDialogueLineIndex: null,
   showAllInspectorLines: false,
+  pathStartNodeId: null,
+  pathTargetNodeId: null,
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -72,5 +78,15 @@ export const createSelectionSlice: StateCreator<
   setShowAllInspectorLines: (show) =>
     set((draft) => {
       draft.showAllInspectorLines = show;
+    }),
+
+  setPathStartNodeId: (id) =>
+    set((draft) => {
+      draft.pathStartNodeId = id;
+    }),
+
+  setPathTargetNodeId: (id) =>
+    set((draft) => {
+      draft.pathTargetNodeId = id;
     }),
 });

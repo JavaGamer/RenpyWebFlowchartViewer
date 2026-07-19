@@ -14,7 +14,6 @@ import {
   createCustomRulesSlice,
   createEmptyRulesByVariant,
   createVariantSlice,
-
   type RulesByVariant,
 } from "./parserRuleSettingsSlices/index.ts";
 

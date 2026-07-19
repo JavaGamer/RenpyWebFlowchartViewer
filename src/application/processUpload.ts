@@ -16,6 +16,7 @@ import {
 import {
   type ParseDiagnosticPayload,
   readFileAsArrayBuffer,
+  saveProjectToCache,
 } from "../infrastructure/index.ts";
 
 import { validateRpyUpload } from "./uploadValidation.ts";
@@ -131,13 +132,13 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     const initialFiles: UploadedFile[] = Array.isArray(files)
       ? files
       : Array.from(files as FileList).map((f: File) => ({
-          name: f.name,
-          size: f.size,
-          webkitRelativePath: getFileRelativePath(f),
-          text: () => f.text(),
-          arrayBuffer: () => f.arrayBuffer(),
-          file: f,
-        }));
+        name: f.name,
+        size: f.size,
+        webkitRelativePath: getFileRelativePath(f),
+        text: () => f.text(),
+        arrayBuffer: () => f.arrayBuffer(),
+        file: f,
+      }));
 
     const consolidatedFiles: UploadedFile[] = [];
     try {
@@ -369,6 +370,27 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       nodeCount: parsedNodes.length,
       edgeCount: parsedEdges.length,
     });
+
+    // Save to cache
+    if (orderedRpyFiles.length > 0) {
+      const firstFile = orderedRpyFiles[0];
+      const projectName = firstFile.webkitRelativePath
+        ? firstFile.webkitRelativePath.split("/")[0]
+        : "Unknown Project";
+
+      saveProjectToCache({
+        id: projectName,
+        name: projectName,
+        lastAccessed: Date.now(),
+        fileCount: orderedRpyFiles.length,
+        nodes: parsedNodes,
+        edges: parsedEdges,
+        diagnostics: parsedDiagnostics,
+      }).catch((err) => {
+        console.warn("Failed to save project to cache:", err);
+      });
+    }
+
     actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
   };
 }

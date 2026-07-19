@@ -18,3 +18,6 @@ export {
 
 export { simplifyGraph } from "./simplify.ts";
 export type { GraphSimplificationOptions } from "./simplify.ts";
+
+export { findPath } from "./pathFinding.ts";
+export type { PathResult } from "./pathFinding.ts";

@@ -22,7 +22,7 @@ export interface TimeoutMetadata {
 }
 
 export interface AudioAssetCue {
-  type: "play" | "stop" | "queue" | "voice" | "scene";
+  type: "play" | "stop" | "queue" | "voice" | "scene" | "show";
   channel?: string;
   asset: string;
   raw: string;

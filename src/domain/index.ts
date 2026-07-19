@@ -26,6 +26,7 @@ export {
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
+  findPath,
   getLabelHeight,
   getNodeCenter,
   getNodeHeight,
@@ -34,6 +35,7 @@ export {
   NODE_HEIGHT_LABEL,
   NODE_HEIGHT_MENU,
   NODE_WIDTH,
+  type PathResult,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   resolveGraphIntegrity,
   simplifyGraph,
@@ -55,4 +57,3 @@ export { compareDeterministicStrings } from "./sortUtils.ts";
 
 export { createPerfTracker } from "./perf.ts";
 export type { PerfEvent, PerfTrackerOptions } from "./perf.ts";
-

@@ -153,6 +153,8 @@ interface InspectorNodeDetailsProps {
   isDark: boolean;
   /** Reading speed WPM from the viewer store. */
   readingSpeedWpm: number;
+  onSetPathStart: () => void;
+  onSetPathTarget: () => void;
 }
 
 /* eslint-disable react-hooks/incompatible-library */
@@ -168,6 +170,8 @@ export function InspectorNodeDetails({
   theme,
   isDark,
   readingSpeedWpm,
+  onSetPathStart,
+  onSetPathTarget,
 }: InspectorNodeDetailsProps) {
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -259,9 +263,37 @@ export function InspectorNodeDetails({
 
   return (
     <div className="space-y-2">
-      <div className="text-xs">
-        <span className="font-semibold text-gray-500">Node:</span>{" "}
-        {selectedNodeData.label}
+      <div className="flex justify-between items-start gap-2">
+        <div className="text-xs break-all">
+          <span className="font-semibold text-gray-500">Node:</span>{" "}
+          {selectedNodeData.label}
+        </div>
+        <div className="flex flex-col gap-1 shrink-0">
+          <button
+            onClick={onSetPathStart}
+            className={cn(
+              "text-[10px] px-2 py-1 rounded border transition-colors",
+              isDark
+                ? "border-emerald-900 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+            )}
+            title="Set as starting node for path finding"
+          >
+            Set Path Start
+          </button>
+          <button
+            onClick={onSetPathTarget}
+            className={cn(
+              "text-[10px] px-2 py-1 rounded border transition-colors",
+              isDark
+                ? "border-rose-900 bg-rose-950/40 text-rose-300 hover:bg-rose-900/60"
+                : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+            )}
+            title="Set as target node for path finding"
+          >
+            Set Path Target
+          </button>
+        </div>
       </div>
       <div className="text-xs">
         <span className="font-semibold text-gray-500">

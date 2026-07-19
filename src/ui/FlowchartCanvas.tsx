@@ -77,6 +77,8 @@ export function FlowchartCanvas({
     minimapPannable,
     minimapZoomable,
     showMediaCuesInDialogue,
+    pathStartNodeId,
+    pathTargetNodeId,
   } = useViewerStore(
     useShallow((s) => ({
       layoutDirection: s.layoutDirection,
@@ -94,6 +96,8 @@ export function FlowchartCanvas({
       minimapPannable: s.minimapPannable,
       minimapZoomable: s.minimapZoomable,
       showMediaCuesInDialogue: s.showMediaCuesInDialogue,
+      pathStartNodeId: s.pathStartNodeId,
+      pathTargetNodeId: s.pathTargetNodeId,
     })),
   );
 
@@ -102,12 +106,18 @@ export function FlowchartCanvas({
     setShowMediaCuesInDialogue,
     toggleShowAllInspectorLines,
     resetSession,
+    setPathStartNodeId,
+    setPathTargetNodeId,
+    setSelectedNodeId,
   } = useViewerStore(
     useShallow((s) => ({
       setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
       setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
       toggleShowAllInspectorLines: s.toggleShowAllInspectorLines,
       resetSession: s.resetSession,
+      setPathStartNodeId: s.setPathStartNodeId,
+      setPathTargetNodeId: s.setPathTargetNodeId,
+      setSelectedNodeId: s.setSelectedNodeId,
     })),
   );
 
@@ -185,6 +195,7 @@ export function FlowchartCanvas({
     chapterStats,
     dialogueLineSearchEnabled,
     largeGraphMode,
+    pathResult,
   } = useGraphVisibility({
     nodes,
     edges,
@@ -201,6 +212,7 @@ export function FlowchartCanvas({
     onNodeClick,
     onPaneClick,
     onFocusSelectedNode,
+    focusVisibleNode,
     onSelectDialogueSearchResult,
   } = useCanvasInteraction({
     visibleNodes,
@@ -338,6 +350,21 @@ export function FlowchartCanvas({
           onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
           onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
           onSelectDialogueSearchResult={onSelectDialogueSearchResult}
+          onSetPathStart={() => setPathStartNodeId(selectedNodeId)}
+          onSetPathTarget={() => setPathTargetNodeId(selectedNodeId)}
+          pathStartNodeId={pathStartNodeId}
+          pathTargetNodeId={pathTargetNodeId}
+          pathResult={pathResult}
+          nodes={visibleNodes}
+          edges={visibleEdges}
+          onClearPath={() => {
+            setPathStartNodeId(null);
+            setPathTargetNodeId(null);
+          }}
+          onSelectNode={(nodeId) => {
+            setSelectedNodeId(nodeId);
+            focusVisibleNode(nodeId);
+          }}
         />
       </div>
     </>

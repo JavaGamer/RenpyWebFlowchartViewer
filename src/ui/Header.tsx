@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Activity, FolderOpen } from "lucide-react";
 import TelemetryModal from "./TelemetryModal.tsx";
+import RecentProjectsDropdown from "./components/RecentProjectsDropdown.tsx";
 import { useViewerStore } from "../application/index.ts";
 import type { ThemeName } from "../domain/index.ts";
 import { cn } from "./utils/cn.ts";
@@ -47,6 +48,7 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          <RecentProjectsDropdown />
           <label htmlFor="header-theme-select" className="sr-only">Theme</label>
           <select
             id="header-theme-select"
