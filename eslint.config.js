@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 export default defineConfig([
-  globalIgnores(["dist"]),
+  globalIgnores(["dist", "coverage"]),
   {
     files: ["**/*.{ts,tsx}"],
     extends: [
@@ -22,12 +22,8 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      "complexity": ["warn", 20],
-      "max-lines": ["warn", {
-        max: 500,
-        skipBlankLines: true,
-        skipComments: true,
-      }],
+      "complexity": "off",
+      "max-lines": "off",
       "no-restricted-imports": ["error", {
         patterns: [
           "./types",

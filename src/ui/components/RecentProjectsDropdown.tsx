@@ -27,13 +27,21 @@ export default function RecentProjectsDropdown() {
     })),
   );
 
-  const loadProjects = async () => {
+  const reloadProjects = async () => {
     const list = await getRecentProjects();
     setProjects(list);
   };
 
   useEffect(() => {
-    loadProjects();
+    let isMounted = true;
+    getRecentProjects().then((list) => {
+      if (isMounted) {
+        setProjects(list);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -48,25 +56,23 @@ export default function RecentProjectsDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSelect = async (id: string) => {
+  const handleSelectProject = async (id: string) => {
     setIsOpen(false);
     startParsing();
     const project = await getProjectFromCache(id);
     if (project) {
-      project.lastAccessed = Date.now();
-      saveProjectToCache(project);
+      await saveProjectToCache({ ...project, lastAccessed: 0 }); // 0 triggers default timestamp in saveProjectToCache
       parseSuccess(project.nodes, project.edges, project.diagnostics);
-      loadProjects();
     } else {
       fail("Failed to load project from cache.");
-      loadProjects();
     }
+    await reloadProjects();
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     await deleteProjectFromCache(id);
-    loadProjects();
+    await reloadProjects();
   };
 
   if (projects.length === 0) return null;
@@ -114,11 +120,12 @@ export default function RecentProjectsDropdown() {
           </div>
           <div className="max-h-60 overflow-y-auto">
             {projects.map((p) => (
-              <div
+              <button
+                type="button"
                 key={p.id}
-                onClick={() => handleSelect(p.id)}
+                onClick={() => handleSelectProject(p.id)}
                 className={cn(
-                  "flex items-center justify-between px-3 py-2 cursor-pointer transition-colors group",
+                  "w-full text-left flex items-center justify-between px-3 py-2 cursor-pointer transition-colors group",
                   isDark
                     ? "hover:bg-slate-700 text-slate-300"
                     : "hover:bg-violet-50 text-gray-700",
@@ -136,8 +143,15 @@ export default function RecentProjectsDropdown() {
                     {new Date(p.lastAccessed).toLocaleDateString()}
                   </span>
                 </div>
-                <button
+                <div
                   onClick={(e) => handleDelete(e, p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      handleDelete(e as unknown as React.MouseEvent, p.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                   className={cn(
                     "p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity",
                     isDark
@@ -147,8 +161,8 @@ export default function RecentProjectsDropdown() {
                   title="Remove from history"
                 >
                   <Trash2 size={14} />
-                </button>
-              </div>
+                </div>
+              </button>
             ))}
           </div>
         </div>

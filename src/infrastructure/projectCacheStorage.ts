@@ -43,10 +43,14 @@ export async function saveProjectToCache(
 ): Promise<void> {
   try {
     const db = await openDB();
+    const entry: CachedProject = {
+      ...project,
+      lastAccessed: project.lastAccessed || Date.now(),
+    };
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const request = store.put(project);
+      const request = store.put(entry);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
       tx.oncomplete = () => db.close();

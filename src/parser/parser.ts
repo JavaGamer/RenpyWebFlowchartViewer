@@ -49,8 +49,10 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
+  const safeFiles = files ?? [];
   // Ensure all file content is decoded to string for the parsing pipeline
-  for (const file of files) {
+  for (const file of safeFiles) {
+    if (!file) continue;
     if (file.content instanceof Uint8Array) {
       file.content = new TextDecoder("utf-8").decode(file.content);
     }
@@ -59,7 +61,7 @@ export async function parseRenpyFiles(
   const perf = createPerfTracker("parser");
   perf.mark("total");
   const state = createGraphState();
-  const orderedFiles = [...files].sort(compareFiles);
+  const orderedFiles = [...safeFiles].sort(compareFiles);
 
   perf.mark("pre-parse");
   preParseInitialization(orderedFiles, state);

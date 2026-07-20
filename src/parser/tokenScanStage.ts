@@ -483,7 +483,7 @@ function traverseAndProcess(
     metaStack.push(type);
   }
 
-  node.children.forEach((child) => {
+  node.children?.forEach((child) => {
     traverseAndProcess(
       child,
       metaStack,

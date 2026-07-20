@@ -341,6 +341,10 @@ export function normalizeGraphState(state: ParseGraphState): void {
     state.hasReturnInLabel,
     state.nodeIds,
   );
+  state.hasReliableReturnInLabel = rebuildReturnTrackingSet(
+    state.hasReliableReturnInLabel,
+    state.nodeIds,
+  );
 
   for (const edge of normalizedEdges) {
     const edgeKind = edge.kind ?? "sequence";

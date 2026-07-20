@@ -62,6 +62,8 @@ export function isLayoutRunning(): boolean {
   return isWorkerRunning;
 }
 
+let activeCancelCallback: (() => void) | null = null;
+
 export function runLayoutInWorker(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
@@ -78,8 +80,8 @@ export function runLayoutInWorker(
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  if (isWorkerRunning) {
-    terminateLayoutWorker();
+  if (activeCancelCallback) {
+    activeCancelCallback();
   }
 
   isWorkerRunning = true;
@@ -87,6 +89,14 @@ export function runLayoutInWorker(
 
   let cancelled = false;
   let completed = false;
+
+  const cancelHandler = () => {
+    if (!completed) {
+      cancelled = true;
+      terminateLayoutWorker();
+    }
+  };
+  activeCancelCallback = cancelHandler;
 
   let serializedPreviousPositions:
     | Array<[string, { x: number; y: number }]>
@@ -111,12 +121,18 @@ export function runLayoutInWorker(
       if (cancelled) return;
       completed = true;
       isWorkerRunning = false;
+      if (activeCancelCallback === cancelHandler) {
+        activeCancelCallback = null;
+      }
       onResult(result);
     })
     .catch((error) => {
       if (cancelled) return;
       completed = true;
       isWorkerRunning = false;
+      if (activeCancelCallback === cancelHandler) {
+        activeCancelCallback = null;
+      }
       if (onError) {
         onError(error instanceof Error ? error : new Error(String(error)));
       } else {
@@ -124,10 +140,5 @@ export function runLayoutInWorker(
       }
     });
 
-  return () => {
-    if (!completed) {
-      cancelled = true;
-      terminateLayoutWorker();
-    }
-  };
+  return cancelHandler;
 }

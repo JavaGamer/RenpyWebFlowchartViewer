@@ -68,7 +68,7 @@ export async function tokenizeOneFile(
   parserPerf?.mark(tokenizeMark);
   const textContent = typeof file.content === "string"
     ? file.content
-    : new TextDecoder("utf-8").decode(file.content);
+    : (file.content ? new TextDecoder("utf-8").decode(file.content) : "");
   const { document, nodes: tokenTree } = await renpyParse(textContent);
   parserPerf?.measure(tokenizeMark, "parse_tokenize_ms", { file: file.name });
   if (cacheKey && tokenizedCache) {

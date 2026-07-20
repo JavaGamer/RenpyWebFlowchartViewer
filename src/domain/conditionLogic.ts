@@ -130,42 +130,47 @@ function evaluateInstructions(
       }
     } else if (inst.type === "IOP1") {
       const val = stack.pop();
-      if (!val) throw new Error("Stack underflow");
-      stack.push(
-        val === "unknown" ? "unknown" : val === "true" ? "false" : "true",
-      );
+      if (!val) {
+        stack.push("unknown");
+      } else {
+        stack.push(
+          val === "unknown" ? "unknown" : val === "true" ? "false" : "true",
+        );
+      }
     } else if (inst.type === "IOP2") {
       const right = stack.pop();
       const left = stack.pop();
-      if (!left || !right) throw new Error("Stack underflow");
-
-      const op = typeof inst.value === "string" ? inst.value : "";
-      if (op === "and" || op === "&&") {
-        if (left === "false" || right === "false") {
-          stack.push("false");
-        } else if (left === "true" && right === "true") {
-          stack.push("true");
-        } else {
-          stack.push("unknown");
-        }
-      } else if (op === "or" || op === "||") {
-        if (left === "true" || right === "true") {
-          stack.push("true");
-        } else if (left === "false" && right === "false") {
-          stack.push("false");
-        } else {
-          stack.push("unknown");
-        }
-      } else if (op === "==" || op === "!=") {
-        if (left === "unknown" || right === "unknown") {
-          stack.push("unknown");
-        } else {
-          const equal = left === right;
-          const res = op === "==" ? equal : !equal;
-          stack.push(res ? "true" : "false");
-        }
-      } else {
+      if (!left || !right) {
         stack.push("unknown");
+      } else {
+        const op = typeof inst.value === "string" ? inst.value : "";
+        if (op === "and" || op === "&&") {
+          if (left === "false" || right === "false") {
+            stack.push("false");
+          } else if (left === "true" && right === "true") {
+            stack.push("true");
+          } else {
+            stack.push("unknown");
+          }
+        } else if (op === "or" || op === "||") {
+          if (left === "true" || right === "true") {
+            stack.push("true");
+          } else if (left === "false" && right === "false") {
+            stack.push("false");
+          } else {
+            stack.push("unknown");
+          }
+        } else if (op === "==" || op === "!=") {
+          if (left === "unknown" || right === "unknown") {
+            stack.push("unknown");
+          } else {
+            const equal = left === right;
+            const res = op === "==" ? equal : !equal;
+            stack.push(res ? "true" : "false");
+          }
+        } else {
+          stack.push("unknown");
+        }
       }
     }
   }

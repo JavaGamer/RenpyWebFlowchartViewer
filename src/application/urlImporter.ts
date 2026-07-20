@@ -67,13 +67,14 @@ export async function fetchFilesFromUrl(
   }
 
   const contentType = response.headers.get("Content-Type") || "";
-  const urlLower = resolvedUrl.toLowerCase();
+  const cleanUrl = resolvedUrl.split("?")[0]!.split("#")[0]!;
+  const urlLower = cleanUrl.toLowerCase();
   const isZip = urlLower.endsWith(".zip") || contentType.includes("zip") ||
     contentType.includes("octet-stream");
 
   if (isZip) {
     const buffer = await response.arrayBuffer();
-    const parts = resolvedUrl.split("/");
+    const parts = cleanUrl.split("/");
     const name = parts[parts.length - 1] || "archive.zip";
     const zipVirtualFile: UploadedFile = {
       name,
@@ -85,7 +86,7 @@ export async function fetchFilesFromUrl(
   } else {
     // Treat as raw script
     const textContent = await response.text();
-    const parts = resolvedUrl.split("/");
+    const parts = cleanUrl.split("/");
     const name = parts[parts.length - 1] || "script.rpy";
     if (!name.toLowerCase().endsWith(".rpy")) {
       throw new Error(

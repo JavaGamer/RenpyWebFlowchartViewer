@@ -215,7 +215,7 @@ async function parseRenpyFilesFallback(
 
   // Convert any Uint8Array contents to strings
   for (const file of files) {
-    if (file.content instanceof Uint8Array) {
+    if (file && file.content instanceof Uint8Array) {
       file.content = new TextDecoder("utf-8").decode(file.content);
     }
   }

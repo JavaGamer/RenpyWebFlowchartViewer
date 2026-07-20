@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:smoke": "vitest run tests/smoke.vitest.test.tsx",
+    "test:e2e": "vitest run tests/e2e/FlowchartViewer.e2e.test.ts",
     "test:coverage": "vitest run --coverage",
     "bench:perf": "vitest run -c vitest.perf.config.ts",
     "format": "deno fmt",
