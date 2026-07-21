@@ -21,3 +21,9 @@ export type { GraphSimplificationOptions } from "./simplify.ts";
 
 export { findPath } from "./pathFinding.ts";
 export type { PathResult } from "./pathFinding.ts";
+
+export { applyChapterClustering } from "./chapterClustering.ts";
+export type {
+  ChapterClusteringOptions,
+  ChapterClusteringResult,
+} from "./chapterClustering.ts";

@@ -8,8 +8,11 @@ if (typeof (globalThis as unknown as { self: unknown }).self !== "undefined") {
 }
 
 import * as matchers from "@testing-library/jest-dom/matchers";
+import * as axeMatchers from "vitest-axe/matchers";
 import { expect } from "vitest";
 expect.extend(matchers);
+expect.extend(axeMatchers);
 
 // Ensure React's act() integration is enabled in the Vitest + jsdom environment.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+

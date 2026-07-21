@@ -121,6 +121,7 @@ export interface ParseScanState extends ResolveTargetScanState {
   currentLabelIndent: number | null;
   currentLabelDeclaredName?: string | null;
   currentLabelBaseId?: string | null;
+  currentParentLabel: string | null;
   currentLabelSceneIndex?: number;
   currentLabelHasSplit?: boolean;
   currentLabelHasContentSinceSceneBoundary?: boolean;

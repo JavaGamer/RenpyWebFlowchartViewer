@@ -91,10 +91,23 @@ export const LabelNodeComponent = memo(
         <Handle type="target" position={Position.Top} />
         <div className="flex items-center justify-between gap-2 mb-1">
           <div
-            className="text-xs font-semibold uppercase tracking-widest"
+            className="text-xs font-semibold uppercase tracking-widest flex items-center gap-1"
             style={{ color: theme.labelTitle }}
           >
             Label
+            {data.isSubLabel && data.parentLabelScope && (
+              <span
+                className={cn(
+                  "text-[9px] font-mono px-1.5 py-0.5 rounded border truncate max-w-[90px] normal-case tracking-normal",
+                  isDark
+                    ? "bg-purple-950/60 border-purple-800/80 text-purple-300"
+                    : "bg-purple-100 border-transparent text-purple-800",
+                )}
+                title={`Sub-label inside parent label scope '${data.parentLabelScope}'`}
+              >
+                {data.parentLabelScope}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {isOrphan && (

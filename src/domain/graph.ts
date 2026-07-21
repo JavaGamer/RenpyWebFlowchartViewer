@@ -70,6 +70,10 @@ export interface FlowNode {
   characterDialogue?: Record<string, { lineCount: number; wordCount: number }>;
   /** True when this node is unreachable from entry points. */
   isOrphan?: boolean;
+  /** True when this node represents a local sub-label (.sub_name). */
+  isSubLabel?: boolean;
+  /** Parent label scope for sub-labels. */
+  parentLabelScope?: string;
 }
 
 /** A directed edge in the flowchart graph. */
@@ -85,4 +89,18 @@ export interface FlowEdge {
   condition?: ConditionMetadata;
   /** Optional timeout metadata for timer-driven navigation edges. */
   timeout?: TimeoutMetadata;
+  /** Origin source of the edge navigation (e.g. 'label' or 'screen'). */
+  originType?: "label" | "screen";
 }
+
+/** A synthetic cluster container node representing a collapsed chapter/file. */
+export interface FlowClusterNode {
+  id: string;
+  chapter: string;
+  label: string;
+  childrenNodeIds: string[];
+  dialogueCount: number;
+  nodeCount: number;
+  isCollapsed: boolean;
+}
+

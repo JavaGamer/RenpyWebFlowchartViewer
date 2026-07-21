@@ -67,8 +67,8 @@ export function buildVisibleNodes(params: {
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
-    const dialogueCountMatch = String(nodeData.dialogueCount).includes(query);
-    const chapterCollapsed = nodeData.chapter
+    const dialogueCountMatch = String(nodeData?.dialogueCount ?? 0).includes(query);
+    const chapterCollapsed = nodeData?.chapter
       ? collapsedChapters[nodeData.chapter]
       : false;
     const labelCollapsed = collapsedLabelChildren.has(n.id);
@@ -76,13 +76,13 @@ export function buildVisibleNodes(params: {
       dialogueCountMatch ||
       (searchMatchNodeIds
         ? searchMatchNodeIds.has(n.id)
-        : nodeData.label.toLowerCase().includes(query)) ||
+        : (nodeData?.label ?? "").toLowerCase().includes(query)) ||
       (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
-        (nodeData.dialogueLines ?? []).some((line) =>
+        (nodeData?.dialogueLines ?? []).some((line) =>
           line.toLowerCase().includes(query)
         ));
-    const matchesDialogue = nodeData.dialogueCount >= minDialogue;
+    const matchesDialogue = (nodeData?.dialogueCount ?? 0) >= minDialogue;
     const hidden = Boolean(
       chapterCollapsed ||
         labelCollapsed ||

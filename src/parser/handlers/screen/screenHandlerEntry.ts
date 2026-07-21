@@ -336,9 +336,9 @@ export function processDirectScreenActionCalls(
       if (seenCalls.has(dedupeKey)) continue;
       seenCalls.add(dedupeKey);
       if (callType === "jump") {
-        emitJumpEdge(state, scanState, target, context, false, timeout);
+        emitJumpEdge(state, scanState, target, context, false, timeout, "screen");
       } else {
-        emitCallEdge(state, scanState, target, context, timeout);
+        emitCallEdge(state, scanState, target, context, timeout, "screen");
       }
     }
   };

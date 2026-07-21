@@ -100,9 +100,6 @@ export async function parseRenpyFiles(
           if (options.signal?.aborted) {
             throw new DOMException("Parsing cancelled", "AbortError");
           }
-          if (idx > 0 && idx % 5 === 0) {
-            await new Promise<void>((resolve) => setTimeout(resolve, 0));
-          }
           perf.mark(`file:${idx}:tokenize`);
           const tokenized = await tokenizeOneFile(file, options, idx);
           perf.measure(`file:${idx}:tokenize`, "parse_file_tokenize_ms", {
@@ -116,9 +113,6 @@ export async function parseRenpyFiles(
     for (let idx = 0; idx < orderedFiles.length; idx += 1) {
       if (options.signal?.aborted) {
         throw new DOMException("Parsing cancelled", "AbortError");
-      }
-      if (idx > 0 && idx % 5 === 0) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
       const tokenized = tokenizedFiles[idx];
       if (!tokenized) {

@@ -44,6 +44,7 @@ export function createScanState(): ParseScanState {
     currentLabelIndent: null,
     currentLabelDeclaredName: null,
     currentLabelBaseId: null,
+    currentParentLabel: null,
     currentLabelSceneIndex: 1,
     currentLabelHasSplit: false,
     currentLabelHasContentSinceSceneBoundary: false,

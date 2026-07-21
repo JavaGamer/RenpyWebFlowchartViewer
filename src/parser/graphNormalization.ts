@@ -293,6 +293,12 @@ export function normalizeGraphState(state: ParseGraphState): void {
     };
     const semanticKey = stableSemanticEdgeId(normalizedEdge, normalizedKind);
     if (semanticEdgeKeys.has(semanticKey)) {
+      const existing = normalizedEdges.find(
+        (e) => stableSemanticEdgeId(e, e.kind ?? "sequence") === semanticKey,
+      );
+      if (existing && !existing.originType && normalizedEdge.originType) {
+        existing.originType = normalizedEdge.originType;
+      }
       addParseDiagnostic(
         state,
         {

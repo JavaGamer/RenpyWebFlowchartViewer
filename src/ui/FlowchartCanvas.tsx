@@ -314,6 +314,7 @@ export function FlowchartCanvas({
             minZoom={0.1}
             maxZoom={2.5}
             nodesDraggable
+            onlyRenderVisibleElements
             proOptions={{ hideAttribution: false }}
           >
             <Background color={THEMES[theme].grid} gap={20} />

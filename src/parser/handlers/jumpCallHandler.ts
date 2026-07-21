@@ -9,7 +9,7 @@ import { menuAtDepth } from "../scanTransitions.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
 import { addParseDiagnostic } from "../diagnostics.ts";
 
-const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const IDENTIFIER_PATTERN = /^\.?[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
 export function addDynamicTargetDiagnostic(
   state: ParseGraphState,
@@ -81,10 +81,16 @@ export function resolveCallContext(
 export function resolveTargetLabelId(
   state: ParseGraphState,
   targetExpression: string,
+  scanState?: ParseScanState,
 ): { resolvedTargetId: string } {
   const targetName = targetExpression.trim();
-  const resolvedTargetId = state.canonicalLabelIdByName.get(targetName) ??
-    targetName;
+  let expandedTargetName = targetName;
+  if (targetName.startsWith(".") && scanState?.currentParentLabel) {
+    expandedTargetName = `${scanState.currentParentLabel}${targetName}`;
+  }
+  const resolvedTargetId = state.canonicalLabelIdByName.get(expandedTargetName) ??
+    state.canonicalLabelIdByName.get(targetName) ??
+    expandedTargetName;
   return { resolvedTargetId };
 }
 
@@ -100,10 +106,11 @@ export function emitJumpEdge(
   },
   suppressFallthrough: boolean,
   timeout?: FlowEdge["timeout"],
+  originType?: "label" | "screen",
 ) {
   const { isInOption, source, optionText } = context;
   if (source) {
-    const { resolvedTargetId } = resolveTargetLabelId(state, target);
+    const { resolvedTargetId } = resolveTargetLabelId(state, target, scanState);
     const timeoutSuffix = timeout?.isTimeout === true
       ? `_timeout_${
         timeout.durationSeconds === undefined
@@ -122,6 +129,7 @@ export function emitJumpEdge(
       label: isInOption ? (optionText ?? undefined) : undefined,
       condition: context.condition,
       timeout,
+      originType,
     });
     if (!isInOption && scanState.currentLabelId) {
       addOutgoing(state, scanState.currentLabelId, "jump");
@@ -161,10 +169,11 @@ export function emitCallEdge(
     condition?: ConditionMetadata;
   },
   timeout?: FlowEdge["timeout"],
+  originType?: "label" | "screen",
 ) {
   const { isInOption, source, optionText } = context;
   if (!source) return;
-  const { resolvedTargetId } = resolveTargetLabelId(state, target);
+  const { resolvedTargetId } = resolveTargetLabelId(state, target, scanState);
   const timeoutSuffix = timeout?.isTimeout === true
     ? `_timeout_${
       timeout.durationSeconds === undefined
@@ -183,6 +192,7 @@ export function emitCallEdge(
     label: isInOption ? (optionText ? `call: ${optionText}` : "call") : "call",
     condition: context.condition,
     timeout,
+    originType,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {

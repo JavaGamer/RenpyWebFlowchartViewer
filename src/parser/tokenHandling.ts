@@ -199,12 +199,29 @@ export function handleToken(
     return;
   }
 
+  const isLabelNameToken =
+    type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined &&
+      type === PARSER_TOKENS.entityIdentifier) ||
+    (PARSER_TOKENS.kwOther !== undefined && type === PARSER_TOKENS.kwOther);
+
   if (
-    type === PARSER_TOKENS.entityFunctionName &&
+    isLabelNameToken &&
     scanState.waitForLabelName &&
     meta.hasLabelStatement
   ) {
-    const declaredLabelName = val().trim();
+    const labelMatch = /^\s*label\s+(\.?[A-Za-z_][A-Za-z0-9_]*)/i.exec(lineText);
+    const rawDeclaredLabelName = labelMatch ? labelMatch[1] : val().trim();
+    if (!rawDeclaredLabelName || rawDeclaredLabelName === ".") return;
+
+    const isSub = rawDeclaredLabelName.startsWith(".");
+    let declaredLabelName = rawDeclaredLabelName;
+    if (isSub && scanState.currentParentLabel) {
+      declaredLabelName = `${scanState.currentParentLabel}${rawDeclaredLabelName}`;
+    } else if (!isSub) {
+      scanState.currentParentLabel = rawDeclaredLabelName;
+    }
+
     const definitionCount =
       (state.labelDefinitionCountByName.get(declaredLabelName) ?? 0) + 1;
     state.labelDefinitionCountByName.set(declaredLabelName, definitionCount);
@@ -232,7 +249,7 @@ export function handleToken(
 
     scanState.currentLabelId = newLabelId;
     scanState.currentLabelBaseId = newLabelId;
-    scanState.currentLabelDeclaredName = declaredLabelName;
+    scanState.currentLabelDeclaredName = rawDeclaredLabelName;
     scanState.currentLabelSceneIndex = 1;
     scanState.currentLabelHasSplit = false;
     scanState.currentLabelHasContentSinceSceneBoundary = false;
@@ -260,11 +277,13 @@ export function handleToken(
     addNode(state, {
       id: newLabelId,
       type: "LABEL",
-      label: declaredLabelName,
+      label: rawDeclaredLabelName,
       dialogueCount: 0,
       chapter,
       isShadowed: definitionCount > 1,
       shadowOfId: definitionCount > 1 ? canonicalLabelId : undefined,
+      isSubLabel: isSub,
+      parentLabelScope: isSub ? (scanState.currentParentLabel ?? undefined) : undefined,
     });
     if (definitionCount > 1) {
       const diagnosticId =
@@ -296,6 +315,20 @@ export function handleToken(
   }
 
   if (!isWithinCurrentLabelScope(scanState, meta, lineIndent)) {
+    return;
+  }
+
+  if (type === PARSER_TOKENS.metaScreenBlock) {
+    scanState.currentLabelHasContentSinceSceneBoundary = true;
+    processDirectScreenActionCalls(
+      state,
+      scanState,
+      meta,
+      chapter,
+      menuDepth,
+      val(),
+      screenActionRuleMap,
+    );
     return;
   }
 
@@ -472,20 +505,6 @@ export function handleToken(
     return;
   }
 
-  if (type === PARSER_TOKENS.metaScreenBlock) {
-    scanState.currentLabelHasContentSinceSceneBoundary = true;
-    processDirectScreenActionCalls(
-      state,
-      scanState,
-      meta,
-      chapter,
-      menuDepth,
-      val(),
-      screenActionRuleMap,
-    );
-    return;
-  }
-
   if (scanState.currentLabelId === null) return;
 
   if (isMenuKeywordTokenType(type) && meta.hasMenuStatement) {
@@ -608,6 +627,8 @@ export function handleToken(
   const isJumpTargetToken = type === PARSER_TOKENS.entityFunctionName ||
     (PARSER_TOKENS.entityIdentifier !== undefined &&
       type === PARSER_TOKENS.entityIdentifier) ||
+    (PARSER_TOKENS.kwOther !== undefined &&
+      type === PARSER_TOKENS.kwOther) ||
     (PARSER_TOKENS.metaItemAccess !== undefined &&
       type === PARSER_TOKENS.metaItemAccess) ||
     (PARSER_TOKENS.metaFunctionCall !== undefined &&
@@ -618,7 +639,10 @@ export function handleToken(
     scanState.waitForJumpTarget &&
     meta.hasJumpStatement
   ) {
-    const targetExpression = val();
+    const jumpMatch = /^\s*jump\s+(?:expression\s+)?(\.?[A-Za-z_][A-Za-z0-9_]*)\s*$/i.exec(
+      lineText.split("#")[0],
+    );
+    const targetExpression = jumpMatch ? jumpMatch[1] : val().trim();
     const targets = resolveExpressionTargets(
       scanState,
       targetExpression,
