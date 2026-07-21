@@ -62,6 +62,16 @@ export function handleConditionalHeader(
     const references = extractConditionFlagRefs(
       pending.expression ?? undefined,
     );
+    for (const ref of references) {
+      state.referencedVariables.push({
+        varName: ref,
+        location: {
+          chapter,
+          construct: "condition",
+          sourceId: source,
+        },
+      });
+    }
     addNode(state, {
       id: decisionNodeId,
       type: "DECISION",

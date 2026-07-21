@@ -15,7 +15,17 @@ export default function DiagnosticsSection(
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
 
+  const setSelectedNodeId = useViewerStore((s) => s.setSelectedNodeId);
+  const setFocusNodeId = useViewerStore((s) => s.setFocusNodeId);
+
   if (parseDiagnostics.length === 0) return null;
+
+  const handleSelectDiagnosticNode = (sourceId?: string) => {
+    if (sourceId) {
+      setSelectedNodeId(sourceId);
+      setFocusNodeId(sourceId);
+    }
+  };
 
   return (
     <section
@@ -75,42 +85,59 @@ export default function DiagnosticsSection(
         <ul
           id="diagnostics-list"
           className={cn(
-            "mt-2 list-disc pl-5 text-xs space-y-1 border-t pt-2 animate-in fade-in slide-in-from-top-1 duration-200",
+            "mt-2 list-none text-xs space-y-1 border-t pt-2 animate-in fade-in slide-in-from-top-1 duration-200",
             isDark ? "border-amber-900/40" : "border-amber-200/40",
           )}
         >
-          {parseDiagnostics.map((warning, idx) => (
-            <li key={`${warning.code}-${warning.message}-${idx}`}>
-              <span className="font-medium uppercase">
-                {warning.context?.category
-                  ? warning.context.category.replace(/_/g, " ")
-                  : warning.code}
-              </span>
-              {warning.location?.construct
-                ? (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="font-medium">
-                      {warning.location.construct}
-                    </span>
-                  </>
-                )
-                : null}
-              {warning.location?.chapter
-                ? (
-                  <>
-                    {" "}
-                    in{" "}
-                    <span className="font-medium">
-                      {warning.location.chapter}
-                    </span>
-                  </>
-                )
-                : null}
-              : {warning.message}
-            </li>
-          ))}
+          {parseDiagnostics.map((warning, idx) => {
+            const hasTarget = Boolean(warning.location?.sourceId);
+            return (
+              <li key={`${warning.code}-${warning.message}-${idx}`}>
+                <button
+                  type="button"
+                  disabled={!hasTarget}
+                  onClick={() => handleSelectDiagnosticNode(warning.location?.sourceId)}
+                  className={cn(
+                    "text-left w-full rounded px-1.5 py-0.5 transition-colors focus:outline-none focus-visible:ring-1",
+                    hasTarget
+                      ? isDark
+                        ? "hover:bg-amber-900/40 focus-visible:ring-amber-400 cursor-pointer"
+                        : "hover:bg-amber-100 focus-visible:ring-amber-500 cursor-pointer"
+                      : "cursor-default opacity-90",
+                  )}
+                >
+                  <span className="font-medium uppercase">
+                    {warning.context?.category
+                      ? warning.context.category.replace(/_/g, " ")
+                      : warning.code}
+                  </span>
+                  {warning.location?.construct
+                    ? (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <span className="font-medium">
+                          {warning.location.construct}
+                        </span>
+                      </>
+                    )
+                    : null}
+                  {warning.location?.chapter
+                    ? (
+                      <>
+                        {" "}
+                        in{" "}
+                        <span className="font-medium">
+                          {warning.location.chapter}
+                        </span>
+                      </>
+                    )
+                    : null}
+                  : {warning.message}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

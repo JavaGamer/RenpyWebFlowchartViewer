@@ -447,6 +447,11 @@ function processAssignment(
   rhsExpression: string,
 ) {
   const cleanExpr = rhsExpression.trim();
+  state.declaredGlobalVariables.add(variableName);
+  const rootVar = variableName.split(".")[0];
+  if (rootVar) {
+    state.declaredGlobalVariables.add(rootVar);
+  }
   if (/Character\s*\(/i.test(cleanExpr)) {
     state.globalCharacters.add(variableName);
   } else {

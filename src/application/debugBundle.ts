@@ -54,7 +54,11 @@ interface RedactedWarning {
     | "unreachable_label"
     | "infinite_loop"
     | "missing_return"
-    | "uncalled_return";
+    | "uncalled_return"
+    | "inter_label_target"
+    | "narrative_deadend"
+    | "uninitialized_variable"
+    | "call_return_context";
   edgeId?: string;
   sourceId?: string;
   targetId?: string;

@@ -163,7 +163,11 @@ export interface ParseDiagnosticPayload {
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return";
+      | "uncalled_return"
+      | "inter_label_target"
+      | "narrative_deadend"
+      | "uninitialized_variable"
+      | "call_return_context";
     detail?: string;
   };
   recoveryAction?: string;
@@ -206,7 +210,11 @@ export interface NormalizationParseDiagnosticPayload
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return";
+      | "uncalled_return"
+      | "inter_label_target"
+      | "narrative_deadend"
+      | "uninitialized_variable"
+      | "call_return_context";
     detail?: string;
   };
 }

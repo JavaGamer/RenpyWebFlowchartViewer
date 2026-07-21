@@ -12,6 +12,9 @@ export function runControlFlowAnalysis(state: ParseGraphState): void {
   analyzeReachability(state);
   analyzeTightCycles(state);
   analyzeCallReturnMismatches(state);
+  analyzeNarrativeDeadEnds(state);
+  analyzeUninitializedVariables(state);
+  analyzeCallReturnContext(state);
 }
 
 function analyzeReachability(state: ParseGraphState): void {
@@ -240,6 +243,113 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
               "Verify if this label should be jumped to or called.",
           },
           `uncalled_return|${labelId}`,
+        );
+      }
+    }
+  }
+}
+
+function analyzeNarrativeDeadEnds(state: ParseGraphState): void {
+  for (const node of state.nodes) {
+    if (node.type === "LABEL" && !node.isShadowed) {
+      if (node.label === "main_menu" || node.label === "splashscreen") continue;
+      const outgoing = state.edges.filter((e) => e.source === node.id);
+      const hasReturn = state.hasReturnInLabel.has(node.id);
+      if (outgoing.length === 0 && !hasReturn) {
+        addParseDiagnostic(
+          state,
+          {
+            code: "normalization",
+            severity: "warning",
+            location: {
+              chapter: node.chapter,
+              construct: "label",
+              sourceId: node.id,
+            },
+            context: {
+              category: "narrative_deadend",
+              detail: node.label,
+            },
+            message: `Label "${node.label}" is a narrative dead-end (has no outgoing transitions or return).`,
+            recoveryAction:
+              "Add a jump, call, menu choice, or return statement to prevent narrative soft-lock.",
+          },
+          `narrative_deadend|${node.id}`,
+        );
+      }
+    }
+  }
+}
+
+function analyzeUninitializedVariables(state: ParseGraphState): void {
+  const reportedVars = new Set<string>();
+  for (const item of state.referencedVariables) {
+    const varName = item.varName.trim();
+    if (!varName) continue;
+    const rootVar = varName.split(".")[0] ?? varName;
+    if (
+      !state.declaredGlobalVariables.has(varName) &&
+      !state.declaredGlobalVariables.has(rootVar)
+    ) {
+      const key = `${varName}|${item.location?.sourceId ?? ""}`;
+      if (reportedVars.has(key)) continue;
+      reportedVars.add(key);
+      addParseDiagnostic(
+        state,
+        {
+          code: "normalization",
+          severity: "warning",
+          location: item.location,
+          context: {
+            category: "uninitialized_variable",
+            detail: varName,
+          },
+          message: `Variable "${varName}" is referenced in conditional logic but never declared in default/define.`,
+          recoveryAction:
+            `Add 'default ${varName} = False' or 'define ${varName} = ...' to initialize this variable.`,
+        },
+        `uninitialized_variable|${key}`,
+      );
+    }
+  }
+}
+
+function analyzeCallReturnContext(state: ParseGraphState): void {
+  const callersByTarget = new Map<string, Set<string>>();
+  for (const edge of state.edges) {
+    if (edge.kind === "call") {
+      const existing = callersByTarget.get(edge.target);
+      if (existing) {
+        existing.add(edge.source);
+      } else {
+        callersByTarget.set(edge.target, new Set([edge.source]));
+      }
+    }
+  }
+
+  for (const [calledId, callers] of callersByTarget.entries()) {
+    if (callers.size > 1) {
+      const node = state.nodeMap.get(calledId);
+      if (node) {
+        addParseDiagnostic(
+          state,
+          {
+            code: "normalization",
+            severity: "warning",
+            location: {
+              chapter: node.chapter,
+              construct: "label",
+              sourceId: calledId,
+            },
+            context: {
+              category: "call_return_context",
+              detail: `${node.label} (${callers.size} callers)`,
+            },
+            message: `Label "${node.label}" is called from ${callers.size} separate locations; return paths are multi-contextual.`,
+            recoveryAction:
+              "Inspect incoming call edges to verify flow after return.",
+          },
+          `call_return_context|${calledId}`,
         );
       }
     }

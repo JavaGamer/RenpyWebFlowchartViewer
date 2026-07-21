@@ -1,5 +1,6 @@
 import type { FlowEdge, FlowNode } from "../domain/index.ts";
 import type { ParseDiagnosticPayload } from "./index.ts";
+import type { RenpyFileAst } from "../parser/index.ts";
 
 export interface CachedProject {
   id: string; // A unique ID (e.g., project name)
@@ -17,8 +18,9 @@ export type RecentProject = Omit<
 >;
 
 const DB_NAME = "RenpyWebFlowchartViewerDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "projects";
+const AST_STORE_NAME = "astCache";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -32,10 +34,60 @@ function openDB(): Promise<IDBDatabase> {
         const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
         store.createIndex("lastAccessed", "lastAccessed", { unique: false });
       }
+      if (!db.objectStoreNames.contains(AST_STORE_NAME)) {
+        db.createObjectStore(AST_STORE_NAME, { keyPath: "contentHash" });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+export async function saveAstToCache(ast: RenpyFileAst): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AST_STORE_NAME, "readwrite");
+      const store = tx.objectStore(AST_STORE_NAME);
+      store.put(ast);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
+  } catch (err) {
+    console.warn("Failed to save AST to cache:", err);
+  }
+}
+
+export async function getAstFromCache(contentHash: string): Promise<RenpyFileAst | null> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AST_STORE_NAME, "readonly");
+      const store = tx.objectStore(AST_STORE_NAME);
+      const request = store.get(contentHash);
+      let result: RenpyFileAst | null = null;
+      request.onsuccess = () => {
+        result = request.result || null;
+      };
+      tx.oncomplete = () => {
+        db.close();
+        resolve(result);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
+  } catch (err) {
+    console.warn("Failed to get AST from cache:", err);
+    return null;
+  }
 }
 
 export async function saveProjectToCache(

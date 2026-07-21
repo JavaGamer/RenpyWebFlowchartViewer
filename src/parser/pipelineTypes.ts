@@ -49,7 +49,11 @@ export interface ParseDiagnosticContext {
     | "unreachable_label"
     | "infinite_loop"
     | "missing_return"
-    | "uncalled_return";
+    | "uncalled_return"
+    | "inter_label_target"
+    | "narrative_deadend"
+    | "uninitialized_variable"
+    | "call_return_context";
   detail?: string;
 }
 
@@ -86,7 +90,11 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return";
+      | "uncalled_return"
+      | "inter_label_target"
+      | "narrative_deadend"
+      | "uninitialized_variable"
+      | "call_return_context";
     detail?: string;
   };
 }
@@ -171,6 +179,8 @@ export interface ParseGraphState {
   globalLabelVariableListTargets: Map<string, string[]>;
   globalScreens: Set<string>;
   globalCharacters: Set<string>;
+  declaredGlobalVariables: Set<string>;
+  referencedVariables: Array<{ varName: string; location?: ParseDiagnosticLocation }>;
   diagnostics: ParseDiagnostic[];
   diagnosticIds: Set<string>;
 }
