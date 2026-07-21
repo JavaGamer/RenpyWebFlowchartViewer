@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Browser, chromium, type Page } from "playwright";
+import { type Browser, type BrowserContext, chromium, type Page } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
 import AxeBuilder from "@axe-core/playwright";
 import { createHtmlReport } from "axe-html-reporter";
@@ -63,14 +63,15 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
     }
   });
 
-  async function createTestPage(): Promise<Page> {
+  async function createTestPage(): Promise<{ context: BrowserContext; page: Page }> {
     if (!browser) throw new Error("Browser not initialized");
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
     page.on("pageerror", (err) => {
       console.error("E2E Browser Page Error:", err);
     });
     await page.goto(serverUrl);
-    return page;
+    return { context, page };
   }
 
   function makeAxeBuilder(page: Page) {
@@ -81,14 +82,14 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
   it.skipIf(isWindowsDeno)(
     "Landing View: Has zero WCAG 2.2 AA violations on initial load",
     async () => {
-      const page = await createTestPage();
+      const { context, page } = await createTestPage();
       try {
         await page.locator("h1").waitFor({ state: "visible", timeout: 10000 });
         const results = await makeAxeBuilder(page).analyze();
         allViolations.push(...results.violations);
         expect(results.violations).toEqual([]);
       } finally {
-        await page.close();
+        await context.close();
       }
     },
     20000,
@@ -97,7 +98,7 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
   it.skipIf(isWindowsDeno)(
     "Populated Flowchart View: Full-DOM & SVG Canvas has zero WCAG 2.2 AA violations",
     async () => {
-      const page = await createTestPage();
+      const { context, page } = await createTestPage();
       try {
         await page.locator("input#files-input").setInputFiles([
           {
@@ -121,7 +122,7 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
         allViolations.push(...results.violations);
         expect(results.violations).toEqual([]);
       } finally {
-        await page.close();
+        await context.close();
       }
     },
     25000,
@@ -130,7 +131,7 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
   it.skipIf(isWindowsDeno)(
     "Multi-Theme Audit: Dark Mode & Light Mode pass WCAG 2.2 AA color contrast checks",
     async () => {
-      const page = await createTestPage();
+      const { context, page } = await createTestPage();
       try {
         await page.locator("h1").waitFor({ state: "visible", timeout: 10000 });
 
@@ -149,7 +150,7 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
           expect(darkResults.violations).toEqual([]);
         }
       } finally {
-        await page.close();
+        await context.close();
       }
     },
     25000,
@@ -158,7 +159,7 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
   it.skipIf(isWindowsDeno)(
     "Keyboard Navigation & Focus Trapping: Radix Dialog drawer traps focus, closes on Escape, and restores focus",
     async () => {
-      const page = await createTestPage();
+      const { context, page } = await createTestPage();
       try {
         const exportBtn = page.locator("button", { hasText: /Export/i }).first();
         if (await exportBtn.isVisible()) {
@@ -179,7 +180,7 @@ describe("Flowchart Viewer E2E Accessibility (a11y) & Focus Trapping - WCAG 2.2 
           expect(await modal.isVisible()).toBe(false);
         }
       } finally {
-        await page.close();
+        await context.close();
       }
     },
     20000,
