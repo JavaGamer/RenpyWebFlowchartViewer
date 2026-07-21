@@ -19,7 +19,7 @@ export function resolveGithubUrl(urlStr: string): string {
   const repoMatch = url.match(githubRepoRegex);
   if (repoMatch) {
     const owner = repoMatch[2];
-    const repo = repoMatch[3];
+    const repo = repoMatch[3]!.replace(/\.git$/i, "");
     return `https://github.com/${owner}/${repo}/archive/refs/heads/main.zip`;
   }
 
@@ -28,7 +28,7 @@ export function resolveGithubUrl(urlStr: string): string {
   const fileMatch = url.match(githubFileRegex);
   if (fileMatch) {
     const owner = fileMatch[2];
-    const repo = fileMatch[3];
+    const repo = fileMatch[3]!.replace(/\.git$/i, "");
     const branch = fileMatch[4];
     const path = fileMatch[5];
     return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;

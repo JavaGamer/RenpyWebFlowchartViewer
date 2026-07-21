@@ -67,13 +67,11 @@ export function buildVisibleNodes(params: {
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
-    const dialogueCountMatch = String(nodeData?.dialogueCount ?? 0).includes(query);
     const chapterCollapsed = nodeData?.chapter
       ? collapsedChapters[nodeData.chapter]
       : false;
     const labelCollapsed = collapsedLabelChildren.has(n.id);
     const matchesSearch = query.length === 0 ||
-      dialogueCountMatch ||
       (searchMatchNodeIds
         ? searchMatchNodeIds.has(n.id)
         : (nodeData?.label ?? "").toLowerCase().includes(query)) ||
@@ -326,10 +324,22 @@ export function buildConditionalVisibility(params: {
     edgeConditionStateById.set(edge.id, conditionState);
   }
 
+  const explicitEntryIds = Array.from(nodeIds).filter(
+    (id) =>
+      id === "start" ||
+      id === "label:start" ||
+      id === "splashscreen" ||
+      id === "main_menu" ||
+      id === "before_main_menu" ||
+      id === "after_load",
+  );
   const roots = Array.from(nodeIds).filter((nodeId) =>
     (incomingCounts.get(nodeId) ?? 0) === 0
   );
-  const traversalStarts = roots.length > 0 ? roots : Array.from(nodeIds);
+  const startingSet = new Set([...explicitEntryIds, ...roots]);
+  const traversalStarts = startingSet.size > 0
+    ? Array.from(startingSet)
+    : Array.from(nodeIds);
   const reachableNodeIds = new Set<string>();
   const stack = [...traversalStarts];
   while (stack.length > 0) {

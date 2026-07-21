@@ -11,7 +11,7 @@ describe("application / zipExtractor", () => {
     };
 
     await expect(extractRpyFilesFromZip(fakeZipFile)).rejects.toThrow(
-      'Cannot decompress ZIP "test.zip": underlying File object is missing.',
+      'Cannot decompress ZIP "test.zip": underlying File object or arrayBuffer method is missing.',
     );
   });
 

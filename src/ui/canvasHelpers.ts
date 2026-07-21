@@ -6,6 +6,7 @@ export function deriveCollapsedLabelChildren(
     data?: {
       nodeType?: string;
       parentLabelId?: string | null;
+      isSubLabel?: boolean;
     };
   }>,
   collapsedParentLabels: Record<string, boolean>,
@@ -14,10 +15,17 @@ export function deriveCollapsedLabelChildren(
   for (const node of nodes) {
     const type = node.data?.nodeType ?? node.type;
     const parentLabelId = node.data?.parentLabelId ?? node.parentLabelId;
-    if (type !== "MENU") continue;
     if (!parentLabelId) continue;
     if (!collapsedParentLabels[parentLabelId]) continue;
-    collapsedChildren.add(node.id);
+    if (
+      type === "MENU" ||
+      type === "menuNode" ||
+      type === "DECISION" ||
+      type === "decisionNode" ||
+      node.data?.isSubLabel
+    ) {
+      collapsedChildren.add(node.id);
+    }
   }
   return collapsedChildren;
 }

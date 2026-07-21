@@ -48,15 +48,42 @@ class BoundedMap<K, V> extends Map<K, V> {
   }
 }
 
+function preprocessConditionExpression(expr: string): string {
+  // Replace Python 'is not' / 'is' keywords while preserving string contents inside quotes
+  let result = "";
+  let inQuote: '"' | "'" | null = null;
+  for (let i = 0; i < expr.length; i++) {
+    const char = expr[i]!;
+    if (inQuote) {
+      result += char;
+      if (char === "\\") {
+        if (i + 1 < expr.length) {
+          result += expr[++i];
+        }
+      } else if (char === inQuote) {
+        inQuote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      inQuote = char;
+      result += char;
+      continue;
+    }
+    result += char;
+  }
+  return result
+    .replace(/(?<=\s|^|\()is\s+not(?=\s|$|\))/gi, "!=")
+    .replace(/(?<=\s|^|\()is(?=\s|$|\))/gi, "==");
+}
+
 const flagRefsCache = new BoundedMap<string, string[]>(200);
 
 export function extractConditionFlagRefs(
   expression: string | undefined,
 ): string[] {
   if (!expression || expression.trim().length === 0) return [];
-  const preprocessed = expression
-    .replace(/\bis\s+not\b/gi, "!=")
-    .replace(/\bis\b/gi, "==");
+  const preprocessed = preprocessConditionExpression(expression);
   try {
     let refs = flagRefsCache.get(preprocessed);
     if (!refs) {
@@ -119,7 +146,12 @@ function evaluateInstructions(
         stack.push("unknown");
       }
     } else if (inst.type === "INUM") {
-      stack.push("unknown");
+      const numVal = Number(inst.value);
+      if (!isNaN(numVal)) {
+        stack.push(numVal === 0 ? "false" : "true");
+      } else {
+        stack.push("unknown");
+      }
     } else if (inst.type === "IEXPR") {
       if (Array.isArray(inst.value)) {
         stack.push(
@@ -133,9 +165,14 @@ function evaluateInstructions(
       if (!val) {
         stack.push("unknown");
       } else {
-        stack.push(
-          val === "unknown" ? "unknown" : val === "true" ? "false" : "true",
-        );
+        const op = typeof inst.value === "string" ? inst.value : "";
+        if (op === "not" || op === "!") {
+          stack.push(
+            val === "unknown" ? "unknown" : val === "true" ? "false" : "true",
+          );
+        } else {
+          stack.push("unknown");
+        }
       }
     } else if (inst.type === "IOP2") {
       const right = stack.pop();
@@ -185,9 +222,7 @@ export function evaluateConditionExpression(
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return "unknown";
-  const preprocessed = expression
-    .replace(/\bis\s+not\b/gi, "!=")
-    .replace(/\bis\b/gi, "==");
+  const preprocessed = preprocessConditionExpression(expression);
   try {
     let tokens = parsedExpressionCache.get(preprocessed);
     if (!tokens) {

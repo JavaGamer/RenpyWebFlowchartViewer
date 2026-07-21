@@ -8,6 +8,7 @@ export type {
 export type {
   CanvasEdge,
   CanvasNode,
+  ClusterNodeType,
   ConditionReachability,
   ConditionVisibilityMode,
   DecisionNodeType,

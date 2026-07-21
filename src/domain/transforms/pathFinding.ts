@@ -11,7 +11,7 @@ export interface PathResult {
  * Performs BFS to find the shortest path (by number of edges) from startNodeId to targetNodeId.
  */
 export function findPath(
-  _nodes: FlowNode[],
+  nodes: FlowNode[],
   edges: FlowEdge[],
   startNodeId: string,
   targetNodeId: string,
@@ -23,6 +23,18 @@ export function findPath(
       pathEdges: [],
       visitedNodesCount: 0,
     };
+  }
+
+  if (nodes && nodes.length > 0) {
+    const nodeSet = new Set(nodes.map((n) => n.id));
+    if (!nodeSet.has(startNodeId) || !nodeSet.has(targetNodeId)) {
+      return {
+        reachable: false,
+        pathNodes: [],
+        pathEdges: [],
+        visitedNodesCount: 0,
+      };
+    }
   }
 
   // Build adjacency list for efficient graph traversal.

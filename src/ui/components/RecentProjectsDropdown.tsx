@@ -120,12 +120,18 @@ export default function RecentProjectsDropdown() {
           </div>
           <div className="max-h-60 overflow-y-auto">
             {projects.map((p) => (
-              <button
-                type="button"
+              <div
                 key={p.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleSelectProject(p.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleSelectProject(p.id);
+                  }
+                }}
                 className={cn(
-                  "w-full text-left flex items-center justify-between px-3 py-2 cursor-pointer transition-colors group",
+                  "w-full text-left flex items-center justify-between px-3 py-2 cursor-pointer transition-colors group focus:outline-none",
                   isDark
                     ? "hover:bg-slate-700 text-slate-300"
                     : "hover:bg-violet-50 text-gray-700",
@@ -143,17 +149,11 @@ export default function RecentProjectsDropdown() {
                     {new Date(p.lastAccessed).toLocaleDateString()}
                   </span>
                 </div>
-                <div
+                <button
+                  type="button"
                   onClick={(e) => handleDelete(e, p.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      handleDelete(e as unknown as React.MouseEvent, p.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
                   className={cn(
-                    "p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity",
+                    "p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100",
                     isDark
                       ? "text-slate-400 hover:text-red-400 hover:bg-slate-600"
                       : "text-gray-400 hover:text-red-600 hover:bg-red-50",
@@ -161,8 +161,8 @@ export default function RecentProjectsDropdown() {
                   title="Remove from history"
                 >
                   <Trash2 size={14} />
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         </div>

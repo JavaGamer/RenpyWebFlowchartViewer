@@ -379,7 +379,7 @@ function normalizeLiteralString(raw: string): string {
   const contentStart = start + quoteLen;
   const expectedEnd = isTriple ? quoteChar + quoteChar + quoteChar : quoteChar;
 
-  if (!raw.endsWith(expectedEnd) || len - quoteLen < contentStart) {
+  if (!raw.endsWith(expectedEnd) || contentStart > len - quoteLen) {
     return raw;
   }
 

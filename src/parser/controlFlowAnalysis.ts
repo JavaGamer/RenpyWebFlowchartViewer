@@ -18,11 +18,25 @@ function analyzeReachability(state: ParseGraphState): void {
   const visited = new Set<string>();
   const queue: string[] = [];
 
-  if (state.nodeMap.has("start")) {
-    queue.push("start");
-    visited.add("start");
+  const RENPY_ENTRY_LABELS = new Set([
+    "start",
+    "splashscreen",
+    "after_load",
+    "before_main_menu",
+    "main_menu",
+  ]);
+
+  const entryNodes = state.nodes.filter(
+    (n) => n.type === "LABEL" && RENPY_ENTRY_LABELS.has(n.label),
+  );
+
+  if (entryNodes.length > 0) {
+    for (const node of entryNodes) {
+      queue.push(node.id);
+      visited.add(node.id);
+    }
   } else {
-    // If no "start" label exists, start from all nodes with 0 incoming edges
+    // If no entry label exists, start from all nodes with 0 incoming edges
     for (const node of state.nodes) {
       if (node.type === "LABEL" && !node.isShadowed) {
         const incoming = state.incomingByLabel.get(node.id);
@@ -107,6 +121,8 @@ function analyzeTightCycles(state: ParseGraphState): void {
             code: "normalization",
             severity: "warning",
             location: {
+              chapter: state.nodeMap.get(nodeId)?.chapter,
+              construct: "label",
               sourceId: nodeId,
             },
             context: {
@@ -143,7 +159,6 @@ function analyzeTightCycles(state: ParseGraphState): void {
 
   for (const node of state.nodes) {
     dfsCycle(node.id, []);
-    tempVisited.clear();
   }
 }
 

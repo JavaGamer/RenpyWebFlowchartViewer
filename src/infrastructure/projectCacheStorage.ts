@@ -50,10 +50,15 @@ export async function saveProjectToCache(
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const request = store.put(entry);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-      tx.oncomplete = () => db.close();
+      store.put(entry);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
     });
   } catch (err) {
     console.warn("Failed to save project to cache:", err);
@@ -69,9 +74,18 @@ export async function getProjectFromCache(
       const tx = db.transaction(STORE_NAME, "readonly");
       const store = tx.objectStore(STORE_NAME);
       const request = store.get(id);
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-      tx.oncomplete = () => db.close();
+      let result: CachedProject | null = null;
+      request.onsuccess = () => {
+        result = request.result || null;
+      };
+      tx.oncomplete = () => {
+        db.close();
+        resolve(result);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
     });
   } catch (err) {
     console.warn("Failed to get project from cache:", err);
@@ -96,12 +110,16 @@ export async function getRecentProjects(): Promise<RecentProject[]> {
             .value as CachedProject;
           results.push({ id, name, lastAccessed, fileCount });
           cursor.continue();
-        } else {
-          resolve(results);
         }
       };
-      request.onerror = () => reject(request.error);
-      tx.oncomplete = () => db.close();
+      tx.oncomplete = () => {
+        db.close();
+        resolve(results);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
     });
   } catch (err) {
     console.warn("Failed to get recent projects from cache:", err);
@@ -115,10 +133,15 @@ export async function deleteProjectFromCache(id: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const request = store.delete(id);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-      tx.oncomplete = () => db.close();
+      store.delete(id);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
     });
   } catch (err) {
     console.warn("Failed to delete project from cache:", err);

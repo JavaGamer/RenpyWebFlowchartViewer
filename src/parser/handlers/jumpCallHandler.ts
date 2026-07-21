@@ -83,7 +83,13 @@ export function resolveTargetLabelId(
   targetExpression: string,
   scanState?: ParseScanState,
 ): { resolvedTargetId: string } {
-  const targetName = targetExpression.trim();
+  let targetName = targetExpression.trim();
+  if (
+    (targetName.startsWith('"') && targetName.endsWith('"')) ||
+    (targetName.startsWith("'") && targetName.endsWith("'"))
+  ) {
+    targetName = targetName.slice(1, -1).trim();
+  }
   let expandedTargetName = targetName;
   if (targetName.startsWith(".") && scanState?.currentParentLabel) {
     expandedTargetName = `${scanState.currentParentLabel}${targetName}`;

@@ -153,7 +153,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
   }
 
   const normalizedEdges: FlowEdge[] = [];
-  const semanticEdgeKeys = new Set<string>();
+  const semanticEdgeMap = new Map<string, FlowEdge>();
   const nodeIds = new Set(normalizedNodes.map((node) => node.id));
 
   // Validate, normalize and deduplicate edges
@@ -292,11 +292,9 @@ export function normalizeGraphState(state: ParseGraphState): void {
       id: normalizedEdgeId,
     };
     const semanticKey = stableSemanticEdgeId(normalizedEdge, normalizedKind);
-    if (semanticEdgeKeys.has(semanticKey)) {
-      const existing = normalizedEdges.find(
-        (e) => stableSemanticEdgeId(e, e.kind ?? "sequence") === semanticKey,
-      );
-      if (existing && !existing.originType && normalizedEdge.originType) {
+    const existing = semanticEdgeMap.get(semanticKey);
+    if (existing) {
+      if (!existing.originType && normalizedEdge.originType) {
         existing.originType = normalizedEdge.originType;
       }
       addParseDiagnostic(
@@ -321,7 +319,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
       );
       continue;
     }
-    semanticEdgeKeys.add(semanticKey);
+    semanticEdgeMap.set(semanticKey, normalizedEdge);
     normalizedEdges.push(normalizedEdge);
   }
 

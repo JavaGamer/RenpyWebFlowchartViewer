@@ -376,7 +376,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       const firstFile = orderedRpyFiles[0];
       const projectName = firstFile.webkitRelativePath
         ? firstFile.webkitRelativePath.split("/")[0]
-        : "Unknown Project";
+        : firstFile.name.replace(/\.[^.]+$/, "");
 
       saveProjectToCache({
         id: projectName,

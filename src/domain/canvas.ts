@@ -94,6 +94,7 @@ export interface CanvasEdge {
 export type LabelNodeType = CanvasNode;
 export type MenuNodeType = CanvasNode;
 export type DecisionNodeType = CanvasNode;
+export type ClusterNodeType = CanvasNode;
 export type LabeledEdgeType = CanvasEdge;
 
 export type EdgeKindFilter = EdgeKind;

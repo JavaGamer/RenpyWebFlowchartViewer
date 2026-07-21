@@ -9,7 +9,11 @@ export function toFileReadErrorMessage(err: unknown): string {
 }
 
 export function toParseErrorMessage(err: unknown): string {
-  if (err instanceof DOMException && err.name === "AbortError") {
+  if (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError") ||
+    (typeof err === "object" && err !== null && (err as { name?: string }).name === "AbortError")
+  ) {
     return "Parsing was cancelled.";
   }
   if (err instanceof ParseError) {

@@ -447,16 +447,26 @@ function collapseLinearChains(
   for (const edge of edges) {
     if (collapsedEdgeIds.has(edge.id)) continue;
 
-    if (collapsedInto.has(edge.source)) {
-      const rootId = collapsedInto.get(edge.source)!;
-      finalEdges.push({
-        ...edge,
-        id: `${edge.kind || "sequence"}_${rootId}__${edge.target}__collapsed`,
-        source: rootId,
-      });
-    } else {
-      finalEdges.push(edge);
-    }
+    const newSource = collapsedInto.has(edge.source)
+      ? collapsedInto.get(edge.source)!
+      : edge.source;
+    const newTarget = collapsedInto.has(edge.target)
+      ? collapsedInto.get(edge.target)!
+      : edge.target;
+
+    if (newSource === newTarget) continue;
+
+    const isCollapsed = collapsedInto.has(edge.source) ||
+      collapsedInto.has(edge.target);
+
+    finalEdges.push({
+      ...edge,
+      id: isCollapsed
+        ? `${edge.kind || "sequence"}_${newSource}__${newTarget}__collapsed_${edge.id}`
+        : edge.id,
+      source: newSource,
+      target: newTarget,
+    });
   }
 
   return { nodes: finalNodes, edges: finalEdges };

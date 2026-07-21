@@ -199,6 +199,11 @@ function redactNode(
         ? node.parentLabelId
         : getNodeAlias(graphAliasContext, node.parentLabelId))
       : undefined,
+    shadowOfId: node.shadowOfId
+      ? (privacy.includeRawScriptDetails
+        ? node.shadowOfId
+        : getNodeAlias(graphAliasContext, node.shadowOfId))
+      : undefined,
     ...(privacy.includeFileNames && node.chapter
       ? { chapter: node.chapter }
       : {}),

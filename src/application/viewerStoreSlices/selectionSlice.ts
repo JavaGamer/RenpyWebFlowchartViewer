@@ -63,6 +63,7 @@ export const createSelectionSlice: StateCreator<
   setSelectedNodeId: (id) =>
     set((draft) => {
       draft.selectedNodeId = id;
+      draft.selectedDialogueLineIndex = null;
     }),
 
   setSelectedDialogueLineIndex: (index) =>

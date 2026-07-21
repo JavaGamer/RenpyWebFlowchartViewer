@@ -83,71 +83,84 @@ describe("infrastructure / projectCacheStorage", () => {
               createObjectStore: () => ({
                 createIndex: () => {},
               }),
-              transaction: () => ({
-                objectStore: () => ({
-                  put: (item: CachedProject) => {
-                    mockStore.set(item.id, item);
-                    const putReq: MockIDBRequest = {
-                      onsuccess: null,
-                      onerror: null,
-                    };
-                    setTimeout(() => putReq.onsuccess?.(), 0);
-                    return putReq;
-                  },
-                  get: (id: string) => {
-                    const item = mockStore.get(id);
-                    const getReq: MockIDBRequest = {
-                      onsuccess: null,
-                      onerror: null,
-                      result: item || undefined,
-                    };
-                    setTimeout(() => getReq.onsuccess?.(), 0);
-                    return getReq;
-                  },
-                  delete: (id: string) => {
-                    mockStore.delete(id);
-                    const delReq: MockIDBRequest = {
-                      onsuccess: null,
-                      onerror: null,
-                    };
-                    setTimeout(() => delReq.onsuccess?.(), 0);
-                    return delReq;
-                  },
-                  index: () => ({
-                    openCursor: () => {
-                      const items = Array.from(mockStore.values()).sort(
-                        (a, b) => b.lastAccessed - a.lastAccessed,
-                      );
-                      let idx = 0;
-                      const cursorReq: MockIDBRequest = {
+              transaction: () => {
+                const tx: { objectStore: unknown; oncomplete?: (() => void) | null } = {
+                  oncomplete: null,
+                  objectStore: () => ({
+                    put: (item: CachedProject) => {
+                      mockStore.set(item.id, item);
+                      const putReq: MockIDBRequest = {
                         onsuccess: null,
                         onerror: null,
                       };
                       setTimeout(() => {
-                        const step = () => {
-                          if (idx < items.length) {
-                            const val = items[idx++];
-                            const cursorObj = {
-                              value: val,
-                              continue: () => {
-                                setTimeout(step, 0);
-                              },
-                            };
-                            cursorReq.result = cursorObj;
-                            cursorReq.onsuccess?.({ target: cursorReq });
-                          } else {
-                            cursorReq.result = null;
-                            cursorReq.onsuccess?.({ target: cursorReq });
-                          }
-                        };
-                        step();
+                        putReq.onsuccess?.();
+                        tx.oncomplete?.();
                       }, 0);
-                      return cursorReq;
+                      return putReq;
                     },
+                    get: (id: string) => {
+                      const item = mockStore.get(id);
+                      const getReq: MockIDBRequest = {
+                        onsuccess: null,
+                        onerror: null,
+                        result: item || undefined,
+                      };
+                      setTimeout(() => {
+                        getReq.onsuccess?.();
+                        tx.oncomplete?.();
+                      }, 0);
+                      return getReq;
+                    },
+                    delete: (id: string) => {
+                      mockStore.delete(id);
+                      const delReq: MockIDBRequest = {
+                        onsuccess: null,
+                        onerror: null,
+                      };
+                      setTimeout(() => {
+                        delReq.onsuccess?.();
+                        tx.oncomplete?.();
+                      }, 0);
+                      return delReq;
+                    },
+                    index: () => ({
+                      openCursor: () => {
+                        const items = Array.from(mockStore.values()).sort(
+                          (a, b) => b.lastAccessed - a.lastAccessed,
+                        );
+                        let idx = 0;
+                        const cursorReq: MockIDBRequest = {
+                          onsuccess: null,
+                          onerror: null,
+                        };
+                        setTimeout(() => {
+                          const step = () => {
+                            if (idx < items.length) {
+                              const val = items[idx++];
+                              const cursorObj = {
+                                value: val,
+                                continue: () => {
+                                  setTimeout(step, 0);
+                                },
+                              };
+                              cursorReq.result = cursorObj;
+                              cursorReq.onsuccess?.({ target: cursorReq });
+                            } else {
+                              cursorReq.result = null;
+                              cursorReq.onsuccess?.({ target: cursorReq });
+                              tx.oncomplete?.();
+                            }
+                          };
+                          step();
+                        }, 0);
+                        return cursorReq;
+                      },
+                    }),
                   }),
-                }),
-                oncomplete: null,
-              }),
+                };
+                return tx;
+              },
               close: () => {},
             },
           };

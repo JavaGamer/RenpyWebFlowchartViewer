@@ -48,6 +48,7 @@ export async function traverseFileSystemEntry(
         size: file.size,
         webkitRelativePath: currentPath + file.name,
         text: () => file.text(),
+        arrayBuffer: () => file.arrayBuffer(),
         file,
       });
     } else if (item.isDirectory) {

@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import type {
+  ClusterNodeType,
   DecisionNodeType,
   LabelNodeType,
   MenuNodeType,
@@ -355,6 +356,41 @@ export const DecisionNodeComponent = memo(
             </div>
           </div>
         </div>
+        <Handle type="source" position={Position.Bottom} />
+      </div>
+    );
+  },
+);
+
+export const ClusterNodeComponent = memo(
+  function ClusterNodeComponent({ data }: NodeProps<ClusterNodeType>) {
+    const themeName = useViewerStore((s) => s.theme);
+    const theme = getTheme(themeName);
+    const chapterLabel = typeof data.label === "string" ? data.label : (typeof data.chapter === "string" ? data.chapter : "Collapsed Chapter");
+    const nodeCount = typeof data.nodeCount === "number" ? data.nodeCount : undefined;
+    return (
+      <div
+        className="px-4 py-3 rounded-xl border-2 border-dashed shadow-lg w-[240px]"
+        style={{
+          borderColor: theme.labelBorder,
+          backgroundColor: theme.labelBg,
+        }}
+      >
+        <Handle type="target" position={Position.Top} />
+        <div
+          className="text-xs font-bold uppercase tracking-wider mb-1"
+          style={{ color: theme.labelTitle }}
+        >
+          Chapter Cluster
+        </div>
+        <div className="font-semibold text-sm truncate" style={{ color: theme.labelText }}>
+          {chapterLabel}
+        </div>
+        {nodeCount !== undefined && (
+          <div className="text-xs mt-1 opacity-75">
+            {nodeCount} node{nodeCount !== 1 ? "s" : ""} grouped
+          </div>
+        )}
         <Handle type="source" position={Position.Bottom} />
       </div>
     );

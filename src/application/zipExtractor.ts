@@ -9,14 +9,16 @@ import type { UploadedFile } from "./uploadTypes.ts";
 export async function extractRpyFilesFromZip(
   zipFile: UploadedFile,
 ): Promise<UploadedFile[]> {
-  const nativeFile = zipFile.file;
-  if (!nativeFile) {
+  let buffer: ArrayBuffer;
+  if (zipFile.file) {
+    buffer = await zipFile.file.arrayBuffer();
+  } else if (zipFile.arrayBuffer) {
+    buffer = await zipFile.arrayBuffer();
+  } else {
     throw new Error(
-      `Cannot decompress ZIP "${zipFile.name}": underlying File object is missing.`,
+      `Cannot decompress ZIP "${zipFile.name}": underlying File object or arrayBuffer method is missing.`,
     );
   }
-
-  const buffer = await nativeFile.arrayBuffer();
   const zipData = new Uint8Array(buffer);
 
   const { unzip, strFromU8 } = await import("fflate");
@@ -35,12 +37,13 @@ export async function extractRpyFilesFromZip(
 
         const files: UploadedFile[] = Object.entries(unzipped).map(
           ([path, data]) => {
-            const parts = path.split("/");
+            const normalizedPath = path.replace(/\\/g, "/");
+            const parts = normalizedPath.split("/");
             const name = parts[parts.length - 1];
             return {
               name,
               size: data.length,
-              webkitRelativePath: path,
+              webkitRelativePath: normalizedPath,
               text: async () => strFromU8(data),
               arrayBuffer: async () =>
                 data.buffer.slice(

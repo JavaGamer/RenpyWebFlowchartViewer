@@ -106,8 +106,12 @@ export function runLayoutInWorker(
       serializedPreviousPositions = Array.from(
         options.previousPositions.entries(),
       );
-    } else {
+    } else if (Array.isArray(options.previousPositions)) {
       serializedPreviousPositions = options.previousPositions;
+    } else if (typeof options.previousPositions === "object") {
+      serializedPreviousPositions = Object.entries(
+        options.previousPositions as Record<string, { x: number; y: number }>,
+      );
     }
   }
 
