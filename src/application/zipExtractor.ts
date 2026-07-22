@@ -39,7 +39,7 @@ export async function extractRpyFilesFromZip(
           ([path, data]) => {
             const normalizedPath = path.replace(/\\/g, "/");
             const parts = normalizedPath.split("/");
-            const name = parts[parts.length - 1];
+            const name = parts.filter(Boolean).pop() || "script.rpy";
             return {
               name,
               size: data.length,

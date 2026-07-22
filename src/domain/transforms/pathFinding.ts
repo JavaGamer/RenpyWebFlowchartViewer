@@ -35,6 +35,20 @@ export function findPath(
         visitedNodesCount: 0,
       };
     }
+  } else {
+    const edgeNodeSet = new Set<string>();
+    for (const edge of edges) {
+      edgeNodeSet.add(edge.source);
+      edgeNodeSet.add(edge.target);
+    }
+    if (!edgeNodeSet.has(startNodeId) || !edgeNodeSet.has(targetNodeId)) {
+      return {
+        reachable: false,
+        pathNodes: [],
+        pathEdges: [],
+        visitedNodesCount: 0,
+      };
+    }
   }
 
   // Build adjacency list for efficient graph traversal.

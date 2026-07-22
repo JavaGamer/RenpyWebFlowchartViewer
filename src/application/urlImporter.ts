@@ -24,14 +24,13 @@ export function resolveGithubUrl(urlStr: string): string {
   }
 
   const githubFileRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/(?:blob|raw)\/([^/]+)\/(.+)$/;
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/(?:blob|raw)\/(.+)$/;
   const fileMatch = url.match(githubFileRegex);
   if (fileMatch) {
     const owner = fileMatch[2];
     const repo = fileMatch[3]!.replace(/\.git$/i, "");
-    const branch = fileMatch[4];
-    const path = fileMatch[5];
-    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+    const rest = fileMatch[4]!;
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${rest}`;
   }
 
   return url;
@@ -69,8 +68,8 @@ export async function fetchFilesFromUrl(
   const contentType = response.headers.get("Content-Type") || "";
   const cleanUrl = resolvedUrl.split("?")[0]!.split("#")[0]!;
   const urlLower = cleanUrl.toLowerCase();
-  const isZip = urlLower.endsWith(".zip") || contentType.includes("zip") ||
-    contentType.includes("octet-stream");
+  const isZip = urlLower.endsWith(".zip") ||
+    (!urlLower.endsWith(".rpy") && (contentType.includes("zip") || contentType.includes("octet-stream")));
 
   if (isZip) {
     const buffer = await response.arrayBuffer();
@@ -80,7 +79,7 @@ export async function fetchFilesFromUrl(
       name,
       size: buffer.byteLength,
       text: async () => "",
-      file: new File([buffer], name, { type: "application/zip" }),
+      arrayBuffer: async () => buffer,
     };
     return extractRpyFilesFromZip(zipVirtualFile);
   } else {
@@ -97,7 +96,7 @@ export async function fetchFilesFromUrl(
     return [
       {
         name,
-        size: textContent.length,
+        size: new TextEncoder().encode(textContent).byteLength,
         text: async () => textContent,
       },
     ];

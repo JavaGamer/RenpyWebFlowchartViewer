@@ -35,7 +35,7 @@ export function calculateReadingTimeSeconds(
  * - 0 => "0s"
  */
 export function formatReadingTime(seconds: number): string {
-  if (typeof seconds !== "number" || Number.isNaN(seconds) || seconds <= 0) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
     return "0s";
   }
   const totalSeconds = Math.round(seconds);

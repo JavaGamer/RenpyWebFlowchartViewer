@@ -22,24 +22,92 @@ export interface ExtractedPythonFunctionDef {
   startIndex: number;
 }
 
+function splitPythonArgs(rawArgs: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let depth = 0;
+  let inQuote: '"' | "'" | null = null;
+
+  for (let i = 0; i < rawArgs.length; i++) {
+    const char = rawArgs[i]!;
+    if (inQuote) {
+      current += char;
+      if (char === "\\") {
+        if (i + 1 < rawArgs.length) {
+          current += rawArgs[++i];
+        }
+      } else if (char === inQuote) {
+        inQuote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      inQuote = char;
+      current += char;
+      continue;
+    }
+    if (char === "(" || char === "[" || char === "{") {
+      depth++;
+      current += char;
+      continue;
+    }
+    if (char === ")" || char === "]" || char === "}") {
+      depth--;
+      current += char;
+      continue;
+    }
+    if (char === "," && depth === 0) {
+      if (current.trim()) {
+        args.push(current.trim());
+      }
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) {
+    args.push(current.trim());
+  }
+  return args;
+}
+
 /**
  * Extracts function definitions (`def func_name(...):`) from Python code text.
  */
 export function extractPythonFunctionDefs(pythonCode: string): ExtractedPythonFunctionDef[] {
   const defs: ExtractedPythonFunctionDef[] = [];
-  const defRegex = /^[ \t]*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:/gm;
+  const defRegex = /^[ \t]*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
   let match: RegExpExecArray | null;
 
   while ((match = defRegex.exec(pythonCode)) !== null) {
-    const name = match[1];
-    const args = match[2].split(",").map((a) => a.trim()).filter(Boolean);
+    const name = match[1]!;
     const startIndex = match.index;
+    let depth = 1;
+    let endParen = match.index + match[0].length;
+    let inQuote: '"' | "'" | null = null;
+
+    while (endParen < pythonCode.length && depth > 0) {
+      const char = pythonCode[endParen]!;
+      if (inQuote) {
+        if (char === "\\") {
+          endParen += 2;
+          continue;
+        }
+        if (char === inQuote) inQuote = null;
+      } else {
+        if (char === '"' || char === "'") inQuote = char;
+        else if (char === "(") depth += 1;
+        else if (char === ")") depth -= 1;
+      }
+      endParen += 1;
+    }
+
+    const rawArgs = pythonCode.slice(match.index + match[0].length, endParen - 1);
+    const args = splitPythonArgs(rawArgs);
 
     // Find body lines by indent
-    const lineEnd = pythonCode.indexOf("\n", match.index);
-    if (lineEnd === -1) continue;
-
-    const bodyStart = lineEnd + 1;
+    const lineEnd = pythonCode.indexOf("\n", endParen);
+    const bodyStart = lineEnd === -1 ? pythonCode.length : lineEnd + 1;
     const lines = pythonCode.slice(bodyStart).split(/\r?\n/);
     let bodyText = "";
 
@@ -80,9 +148,21 @@ export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
     const startParen = match.index + match[0].length - 1;
     let depth = 1;
     let endParen = startParen + 1;
+    let inQuote: '"' | "'" | null = null;
+
     while (endParen < pythonCode.length && depth > 0) {
-      if (pythonCode[endParen] === "(") depth += 1;
-      else if (pythonCode[endParen] === ")") depth -= 1;
+      const char = pythonCode[endParen]!;
+      if (inQuote) {
+        if (char === "\\") {
+          endParen += 2;
+          continue;
+        }
+        if (char === inQuote) inQuote = null;
+      } else {
+        if (char === '"' || char === "'") inQuote = char;
+        else if (char === "(") depth += 1;
+        else if (char === ")") depth -= 1;
+      }
       endParen += 1;
     }
     const argText = pythonCode.slice(startParen + 1, endParen - 1).trim();

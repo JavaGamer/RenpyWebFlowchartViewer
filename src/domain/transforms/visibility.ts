@@ -78,7 +78,7 @@ export function buildVisibleNodes(params: {
       (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
         (nodeData?.dialogueLines ?? []).some((line) =>
-          line.toLowerCase().includes(query)
+          typeof line === "string" && line.toLowerCase().includes(query)
         ));
     const matchesDialogue = (nodeData?.dialogueCount ?? 0) >= minDialogue;
     const hidden = Boolean(
@@ -329,9 +329,13 @@ export function buildConditionalVisibility(params: {
       id === "start" ||
       id === "label:start" ||
       id === "splashscreen" ||
+      id === "label:splashscreen" ||
       id === "main_menu" ||
+      id === "label:main_menu" ||
       id === "before_main_menu" ||
-      id === "after_load",
+      id === "label:before_main_menu" ||
+      id === "after_load" ||
+      id === "label:after_load",
   );
   const roots = Array.from(nodeIds).filter((nodeId) =>
     (incomingCounts.get(nodeId) ?? 0) === 0

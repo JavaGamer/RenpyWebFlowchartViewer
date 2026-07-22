@@ -149,9 +149,11 @@ export function emitJumpEdge(
 
       const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
       if (menu && menu.options) {
-        const lastOpt = menu.options[menu.options.length - 1];
-        if (lastOpt) {
-          lastOpt.hasExit = true;
+        const matchingOpt = optionText
+          ? menu.options.find((opt) => opt.text === optionText)
+          : menu.options[menu.options.length - 1];
+        if (matchingOpt) {
+          matchingOpt.hasExit = true;
         }
       }
     }

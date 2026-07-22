@@ -50,31 +50,47 @@ class BoundedMap<K, V> extends Map<K, V> {
 
 function preprocessConditionExpression(expr: string): string {
   // Replace Python 'is not' / 'is' keywords while preserving string contents inside quotes
-  let result = "";
+  const placeholders: string[] = [];
   let inQuote: '"' | "'" | null = null;
+  let code = "";
+  let currentString = "";
+
   for (let i = 0; i < expr.length; i++) {
     const char = expr[i]!;
     if (inQuote) {
-      result += char;
+      currentString += char;
       if (char === "\\") {
         if (i + 1 < expr.length) {
-          result += expr[++i];
+          currentString += expr[++i];
         }
       } else if (char === inQuote) {
         inQuote = null;
+        placeholders.push(currentString);
+        code += `__STR_PH_${placeholders.length - 1}__`;
+        currentString = "";
       }
       continue;
     }
     if (char === '"' || char === "'") {
       inQuote = char;
-      result += char;
+      currentString = char;
       continue;
     }
-    result += char;
+    code += char;
   }
-  return result
+  if (currentString) {
+    placeholders.push(currentString);
+    code += `__STR_PH_${placeholders.length - 1}__`;
+  }
+
+  let processed = code
     .replace(/(?<=\s|^|\()is\s+not(?=\s|$|\))/gi, "!=")
     .replace(/(?<=\s|^|\()is(?=\s|$|\))/gi, "==");
+
+  for (let i = placeholders.length - 1; i >= 0; i--) {
+    processed = processed.replace(`__STR_PH_${i}__`, () => placeholders[i]!);
+  }
+  return processed;
 }
 
 const flagRefsCache = new BoundedMap<string, string[]>(200);
@@ -117,7 +133,7 @@ function evaluateInstructions(
   instructions: EvalInstruction[],
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
-  const stack: ConditionEvaluationResult[] = [];
+  const stack: string[] = [];
 
   for (const inst of instructions) {
     if (inst.type === "IVAR") {
@@ -130,7 +146,7 @@ function evaluateInstructions(
       } else if (val) {
         const flagVal = flags[val];
         stack.push(
-          flagVal === "true" || flagVal === "false" ? flagVal : "unknown",
+          flagVal !== undefined ? flagVal : "unknown",
         );
       } else {
         stack.push("unknown");
@@ -143,7 +159,7 @@ function evaluateInstructions(
       } else if (lower === "false") {
         stack.push("false");
       } else {
-        stack.push("unknown");
+        stack.push(val);
       }
     } else if (inst.type === "INUM") {
       const numVal = Number(inst.value);
@@ -212,7 +228,8 @@ function evaluateInstructions(
     }
   }
 
-  return stack.pop() ?? "unknown";
+  const result = stack.pop() ?? "unknown";
+  return (result === "true" || result === "false") ? result : "unknown";
 }
 
 const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);

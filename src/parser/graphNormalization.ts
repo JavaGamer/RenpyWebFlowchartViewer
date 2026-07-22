@@ -46,9 +46,12 @@ function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
         : edge.timeout.durationSeconds
     }`
     : "normal";
+  const conditionKey = edge.condition
+    ? `cond:${edge.condition.branchKind}:${edge.condition.expression ?? ""}`
+    : "nocond";
   return `${kind}|${edge.source}|${edge.target}|${
     edge.label ?? ""
-  }|${timeoutKey}`;
+  }|${timeoutKey}|${conditionKey}`;
 }
 
 /**

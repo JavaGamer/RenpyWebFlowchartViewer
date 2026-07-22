@@ -80,6 +80,22 @@ export async function traverseDataTransferItems(
       const entry = item.webkitGetAsEntry();
       if (entry) {
         filePromises.push(traverseFileSystemEntry(entry));
+      } else {
+        const file = item.getAsFile();
+        if (file) {
+          filePromises.push(
+            Promise.resolve([
+              {
+                name: file.name,
+                size: file.size,
+                webkitRelativePath: file.webkitRelativePath || file.name,
+                text: () => file.text(),
+                arrayBuffer: () => file.arrayBuffer(),
+                file,
+              },
+            ]),
+          );
+        }
       }
     }
   }

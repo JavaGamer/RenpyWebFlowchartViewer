@@ -6,6 +6,9 @@ export function exportStandaloneHtml(
   edges: FlowEdge[],
 ): string {
   const mermaidStr = exportMermaid(nodes, edges);
+  const safeMermaidStr = mermaidStr
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   const jsonStr = JSON.stringify({ nodes, edges })
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e");
@@ -30,7 +33,7 @@ export function exportStandaloneHtml(
   <div class="container">
     <h1>Flowchart Viewer</h1>
     <div class="mermaid">
-${mermaidStr}
+${safeMermaidStr}
     </div>
   </div>
   <!-- Embedded data for offline access if needed -->

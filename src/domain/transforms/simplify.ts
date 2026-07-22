@@ -74,9 +74,13 @@ function inlineNodes(
   for (const node of nodes) {
     if (node.type !== "LABEL") continue;
 
-    // Protect entry start node
+    // Protect entry start node & Ren'Py entry labels
     const isStartNode = node.id === "start" ||
-      node.label.toLowerCase() === "start";
+      node.label.toLowerCase() === "start" ||
+      node.label.toLowerCase() === "splashscreen" ||
+      node.label.toLowerCase() === "main_menu" ||
+      node.label.toLowerCase() === "after_load" ||
+      node.label.toLowerCase() === "before_main_menu";
     if (isStartNode) continue;
 
     // Protect terminal outcomes (end of routes)
@@ -150,8 +154,10 @@ function inlineNodes(
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      if (visited.has(current.nodeId)) continue;
-      visited.add(current.nodeId);
+      if (H.has(current.nodeId)) {
+        if (visited.has(current.nodeId)) continue;
+        visited.add(current.nodeId);
+      }
 
       const targetNode = nodesMap.get(current.nodeId);
       if (!targetNode) {
