@@ -23,6 +23,16 @@ export function resolveGithubUrl(urlStr: string): string {
     return `https://github.com/${owner}/${repo}/archive/refs/heads/main.zip`;
   }
 
+  const githubTreeRegex =
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/tree\/([a-zA-Z0-9-_./]+)\/?$/;
+  const treeMatch = url.match(githubTreeRegex);
+  if (treeMatch) {
+    const owner = treeMatch[2];
+    const repo = treeMatch[3]!.replace(/\.git$/i, "");
+    const branch = treeMatch[4]!;
+    return `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+  }
+
   const githubFileRegex =
     /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/(?:blob|raw)\/(.+)$/;
   const fileMatch = url.match(githubFileRegex);

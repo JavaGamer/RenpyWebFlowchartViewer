@@ -16,6 +16,9 @@ import { createGraphState } from "../src/parser/pipelineState.ts";
 import { dataUrlToBlob, deriveCollapsedLabelChildren } from "../src/ui/canvasHelpers.ts";
 import { formatReadingTime } from "../src/ui/utils/readingTime.ts";
 import { isSafeMockFlagKey } from "../src/application/viewerStoreSlices/simulationSlice.ts";
+import { exportMermaid } from "../src/application/exporters/mermaidExporter.ts";
+import { exportNarrativeOutline } from "../src/application/exporters/narrativeOutlineExporter.ts";
+import { applyChapterClustering } from "../src/domain/transforms/chapterClustering.ts";
 
 describe("Codebase Audited 21 Bugs Suite", () => {
   // Bug 1: preprocessConditionExpression string literal corruption
@@ -242,4 +245,157 @@ describe("Codebase Audited 21 Bugs Suite", () => {
     expect(defs[0]?.args[0]).toBe("a: Tuple[int, int] = (1, 2)");
     expect(defs[0]?.args[1]).toBe('b: str = "x,y"');
   });
+
+  // Bug Audit Fixes Suite (11 Bugs)
+  it("Audit 1: conditionLogic avoids placeholder corruption when string content resembles placeholder tokens", () => {
+    const expr = 'msg == "____STR_PH_1____"';
+    const res = evaluateConditionExpression(expr, { msg: "____STR_PH_1____" });
+    expect(res).toBe("true");
+  });
+
+  it("Audit 2: conditionLogic evaluates numeric comparison operators and IMEMBER property access", () => {
+    const res1 = evaluateConditionExpression("score > 5", { score: "10" });
+    expect(res1).toBe("true");
+    const res2 = evaluateConditionExpression("persistent.hero_level >= 3", { "persistent.hero_level": "3" });
+    expect(res2).toBe("true");
+  });
+
+  it("Audit 3: simplifyGraph inlineNodes preserves distinct parallel paths through inlined nodes", () => {
+    const nodes = [
+      { id: "start", type: "LABEL" as const, label: "start", dialogueCount: 1 },
+      { id: "u1", type: "LABEL" as const, label: "u1", dialogueCount: 0, role: "utility" as const },
+      { id: "u2", type: "LABEL" as const, label: "u2", dialogueCount: 0, role: "utility" as const },
+      { id: "target", type: "LABEL" as const, label: "target", dialogueCount: 1 },
+    ];
+    const edges = [
+      { id: "e1", source: "start", target: "u1", label: "branchA" },
+      { id: "e2", source: "start", target: "u2", label: "branchB" },
+      { id: "e3", source: "u1", target: "target" },
+      { id: "e4", source: "u2", target: "target" },
+    ];
+    const res = simplifyGraph(nodes, edges, {
+      collapseLinearChains: false,
+      inlineUtilities: true,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    expect(res.edges.filter((e) => e.target === "target")).toHaveLength(2);
+  });
+
+  it("Audit 4: simplifyGraph collapseLinearChains protects splashscreen, main_menu, after_load, and before_main_menu", () => {
+    const nodes = [
+      { id: "node1", type: "LABEL" as const, label: "node1", dialogueCount: 1, chapter: "ch1" },
+      { id: "splashscreen", type: "LABEL" as const, label: "splashscreen", dialogueCount: 1, chapter: "ch1" },
+    ];
+    const edges = [
+      { id: "e1", source: "node1", target: "splashscreen", kind: "sequence" as const },
+    ];
+    const res = simplifyGraph(nodes, edges, {
+      collapseLinearChains: true,
+      inlineUtilities: false,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    expect(res.nodes.map((n) => n.id)).toContain("splashscreen");
+  });
+
+  it("Audit 5: extractPythonFunctionDefs correctly stops function body at sibling def at same indent", () => {
+    const code = `
+    def func_one():
+        x = 1
+
+    def func_two():
+        y = 2
+`;
+    const defs = extractPythonFunctionDefs(code);
+    expect(defs).toHaveLength(2);
+    expect(defs[0]?.name).toBe("func_one");
+    expect(defs[0]?.body.includes("func_two")).toBe(false);
+    expect(defs[1]?.name).toBe("func_two");
+  });
+
+  it("Audit 6: analyzeUninitializedVariables ignores Python/Ren'Py standard built-ins", () => {
+    const state = createGraphState();
+    state.referencedVariables.push(
+      { varName: "config.developer", location: { chapter: "ch1", construct: "condition" } },
+      { varName: "True", location: { chapter: "ch1", construct: "condition" } },
+      { varName: "store.my_var", location: { chapter: "ch1", construct: "condition" } }
+    );
+    runControlFlowAnalysis(state);
+    const uninitDiags = state.diagnostics.filter((d) => d.context?.category === "uninitialized_variable");
+    expect(uninitDiags).toHaveLength(0);
+  });
+
+  it("Audit 7: resolveGithubUrl resolves GitHub tree branch links to zip archives", () => {
+    const url = "https://github.com/user/repo/tree/feature-branch";
+    expect(resolveGithubUrl(url)).toBe("https://github.com/user/repo/archive/refs/heads/feature-branch.zip");
+  });
+
+  it("Audit 8: extractRpyFilesFromZip filters out folder entries ending in slash", async () => {
+    const zipData = new Uint8Array([80, 75, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]); // Empty zip
+    const fakeZipFile = {
+      name: "test.zip",
+      size: zipData.byteLength,
+      text: async () => "",
+      arrayBuffer: async () => zipData.buffer,
+    };
+    const files = await extractRpyFilesFromZip(fakeZipFile);
+    expect(files).toEqual([]);
+  });
+
+  it("Audit 9: exportMermaid converts physical newlines in node and edge labels to <br/>", () => {
+    const nodes = [
+      { id: "n1", type: "LABEL" as const, label: "Line1\nLine2", dialogueCount: 1 },
+    ];
+    const edges = [
+      { id: "e1", source: "n1", target: "n1", label: "Edge\nLine" },
+    ];
+    const mermaid = exportMermaid(nodes, edges);
+    expect(mermaid.includes("Line1<br/>Line2")).toBe(true);
+    expect(mermaid.includes("Edge<br/>Line")).toBe(true);
+  });
+
+  it("Audit 10: exportNarrativeOutline handles multiline dialogue blockquotes and safely ignores nulls", () => {
+    const nodes = [
+      {
+        id: "n1",
+        type: "LABEL" as const,
+        label: "Label 1",
+        dialogueCount: 1,
+        dialogueLines: ["Line 1\nLine 2", undefined as unknown as string],
+      },
+    ];
+    const outline = exportNarrativeOutline(nodes, []);
+    expect(outline.includes("> Line 1\n> Line 2")).toBe(true);
+    expect(outline.includes("> undefined")).toBe(false);
+  });
+
+  it("Audit 11: buildVisibleNodes and applyChapterClustering agree on default chapter fallback", () => {
+    const canvasNodes = [
+      {
+        id: "n1",
+        position: { x: 0, y: 0 },
+        data: { label: "n1", dialogueCount: 1, nodeType: "LABEL" as const },
+      },
+    ];
+    const visible = buildVisibleNodes({
+      nodes: canvasNodes,
+      search: "",
+      minDialogue: 0,
+      collapsedChapters: { default: true },
+      collapsedLabelChildren: new Set(),
+      theme: "violet",
+    });
+    expect(visible[0]?.hidden).toBe(true);
+
+    const flowNodes = [{ id: "n1", type: "LABEL" as const, label: "n1", dialogueCount: 1 }];
+    const clustered = applyChapterClustering(flowNodes, [], { collapsedChapters: new Set(["default"]) });
+    expect(clustered.clusterNodes).toHaveLength(1);
+    expect(clustered.clusterNodes[0]?.chapter).toBe("default");
+  });
 });
+

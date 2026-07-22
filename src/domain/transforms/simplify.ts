@@ -135,6 +135,7 @@ function inlineNodes(
       timeout: TimeoutMetadata | undefined;
       originalId?: string;
       isInlinedPath: boolean;
+      path: Set<string>;
     }> = [];
 
     const initialEdges = outgoingEdges.get(u.id) || [];
@@ -147,16 +148,14 @@ function inlineNodes(
         timeout: edge.timeout,
         originalId: edge.id,
         isInlinedPath: false,
+        path: new Set(),
       });
     }
-
-    const visited = new Set<string>();
 
     while (queue.length > 0) {
       const current = queue.shift()!;
       if (H.has(current.nodeId)) {
-        if (visited.has(current.nodeId)) continue;
-        visited.add(current.nodeId);
+        if (current.path.has(current.nodeId)) continue;
       }
 
       const targetNode = nodesMap.get(current.nodeId);
@@ -194,6 +193,8 @@ function inlineNodes(
           timeout: current.timeout,
         });
       } else {
+        const nextPath = new Set(current.path);
+        nextPath.add(current.nodeId);
         const nextEdges = outgoingEdges.get(current.nodeId) || [];
         for (const edge of nextEdges) {
           const mergedLabel = current.label || edge.label || "";
@@ -246,6 +247,7 @@ function inlineNodes(
             condition: mergedCondition,
             timeout: mergedTimeout,
             isInlinedPath: true,
+            path: nextPath,
           });
         }
       }
@@ -255,6 +257,18 @@ function inlineNodes(
   const remainingNodes = nodes.filter((n) => !H.has(n.id));
 
   return { nodes: remainingNodes, edges: newEdges };
+}
+
+function isProtectedRenpyEntryNode(node: FlowNode): boolean {
+  const lbl = node.label.toLowerCase();
+  return (
+    node.id === "start" ||
+    lbl === "start" ||
+    lbl === "splashscreen" ||
+    lbl === "main_menu" ||
+    lbl === "after_load" ||
+    lbl === "before_main_menu"
+  );
 }
 
 function collapseLinearChains(
@@ -287,8 +301,8 @@ function collapseLinearChains(
       A.type === "LABEL" &&
       B.type === "LABEL" &&
       A.chapter === B.chapter &&
-      A.id !== "start" &&
-      B.id !== "start" &&
+      !isProtectedRenpyEntryNode(A) &&
+      !isProtectedRenpyEntryNode(B) &&
       (outgoing.get(A.id)?.length ?? 0) === 1 &&
       (incoming.get(B.id)?.length ?? 0) === 1 &&
       !edge.label &&

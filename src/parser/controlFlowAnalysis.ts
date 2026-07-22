@@ -281,12 +281,34 @@ function analyzeNarrativeDeadEnds(state: ParseGraphState): void {
   }
 }
 
+const BUILTIN_IDENTIFIERS = new Set([
+  "true",
+  "false",
+  "none",
+  "null",
+  "config",
+  "store",
+  "persistent",
+  "renpy",
+  "gui",
+  "_preferences",
+  "_in_replay",
+  "main_menu",
+  "_confirm_quit",
+]);
+
 function analyzeUninitializedVariables(state: ParseGraphState): void {
   const reportedVars = new Set<string>();
   for (const item of state.referencedVariables) {
     const varName = item.varName.trim();
     if (!varName) continue;
     const rootVar = varName.split(".")[0] ?? varName;
+    if (
+      BUILTIN_IDENTIFIERS.has(varName.toLowerCase()) ||
+      BUILTIN_IDENTIFIERS.has(rootVar.toLowerCase())
+    ) {
+      continue;
+    }
     if (
       !state.declaredGlobalVariables.has(varName) &&
       !state.declaredGlobalVariables.has(rootVar)

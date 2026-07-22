@@ -27,7 +27,10 @@ export async function extractRpyFilesFromZip(
     unzip(
       zipData,
       {
-        filter: (file) => file.name.toLowerCase().endsWith(".rpy"),
+        filter: (file) =>
+          file.name.toLowerCase().endsWith(".rpy") &&
+          !file.name.endsWith("/") &&
+          !file.name.endsWith("\\"),
       },
       (err, unzipped) => {
         if (err) {
@@ -35,8 +38,9 @@ export async function extractRpyFilesFromZip(
           return;
         }
 
-        const files: UploadedFile[] = Object.entries(unzipped).map(
-          ([path, data]) => {
+        const files: UploadedFile[] = Object.entries(unzipped)
+          .filter(([path]) => !path.endsWith("/") && !path.endsWith("\\"))
+          .map(([path, data]) => {
             const normalizedPath = path.replace(/\\/g, "/");
             const parts = normalizedPath.split("/");
             const name = parts.filter(Boolean).pop() || "script.rpy";
@@ -51,8 +55,7 @@ export async function extractRpyFilesFromZip(
                   data.byteOffset + data.byteLength,
                 ),
             };
-          },
-        );
+          });
         resolve(files);
       },
     );

@@ -105,7 +105,8 @@ export function extractPythonFunctionDefs(pythonCode: string): ExtractedPythonFu
     const rawArgs = pythonCode.slice(match.index + match[0].length, endParen - 1);
     const args = splitPythonArgs(rawArgs);
 
-    // Find body lines by indent
+    // Find body lines by indent relative to def line
+    const defIndent = match[0].search(/\S/);
     const lineEnd = pythonCode.indexOf("\n", endParen);
     const bodyStart = lineEnd === -1 ? pythonCode.length : lineEnd + 1;
     const lines = pythonCode.slice(bodyStart).split(/\r?\n/);
@@ -117,7 +118,7 @@ export function extractPythonFunctionDefs(pythonCode: string): ExtractedPythonFu
         continue;
       }
       const indent = line.search(/\S/);
-      if (indent > 0) {
+      if (indent > defIndent) {
         bodyText += line + "\n";
       } else {
         break;

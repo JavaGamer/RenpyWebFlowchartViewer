@@ -17,7 +17,8 @@ export function exportMermaid(nodes: FlowNode[], edges: FlowEdge[]): string {
 
     const label = (node.label || node.id)
       .replace(/"/g, "'")
-      .replace(/\|/g, "&#124;");
+      .replace(/\|/g, "&#124;")
+      .replace(/\r?\n/g, "<br/>");
 
     let shapeStart = '["';
     let shapeEnd = '"]';
@@ -39,7 +40,7 @@ export function exportMermaid(nodes: FlowNode[], edges: FlowEdge[]): string {
     const target = idMap.get(edge.target) ||
       ("n_" + edge.target.replace(/[^a-zA-Z0-9_]/g, "_"));
     const sanitizedLabel = edge.label
-      ? edge.label.replace(/"/g, "'").replace(/\|/g, "&#124;").replace(/\r?\n/g, " ")
+      ? edge.label.replace(/"/g, "'").replace(/\|/g, "&#124;").replace(/\r?\n/g, "<br/>")
       : "";
     const label = sanitizedLabel ? `|"${sanitizedLabel}"|` : "";
     mermaid += `  ${source} -->${label} ${target}\n`;

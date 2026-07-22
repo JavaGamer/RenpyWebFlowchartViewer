@@ -67,9 +67,8 @@ export function buildVisibleNodes(params: {
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
-    const chapterCollapsed = nodeData?.chapter
-      ? collapsedChapters[nodeData.chapter]
-      : false;
+    const chapterName = nodeData?.chapter || "default";
+    const chapterCollapsed = Boolean(collapsedChapters[chapterName]);
     const labelCollapsed = collapsedLabelChildren.has(n.id);
     const matchesSearch = query.length === 0 ||
       (searchMatchNodeIds

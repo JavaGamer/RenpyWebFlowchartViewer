@@ -66,7 +66,7 @@ function preprocessConditionExpression(expr: string): string {
       } else if (char === inQuote) {
         inQuote = null;
         placeholders.push(currentString);
-        code += `__STR_PH_${placeholders.length - 1}__`;
+        code += `____STR_PH_${placeholders.length - 1}____`;
         currentString = "";
       }
       continue;
@@ -80,17 +80,15 @@ function preprocessConditionExpression(expr: string): string {
   }
   if (currentString) {
     placeholders.push(currentString);
-    code += `__STR_PH_${placeholders.length - 1}__`;
+    code += `____STR_PH_${placeholders.length - 1}____`;
   }
 
-  let processed = code
+  const processed = code
     .replace(/(?<=\s|^|\()is\s+not(?=\s|$|\))/gi, "!=")
     .replace(/(?<=\s|^|\()is(?=\s|$|\))/gi, "==");
 
-  for (let i = placeholders.length - 1; i >= 0; i--) {
-    processed = processed.replace(`__STR_PH_${i}__`, () => placeholders[i]!);
-  }
-  return processed;
+  // Restore placeholders in a single pass to prevent recursive replacement corruption
+  return processed.replace(/____STR_PH_(\d+)____/g, (_, idx) => placeholders[Number(idx)] ?? "");
 }
 
 const flagRefsCache = new BoundedMap<string, string[]>(200);
@@ -146,13 +144,19 @@ function evaluateInstructions(
       } else if (val) {
         const flagVal = flags[val];
         stack.push(
-          flagVal !== undefined ? flagVal : "unknown",
+          flagVal !== undefined ? flagVal : val,
         );
       } else {
         stack.push("unknown");
       }
-    } else if (inst.type === "ISTR") {
-      const val = typeof inst.value === "string" ? inst.value : "";
+    } else if (inst.type === "IMEMBER") {
+      const prop = typeof inst.value === "string" ? inst.value : "";
+      const obj = stack.pop() ?? "";
+      const combinedKey = `${obj}.${prop}`;
+      const flagVal = flags[combinedKey];
+      stack.push(flagVal !== undefined ? flagVal : combinedKey);
+    } else if (inst.type === "INUMBER" || inst.type === "INUM" || inst.type === "ISTR") {
+      const val = typeof inst.value === "string" ? inst.value : String(inst.value ?? "");
       const lower = val.toLowerCase();
       if (lower === "true") {
         stack.push("true");
@@ -160,13 +164,6 @@ function evaluateInstructions(
         stack.push("false");
       } else {
         stack.push(val);
-      }
-    } else if (inst.type === "INUM") {
-      const numVal = Number(inst.value);
-      if (!isNaN(numVal)) {
-        stack.push(numVal === 0 ? "false" : "true");
-      } else {
-        stack.push("unknown");
       }
     } else if (inst.type === "IEXPR") {
       if (Array.isArray(inst.value)) {
@@ -183,8 +180,9 @@ function evaluateInstructions(
       } else {
         const op = typeof inst.value === "string" ? inst.value : "";
         if (op === "not" || op === "!") {
+          const isTrue = val === "true" || (val !== "false" && val !== "unknown" && !flags[val]);
           stack.push(
-            val === "unknown" ? "unknown" : val === "true" ? "false" : "true",
+            val === "unknown" ? "unknown" : isTrue ? "false" : "true",
           );
         } else {
           stack.push("unknown");
@@ -220,6 +218,19 @@ function evaluateInstructions(
             const equal = left === right;
             const res = op === "==" ? equal : !equal;
             stack.push(res ? "true" : "false");
+          }
+        } else if (op === "<" || op === ">" || op === "<=" || op === ">=") {
+          const numL = Number(left);
+          const numR = Number(right);
+          if (!isNaN(numL) && !isNaN(numR)) {
+            let res = false;
+            if (op === "<") res = numL < numR;
+            else if (op === ">") res = numL > numR;
+            else if (op === "<=") res = numL <= numR;
+            else if (op === ">=") res = numL >= numR;
+            stack.push(res ? "true" : "false");
+          } else {
+            stack.push("unknown");
           }
         } else {
           stack.push("unknown");
