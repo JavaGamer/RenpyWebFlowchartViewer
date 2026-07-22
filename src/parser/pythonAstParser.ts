@@ -184,7 +184,7 @@ export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
   }
 
   // 3. Dictionary state jumps: DICT_NAME[key]() or ROUTER.get(key, "default")()
-  const dictJumpRegex = /\b([A-Za-z_][A-Za-z0-9_]*)(?:\[\s*(['"][^'"]+['"]|[A-Za-z_][A-Za-z0-9_.]*)\s*\]|\.get\(\s*[^,]+,\s*(['"][^'"]+['"]|[A-Za-z_][A-Za-z0-9_.]*)\s*\))\s*\(\s*\)/g;
+  const dictJumpRegex = /\b([A-Za-z_][A-Za-z0-9_]*)(?:\[\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_.]*)\s*\]|\.get\(\s*[^,]+,\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_.]*)\s*\))\s*\(\s*\)/g;
   while ((match = dictJumpRegex.exec(pythonCode)) !== null) {
     const dictName = match[1];
     const targetExpression = match[2] || match[3];

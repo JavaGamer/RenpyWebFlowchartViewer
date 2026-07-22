@@ -142,7 +142,7 @@ function evaluateInstructions(
       } else if (lower === "false" || lower === "none" || lower === "null") {
         stack.push("false");
       } else if (val) {
-        const flagVal = flags[val];
+        const flagVal = Object.hasOwn(flags, val) ? flags[val] : undefined;
         stack.push(
           flagVal !== undefined ? flagVal : val,
         );
@@ -153,7 +153,7 @@ function evaluateInstructions(
       const prop = typeof inst.value === "string" ? inst.value : "";
       const obj = stack.pop() ?? "";
       const combinedKey = `${obj}.${prop}`;
-      const flagVal = flags[combinedKey];
+      const flagVal = Object.hasOwn(flags, combinedKey) ? flags[combinedKey] : undefined;
       stack.push(flagVal !== undefined ? flagVal : combinedKey);
     } else if (inst.type === "INUMBER" || inst.type === "INUM" || inst.type === "ISTR") {
       const val = typeof inst.value === "string" ? inst.value : String(inst.value ?? "");

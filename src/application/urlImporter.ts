@@ -79,7 +79,7 @@ export async function fetchFilesFromUrl(
   const cleanUrl = resolvedUrl.split("?")[0]!.split("#")[0]!;
   const urlLower = cleanUrl.toLowerCase();
   const isZip = urlLower.endsWith(".zip") ||
-    (!urlLower.endsWith(".rpy") && (contentType.includes("zip") || contentType.includes("octet-stream")));
+    (!urlLower.endsWith(".rpy") && contentType.includes("zip"));
 
   if (isZip) {
     const buffer = await response.arrayBuffer();

@@ -9,8 +9,9 @@ export function exportMermaid(nodes: FlowNode[], edges: FlowEdge[]): string {
     const node = nodes[i]!;
     const rawSanitized = "n_" + node.id.replace(/[^a-zA-Z0-9_]/g, "_");
     let safeId = rawSanitized;
-    if (usedSanitizedIds.has(safeId)) {
-      safeId = `${rawSanitized}_${i}`;
+    let suffix = i;
+    while (usedSanitizedIds.has(safeId)) {
+      safeId = `${rawSanitized}_${suffix++}`;
     }
     usedSanitizedIds.add(safeId);
     idMap.set(node.id, safeId);

@@ -111,6 +111,10 @@ export function buildVisibleNodes(params: {
         prevData.isTerminalOutcome === nodeData.isTerminalOutcome &&
         prevData.isOrphan === nodeData.isOrphan &&
         prevData.characterDialogue === nodeData.characterDialogue &&
+        prevData.isSubLabel === nodeData.isSubLabel &&
+        prevData.wordCount === nodeData.wordCount &&
+        prevData.pauseDuration === nodeData.pauseDuration &&
+        prevData.collapsedLabels === nodeData.collapsedLabels &&
         previous.style?.opacity === (dimmed ? 0.28 : undefined)
       ) {
         return previous;
@@ -239,11 +243,14 @@ export function buildVisibleEdges(params: {
       previousData?.timeout?.durationSeconds ===
         edgeData.timeout?.durationSeconds &&
       previousData?.conditionState === conditionState &&
+      previousData?.condition === edgeData.condition &&
       previous.source === edge.source &&
       previous.target === edge.target &&
       previous.style?.stroke === stroke &&
+      previous.style?.strokeWidth === (isPathEdge ? 2.5 : 1.5) &&
       previous.style?.strokeDasharray === finalStrokeDasharray &&
       previous.style?.opacity === finalOpacity &&
+      previous.zIndex === (isPathEdge ? 1000 : undefined) &&
       previous.animated === isPathEdge
     ) {
       visible.push(previous);

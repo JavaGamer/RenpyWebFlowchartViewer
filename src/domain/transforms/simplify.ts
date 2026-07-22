@@ -363,9 +363,7 @@ function collapseLinearChains(
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
         if (node.isShadowed) isShadowed = true;
-        if (i === path.length - 1) {
-          isTerminalOutcome = node.isTerminalOutcome;
-        }
+        if (node.isTerminalOutcome) isTerminalOutcome = true;
         collapsedInto.set(node.id, rootId);
       }
 
@@ -425,9 +423,7 @@ function collapseLinearChains(
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
         if (node.isShadowed) isShadowed = true;
-        if (i === path.length - 1) {
-          isTerminalOutcome = node.isTerminalOutcome;
-        }
+        if (node.isTerminalOutcome) isTerminalOutcome = true;
         collapsedInto.set(node.id, rootId);
       }
 

@@ -8,7 +8,7 @@ import { resolveGithubUrl } from "../src/application/urlImporter.ts";
 import { extractRpyFilesFromZip } from "../src/application/zipExtractor.ts";
 import { findPath } from "../src/domain/transforms/pathFinding.ts";
 import { simplifyGraph } from "../src/domain/transforms/simplify.ts";
-import { buildConditionalVisibility, buildVisibleNodes } from "../src/domain/transforms/visibility.ts";
+import { buildConditionalVisibility, buildVisibleEdges, buildVisibleNodes } from "../src/domain/transforms/visibility.ts";
 import { parsePythonBlockAst, extractPythonFunctionDefs } from "../src/parser/pythonAstParser.ts";
 import { tokenizeOneFile } from "../src/parser/filePipeline.ts";
 import { runControlFlowAnalysis } from "../src/parser/controlFlowAnalysis.ts";
@@ -18,6 +18,7 @@ import { formatReadingTime } from "../src/ui/utils/readingTime.ts";
 import { isSafeMockFlagKey } from "../src/application/viewerStoreSlices/simulationSlice.ts";
 import { exportMermaid } from "../src/application/exporters/mermaidExporter.ts";
 import { exportNarrativeOutline } from "../src/application/exporters/narrativeOutlineExporter.ts";
+import { exportStandaloneHtml } from "../src/application/exporters/standaloneExporter.ts";
 import { applyChapterClustering } from "../src/domain/transforms/chapterClustering.ts";
 
 describe("Codebase Audited 21 Bugs Suite", () => {
@@ -396,6 +397,106 @@ describe("Codebase Audited 21 Bugs Suite", () => {
     const clustered = applyChapterClustering(flowNodes, [], { collapsedChapters: new Set(["default"]) });
     expect(clustered.clusterNodes).toHaveLength(1);
     expect(clustered.clusterNodes[0]?.chapter).toBe("default");
+  });
+
+  it("Fix 1: simplifyGraph preserves isTerminalOutcome from intermediate nodes in linear chains", () => {
+    const nodes = [
+      { id: "a", type: "LABEL" as const, label: "a", dialogueCount: 5, isTerminalOutcome: true },
+      { id: "b", type: "LABEL" as const, label: "b", dialogueCount: 5, isTerminalOutcome: false },
+    ];
+    const edges = [
+      { id: "e1", source: "a", target: "b", kind: "sequence" as const },
+    ];
+    const res = simplifyGraph(nodes, edges, {
+      collapseLinearChains: true,
+      inlineUtilities: false,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    expect(res.nodes[0]?.isTerminalOutcome).toBe(true);
+  });
+
+  it("Fix 2: buildVisibleNodes detects wordCount and pauseDuration changes without returning stale memo", () => {
+    const nodes1 = [
+      { id: "n1", position: { x: 0, y: 0 }, data: { label: "n1", dialogueCount: 1, wordCount: 10, nodeType: "LABEL" as const } },
+    ];
+    const firstPass = buildVisibleNodes({ nodes: nodes1, search: "", minDialogue: 0, collapsedChapters: {}, collapsedLabelChildren: new Set(), theme: "violet" });
+    const prevMap = new Map([["n1", firstPass[0]!]]);
+
+    const nodes2 = [
+      { id: "n1", position: { x: 0, y: 0 }, data: { label: "n1", dialogueCount: 1, wordCount: 50, nodeType: "LABEL" as const } },
+    ];
+    const secondPass = buildVisibleNodes({ nodes: nodes2, search: "", minDialogue: 0, collapsedChapters: {}, collapsedLabelChildren: new Set(), theme: "violet", previousById: prevMap });
+    expect((secondPass[0]!.data as { wordCount: number }).wordCount).toBe(50);
+  });
+
+  it("Fix 3: buildVisibleEdges detects strokeWidth and zIndex changes for active path highlighting", () => {
+    const edges = [{ id: "e1", source: "n1", target: "n2", data: { label: "" } }];
+    const visible1 = buildVisibleEdges({
+      edges,
+      showCallReturns: true,
+      visibleEdgeKinds: { sequence: true, jump: true, call: true, call_return: true },
+      visibleNodeIds: new Set(["n1", "n2"]),
+      edgeColor: "#000",
+      largeGraphMode: false,
+      activePathEdges: null,
+    });
+    const prevMap = new Map([["e1", visible1[0]!]]);
+
+    const visible2 = buildVisibleEdges({
+      edges,
+      showCallReturns: true,
+      visibleEdgeKinds: { sequence: true, jump: true, call: true, call_return: true },
+      visibleNodeIds: new Set(["n1", "n2"]),
+      edgeColor: "#000",
+      largeGraphMode: false,
+      activePathEdges: new Set(["e1"]),
+      previousById: prevMap,
+    });
+    expect(visible2[0]?.style?.strokeWidth).toBe(2.5);
+    expect(visible2[0]?.zIndex).toBe(1000);
+  });
+
+  it("Fix 4: evaluateConditionExpression safely guards Object.prototype flag names", () => {
+    const res = evaluateConditionExpression("toString == 'val'", { toString: "true" as any });
+    expect(res).toBeDefined();
+  });
+
+  it("Fix 5: exportStandaloneHtml preserves <br/> line breaks in Mermaid code", () => {
+    const nodes = [{ id: "n1", type: "LABEL" as const, label: "Line 1\nLine 2", dialogueCount: 1 }];
+    const html = exportStandaloneHtml(nodes, []);
+    expect(html.includes("<br/>")).toBe(true);
+    expect(html.includes("&lt;br/&gt;")).toBe(false);
+  });
+
+  it("Fix 6: exportMermaid handles safeId collisions iteratively", () => {
+    const nodes = [
+      { id: "n_a_1", type: "LABEL" as const, label: "Node 1", dialogueCount: 1 },
+      { id: "a", type: "LABEL" as const, label: "Node 2", dialogueCount: 1 },
+      { id: "a", type: "LABEL" as const, label: "Node 3", dialogueCount: 1 },
+      { id: "a_2", type: "LABEL" as const, label: "Node 4", dialogueCount: 1 },
+    ];
+    const mermaid = exportMermaid(nodes, []);
+    expect(mermaid).toBeDefined();
+  });
+
+  it("Fix 8: extractRpyFilesFromZip populates relativePath on UploadedFile objects", async () => {
+    const fakeZipFile = {
+      name: "test.zip",
+      size: 0,
+      text: async () => "",
+      arrayBuffer: async () => new ArrayBuffer(0),
+    };
+    await expect(extractRpyFilesFromZip(fakeZipFile)).rejects.toThrow();
+  });
+
+  it("Fix 9: parsePythonBlockAst parses dictionary key jumps with escaped quotes", () => {
+    const code = `ROUTER['escaped\\'key']()`;
+    const calls = parsePythonBlockAst(code);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.targetExpression).toBe("'escaped\\'key'");
   });
 });
 

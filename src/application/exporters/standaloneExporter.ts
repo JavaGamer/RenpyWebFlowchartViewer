@@ -8,7 +8,8 @@ export function exportStandaloneHtml(
   const mermaidStr = exportMermaid(nodes, edges);
   const safeMermaidStr = mermaidStr
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br/>");
   const jsonStr = JSON.stringify({ nodes, edges })
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e");

@@ -48,6 +48,7 @@ export async function extractRpyFilesFromZip(
               name,
               size: data.length,
               webkitRelativePath: normalizedPath,
+              relativePath: normalizedPath,
               text: async () => strFromU8(data),
               arrayBuffer: async () =>
                 data.buffer.slice(
