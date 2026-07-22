@@ -13,10 +13,13 @@ export interface CsvDialogueRow {
 
 function calculateWordCount(text: string): number {
   if (!text) return 0;
+  // Strip Ren'Py text formatting tags like {w=1.0}, {color=...}, {b}, {/b}
+  const cleanText = text.replace(/\{[^}]*\}/g, '').trim();
+  if (!cleanText) return 0;
   // Count CJK (Chinese, Japanese, Korean) characters individually
-  const cjkMatches = text.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || [];
+  const cjkMatches = cleanText.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || [];
   // Count space-delimited words for non-CJK text
-  const spaceDelimitedWords = text.replace(/[\u3000-\u9fff\uac00-\ud7af]/g, ' ').match(/\S+/g) || [];
+  const spaceDelimitedWords = cleanText.replace(/[\u3000-\u9fff\uac00-\ud7af]/g, ' ').match(/\S+/g) || [];
   return cjkMatches.length + spaceDelimitedWords.length;
 }
 
@@ -38,7 +41,7 @@ export function generateDialogueCsv(nodes: FlowNode[]): string {
     if (Array.isArray(node.dialogueLines) && node.dialogueLines.length > 0) {
       node.dialogueLines.forEach((item: unknown, index: number) => {
         let speaker = 'Dialogue';
-        let text = '';
+        let text: string;
         let lineNum: string | number = node.dialogueLineNums?.[index] ?? (index + 1);
 
         if (typeof item === 'string') {
@@ -74,7 +77,7 @@ export function generateDialogueCsv(nodes: FlowNode[]): string {
         'Chapter/File Path': chapter,
         'Line Number': '1',
         'Speaker/Character Name': 'N/A',
-        'Dialogue Text': `[${node.type ?? 'LABEL'}: ${node.label ?? 'unnamed'}]`,
+        'Dialogue Text': `[${node.type ?? 'LABEL'}: ${node.label || 'unnamed'}]`,
         'Word Count': node.wordCount || 0,
         'Node Type': node.type ?? 'LABEL',
       });

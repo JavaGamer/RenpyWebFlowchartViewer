@@ -29,12 +29,15 @@ function openDB(): Promise<IDBDatabase> {
     }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
+      const req = event.target as IDBOpenDBRequest;
+      const db = req.result;
       let store: IDBObjectStore;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
       } else {
-        store = request.transaction!.objectStore(STORE_NAME);
+        const tx = req.transaction;
+        if (!tx) return;
+        store = tx.objectStore(STORE_NAME);
       }
       if (!store.indexNames.contains("lastAccessed")) {
         store.createIndex("lastAccessed", "lastAccessed", { unique: false });

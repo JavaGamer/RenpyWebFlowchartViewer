@@ -106,6 +106,7 @@ function applyProgressiveDagreLayout(
   dagre.layout(g);
 
   // Position nodes
+  const overflowIndexMap = new Map(overflowNodes.map((node, i) => [node.id, i]));
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     let x = 0;
     let y = 0;
@@ -123,9 +124,7 @@ function applyProgressiveDagreLayout(
         x = prevPos.x;
         y = prevPos.y;
       } else {
-        const overflowIndex = overflowNodes.findIndex((node) =>
-          node.id === n.id
-        );
+        const overflowIndex = overflowIndexMap.get(n.id) ?? 0;
         const row = Math.floor(
           overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS,
         );
@@ -545,14 +544,20 @@ export function applyDagreLayout(
   return { nodes, edges };
 }
 
+let elkInitPromise: Promise<void> | null = null;
+
 export async function preWarmElk(): Promise<void> {
-  if (!elkInstance) {
-    const ELKModule = await import("elkjs/lib/elk-api.js");
-    const ELK = ELKModule.default || ELKModule;
-    elkInstance = new ELK({
-      workerUrl: elkWorkerUrl,
-    }) as unknown as ElkInstance;
+  if (elkInstance) return;
+  if (!elkInitPromise) {
+    elkInitPromise = (async () => {
+      const ELKModule = await import("elkjs/lib/elk-api.js");
+      const ELK = ELKModule.default || ELKModule;
+      elkInstance = new ELK({
+        workerUrl: elkWorkerUrl,
+      }) as unknown as ElkInstance;
+    })();
   }
+  return elkInitPromise;
 }
 
 export async function applyElkLayout(
@@ -572,6 +577,9 @@ export async function applyElkLayout(
   const { nodes: normalizedNodes, edges: normalizedEdges } =
     resolveGraphIntegrity(rawNodes, rawEdges);
 
+  const isDark = options?.theme === "dark";
+  const edgeColor = isDark ? "#475569" : "#cbd5e1";
+
   const elkNodes = normalizedNodes.map((n) => ({
     id: n.id,
     width: NODE_WIDTH,
@@ -584,79 +592,38 @@ export async function applyElkLayout(
     targets: [e.target],
   }));
 
-  const density = options?.layoutDensity ?? "normal";
-  let ranksep = direction === "TB" ? 80 : 110;
-  let nodesep = 50;
-  if (density === "compact") {
-    ranksep = direction === "TB" ? 50 : 70;
-    nodesep = 30;
-  } else if (density === "spacious") {
-    ranksep = direction === "TB" ? 120 : 160;
-    nodesep = 80;
-  }
-
-  const layoutOptions: Record<string, string> = {
-    "elk.algorithm": "layered",
-    "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
-    "elk.separateConnectedComponents": "true",
-    "elk.spacing.nodeNode": String(nodesep),
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(ranksep),
-    "elk.padding": "[top=20,left=20,bottom=20,right=20]",
-    "org.eclipse.elk.nodePlacement.strategy": "SIMPLE",
-  };
+  const spacing = options?.layoutDensity === "compact"
+    ? 25
+    : options?.layoutDensity === "spacious"
+    ? 70
+    : 40;
 
   const graph = {
     id: "root",
-    layoutOptions,
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
+      "elk.spacing.nodeNode": String(spacing),
+      "elk.layered.spacing.nodeNodeBetweenLayers": String(spacing + 20),
+    },
     children: elkNodes,
     edges: elkEdges,
   };
 
-  const laidOutGraph = await instance.layout(graph);
+  const layoutedGraph = await instance.layout(graph);
 
-  // Translation alignment to minimize visual jumping
-  const previousPositionsMap = options?.previousPositions
-    ? (options.previousPositions instanceof Map
-      ? options.previousPositions
-      : new Map(options.previousPositions))
-    : null;
-
-  if (previousPositionsMap && previousPositionsMap.size > 0) {
-    let sumX = 0;
-    let sumY = 0;
-    let count = 0;
-    laidOutGraph.children?.forEach((child: ElkNode) => {
-      if (child.id && child.x !== undefined && child.y !== undefined) {
-        const prev = previousPositionsMap.get(child.id);
-        if (prev) {
-          sumX += prev.x - child.x;
-          sumY += prev.y - child.y;
-          count += 1;
-        }
-      }
-    });
-    if (count > 0) {
-      const deltaX = sumX / count;
-      const deltaY = sumY / count;
-      laidOutGraph.children?.forEach((child: ElkNode) => {
-        if (child.x !== undefined && child.y !== undefined) {
-          child.x += deltaX;
-          child.y += deltaY;
-        }
+  const nodePosMap = new Map<string, { x: number; y: number }>();
+  if (layoutedGraph.children) {
+    for (const child of layoutedGraph.children) {
+      nodePosMap.set(child.id, {
+        x: child.x ?? 0,
+        y: child.y ?? 0,
       });
     }
   }
 
-  const positionById = new Map<string, { x: number; y: number }>();
-  laidOutGraph.children?.forEach((child: ElkNode) => {
-    if (child.id && child.x !== undefined && child.y !== undefined) {
-      positionById.set(child.id, { x: child.x, y: child.y });
-    }
-  });
-
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
-    const pos = positionById.get(n.id) ?? { x: 0, y: 0 };
-    const h = getNodeHeight(n);
+    const pos = nodePosMap.get(n.id) ?? { x: 0, y: 0 };
     return {
       id: n.id,
       type: n.type === "LABEL"
@@ -664,9 +631,7 @@ export async function applyElkLayout(
         : n.type === "MENU"
         ? "menuNode"
         : "decisionNode",
-      position: { x: pos.x, y: pos.y },
-      width: NODE_WIDTH,
-      height: h,
+      position: pos,
       data: {
         label: n.label,
         dialogueCount: n.dialogueCount,
@@ -677,21 +642,20 @@ export async function applyElkLayout(
         audioAssetCues: n.audioAssetCues,
         nodeType: n.type,
         chapter: n.chapter,
-        parentLabelId: n.parentLabelId,
         role: n.role,
         isShadowed: n.isShadowed,
         shadowOfId: n.shadowOfId,
         isTerminalOutcome: n.isTerminalOutcome,
-        conditionExpression: n.condition?.expression,
-        conditionReferences: n.condition?.references,
+        collapsedLabels: n.collapsedLabels,
+        characterDialogue: n.characterDialogue,
+        isSubLabel: n.isSubLabel,
+        parentLabelScope: n.parentLabelScope,
       },
-      draggable: true,
-      measured: { width: NODE_WIDTH, height: h },
     };
   });
 
   const edges: CanvasEdge[] = normalizedEdges
-    .filter((e) => positionById.has(e.source) && positionById.has(e.target))
+    .filter((e) => nodePosMap.has(e.source) && nodePosMap.has(e.target))
     .map((e) => ({
       id: e.id,
       source: e.source,
@@ -704,7 +668,7 @@ export async function applyElkLayout(
         timeout: e.timeout,
       },
       markerEnd: { type: "arrowclosed" as const },
-      style: { stroke: "#6b7280", strokeWidth: 1.5 },
+      style: { stroke: edgeColor, strokeWidth: 1.5 },
     }));
 
   return { nodes, edges };

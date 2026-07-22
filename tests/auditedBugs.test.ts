@@ -20,7 +20,9 @@ import { isSafeMockFlagKey } from "../src/application/viewerStoreSlices/simulati
 import { exportMermaid } from "../src/application/exporters/mermaidExporter.ts";
 import { exportNarrativeOutline } from "../src/application/exporters/narrativeOutlineExporter.ts";
 import { exportStandaloneHtml } from "../src/application/exporters/standaloneExporter.ts";
+import { generateDialogueCsv } from "../src/application/exporters/csvExporter.ts";
 import { applyChapterClustering } from "../src/domain/transforms/chapterClustering.ts";
+import { computeGraphDiff } from "../src/domain/transforms/graphDiff.ts";
 
 describe("Codebase Audited 21 Bugs Suite", () => {
   // Bug 1: preprocessConditionExpression string literal corruption
@@ -629,6 +631,128 @@ describe("Codebase Audited 21 Bugs Suite", () => {
     const url = "https://github.com/owner/repo/tree/main/game";
     const resolved = resolveGithubUrl(url);
     expect(resolved).toBe("https://github.com/owner/repo/archive/refs/heads/main.zip");
+  });
+
+  it("New Fix 1: splitPythonArgs properly resets quote state for string parameters", () => {
+    const code = 'def foo(a: str = "hello", b: int = 1):\n    pass\n';
+    const defs = extractPythonFunctionDefs(code);
+    expect(defs).toHaveLength(1);
+    expect(defs[0]?.args).toHaveLength(2);
+    expect(defs[0]?.args[0]).toBe('a: str = "hello"');
+    expect(defs[0]?.args[1]).toBe("b: int = 1");
+  });
+
+  it("New Fix 2: exportStandaloneHtml preserves Mermaid entity escapes", () => {
+    const nodes = [{ id: "n1", type: "LABEL" as const, label: "x < 5", dialogueCount: 1 }];
+    const html = exportStandaloneHtml(nodes, []);
+    expect(html).toContain("&lt;");
+    expect(html).not.toContain("&amp;lt;");
+  });
+
+  it("New Fix 3: exportNarrativeOutline renders structured object dialogue items", () => {
+    const nodes = [
+      {
+        id: "n1",
+        type: "LABEL" as const,
+        label: "Label 1",
+        dialogueCount: 1,
+        dialogueLines: [{ speaker: "Eileen", text: "Welcome back!" } as unknown as string],
+      },
+    ];
+    const outline = exportNarrativeOutline(nodes, []);
+    expect(outline).toContain("> Eileen: Welcome back!");
+  });
+
+  it("New Fix 4: parseDictLiteral handles unquoted integer keys", () => {
+    const parseDict = (parseDictLiteral as unknown as (s: string) => Map<string, string> | null)('{1: "target_label"}');
+    expect(parseDict).not.toBeNull();
+    expect(parseDict?.get("1")).toBe("target_label");
+  });
+
+  it("New Fix 5: generateDialogueCsv strips RenPy text formatting tags before word counting", () => {
+    const nodes = [
+      {
+        id: "n1",
+        type: "LABEL" as const,
+        label: "Label 1",
+        dialogueCount: 1,
+        dialogueLines: ["{cps=30}Hello world!{w=1.0}{/cps}"],
+      },
+    ];
+    const csv = generateDialogueCsv(nodes);
+    expect(csv).toContain('"2"'); // 2 words: "Hello", "world!"
+  });
+
+  it("New Fix 6: computeGraphDiff detects changes in characterDialogue", () => {
+    const baseNodes = [
+      { id: "n1", type: "LABEL", label: "n1", dialogueCount: 1, characterDialogue: { Eileen: { lineCount: 1, wordCount: 5 } } },
+    ];
+    const compNodes = [
+      { id: "n1", type: "LABEL", label: "n1", dialogueCount: 1, characterDialogue: { Eileen: { lineCount: 2, wordCount: 10 } } },
+    ];
+    const res = computeGraphDiff(baseNodes, compNodes);
+    expect(res.modifiedNodeIds).toContain("n1");
+  });
+
+  it("New Fix 7: buildVisibleNodes updates when node style changes", () => {
+    const nodes1 = [
+      { id: "n1", position: { x: 0, y: 0 }, style: { background: "blue" }, data: { label: "n1", dialogueCount: 1, nodeType: "LABEL" as const } },
+    ];
+    const firstPass = buildVisibleNodes({ nodes: nodes1, search: "", minDialogue: 0, collapsedChapters: {}, collapsedLabelChildren: new Set(), theme: "violet" });
+    const prevMap = new Map([["n1", firstPass[0]!]]);
+
+    const nodes2 = [
+      { id: "n1", position: { x: 0, y: 0 }, style: { background: "red" }, data: { label: "n1", dialogueCount: 1, nodeType: "LABEL" as const } },
+    ];
+    const secondPass = buildVisibleNodes({ nodes: nodes2, search: "", minDialogue: 0, collapsedChapters: {}, collapsedLabelChildren: new Set(), theme: "violet", previousById: prevMap });
+    expect(secondPass[0]?.style?.background).toBe("red");
+  });
+
+  it("New Fix 8: parsePythonBlockAst parses dict_jump with trailing comment", () => {
+    const code = "ROUTER['start']() # jump to start label";
+    const calls = parsePythonBlockAst(code);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.type).toBe("dict_jump");
+    expect(calls[0]?.targetExpression).toBe("'start'");
+  });
+
+  it("New Fix 9: findPath returns reachable: true for self-path when startNodeId exists in node or edge set", () => {
+    const res = findPath([{ id: "start", type: "LABEL", label: "start", dialogueCount: 1 }], [], "start", "start");
+    expect(res.reachable).toBe(true);
+    expect(res.pathNodes).toEqual(["start"]);
+  });
+
+  it("New Fix 10: analyzeReachability recognizes label: prefixed entry labels", () => {
+    const state = createGraphState();
+    state.nodes.push({
+      id: "label:start",
+      type: "LABEL",
+      label: "label:start",
+      dialogueCount: 1,
+      wordCount: 5,
+      pauseDuration: 0,
+      chapter: "ch1",
+    });
+    runControlFlowAnalysis(state);
+    const orphanDiags = state.diagnostics.filter((d) => d.context?.category === "orphan_label");
+    expect(orphanDiags).toHaveLength(0);
+  });
+
+  it("Adversarial Fix 1: extractPythonFunctionDefs extracts inline function bodies after colon", () => {
+    const code = "def inline_fn(x: int): return x + 1\n";
+    const defs = extractPythonFunctionDefs(code);
+    expect(defs).toHaveLength(1);
+    expect(defs[0]?.body).toBe("return x + 1");
+  });
+
+  it("Adversarial Fix 2: evaluateConditionExpression evaluates string literal inequality to false", () => {
+    const res = evaluateConditionExpression('"alpha" == "beta"', {});
+    expect(res).toBe("false");
+  });
+
+  it("Adversarial Fix 3: IMEMBER does not treat literal values as unmapped variables", () => {
+    const res = evaluateConditionExpression('"literal".prop == "literal.prop"', {});
+    expect(res).toBe("unknown");
   });
 });
 

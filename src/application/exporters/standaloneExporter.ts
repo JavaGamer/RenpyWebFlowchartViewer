@@ -6,10 +6,8 @@ export function exportStandaloneHtml(
   edges: FlowEdge[],
 ): string {
   const mermaidStr = exportMermaid(nodes, edges);
-  const safeMermaidStr = mermaidStr
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/&lt;br\s*\/?&gt;/gi, "<br/>");
+  // Preserve Mermaid entities (&lt;, &gt;, &#124;, etc.) while allowing <br/> line breaks
+  const safeMermaidStr = mermaidStr;
   const jsonStr = JSON.stringify({ nodes, edges })
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e");

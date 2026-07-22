@@ -101,7 +101,8 @@ export default function App() {
         ? (
           <main
             id="flowchart-main"
-            className="flex-1 flex flex-col overflow-hidden"
+            tabIndex={-1}
+            className="flex-1 flex flex-col overflow-hidden focus:outline-none"
             aria-label="Flowchart viewer"
           >
             {/* Re-upload button */}

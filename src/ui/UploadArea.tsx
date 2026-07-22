@@ -202,6 +202,7 @@ export default function UploadArea({
       e.stopPropagation();
       if (phase === "reading" || phase === "parsing") return;
 
+      const fallbackFiles = e.dataTransfer.files;
       if (e.dataTransfer.items) {
         traverseDataTransferItems(e.dataTransfer.items)
           .then((rpyFiles) => {
@@ -209,10 +210,10 @@ export default function UploadArea({
           })
           .catch((err) => {
             console.error("Error traversing dropped items:", err);
-            void processFiles(e.dataTransfer.files);
+            void processFiles(fallbackFiles);
           });
       } else {
-        void processFiles(e.dataTransfer.files);
+        void processFiles(fallbackFiles);
       }
     },
     [processFiles, phase],

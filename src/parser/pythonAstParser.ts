@@ -57,6 +57,8 @@ function splitPythonArgs(rawArgs: string): string[] {
         if (i + 1 < rawArgs.length) {
           current += rawArgs[++i];
         }
+      } else if (inQuote === char) {
+        inQuote = null;
       }
       continue;
     }
@@ -101,42 +103,48 @@ export function extractPythonFunctionDefs(pythonCode: string): ExtractedPythonFu
 
   try {
     const tree = parser.parse(pythonCode);
+
     tree.iterate({
       enter(node) {
         if (node.name === 'FunctionDefinition') {
-          const nameNode = node.node.getChild('VariableName');
-          const paramList = node.node.getChild('ParamList');
-          const bodyNode = node.node.getChild('Body');
+          const fnText = pythonCode.slice(node.from, node.to);
+          const startIndex = node.from;
 
-          if (nameNode) {
-            const name = pythonCode.slice(nameNode.from, nameNode.to);
-            let args: string[] = [];
+          // Parse function name and parameters
+          const match = /^def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s*(?:->\s*[^:]+)?\s*:/m.exec(fnText);
+          if (match) {
+            const name = match[1]!;
+            const rawArgs = match[2] || '';
+            const args = splitPythonArgs(rawArgs);
 
-            if (paramList) {
-              const rawParamList = pythonCode.slice(paramList.from + 1, paramList.to - 1);
-              args = splitPythonArgs(rawParamList);
+            // Extract body (code following the header match[0])
+            const rawBody = fnText.slice(match[0].length);
+            const rawBodyLines = rawBody.split('\n');
+            const bodyLines: string[] = [];
+            for (const line of rawBodyLines) {
+              if (bodyLines.length === 0 && !line.trim()) continue;
+              bodyLines.push(line);
             }
 
-            const body = bodyNode ? pythonCode.slice(bodyNode.from, bodyNode.to) : '';
             defs.push({
               name,
               args,
-              body,
-              startIndex: node.from,
+              body: bodyLines.join('\n').trim(),
+              startIndex,
             });
           }
         }
       },
     });
-  } catch (_err) {
-    // Fallback if parsing error occurs
+  } catch {
+    // Fallback if parsing fails
   }
 
   return defs;
 }
 
 /**
- * Uses Lezer Python parser to extract renpy calls, pop_calls, and dict jumps.
+ * Uses Lezer Python parser to extract call expressions (jumps, calls, dict jumps).
  */
 export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
   const results: ExtractedPythonCall[] = [];
@@ -157,7 +165,11 @@ export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
           }
 
           if (/^\brenpy\.call_in_new_context\b/.test(callText.trim())) {
-            const argText = callText.replace(/^renpy\.call_in_new_context\s*\(/, '').replace(/\)$/, '').trim();
+            const cleanCallText = callText.replace(/#.*$/, '').trim();
+            const argText = cleanCallText
+              .replace(/^renpy\.call_in_new_context\s*\(/, '')
+              .replace(/\)$/, '')
+              .trim();
             results.push({
               type: 'call_in_new_context',
               targetExpression: argText,
@@ -170,7 +182,8 @@ export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
             });
           } else {
             // Check for dict jump pattern e.g. ROUTER[key]() or ROUTER[key](arg1, arg2)
-            const dictMatch = /^\b([A-Za-z_][A-Za-z0-9_]*)(?:\[\s*(.*?)\s*\]|\.get\(\s*[^,]+,\s*(.*?)\s*\))\s*\([\s\S]*?\)$/.exec(callText.trim());
+            const cleanCallText = callText.replace(/#.*$/, '').trim();
+            const dictMatch = /^\b([A-Za-z_][A-Za-z0-9_]*)(?:\[\s*(.*?)\s*\]|\.get\(\s*[^,]+\s*,\s*(.*?)\s*\))\s*\([\s\S]*?\)$/.exec(cleanCallText);
             if (dictMatch) {
               results.push({
                 type: 'dict_jump',
@@ -183,7 +196,7 @@ export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
         }
       },
     });
-  } catch (_err) {
+  } catch {
     // Fallback scan if error occurs
   }
 

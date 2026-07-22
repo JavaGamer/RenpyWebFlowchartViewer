@@ -15,7 +15,7 @@ import type { UploadedFile } from "./uploadTypes.ts";
 export function resolveGithubUrl(urlStr: string): string {
   const url = urlStr.trim();
   const githubRepoRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/?$/;
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/?$/;
   const repoMatch = url.match(githubRepoRegex);
   if (repoMatch) {
     const owner = repoMatch[2];
@@ -24,7 +24,7 @@ export function resolveGithubUrl(urlStr: string): string {
   }
 
   const githubTreeRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/tree\/([a-zA-Z0-9-_./]+)\/?$/;
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/tree\/([a-zA-Z0-9_./-]+)\/?$/;
   const treeMatch = url.match(githubTreeRegex);
   if (treeMatch) {
     const owner = treeMatch[2];
@@ -44,7 +44,7 @@ export function resolveGithubUrl(urlStr: string): string {
   }
 
   const githubFileRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/(?:blob|raw)\/(.+)$/;
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(?:blob|raw)\/(.+)$/;
   const fileMatch = url.match(githubFileRegex);
   if (fileMatch) {
     const owner = fileMatch[2];

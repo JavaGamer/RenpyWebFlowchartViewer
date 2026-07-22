@@ -272,14 +272,16 @@ export function FlowchartCanvas({
     nodeId?: string;
   } | null>(null);
 
-  const onNodeContextMenu = React.useCallback((_event: React.MouseEvent, node: CanvasNode) => {
+  const onNodeContextMenu = React.useCallback((event: MouseEvent | React.MouseEvent, node: CanvasNode) => {
+    event.preventDefault();
     setContextMenuTarget({
       nodeData: node.data as NodeData,
       nodeId: node.id,
     });
   }, []);
 
-  const onPaneContextMenu = React.useCallback(() => {
+  const onPaneContextMenu = React.useCallback((event: MouseEvent | React.MouseEvent) => {
+    event.preventDefault();
     setContextMenuTarget(null);
   }, []);
 

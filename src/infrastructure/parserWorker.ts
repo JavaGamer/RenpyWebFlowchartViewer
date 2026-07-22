@@ -335,7 +335,7 @@ const parserApi = {
         activeRequestId = null;
       }
       cancelledRequests.delete(requestId);
-      if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
+      if (!appendToActiveGraph || isFinalChunk || wasCancelled) {
         clearSession(sessionId);
       }
     }

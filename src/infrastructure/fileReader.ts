@@ -31,12 +31,12 @@ export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
         }
         const encoder = new TextEncoder();
         const encoded = encoder.encode(reader.result);
-        resolve(
-          encoded.buffer.slice(
-            encoded.byteOffset,
-            encoded.byteOffset + encoded.byteLength,
-          ),
-        );
+        const cleanBuffer = new Uint8Array(
+          encoded.buffer,
+          encoded.byteOffset,
+          encoded.byteLength,
+        ).slice().buffer;
+        resolve(cleanBuffer);
       };
       reader.onerror = rejectRead;
       reader.onabort = rejectRead;

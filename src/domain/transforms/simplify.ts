@@ -160,13 +160,16 @@ function inlineNodes(
       }
 
       const targetNode = nodesMap.get(current.nodeId);
+      const safeLabel = (current.label || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeCond = (current.condition?.expression || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+
       if (!targetNode) {
         newEdges.push({
-          id: current.isInlinedPath
+          id: (current.isInlinedPath || !current.originalId)
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${current.label}`
-            : current.originalId!,
+            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${safeLabel}`
+            : current.originalId,
           source: u.id,
           target: current.nodeId,
           kind: current.kind,
@@ -179,13 +182,11 @@ function inlineNodes(
 
       if (!H.has(current.nodeId)) {
         newEdges.push({
-          id: current.isInlinedPath
+          id: (current.isInlinedPath || !current.originalId)
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${current.label || ""}_${
-              current.condition?.expression || ""
-            }`
-            : current.originalId!,
+            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${safeLabel}_${safeCond}`
+            : current.originalId,
           source: u.id,
           target: current.nodeId,
           kind: current.kind,

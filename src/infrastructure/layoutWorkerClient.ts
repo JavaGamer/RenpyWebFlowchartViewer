@@ -35,6 +35,7 @@ export function terminateLayoutWorker() {
   }
   apiProxy = null;
   isWorkerRunning = false;
+  activeCancelCallback = null;
 }
 
 export function preWarmLayoutWorker(): void {

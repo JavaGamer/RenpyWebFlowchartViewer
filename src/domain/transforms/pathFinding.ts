@@ -27,6 +27,14 @@ export function findPath(
 
   if (nodes && nodes.length > 0) {
     const nodeSet = new Set(nodes.map((n) => n.id));
+    if (startNodeId === targetNodeId && nodeSet.has(startNodeId)) {
+      return {
+        reachable: true,
+        pathNodes: [startNodeId],
+        pathEdges: [],
+        visitedNodesCount: 1,
+      };
+    }
     if (!nodeSet.has(startNodeId) || !nodeSet.has(targetNodeId)) {
       return {
         reachable: false,
@@ -40,6 +48,14 @@ export function findPath(
     for (const edge of edges) {
       edgeNodeSet.add(edge.source);
       edgeNodeSet.add(edge.target);
+    }
+    if (startNodeId === targetNodeId && edgeNodeSet.has(startNodeId)) {
+      return {
+        reachable: true,
+        pathNodes: [startNodeId],
+        pathEdges: [],
+        visitedNodesCount: 1,
+      };
     }
     if (!edgeNodeSet.has(startNodeId) || !edgeNodeSet.has(targetNodeId)) {
       return {

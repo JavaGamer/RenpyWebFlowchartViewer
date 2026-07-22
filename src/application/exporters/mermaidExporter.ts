@@ -17,8 +17,16 @@ export function exportMermaid(nodes: FlowNode[], edges: FlowEdge[]): string {
     idMap.set(node.id, safeId);
 
     const label = (node.label || node.id)
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
       .replace(/"/g, "'")
       .replace(/\|/g, "&#124;")
+      .replace(/\[/g, "&#91;")
+      .replace(/\]/g, "&#93;")
+      .replace(/\{/g, "&#123;")
+      .replace(/\}/g, "&#125;")
+      .replace(/\(/g, "&#40;")
+      .replace(/\)/g, "&#41;")
       .replace(/\r?\n/g, "<br/>");
 
     let shapeStart = '["';
@@ -41,7 +49,18 @@ export function exportMermaid(nodes: FlowNode[], edges: FlowEdge[]): string {
     const target = idMap.get(edge.target) ||
       ("n_" + edge.target.replace(/[^a-zA-Z0-9_]/g, "_"));
     const sanitizedLabel = edge.label
-      ? edge.label.replace(/"/g, "'").replace(/\|/g, "&#124;").replace(/\r?\n/g, "<br/>")
+      ? edge.label
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "'")
+          .replace(/\|/g, "&#124;")
+          .replace(/\[/g, "&#91;")
+          .replace(/\]/g, "&#93;")
+          .replace(/\{/g, "&#123;")
+          .replace(/\}/g, "&#125;")
+          .replace(/\(/g, "&#40;")
+          .replace(/\)/g, "&#41;")
+          .replace(/\r?\n/g, "<br/>")
       : "";
     const label = sanitizedLabel ? `|"${sanitizedLabel}"|` : "";
     mermaid += `  ${source} -->${label} ${target}\n`;

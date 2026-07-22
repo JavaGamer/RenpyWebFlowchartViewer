@@ -53,7 +53,11 @@ export function computeGraphDiff(
         baseNode.dialogueCount === compNode.dialogueCount &&
         baseNode.wordCount === compNode.wordCount &&
         baseNode.role === compNode.role &&
-        (baseNode.dialogueLines?.length ?? 0) === (compNode.dialogueLines?.length ?? 0);
+        baseNode.isTerminalOutcome === compNode.isTerminalOutcome &&
+        baseNode.isOrphan === compNode.isOrphan &&
+        (baseNode.dialogueLines?.length ?? 0) === (compNode.dialogueLines?.length ?? 0) &&
+        JSON.stringify(baseNode.characterDialogue ?? null) === JSON.stringify(compNode.characterDialogue ?? null) &&
+        JSON.stringify(baseNode.audioAssetCues ?? null) === JSON.stringify(compNode.audioAssetCues ?? null);
 
       if (!isShallowEqual) {
         modifiedNodeIds.push(id);

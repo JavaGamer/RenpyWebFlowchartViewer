@@ -115,7 +115,8 @@ export function buildVisibleNodes(params: {
         prevData.wordCount === nodeData.wordCount &&
         prevData.pauseDuration === nodeData.pauseDuration &&
         prevData.collapsedLabels === nodeData.collapsedLabels &&
-        previous.style?.opacity === (dimmed ? 0.28 : undefined)
+        previous.style?.opacity === (dimmed ? 0.28 : undefined) &&
+        JSON.stringify(previous.style ?? {}) === JSON.stringify({ ...(n.style || {}), opacity: dimmed ? 0.28 : undefined })
       ) {
         return previous;
       }

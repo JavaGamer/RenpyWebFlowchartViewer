@@ -91,14 +91,13 @@ function processLineState(lineText: string, state: DelimiterState) {
       continue;
     }
 
-    const openingDelimiter = {
-      "(": ")",
-      "[": "]",
-      "{": "}",
-    }[char];
+    let openingDelimiter: ")" | "]" | "}" | undefined;
+    if (char === "(") openingDelimiter = ")";
+    else if (char === "[") openingDelimiter = "]";
+    else if (char === "{") openingDelimiter = "}";
 
     if (openingDelimiter) {
-      state.delimiterStack.push(openingDelimiter as ")" | "]" | "}");
+      state.delimiterStack.push(openingDelimiter);
     } else if (char === ")" || char === "]" || char === "}") {
       if (char === state.delimiterStack[state.delimiterStack.length - 1]) {
         state.delimiterStack.pop();

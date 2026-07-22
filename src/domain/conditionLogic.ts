@@ -40,9 +40,9 @@ class BoundedMap<K, V> extends Map<K, V> {
     }
     super.set(key, value);
     while (this.size > this.maxEntries) {
-      const oldestKey = this.keys().next().value;
-      if (oldestKey === undefined) break;
-      super.delete(oldestKey);
+      const first = this.keys().next();
+      if (first.done || first.value === undefined) break;
+      super.delete(first.value);
     }
     return this;
   }
@@ -50,6 +50,8 @@ class BoundedMap<K, V> extends Map<K, V> {
 
 function preprocessConditionExpression(expr: string): string {
   // Replace Python 'is not' / 'is' keywords while preserving string contents inside quotes
+  const runId = Math.random().toString(36).substring(2, 8);
+  const prefix = `__STR_PH_${runId}_`;
   const placeholders: string[] = [];
   let inQuote: '"' | "'" | null = null;
   let code = "";
@@ -66,7 +68,7 @@ function preprocessConditionExpression(expr: string): string {
       } else if (char === inQuote) {
         inQuote = null;
         placeholders.push(currentString);
-        code += `____STR_PH_${placeholders.length - 1}____`;
+        code += `${prefix}${placeholders.length - 1}__`;
         currentString = "";
       }
       continue;
@@ -80,15 +82,16 @@ function preprocessConditionExpression(expr: string): string {
   }
   if (currentString) {
     placeholders.push(currentString);
-    code += `____STR_PH_${placeholders.length - 1}____`;
+    code += `${prefix}${placeholders.length - 1}__`;
   }
 
   const processed = code
-    .replace(/(?<=\s|^|\()is\s+not(?=\s|$|\))/gi, "!=")
-    .replace(/(?<=\s|^|\()is(?=\s|$|\))/gi, "==");
+    .replace(/\bis\s+not\b/gi, "!=")
+    .replace(/\bis\b/gi, "==");
 
   // Restore placeholders in a single pass to prevent recursive replacement corruption
-  return processed.replace(/____STR_PH_(\d+)____/g, (_, idx) => placeholders[Number(idx)] ?? "");
+  const restoreRegex = new RegExp(`${prefix}(\\d+)__`, "g");
+  return processed.replace(restoreRegex, (_, idx) => placeholders[Number(idx)] ?? "");
 }
 
 const flagRefsCache = new BoundedMap<string, string[]>(200);
@@ -127,132 +130,145 @@ interface EvalInstruction {
   value?: unknown;
 }
 
+interface StackItem {
+  val: string;
+  isVar: boolean;
+}
+
 function evaluateInstructions(
   instructions: EvalInstruction[],
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
-  const stack: string[] = [];
+  const stack: StackItem[] = [];
 
   for (const inst of instructions) {
     if (inst.type === "IVAR") {
       const val = typeof inst.value === "string" ? inst.value : "";
       const lower = val.toLowerCase();
       if (lower === "true") {
-        stack.push("true");
+        stack.push({ val: "true", isVar: false });
       } else if (lower === "false" || lower === "none" || lower === "null") {
-        stack.push("false");
+        stack.push({ val: "false", isVar: false });
       } else if (val) {
         const flagVal = Object.hasOwn(flags, val) ? flags[val] : undefined;
-        stack.push(
-          flagVal !== undefined ? flagVal : val,
-        );
+        if (flagVal !== undefined) {
+          stack.push({ val: flagVal, isVar: false });
+        } else {
+          stack.push({ val, isVar: true });
+        }
       } else {
-        stack.push("unknown");
+        stack.push({ val: "unknown", isVar: false });
       }
     } else if (inst.type === "IMEMBER") {
       const prop = typeof inst.value === "string" ? inst.value : "";
-      const obj = stack.pop() ?? "";
-      const combinedKey = `${obj}.${prop}`;
-      const flagVal = Object.hasOwn(flags, combinedKey) ? flags[combinedKey] : undefined;
-      stack.push(flagVal !== undefined ? flagVal : combinedKey);
+      const obj = stack.pop();
+      if (!obj || obj.val === "unknown") {
+        stack.push({ val: "unknown", isVar: false });
+      } else {
+        const combinedKey = `${obj.val}.${prop}`;
+        const flagVal = Object.hasOwn(flags, combinedKey) ? flags[combinedKey] : undefined;
+        if (flagVal !== undefined) {
+          stack.push({ val: flagVal, isVar: false });
+        } else if (obj.isVar) {
+          stack.push({ val: combinedKey, isVar: true });
+        } else {
+          stack.push({ val: "unknown", isVar: false });
+        }
+      }
     } else if (inst.type === "INUMBER" || inst.type === "INUM" || inst.type === "ISTR") {
       const val = typeof inst.value === "string" ? inst.value : String(inst.value ?? "");
       const lower = val.toLowerCase();
       if (lower === "true") {
-        stack.push("true");
+        stack.push({ val: "true", isVar: false });
       } else if (lower === "false") {
-        stack.push("false");
+        stack.push({ val: "false", isVar: false });
       } else {
-        stack.push(val);
+        stack.push({ val, isVar: false });
       }
     } else if (inst.type === "IEXPR") {
       if (Array.isArray(inst.value)) {
-        stack.push(
-          evaluateInstructions(inst.value as EvalInstruction[], flags),
-        );
+        const res = evaluateInstructions(inst.value as EvalInstruction[], flags);
+        stack.push({ val: res, isVar: false });
       } else {
-        stack.push("unknown");
+        stack.push({ val: "unknown", isVar: false });
       }
     } else if (inst.type === "IOP1") {
-      const val = stack.pop();
-      if (!val) {
-        stack.push("unknown");
+      const item = stack.pop();
+      if (!item) {
+        stack.push({ val: "unknown", isVar: false });
       } else {
         const op = typeof inst.value === "string" ? inst.value : "";
         if (op === "not" || op === "!") {
-          if (val === "true") {
-            stack.push("false");
-          } else if (val === "false") {
-            stack.push("true");
+          if (item.val === "true") {
+            stack.push({ val: "false", isVar: false });
+          } else if (item.val === "false") {
+            stack.push({ val: "true", isVar: false });
           } else {
-            stack.push("unknown");
+            stack.push({ val: "unknown", isVar: false });
           }
         } else {
-          stack.push("unknown");
+          stack.push({ val: "unknown", isVar: false });
         }
       }
     } else if (inst.type === "IOP2") {
       const right = stack.pop();
       const left = stack.pop();
       if (!left || !right) {
-        stack.push("unknown");
+        stack.push({ val: "unknown", isVar: false });
       } else {
         const op = typeof inst.value === "string" ? inst.value : "";
         if (op === "and" || op === "&&") {
-          if (left === "false" || right === "false") {
-            stack.push("false");
-          } else if (left === "true" && right === "true") {
-            stack.push("true");
+          if (left.val === "false" || right.val === "false") {
+            stack.push({ val: "false", isVar: false });
+          } else if (left.val === "true" && right.val === "true") {
+            stack.push({ val: "true", isVar: false });
           } else {
-            stack.push("unknown");
+            stack.push({ val: "unknown", isVar: false });
           }
         } else if (op === "or" || op === "||") {
-          if (left === "true" || right === "true") {
-            stack.push("true");
-          } else if (left === "false" && right === "false") {
-            stack.push("false");
+          if (left.val === "true" || right.val === "true") {
+            stack.push({ val: "true", isVar: false });
+          } else if (left.val === "false" && right.val === "false") {
+            stack.push({ val: "false", isVar: false });
           } else {
-            stack.push("unknown");
+            stack.push({ val: "unknown", isVar: false });
           }
         } else if (op === "==" || op === "!=") {
-          if (left === "unknown" || right === "unknown") {
-            stack.push("unknown");
-          } else {
-            const isLeftUnmappedVar = left !== "true" && left !== "false" && !Object.hasOwn(flags, left);
-            const isRightUnmappedVar = right !== "true" && right !== "false" && !Object.hasOwn(flags, right);
-            if (isLeftUnmappedVar || isRightUnmappedVar) {
-              if (left === right) {
-                stack.push(op === "==" ? "true" : "false");
-              } else {
-                stack.push("unknown");
-              }
+          if (left.val === "unknown" || right.val === "unknown") {
+            stack.push({ val: "unknown", isVar: false });
+          } else if (left.isVar || right.isVar) {
+            if (left.val === right.val) {
+              stack.push({ val: op === "==" ? "true" : "false", isVar: false });
             } else {
-              const equal = left === right;
-              const res = op === "==" ? equal : !equal;
-              stack.push(res ? "true" : "false");
+              stack.push({ val: "unknown", isVar: false });
             }
+          } else {
+            const equal = left.val === right.val;
+            const res = op === "==" ? equal : !equal;
+            stack.push({ val: res ? "true" : "false", isVar: false });
           }
         } else if (op === "<" || op === ">" || op === "<=" || op === ">=") {
-          const numL = Number(left);
-          const numR = Number(right);
+          const numL = Number(left.val);
+          const numR = Number(right.val);
           if (!isNaN(numL) && !isNaN(numR)) {
             let res = false;
             if (op === "<") res = numL < numR;
             else if (op === ">") res = numL > numR;
             else if (op === "<=") res = numL <= numR;
             else if (op === ">=") res = numL >= numR;
-            stack.push(res ? "true" : "false");
+            stack.push({ val: res ? "true" : "false", isVar: false });
           } else {
-            stack.push("unknown");
+            stack.push({ val: "unknown", isVar: false });
           }
         } else {
-          stack.push("unknown");
+          stack.push({ val: "unknown", isVar: false });
         }
       }
     }
   }
 
-  const result = stack.pop() ?? "unknown";
+  const top = stack.pop();
+  const result = top?.val ?? "unknown";
   return (result === "true" || result === "false") ? result : "unknown";
 }
 

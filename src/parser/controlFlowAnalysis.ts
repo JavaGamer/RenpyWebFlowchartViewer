@@ -30,7 +30,12 @@ function analyzeReachability(state: ParseGraphState): void {
   ]);
 
   const entryNodes = state.nodes.filter(
-    (n) => n.type === "LABEL" && RENPY_ENTRY_LABELS.has(n.label),
+    (n) =>
+      n.type === "LABEL" &&
+      (RENPY_ENTRY_LABELS.has(n.label) ||
+        RENPY_ENTRY_LABELS.has(n.label.replace(/^label:/, "")) ||
+        RENPY_ENTRY_LABELS.has(n.id) ||
+        RENPY_ENTRY_LABELS.has(n.id.replace(/^label:/, ""))),
   );
 
   if (entryNodes.length > 0) {
@@ -92,11 +97,11 @@ function analyzeReachability(state: ParseGraphState): void {
 }
 
 function analyzeTightCycles(state: ParseGraphState): void {
-  const path = new Set<string>();
-  const tempVisited = new Set<string>();
+  const visiting = new Set<string>();
+  const fullyExplored = new Set<string>();
 
   function dfsCycle(nodeId: string, currentPath: string[]) {
-    if (path.has(nodeId)) {
+    if (visiting.has(nodeId)) {
       const cycleStartIndex = currentPath.indexOf(nodeId);
       const cycle = currentPath.slice(cycleStartIndex);
       let hasInteraction = false;
@@ -143,9 +148,8 @@ function analyzeTightCycles(state: ParseGraphState): void {
       }
       return;
     }
-    if (tempVisited.has(nodeId)) return;
-    tempVisited.add(nodeId);
-    path.add(nodeId);
+    if (fullyExplored.has(nodeId)) return;
+    visiting.add(nodeId);
     currentPath.push(nodeId);
 
     const outgoingEdges = state.edges.filter(
@@ -157,7 +161,8 @@ function analyzeTightCycles(state: ParseGraphState): void {
     }
 
     currentPath.pop();
-    path.delete(nodeId);
+    visiting.delete(nodeId);
+    fullyExplored.add(nodeId);
   }
 
   for (const node of state.nodes) {

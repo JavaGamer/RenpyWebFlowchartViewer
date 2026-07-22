@@ -23,9 +23,19 @@ export function exportNarrativeOutline(
       md += `**Chapter**: ${node.chapter}\n\n`;
     }
     if (node.dialogueLines && node.dialogueLines.length > 0) {
-      for (const line of node.dialogueLines) {
-        if (typeof line !== "string" || !line) continue;
-        const sublines = line.split(/\r?\n/);
+      for (const rawLine of node.dialogueLines) {
+        if (!rawLine) continue;
+        let lineStr: string;
+        if (typeof rawLine === "string") {
+          lineStr = rawLine;
+        } else if (typeof rawLine === "object" && rawLine !== null) {
+          const obj = rawLine as { speaker?: string; text?: string };
+          lineStr = obj.speaker ? `${obj.speaker}: ${obj.text ?? ""}` : String(obj.text ?? "");
+        } else {
+          lineStr = String(rawLine);
+        }
+        if (!lineStr.trim()) continue;
+        const sublines = lineStr.split(/\r?\n/);
         for (const subline of sublines) {
           md += `> ${subline}\n`;
         }

@@ -238,39 +238,48 @@ export function parseDictLiteral(
     }
   }
 
-  function parseStringLiteral(): string | null {
+  function parseKeyOrStringLiteral(): string | null {
     if (i >= content.length) return null;
     const quoteChar = content[i];
-    if (quoteChar !== '"' && quoteChar !== "'") return null;
-    i++; // consume quote
-    let str = "";
-    while (i < content.length) {
-      const char = content[i];
-      if (char === "\\") {
-        i++;
-        if (i < content.length) {
-          const nextChar = content[i];
-          if (nextChar === "n") str += "\n";
-          else if (nextChar === "t") str += "\t";
-          else if (nextChar === "r") str += "\r";
-          else str += nextChar;
+    if (quoteChar === '"' || quoteChar === "'") {
+      i++; // consume quote
+      let str = "";
+      while (i < content.length) {
+        const char = content[i];
+        if (char === "\\") {
+          i++;
+          if (i < content.length) {
+            const nextChar = content[i];
+            if (nextChar === "n") str += "\n";
+            else if (nextChar === "t") str += "\t";
+            else if (nextChar === "r") str += "\r";
+            else str += nextChar;
+            i++;
+          }
+        } else if (char === quoteChar) {
+          i++; // consume closing quote
+          return str;
+        } else {
+          str += char;
           i++;
         }
-      } else if (char === quoteChar) {
-        i++; // consume closing quote
-        return str;
-      } else {
-        str += char;
+      }
+      return null; // unclosed string
+    } else {
+      // Unquoted identifier or number key
+      let token = "";
+      while (i < content.length && !/\s|:|,|\}/.test(content[i])) {
+        token += content[i];
         i++;
       }
+      return token.length > 0 ? token : null;
     }
-    return null; // unclosed string
   }
 
   while (i < content.length) {
     skipWhitespace();
     if (i >= content.length) break;
-    const key = parseStringLiteral();
+    const key = parseKeyOrStringLiteral();
     if (key === null) return null;
 
     skipWhitespace();
@@ -278,7 +287,7 @@ export function parseDictLiteral(
     i++; // consume ':'
 
     skipWhitespace();
-    const val = parseStringLiteral();
+    const val = parseKeyOrStringLiteral();
     if (val === null) return null;
 
     result.set(key, val);

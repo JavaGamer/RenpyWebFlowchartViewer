@@ -49,12 +49,30 @@ export async function extractRpyFilesFromZip(
               size: data.length,
               webkitRelativePath: normalizedPath,
               relativePath: normalizedPath,
-              text: async () => strFromU8(data),
-              arrayBuffer: async () =>
-                data.buffer.slice(
-                  data.byteOffset,
-                  data.byteOffset + data.byteLength,
-                ),
+              text: async () => {
+                try {
+                  return strFromU8(data);
+                } catch (err) {
+                  throw new Error(
+                    `Failed to decode text for ${normalizedPath}`,
+                    { cause: err },
+                  );
+                }
+              },
+              arrayBuffer: async () => {
+                try {
+                  return new Uint8Array(
+                    data.buffer,
+                    data.byteOffset,
+                    data.byteLength,
+                  ).slice().buffer;
+                } catch (err) {
+                  throw new Error(
+                    `Failed to read ArrayBuffer for ${normalizedPath}`,
+                    { cause: err },
+                  );
+                }
+              },
             };
           });
         resolve(files);

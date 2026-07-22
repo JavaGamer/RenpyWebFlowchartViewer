@@ -588,14 +588,23 @@ export function parseChunksInParallel({
         signal?.addEventListener("abort", onAbort, { once: true });
 
         const transfers: Transferable[] = [];
-        for (const file of chunkFiles) {
+        const preparedChunkFiles = chunkFiles.map((file) => {
           if (file.content instanceof Uint8Array) {
-            transfers.push(file.content.buffer);
+            const sliced = file.content.buffer.slice(
+              file.content.byteOffset,
+              file.content.byteOffset + file.content.byteLength,
+            );
+            transfers.push(sliced);
+            return {
+              ...file,
+              content: new Uint8Array(sliced),
+            };
           }
-        }
+          return file;
+        });
 
         const chunkFilesArg = transfers.length > 0
-          ? transfer(chunkFiles, transfers)
+          ? transfer(preparedChunkFiles, transfers)
           : chunkFiles;
 
         getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFilesArg, {

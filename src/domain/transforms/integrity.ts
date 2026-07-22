@@ -51,6 +51,7 @@ export function resolveGraphIntegrity(
 
   const edges: FlowEdge[] = [];
   const seenEdgeKeys = new Set<string>();
+  const edgeTypeCountMap = new Map<string, number>();
   for (const edge of rawEdges) {
     if (!edge.source || !edge.target) continue;
     if (!nodeMap.has(edge.source)) {
@@ -92,12 +93,18 @@ export function resolveGraphIntegrity(
     }|${timeoutKey}`;
     if (seenEdgeKeys.has(semanticKey)) continue;
     seenEdgeKeys.add(semanticKey);
+
+    const edgeCountKey = `${normalizedKind}_${edge.source}__${edge.target}`;
+    const occurrenceCount = (edgeTypeCountMap.get(edgeCountKey) ?? 0) + 1;
+    edgeTypeCountMap.set(edgeCountKey, occurrenceCount);
+
+    const fallbackId = occurrenceCount === 1
+      ? edgeCountKey
+      : `${edgeCountKey}_${occurrenceCount}`;
+
     edges.push({
       ...edge,
-      id: edge.id ||
-        (seenEdgeKeys.size === 1
-          ? `${normalizedKind}_${edge.source}__${edge.target}`
-          : `${normalizedKind}_${edge.source}__${edge.target}_${seenEdgeKeys.size}`),
+      id: edge.id || fallbackId,
       kind: normalizedKind,
     });
   }
