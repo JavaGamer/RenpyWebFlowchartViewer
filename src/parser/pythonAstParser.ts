@@ -1,13 +1,7 @@
-/**
- * src/parser/pythonAstParser.ts
- *
- * Lightweight Python AST tokenizer and expression scanner for Ren'Py Python blocks.
- * Parses dictionary-driven state jumps (e.g. ROUTER[key]()), renpy.call_in_new_context(),
- * renpy.pop_call(), and function-wrapped jumps inside python blocks.
- */
+import { parser } from '@lezer/python';
 
 export interface ExtractedPythonCall {
-  type: "jump" | "call" | "call_in_new_context" | "pop_call" | "dict_jump";
+  type: 'jump' | 'call' | 'call_in_new_context' | 'pop_call' | 'dict_jump';
   targetExpression?: string;
   dictName?: string;
   dictKey?: string;
@@ -24,43 +18,70 @@ export interface ExtractedPythonFunctionDef {
 
 function splitPythonArgs(rawArgs: string): string[] {
   const args: string[] = [];
-  let current = "";
+  let current = '';
   let depth = 0;
-  let inQuote: '"' | "'" | null = null;
+  let inQuote: '"""' | "'''" | '"' | "'" | null = null;
 
   for (let i = 0; i < rawArgs.length; i++) {
     const char = rawArgs[i]!;
+
+    // Check for triple quotes
+    if (!inQuote) {
+      if (rawArgs.slice(i, i + 3) === '"""') {
+        inQuote = '"""';
+        current += '"""';
+        i += 2;
+        continue;
+      }
+      if (rawArgs.slice(i, i + 3) === "'''") {
+        inQuote = "'''";
+        current += "'''";
+        i += 2;
+        continue;
+      }
+    } else if (inQuote === '"""' && rawArgs.slice(i, i + 3) === '"""') {
+      inQuote = null;
+      current += '"""';
+      i += 2;
+      continue;
+    } else if (inQuote === "'''" && rawArgs.slice(i, i + 3) === "'''") {
+      inQuote = null;
+      current += "'''";
+      i += 2;
+      continue;
+    }
+
     if (inQuote) {
       current += char;
-      if (char === "\\") {
+      if (char === '\\') {
         if (i + 1 < rawArgs.length) {
           current += rawArgs[++i];
         }
-      } else if (char === inQuote) {
-        inQuote = null;
       }
       continue;
     }
+
     if (char === '"' || char === "'") {
       inQuote = char;
       current += char;
       continue;
     }
-    if (char === "(" || char === "[" || char === "{") {
+
+    if (char === '(' || char === '[' || char === '{') {
       depth++;
       current += char;
       continue;
     }
-    if (char === ")" || char === "]" || char === "}") {
-      depth--;
+    if (char === ')' || char === ']' || char === '}') {
+      depth = Math.max(0, depth - 1);
       current += char;
       continue;
     }
-    if (char === "," && depth === 0) {
+    if (char === ',' && depth === 0) {
       if (current.trim()) {
         args.push(current.trim());
       }
-      current = "";
+      current = '';
       continue;
     }
     current += char;
@@ -72,128 +93,98 @@ function splitPythonArgs(rawArgs: string): string[] {
 }
 
 /**
- * Extracts function definitions (`def func_name(...):`) from Python code text.
+ * Uses Lezer Python parser to extract function definitions (`def func(...):`).
  */
 export function extractPythonFunctionDefs(pythonCode: string): ExtractedPythonFunctionDef[] {
   const defs: ExtractedPythonFunctionDef[] = [];
-  const defRegex = /^[ \t]*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
-  let match: RegExpExecArray | null;
+  if (!pythonCode || !pythonCode.trim()) return defs;
 
-  while ((match = defRegex.exec(pythonCode)) !== null) {
-    const name = match[1]!;
-    const startIndex = match.index;
-    let depth = 1;
-    let endParen = match.index + match[0].length;
-    let inQuote: '"' | "'" | null = null;
+  try {
+    const tree = parser.parse(pythonCode);
+    tree.iterate({
+      enter(node) {
+        if (node.name === 'FunctionDefinition') {
+          const nameNode = node.node.getChild('VariableName');
+          const paramList = node.node.getChild('ParamList');
+          const bodyNode = node.node.getChild('Body');
 
-    while (endParen < pythonCode.length && depth > 0) {
-      const char = pythonCode[endParen]!;
-      if (inQuote) {
-        if (char === "\\") {
-          endParen += 2;
-          continue;
+          if (nameNode) {
+            const name = pythonCode.slice(nameNode.from, nameNode.to);
+            let args: string[] = [];
+
+            if (paramList) {
+              const rawParamList = pythonCode.slice(paramList.from + 1, paramList.to - 1);
+              args = splitPythonArgs(rawParamList);
+            }
+
+            const body = bodyNode ? pythonCode.slice(bodyNode.from, bodyNode.to) : '';
+            defs.push({
+              name,
+              args,
+              body,
+              startIndex: node.from,
+            });
+          }
         }
-        if (char === inQuote) inQuote = null;
-      } else {
-        if (char === '"' || char === "'") inQuote = char;
-        else if (char === "(") depth += 1;
-        else if (char === ")") depth -= 1;
-      }
-      endParen += 1;
-    }
-
-    const rawArgs = pythonCode.slice(match.index + match[0].length, endParen - 1);
-    const args = splitPythonArgs(rawArgs);
-
-    // Find body lines by indent relative to def line
-    const defIndent = match[0].search(/\S/);
-    const lineEnd = pythonCode.indexOf("\n", endParen);
-    const bodyStart = lineEnd === -1 ? pythonCode.length : lineEnd + 1;
-    const lines = pythonCode.slice(bodyStart).split(/\r?\n/);
-    let bodyText = "";
-
-    for (const line of lines) {
-      if (line.trim().length === 0 || line.trim().startsWith("#")) {
-        bodyText += line + "\n";
-        continue;
-      }
-      const indent = line.search(/\S/);
-      if (indent > defIndent) {
-        bodyText += line + "\n";
-      } else {
-        break;
-      }
-    }
-
-    defs.push({
-      name,
-      args,
-      body: bodyText,
-      startIndex,
+      },
     });
+  } catch (_err) {
+    // Fallback if parsing error occurs
   }
 
   return defs;
 }
 
 /**
- * Extracts renpy.call_in_new_context, renpy.pop_call, and dictionary jump expressions.
+ * Uses Lezer Python parser to extract renpy calls, pop_calls, and dict jumps.
  */
 export function parsePythonBlockAst(pythonCode: string): ExtractedPythonCall[] {
   const results: ExtractedPythonCall[] = [];
+  if (!pythonCode || !pythonCode.trim()) return results;
 
-  // 1. renpy.call_in_new_context(...)
-  const callInNewContextStart = /\brenpy\.call_in_new_context\s*\(/g;
-  let match: RegExpExecArray | null;
-  while ((match = callInNewContextStart.exec(pythonCode)) !== null) {
-    const startParen = match.index + match[0].length - 1;
-    let depth = 1;
-    let endParen = startParen + 1;
-    let inQuote: '"' | "'" | null = null;
+  try {
+    const tree = parser.parse(pythonCode);
+    tree.iterate({
+      enter(node) {
+        if (node.name === 'CallExpression') {
+          const callText = pythonCode.slice(node.from, node.to);
+          const index = node.from;
 
-    while (endParen < pythonCode.length && depth > 0) {
-      const char = pythonCode[endParen]!;
-      if (inQuote) {
-        if (char === "\\") {
-          endParen += 2;
-          continue;
+          // Ignore call expressions inside String or Comment nodes
+          const parentName = node.node.parent?.name;
+          if (parentName === 'String' || parentName === 'Comment') {
+            return;
+          }
+
+          if (/^\brenpy\.call_in_new_context\b/.test(callText.trim())) {
+            const argText = callText.replace(/^renpy\.call_in_new_context\s*\(/, '').replace(/\)$/, '').trim();
+            results.push({
+              type: 'call_in_new_context',
+              targetExpression: argText,
+              index,
+            });
+          } else if (/^\brenpy\.pop_call\b/.test(callText.trim())) {
+            results.push({
+              type: 'pop_call',
+              index,
+            });
+          } else {
+            // Check for dict jump pattern e.g. ROUTER[key]() or ROUTER[key](arg1, arg2)
+            const dictMatch = /^\b([A-Za-z_][A-Za-z0-9_]*)(?:\[\s*(.*?)\s*\]|\.get\(\s*[^,]+,\s*(.*?)\s*\))\s*\([\s\S]*?\)$/.exec(callText.trim());
+            if (dictMatch) {
+              results.push({
+                type: 'dict_jump',
+                dictName: dictMatch[1],
+                targetExpression: dictMatch[2] || dictMatch[3],
+                index,
+              });
+            }
+          }
         }
-        if (char === inQuote) inQuote = null;
-      } else {
-        if (char === '"' || char === "'") inQuote = char;
-        else if (char === "(") depth += 1;
-        else if (char === ")") depth -= 1;
-      }
-      endParen += 1;
-    }
-    const argText = pythonCode.slice(startParen + 1, endParen - 1).trim();
-    results.push({
-      type: "call_in_new_context",
-      targetExpression: argText,
-      index: match.index,
+      },
     });
-  }
-
-  // 2. renpy.pop_call()
-  const popCallRegex = /\brenpy\.pop_call\s*\(\s*\)/g;
-  while ((match = popCallRegex.exec(pythonCode)) !== null) {
-    results.push({
-      type: "pop_call",
-      index: match.index,
-    });
-  }
-
-  // 3. Dictionary state jumps: DICT_NAME[key]() or ROUTER.get(key, "default")()
-  const dictJumpRegex = /\b([A-Za-z_][A-Za-z0-9_]*)(?:\[\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_.]*)\s*\]|\.get\(\s*[^,]+,\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_.]*)\s*\))\s*\(\s*\)/g;
-  while ((match = dictJumpRegex.exec(pythonCode)) !== null) {
-    const dictName = match[1];
-    const targetExpression = match[2] || match[3];
-    results.push({
-      type: "dict_jump",
-      dictName,
-      targetExpression,
-      index: match.index,
-    });
+  } catch (_err) {
+    // Fallback scan if error occurs
   }
 
   results.sort((a, b) => a.index - b.index);

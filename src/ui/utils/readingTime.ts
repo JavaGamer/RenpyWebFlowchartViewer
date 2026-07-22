@@ -19,10 +19,19 @@ export function calculateReadingTimeSeconds(
   pauseDuration: number,
   wpm: number,
 ): number {
-  if (wordCount <= 0 && pauseDuration <= 0) return 0;
-  const effectiveWpm = Math.max(1, wpm);
-  const readingSeconds = (wordCount / effectiveWpm) * 60;
-  return readingSeconds + pauseDuration;
+  const safeWordCount =
+    typeof wordCount === "number" && Number.isFinite(wordCount)
+      ? Math.max(0, wordCount)
+      : 0;
+  const safePauseDuration =
+    typeof pauseDuration === "number" && Number.isFinite(pauseDuration)
+      ? Math.max(0, pauseDuration)
+      : 0;
+  if (safeWordCount <= 0 && safePauseDuration <= 0) return 0;
+  const effectiveWpm =
+    typeof wpm === "number" && Number.isFinite(wpm) ? Math.max(1, wpm) : 200;
+  const readingSeconds = (safeWordCount / effectiveWpm) * 60;
+  return readingSeconds + safePauseDuration;
 }
 
 /**

@@ -33,9 +33,26 @@ import {
 } from "../src/application/parserRuleSettingsStore";
 import { useViewerStore } from "../src/application/viewerStore";
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
-
 // React Flow requires a real browser canvas and ResizeObserver; mock it away.
+vi.mock("react-resizable-panels", () => ({
+  PanelGroup: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="panel-group">{children}</div>
+  ),
+  Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PanelResizeHandle: () => <div data-testid="panel-resize-handle" />,
+}));
+
+vi.mock("@radix-ui/react-context-menu", () => ({
+  Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Trigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Content: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Item: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
+    <div onClick={onClick}>{children}</div>
+  ),
+  Separator: () => null,
+}));
+
 vi.mock("@xyflow/react", () => {
   const ReactFlow = ({
     nodes,

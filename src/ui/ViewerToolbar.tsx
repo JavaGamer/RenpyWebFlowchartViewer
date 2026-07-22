@@ -48,6 +48,8 @@ export interface ViewerToolbarProps {
   onExportMermaid: () => void;
   onExportNarrative: () => void;
   onExportStandalone: () => void;
+  onExportPdf?: () => void;
+  onExportCsv?: () => void;
   onExportDebugBundle?: (opts: DebugBundlePrivacyOptions) => void;
   onOpenIssue?: (opts: DebugBundlePrivacyOptions) => void;
   debugPrivacyOptions: DebugBundlePrivacyOptions;
@@ -100,6 +102,8 @@ export function ViewerToolbar({
   onExportMermaid,
   onExportNarrative,
   onExportStandalone,
+  onExportPdf,
+  onExportCsv,
   onExportDebugBundle,
   onOpenIssue,
   debugPrivacyOptions,
@@ -260,6 +264,8 @@ export function ViewerToolbar({
             onExportMermaid={onExportMermaid}
             onExportNarrative={onExportNarrative}
             onExportStandalone={onExportStandalone}
+            onExportPdf={onExportPdf}
+            onExportCsv={onExportCsv}
             onExportDebugBundle={onExportDebugBundle}
             onOpenIssue={onOpenIssue}
             debugPrivacyOptions={debugPrivacyOptions}

@@ -30,6 +30,9 @@ import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
 import { cn } from "./utils/cn.ts";
 import { ViewerInspector } from "./viewerInspector.tsx";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+import { toast } from "sonner";
+import { FlowchartContextMenu } from "./components/FlowchartContextMenu.tsx";
 import { useGraphVisibility } from "./hooks/useGraphVisibility.ts";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction.ts";
 
@@ -264,7 +267,33 @@ export function FlowchartCanvas({
     }
   }, [chapters]);
 
+  const [contextMenuTarget, setContextMenuTarget] = React.useState<{
+    nodeData?: NodeData;
+    nodeId?: string;
+  } | null>(null);
+
+  const onNodeContextMenu = React.useCallback((_event: React.MouseEvent, node: CanvasNode) => {
+    setContextMenuTarget({
+      nodeData: node.data as NodeData,
+      nodeId: node.id,
+    });
+  }, []);
+
+  const onPaneContextMenu = React.useCallback(() => {
+    setContextMenuTarget(null);
+  }, []);
+
   const selectedNodeData = selectedNode?.data as NodeData | undefined;
+
+  const getMiniMapNodeColor = React.useCallback(
+    (n: CanvasNode) =>
+      n.type === "labelNode"
+        ? THEMES[theme].minimapLabel
+        : n.type === "menuNode"
+        ? THEMES[theme].minimapMenu
+        : THEMES[theme].minimapDecision,
+    [theme]
+  );
 
   return (
     <>
@@ -285,89 +314,140 @@ export function FlowchartCanvas({
         chapterStats={chapterStats}
       />
 
-      <div className="flex-1 flex flex-col xl:flex-row min-h-0">
-        <div
-          ref={flowRef}
-          className="flex-1 min-h-[320px] relative"
-          style={{ backgroundColor: THEMES[theme].pageBg }}
-          data-theme={theme}
-        >
-          <CanvasOverlay isCalculatingLayout={isCalculatingLayout} />
-          <ReactFlow
-            colorMode={theme === "dark" ? "dark" : "light"}
+      <PanelGroup direction="horizontal" className="flex-1 min-h-0">
+        <Panel defaultSize={72} minSize={40}>
+          <FlowchartContextMenu
+            nodeData={contextMenuTarget?.nodeData}
+            nodeId={contextMenuTarget?.nodeId}
+            onOpenChange={(open) => {
+              if (!open) setContextMenuTarget(null);
+            }}
+            onFocusNode={(nodeId) => {
+              focusVisibleNode(nodeId);
+              toast.info(`Centered on node ${nodeId}`);
+            }}
+            onSetPathStart={(nodeId) => {
+              setPathStartNodeId(nodeId);
+              toast.success(`Path start set to ${nodeId}`);
+            }}
+            onSetPathTarget={(nodeId) => {
+              setPathTargetNodeId(nodeId);
+              toast.success(`Path target set to ${nodeId}`);
+            }}
+            onCopyScriptPath={(nodeData, nodeId) => {
+              const chapter = nodeData.chapter || 'script.rpy';
+              const lineNum = nodeData.dialogueLineNums?.[0] ?? 1;
+              const text = `${chapter}:${lineNum}`;
+              if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(text)
+                  .then(() => toast.success(`Copied "${text}" for ${nodeId} to clipboard`))
+                  .catch(() => toast.error("Failed to copy to clipboard"));
+              } else {
+                toast.error("Clipboard API not supported in this environment");
+              }
+            }}
+            onFitView={() => {
+              flowInstanceRef.current?.fitView({ duration: 250 });
+              toast.info("Fit view updated");
+            }}
+            onToggleLayoutDir={() => {
+              const currentDir = useViewerStore.getState().layoutDirection;
+              useViewerStore.getState().setLayoutDirection(currentDir === "TB" ? "LR" : "TB");
+              toast.info("Toggled layout direction");
+            }}
+            onResetSession={() => {
+              useViewerStore.getState().resetSession();
+              toast.info("Viewer session reset");
+            }}
+          >
+            <div
+              ref={flowRef}
+              className="w-full h-full min-h-[320px] relative"
+              style={{ backgroundColor: THEMES[theme].pageBg }}
+              data-theme={theme}
+            >
+              <CanvasOverlay isCalculatingLayout={isCalculatingLayout} />
+              <ReactFlow
+                colorMode={theme === "dark" ? "dark" : "light"}
+                nodes={visibleNodes}
+                edges={visibleEdges}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                onNodeContextMenu={onNodeContextMenu}
+                onPaneContextMenu={onPaneContextMenu}
+                onInit={(instance) => {
+                  flowInstanceRef.current = instance as ReactFlowInstance<
+                    CanvasNode,
+                    CanvasEdge
+                  >;
+                }}
+                fitView
+                fitViewOptions={{ padding: 0.2 }}
+                minZoom={0.1}
+                maxZoom={2.5}
+                nodesDraggable
+                onlyRenderVisibleElements
+                proOptions={{ hideAttribution: false }}
+              >
+                <Background color={THEMES[theme].grid} gap={20} />
+                <Controls />
+                <MiniMap
+                  className={cn(
+                    minimapPannable && "minimap-pannable",
+                    minimapZoomable && "minimap-zoomable",
+                  )}
+                  pannable={minimapPannable}
+                  zoomable={minimapZoomable}
+                  nodeColor={getMiniMapNodeColor}
+                />
+              </ReactFlow>
+            </div>
+          </FlowchartContextMenu>
+        </Panel>
+
+        <PanelResizeHandle className="w-1.5 hover:w-2 bg-slate-800 hover:bg-cyan-500/80 transition-all cursor-col-resize flex items-center justify-center group">
+          <div className="w-0.5 h-6 bg-slate-600 group-hover:bg-cyan-200 rounded-full" />
+        </PanelResizeHandle>
+
+        <Panel defaultSize={28} minSize={20} maxSize={50} collapsible={true}>
+          <ViewerInspector
+            effectiveSearch={effectiveSearch}
+            nodeSearchMatchCount={nodeSearchMatchCount}
+            dialogueLineSearchEnabled={dialogueLineSearchEnabled}
+            activeDialogueSearchResults={activeDialogueSearchResults}
+            resolvedActiveDialogueResultIndex={resolvedActiveDialogueResultIndex}
+            selectedNode={selectedNode}
+            selectedNodeData={selectedNodeData}
+            selectedNodeId={selectedNodeId}
+            selectedDialogueLineIndex={selectedDialogueLineIndex}
+            showAllInspectorLines={showAllInspectorLines}
+            showMediaCuesInDialogue={showMediaCuesInDialogue}
+            setShowMediaCuesInDialogue={setShowMediaCuesInDialogue}
+            onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
+            onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
+            onSelectDialogueSearchResult={onSelectDialogueSearchResult}
+            onSetPathStart={() => setPathStartNodeId(selectedNodeId)}
+            onSetPathTarget={() => setPathTargetNodeId(selectedNodeId)}
+            pathStartNodeId={pathStartNodeId}
+            pathTargetNodeId={pathTargetNodeId}
+            pathResult={pathResult}
             nodes={visibleNodes}
             edges={visibleEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            onInit={(instance) => {
-              flowInstanceRef.current = instance as ReactFlowInstance<
-                CanvasNode,
-                CanvasEdge
-              >;
+            onClearPath={() => {
+              setPathStartNodeId(null);
+              setPathTargetNodeId(null);
             }}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.1}
-            maxZoom={2.5}
-            nodesDraggable
-            onlyRenderVisibleElements
-            proOptions={{ hideAttribution: false }}
-          >
-            <Background color={THEMES[theme].grid} gap={20} />
-            <Controls />
-            <MiniMap
-              className={cn(
-                minimapPannable && "minimap-pannable",
-                minimapZoomable && "minimap-zoomable",
-              )}
-              pannable={minimapPannable}
-              zoomable={minimapZoomable}
-              nodeColor={(n) =>
-                n.type === "labelNode"
-                  ? THEMES[theme].minimapLabel
-                  : n.type === "menuNode"
-                  ? THEMES[theme].minimapMenu
-                  : THEMES[theme].minimapDecision}
-            />
-          </ReactFlow>
-        </div>
-        <ViewerInspector
-          effectiveSearch={effectiveSearch}
-          nodeSearchMatchCount={nodeSearchMatchCount}
-          dialogueLineSearchEnabled={dialogueLineSearchEnabled}
-          activeDialogueSearchResults={activeDialogueSearchResults}
-          resolvedActiveDialogueResultIndex={resolvedActiveDialogueResultIndex}
-          selectedNode={selectedNode}
-          selectedNodeData={selectedNodeData}
-          selectedNodeId={selectedNodeId}
-          selectedDialogueLineIndex={selectedDialogueLineIndex}
-          showAllInspectorLines={showAllInspectorLines}
-          showMediaCuesInDialogue={showMediaCuesInDialogue}
-          setShowMediaCuesInDialogue={setShowMediaCuesInDialogue}
-          onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
-          onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
-          onSelectDialogueSearchResult={onSelectDialogueSearchResult}
-          onSetPathStart={() => setPathStartNodeId(selectedNodeId)}
-          onSetPathTarget={() => setPathTargetNodeId(selectedNodeId)}
-          pathStartNodeId={pathStartNodeId}
-          pathTargetNodeId={pathTargetNodeId}
-          pathResult={pathResult}
-          nodes={visibleNodes}
-          edges={visibleEdges}
-          onClearPath={() => {
-            setPathStartNodeId(null);
-            setPathTargetNodeId(null);
-          }}
-          onSelectNode={(nodeId) => {
-            setSelectedNodeId(nodeId);
-            focusVisibleNode(nodeId);
-          }}
-        />
-      </div>
+            onSelectNode={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              focusVisibleNode(nodeId);
+            }}
+          />
+        </Panel>
+      </PanelGroup>
     </>
   );
 }

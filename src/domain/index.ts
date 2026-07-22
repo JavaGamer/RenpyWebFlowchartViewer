@@ -40,6 +40,8 @@ export {
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   resolveGraphIntegrity,
   simplifyGraph,
+  computeGraphDiff,
+  type GraphDiffResult,
 } from "./transforms/index.ts";
 
 export { extractConditionFlagRefs } from "./conditionLogic.ts";

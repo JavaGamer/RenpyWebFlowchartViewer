@@ -27,3 +27,6 @@ export type {
   ChapterClusteringOptions,
   ChapterClusteringResult,
 } from "./chapterClustering.ts";
+
+export { computeGraphDiff } from "./graphDiff.ts";
+export type { GraphDiffResult } from "./graphDiff.ts";

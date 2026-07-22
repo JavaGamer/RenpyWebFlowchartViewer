@@ -290,7 +290,7 @@ export function parseDictLiteral(
     }
   }
 
-  return result.size > 0 ? result : null;
+  return result;
 }
 
 export function parseListLiteral(
@@ -352,7 +352,7 @@ export function parseListLiteral(
     }
   }
 
-  return result.length > 0 ? result : null;
+  return result;
 }
 
 export function extractLiteralTarget(expression: string): string | null {

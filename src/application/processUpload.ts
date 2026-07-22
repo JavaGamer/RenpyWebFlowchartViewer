@@ -341,6 +341,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               );
             }
 
+            if (!isActiveRun()) return;
+
             // Mark all files in this chunk as successfully completed
             chunkFiles.forEach((f) => {
               const id = f.webkitRelativePath || f.name;

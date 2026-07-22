@@ -17,12 +17,16 @@ import type {
   FlowEdge,
   FlowNode,
 } from "../domain/index.ts";
+import { saveAs } from "file-saver";
+import { Toaster, toast } from "sonner";
 import {
   type DebugBundlePrivacyOptions,
   type DialogueSearchMode,
   exportMermaid,
   exportNarrativeOutline,
   exportStandaloneHtml,
+  generateDialogueCsv,
+  exportFlowchartToPdf,
   type ParseService,
   useAppStore,
   useDebugBundle,
@@ -345,6 +349,45 @@ export default function FlowchartViewer({
     return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, [onExport, canUndo, canRedo, undo, redo, setShowAdvancedControls]);
 
+  const handleExportPdf = useCallback(async () => {
+    if (!flowRef.current) return;
+    const svg =
+      flowRef.current.querySelector(".react-flow__viewport svg") ||
+      flowRef.current.querySelector("svg");
+    if (!svg) {
+      toast.error("Could not find flowchart SVG container");
+      return;
+    }
+    try {
+      toast.info("Generating Vector PDF...");
+      await exportFlowchartToPdf(svg as SVGElement);
+      toast.success("Vector PDF exported successfully!");
+    } catch (err) {
+      toast.error(
+        "Failed to export PDF: " +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    }
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    if (!flowNodes || flowNodes.length === 0) {
+      toast.warning("No flowchart nodes available to export");
+      return;
+    }
+    try {
+      const csvContent = generateDialogueCsv(flowNodes);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      saveAs(blob, "renpy-dialogue.csv");
+      toast.success("Dialogue CSV exported successfully!");
+    } catch (err) {
+      toast.error(
+        "Failed to export CSV: " +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    }
+  }, [flowNodes]);
+
   // -- Render -----------------------------------------------------------------
   return (
     <div
@@ -355,6 +398,7 @@ export default function FlowchartViewer({
       }}
       data-theme={theme}
     >
+      <Toaster position="bottom-right" duration={3000} />
       {/* Toolbar - always rendered, even when the canvas has errored */}
       <ViewerToolbar
         theme={theme}
@@ -383,6 +427,8 @@ export default function FlowchartViewer({
         onExportMermaid={onExportMermaid}
         onExportNarrative={onExportNarrative}
         onExportStandalone={onExportStandalone}
+        onExportPdf={handleExportPdf}
+        onExportCsv={handleExportCsv}
         onExportDebugBundle={onExportDebugBundle}
         onOpenIssue={onOpenIssue}
         debugPrivacyOptions={debugPrivacyOptions}

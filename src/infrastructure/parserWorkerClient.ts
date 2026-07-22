@@ -357,19 +357,28 @@ export function parseRenpyFilesInWorker(
         }
 
         const transfers: Transferable[] = [];
-        for (const file of files) {
+        const filesArg = files.map((file) => {
           if (file.content instanceof Uint8Array) {
-            transfers.push(file.content.buffer);
+            const copy = file.content.buffer.slice(
+              file.content.byteOffset,
+              file.content.byteOffset + file.content.byteLength,
+            );
+            transfers.push(copy);
+            return {
+              ...file,
+              content: new Uint8Array(copy),
+            };
           }
-        }
+          return file;
+        });
 
-        const filesArg = transfers.length > 0
-          ? transfer(files, transfers)
-          : files;
+        const transferredFiles = transfers.length > 0
+          ? transfer(filesArg, transfers)
+          : filesArg;
 
         return getWorkerApi(0).parse(
           requestId,
-          filesArg,
+          transferredFiles,
           {
             sessionId,
             fileCacheKeys,

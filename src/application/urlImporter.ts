@@ -29,7 +29,17 @@ export function resolveGithubUrl(urlStr: string): string {
   if (treeMatch) {
     const owner = treeMatch[2];
     const repo = treeMatch[3]!.replace(/\.git$/i, "");
-    const branch = treeMatch[4]!;
+    let branch = treeMatch[4]!;
+    const parts = branch.split("/");
+    if (
+      parts.length > 1 &&
+      (parts[0] === "main" ||
+        parts[0] === "master" ||
+        parts[0] === "dev" ||
+        parts[0] === "develop")
+    ) {
+      branch = parts[0];
+    }
     return `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
   }
 

@@ -85,8 +85,13 @@ export function applyChapterClustering(
     }
     seenEdgeKeys.add(dedupeKey);
 
+    const isClusterEdge = Boolean(sourceCluster || targetCluster);
+
     activeEdges.push({
       ...edge,
+      id: isClusterEdge
+        ? `cluster_edge:${newSource}__${newTarget}_${edge.id}`
+        : edge.id,
       source: newSource,
       target: newTarget,
     });

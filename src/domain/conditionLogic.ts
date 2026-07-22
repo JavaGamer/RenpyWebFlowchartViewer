@@ -180,10 +180,13 @@ function evaluateInstructions(
       } else {
         const op = typeof inst.value === "string" ? inst.value : "";
         if (op === "not" || op === "!") {
-          const isTrue = val === "true" || (val !== "false" && val !== "unknown" && !flags[val]);
-          stack.push(
-            val === "unknown" ? "unknown" : isTrue ? "false" : "true",
-          );
+          if (val === "true") {
+            stack.push("false");
+          } else if (val === "false") {
+            stack.push("true");
+          } else {
+            stack.push("unknown");
+          }
         } else {
           stack.push("unknown");
         }
@@ -215,9 +218,19 @@ function evaluateInstructions(
           if (left === "unknown" || right === "unknown") {
             stack.push("unknown");
           } else {
-            const equal = left === right;
-            const res = op === "==" ? equal : !equal;
-            stack.push(res ? "true" : "false");
+            const isLeftUnmappedVar = left !== "true" && left !== "false" && !Object.hasOwn(flags, left);
+            const isRightUnmappedVar = right !== "true" && right !== "false" && !Object.hasOwn(flags, right);
+            if (isLeftUnmappedVar || isRightUnmappedVar) {
+              if (left === right) {
+                stack.push(op === "==" ? "true" : "false");
+              } else {
+                stack.push("unknown");
+              }
+            } else {
+              const equal = left === right;
+              const res = op === "==" ? equal : !equal;
+              stack.push(res ? "true" : "false");
+            }
           }
         } else if (op === "<" || op === ">" || op === "<=" || op === ">=") {
           const numL = Number(left);

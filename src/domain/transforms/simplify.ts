@@ -123,6 +123,7 @@ function inlineNodes(
   }
 
   const newEdges: FlowEdge[] = [];
+  let inlinedEdgeCounter = 0;
 
   for (const u of nodes) {
     if (H.has(u.id)) continue;
@@ -164,7 +165,7 @@ function inlineNodes(
           id: current.isInlinedPath
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${current.label}`
+            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${current.label}`
             : current.originalId!,
           source: u.id,
           target: current.nodeId,
@@ -181,7 +182,7 @@ function inlineNodes(
           id: current.isInlinedPath
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${current.label || ""}_${
+            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${current.label || ""}_${
               current.condition?.expression || ""
             }`
             : current.originalId!,
@@ -227,11 +228,21 @@ function inlineNodes(
               ]),
             ).sort();
 
+            let mergedBranchKind: "if" | "elif" | "else" = "elif";
+            if (
+              current.condition.branchKind === "if" ||
+              edge.condition.branchKind === "if"
+            ) {
+              mergedBranchKind = "if";
+            } else if (
+              current.condition.branchKind === "else" &&
+              edge.condition.branchKind === "else"
+            ) {
+              mergedBranchKind = "else";
+            }
+
             mergedCondition = {
-              branchKind: current.condition.branchKind === "if" ||
-                  edge.condition.branchKind === "if"
-                ? "if"
-                : "elif",
+              branchKind: mergedBranchKind,
               expression: mergedExpression,
               references: mergedRefs,
               decisionNodeId: current.condition.decisionNodeId ||
@@ -349,6 +360,13 @@ function collapseLinearChains(
       const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
       const audioAssetCues = [...(rootNode.audioAssetCues || [])];
       const collapsedLabels = [...(rootNode.collapsedLabels || [])];
+      const characterDialogue: Record<
+        string,
+        { lineCount: number; wordCount: number }
+      > = {};
+      for (const [spk, st] of Object.entries(rootNode.characterDialogue || {})) {
+        characterDialogue[spk] = { ...st };
+      }
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
@@ -362,6 +380,15 @@ function collapseLinearChains(
         audioAssetCues.push(...(node.audioAssetCues || []));
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
+        if (node.characterDialogue) {
+          for (const [spk, st] of Object.entries(node.characterDialogue)) {
+            if (!characterDialogue[spk]) {
+              characterDialogue[spk] = { lineCount: 0, wordCount: 0 };
+            }
+            characterDialogue[spk]!.lineCount += st.lineCount;
+            characterDialogue[spk]!.wordCount += st.wordCount;
+          }
+        }
         if (node.isShadowed) isShadowed = true;
         if (node.isTerminalOutcome) isTerminalOutcome = true;
         collapsedInto.set(node.id, rootId);
@@ -376,6 +403,9 @@ function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
+        characterDialogue: Object.keys(characterDialogue).length > 0
+          ? characterDialogue
+          : undefined,
         isShadowed,
         isTerminalOutcome,
       });
@@ -409,6 +439,13 @@ function collapseLinearChains(
       const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
       const audioAssetCues = [...(rootNode.audioAssetCues || [])];
       const collapsedLabels = [...(rootNode.collapsedLabels || [])];
+      const characterDialogue: Record<
+        string,
+        { lineCount: number; wordCount: number }
+      > = {};
+      for (const [spk, st] of Object.entries(rootNode.characterDialogue || {})) {
+        characterDialogue[spk] = { ...st };
+      }
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
@@ -422,6 +459,15 @@ function collapseLinearChains(
         audioAssetCues.push(...(node.audioAssetCues || []));
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
+        if (node.characterDialogue) {
+          for (const [spk, st] of Object.entries(node.characterDialogue)) {
+            if (!characterDialogue[spk]) {
+              characterDialogue[spk] = { lineCount: 0, wordCount: 0 };
+            }
+            characterDialogue[spk]!.lineCount += st.lineCount;
+            characterDialogue[spk]!.wordCount += st.wordCount;
+          }
+        }
         if (node.isShadowed) isShadowed = true;
         if (node.isTerminalOutcome) isTerminalOutcome = true;
         collapsedInto.set(node.id, rootId);
@@ -436,6 +482,9 @@ function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
+        characterDialogue: Object.keys(characterDialogue).length > 0
+          ? characterDialogue
+          : undefined,
         isShadowed,
         isTerminalOutcome,
       });

@@ -14,7 +14,8 @@ import { tokenizeOneFile } from "../src/parser/filePipeline.ts";
 import { runControlFlowAnalysis } from "../src/parser/controlFlowAnalysis.ts";
 import { createGraphState } from "../src/parser/pipelineState.ts";
 import { dataUrlToBlob, deriveCollapsedLabelChildren } from "../src/ui/canvasHelpers.ts";
-import { formatReadingTime } from "../src/ui/utils/readingTime.ts";
+import { calculateReadingTimeSeconds, formatReadingTime } from "../src/ui/utils/readingTime.ts";
+import { parseDictLiteral, parseListLiteral } from "../src/parser/handlers/jumpCallHandler.ts";
 import { isSafeMockFlagKey } from "../src/application/viewerStoreSlices/simulationSlice.ts";
 import { exportMermaid } from "../src/application/exporters/mermaidExporter.ts";
 import { exportNarrativeOutline } from "../src/application/exporters/narrativeOutlineExporter.ts";
@@ -460,7 +461,7 @@ describe("Codebase Audited 21 Bugs Suite", () => {
   });
 
   it("Fix 4: evaluateConditionExpression safely guards Object.prototype flag names", () => {
-    const res = evaluateConditionExpression("toString == 'val'", { toString: "true" as any });
+    const res = evaluateConditionExpression("toString == 'val'", { toString: "true" as MockFlagValue });
     expect(res).toBeDefined();
   });
 
@@ -497,6 +498,137 @@ describe("Codebase Audited 21 Bugs Suite", () => {
     const calls = parsePythonBlockAst(code);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.targetExpression).toBe("'escaped\\'key'");
+  });
+
+  // Bug Fix 1: evaluateConditionExpression for 'not' on unmapped variables
+  it("Audited Bug 1 Fix: evaluates 'not' on unmapped variables as unknown", () => {
+    const res = evaluateConditionExpression("not unknown_flag", {});
+    expect(res).toBe("unknown");
+  });
+
+  // Bug Fix 2: evaluateConditionExpression for '==' / '!=' on unmapped variables
+  it("Audited Bug 2 Fix: evaluates equality comparisons on unmapped variables as unknown", () => {
+    const resTrue = evaluateConditionExpression("unmapped_flag == true", {});
+    const resFalse = evaluateConditionExpression("unmapped_flag == false", {});
+    expect(resTrue).toBe("unknown");
+    expect(resFalse).toBe("unknown");
+  });
+
+  // Bug Fix 3: simplifyGraph aggregates characterDialogue when collapsing chains
+  it("Audited Bug 3 Fix: aggregates characterDialogue stats across collapsed nodes", () => {
+    const nodes = [
+      {
+        id: "l1",
+        type: "LABEL" as const,
+        label: "l1",
+        dialogueCount: 1,
+        characterDialogue: { Eileen: { lineCount: 1, wordCount: 5 } },
+      },
+      {
+        id: "l2",
+        type: "LABEL" as const,
+        label: "l2",
+        dialogueCount: 1,
+        characterDialogue: { Eileen: { lineCount: 2, wordCount: 10 } },
+      },
+    ];
+    const edges = [{ id: "e1", source: "l1", target: "l2", kind: "sequence" as const }];
+    const res = simplifyGraph(nodes, edges, {
+      collapseLinearChains: true,
+      inlineUtilities: false,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    expect(res.nodes).toHaveLength(1);
+    expect(res.nodes[0]?.characterDialogue?.Eileen).toEqual({
+      lineCount: 3,
+      wordCount: 15,
+    });
+  });
+
+  // Bug Fix 4: simplifyGraph generates unique inlined edge IDs
+  it("Audited Bug 4 Fix: generates unique edge IDs during node inlining", () => {
+    const nodes = [
+      { id: "A", type: "LABEL" as const, label: "A", dialogueCount: 1 },
+      { id: "U", type: "LABEL" as const, label: "U", dialogueCount: 0, role: "utility" as const },
+      { id: "B", type: "LABEL" as const, label: "B", dialogueCount: 1 },
+    ];
+    const edges = [
+      { id: "e1", source: "A", target: "U", label: "branch" },
+      { id: "e2", source: "A", target: "U", label: "branch" },
+      { id: "e3", source: "U", target: "B" },
+    ];
+    const res = simplifyGraph(nodes, edges, {
+      collapseLinearChains: false,
+      inlineUtilities: true,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    const edgeIds = res.edges.map((e) => e.id);
+    const uniqueIds = new Set(edgeIds);
+    expect(uniqueIds.size).toBe(edgeIds.length);
+  });
+
+  // Bug Fix 5: parseDictLiteral and parseListLiteral for empty literals {} and []
+  it("Audited Bug 5 Fix: parses empty dict {} and list [] literals without returning null", () => {
+    const parseDict = (parseDictLiteral as unknown as (s: string) => Map<string, string> | null)("{}");
+    const parseList = (parseListLiteral as unknown as (s: string) => string[] | null)("[]");
+    expect(parseDict).not.toBeNull();
+    expect(parseDict?.size).toBe(0);
+    expect(parseList).not.toBeNull();
+    expect(parseList).toHaveLength(0);
+  });
+
+  // Bug Fix 8: simplifyGraph preserves 'else' branchKind when merging two 'else' conditions
+  it("Audited Bug 8 Fix: preserves 'else' branchKind when merging two 'else' conditions", () => {
+    const nodes = [
+      { id: "A", type: "LABEL" as const, label: "A", dialogueCount: 1 },
+      { id: "U", type: "LABEL" as const, label: "U", dialogueCount: 0, role: "utility" as const },
+      { id: "B", type: "LABEL" as const, label: "B", dialogueCount: 1 },
+    ];
+    const edges = [
+      { id: "e1", source: "A", target: "U", condition: { branchKind: "else" as const, expression: "x < 0" } },
+      { id: "e2", source: "U", target: "B", condition: { branchKind: "else" as const, expression: "y < 0" } },
+    ];
+    const res = simplifyGraph(nodes, edges, {
+      collapseLinearChains: false,
+      inlineUtilities: true,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    expect(res.edges[0]?.condition?.branchKind).toBe("else");
+  });
+
+  // Bug Fix 9: calculateReadingTimeSeconds handles undefined pauseDuration
+  it("Audited Bug 9 Fix: calculateReadingTimeSeconds handles undefined pauseDuration safely", () => {
+    const time = formatReadingTime(calculateReadingTimeSeconds(100, undefined as unknown as number, 200));
+    expect(time).toBe("30s");
+  });
+
+  // Bug Fix 10: applyChapterClustering generates cluster_edge IDs
+  it("Audited Bug 10 Fix: applyChapterClustering generates explicit cluster edge IDs", () => {
+    const nodes = [
+      { id: "n1", type: "LABEL" as const, label: "n1", chapter: "ch1", dialogueCount: 1 },
+      { id: "n2", type: "LABEL" as const, label: "n2", chapter: "ch2", dialogueCount: 1 },
+    ];
+    const edges = [{ id: "e1", source: "n1", target: "n2" }];
+    const res = applyChapterClustering(nodes, edges, {
+      collapsedChapters: new Set(["ch1"]),
+    });
+    expect(res.edges[0]?.id).toContain("cluster_edge:");
+  });
+
+  // Bug Fix 11: resolveGithubUrl handles tree subpaths correctly
+  it("Audited Bug 11 Fix: resolveGithubUrl handles GitHub tree subpaths correctly", () => {
+    const url = "https://github.com/owner/repo/tree/main/game";
+    const resolved = resolveGithubUrl(url);
+    expect(resolved).toBe("https://github.com/owner/repo/archive/refs/heads/main.zip");
   });
 });
 
