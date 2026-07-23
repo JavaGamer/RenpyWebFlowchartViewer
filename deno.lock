@@ -16,7 +16,7 @@
     "npm:@testing-library/react@^16.3.2": "16.3.2_@types+react@19.2.17_@types+react-dom@19.2.3__@types+react@19.2.17_react@19.2.7_react-dom@19.2.7__react@19.2.7",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/dagre@~0.7.54": "0.7.54",
-    "npm:@types/diff@^7.0.2": "7.0.2",
+    "npm:@types/diff@8": "8.0.0",
     "npm:@types/file-saver@^2.0.7": "2.0.7",
     "npm:@types/node@^26.1.0": "26.1.1",
     "npm:@types/papaparse@^5.3.15": "5.5.2",
@@ -1354,8 +1354,12 @@
     "@types/deep-eql@4.0.2": {
       "integrity": "sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw=="
     },
-    "@types/diff@7.0.2": {
-      "integrity": "sha512-JSWRMozjFKsGlEjiiKajUjIJVKuKdE3oVy2DNtK+fUo8q82nhFZ2CPQwicAIkXrofahDXrWJ7mjelvZphMS98Q=="
+    "@types/diff@8.0.0": {
+      "integrity": "sha512-o7jqJM04gfaYrdCecCVMbZhNdG6T1MHg/oQoRFdERLV+4d+V7FijhiEAbFu0Usww84Yijk9yH58U4Jk4HbtzZw==",
+      "dependencies": [
+        "diff"
+      ],
+      "deprecated": true
     },
     "@types/esrecurse@4.3.1": {
       "integrity": "sha512-xJBAbDifo5hpffDBuHl0Y8ywswbiAp/Wi7Y/GtAgSlZyIABppyurxVueOPE8LUQOxdlgi6Zqce7uoEpqNTeiUw=="
@@ -4147,7 +4151,7 @@
         "npm:@testing-library/react@^16.3.2",
         "npm:@testing-library/user-event@^14.6.1",
         "npm:@types/dagre@~0.7.54",
-        "npm:@types/diff@^7.0.2",
+        "npm:@types/diff@8",
         "npm:@types/file-saver@^2.0.7",
         "npm:@types/node@^26.1.0",
         "npm:@types/papaparse@^5.3.15",
