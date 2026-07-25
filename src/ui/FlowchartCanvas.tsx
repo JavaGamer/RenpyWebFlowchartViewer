@@ -30,7 +30,7 @@ import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
 import { cn } from "./utils/cn.ts";
 import { ViewerInspector } from "./viewerInspector.tsx";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
-import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import { toast } from "sonner";
 import { FlowchartContextMenu } from "./components/FlowchartContextMenu.tsx";
 import { useGraphVisibility } from "./hooks/useGraphVisibility.ts";
@@ -316,7 +316,7 @@ export function FlowchartCanvas({
         chapterStats={chapterStats}
       />
 
-      <PanelGroup direction="horizontal" className="flex-1 min-h-0">
+      <Group orientation="horizontal" className="flex-1 min-h-0">
         <Panel defaultSize={72} minSize={40}>
           <FlowchartContextMenu
             nodeData={contextMenuTarget?.nodeData}
@@ -411,9 +411,9 @@ export function FlowchartCanvas({
           </FlowchartContextMenu>
         </Panel>
 
-        <PanelResizeHandle className="w-1.5 hover:w-2 bg-slate-800 hover:bg-cyan-500/80 transition-all cursor-col-resize flex items-center justify-center group">
+        <Separator className="w-1.5 hover:w-2 bg-slate-800 hover:bg-cyan-500/80 transition-all cursor-col-resize flex items-center justify-center group">
           <div className="w-0.5 h-6 bg-slate-600 group-hover:bg-cyan-200 rounded-full" />
-        </PanelResizeHandle>
+        </Separator>
 
         <Panel defaultSize={28} minSize={20} maxSize={50} collapsible={true}>
           <ViewerInspector
@@ -449,7 +449,7 @@ export function FlowchartCanvas({
             }}
           />
         </Panel>
-      </PanelGroup>
+      </Group>
     </>
   );
 }

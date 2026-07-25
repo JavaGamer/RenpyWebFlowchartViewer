@@ -35,11 +35,11 @@ import { useViewerStore } from "../src/application/viewerStore";
 
 // React Flow requires a real browser canvas and ResizeObserver; mock it away.
 vi.mock("react-resizable-panels", () => ({
-  PanelGroup: ({ children }: { children: React.ReactNode }) => (
+  Group: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="panel-group">{children}</div>
   ),
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  PanelResizeHandle: () => <div data-testid="panel-resize-handle" />,
+  Separator: () => <div data-testid="panel-resize-handle" />,
 }));
 
 vi.mock("@radix-ui/react-context-menu", () => ({
