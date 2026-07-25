@@ -28,7 +28,7 @@
     "npm:axe-html-reporter@^2.2.1": "2.2.11_axe-core@4.12.1",
     "npm:clsx@^2.1.1": "2.1.1",
     "npm:comlink@^4.4.2": "4.4.2",
-    "npm:diff@7": "7.0.0",
+    "npm:diff@9": "9.0.0",
     "npm:elkjs@0.12": "0.12.0",
     "npm:eslint-plugin-jsx-a11y@^6.10.2": "6.10.2_eslint@9.39.4__acorn@8.17.0_acorn@8.17.0",
     "npm:eslint-plugin-react-hooks@^7.1.1": "7.1.1_eslint@10.7.0",
@@ -2121,8 +2121,8 @@
     "detect-node-es@1.1.0": {
       "integrity": "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ=="
     },
-    "diff@7.0.0": {
-      "integrity": "sha512-PJWHUb1RFevKCwaFA9RlG5tCd+FO5iRh9A8HEtkmBH2Li03iJriB6m6JIN4rGz3K3JLawI7/veA1xzRKP6ISBw=="
+    "diff@9.0.0": {
+      "integrity": "sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw=="
     },
     "dom-accessibility-api@0.5.16": {
       "integrity": "sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg=="
@@ -4159,7 +4159,7 @@
         "npm:axe-html-reporter@^2.2.1",
         "npm:clsx@^2.1.1",
         "npm:comlink@^4.4.2",
-        "npm:diff@7",
+        "npm:diff@9",
         "npm:elkjs@0.12",
         "npm:eslint-plugin-jsx-a11y@^6.10.2",
         "npm:eslint-plugin-react-hooks@^7.1.1",
