@@ -30,13 +30,7 @@ export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
           return;
         }
         const encoder = new TextEncoder();
-        const encoded = encoder.encode(reader.result);
-        const cleanBuffer = new Uint8Array(
-          encoded.buffer,
-          encoded.byteOffset,
-          encoded.byteLength,
-        ).slice().buffer;
-        resolve(cleanBuffer);
+        resolve(encoder.encode(reader.result).buffer);
       };
       reader.onerror = rejectRead;
       reader.onabort = rejectRead;

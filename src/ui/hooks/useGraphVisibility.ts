@@ -11,7 +11,6 @@ import {
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
-  findPath,
 } from "../../domain/index.ts";
 import { THEMES } from "../viewerTheme.ts";
 import type {
@@ -69,8 +68,6 @@ export function useGraphVisibility({
     conditionVisibilityMode,
     selectedSearchChapter,
     selectedSearchNodeKinds,
-    pathStartNodeId,
-    pathTargetNodeId,
   } = useViewerStore(
     useShallow((s) => ({
       searchInput: s.searchInput,
@@ -92,8 +89,6 @@ export function useGraphVisibility({
       conditionVisibilityMode: s.conditionVisibilityMode,
       selectedSearchChapter: s.selectedSearchChapter,
       selectedSearchNodeKinds: s.selectedSearchNodeKinds,
-      pathStartNodeId: s.pathStartNodeId,
-      pathTargetNodeId: s.pathTargetNodeId,
     })),
   );
 
@@ -223,22 +218,6 @@ export function useGraphVisibility({
     selectedSearchNodeKinds,
   });
 
-  // -- Path Finding -----------------------------------------------------------
-  const pathResult = useMemo(() => {
-    if (!pathStartNodeId || !pathTargetNodeId) return null;
-    return findPath(flowNodes, flowEdges, pathStartNodeId, pathTargetNodeId);
-  }, [flowNodes, flowEdges, pathStartNodeId, pathTargetNodeId]);
-
-  const activePathNodes = useMemo(
-    () => (pathResult?.reachable ? new Set(pathResult.pathNodes) : null),
-    [pathResult],
-  );
-
-  const activePathEdges = useMemo(
-    () => (pathResult?.reachable ? new Set(pathResult.pathEdges) : null),
-    [pathResult],
-  );
-
   // -- Visible nodes/edges ----------------------------------------------------
   const visibleNodes = useMemo(
     () =>
@@ -256,7 +235,6 @@ export function useGraphVisibility({
         conditionHiddenNodeIds: conditionVisibilityMode === "hide"
           ? conditionalVisibility.hiddenNodeIds
           : undefined,
-        activePathNodes,
         theme,
         // eslint-disable-next-line react-hooks/refs
         previousById: previousVisibleNodesByIdRef.current,
@@ -274,7 +252,6 @@ export function useGraphVisibility({
       previousVisibleNodesByIdRef,
       searchMatchNodeIds,
       theme,
-      activePathNodes,
     ],
   );
 
@@ -297,7 +274,6 @@ export function useGraphVisibility({
         largeGraphMode,
         conditionVisibilityMode,
         edgeConditionStateById: conditionalVisibility.edgeConditionStateById,
-        activePathEdges,
         // eslint-disable-next-line react-hooks/refs
         previousById: previousVisibleEdgesByIdRef.current,
       }),
@@ -311,7 +287,6 @@ export function useGraphVisibility({
       theme,
       visibleEdgeKinds,
       visibleNodeIds,
-      activePathEdges,
     ],
   );
 
@@ -399,6 +374,5 @@ export function useGraphVisibility({
     chapterStats,
     dialogueLineSearchEnabled,
     largeGraphMode,
-    pathResult,
   };
 }

@@ -136,12 +136,8 @@ function mergePersistedState(
   persisted: unknown,
   current: ViewerStore,
 ): ViewerStore {
-  const rawState =
-    persisted && typeof persisted === "object" && "state" in persisted
-      ? (persisted as { state: unknown }).state
-      : persisted;
   const parsed = viewerPersistedStateSchema.parse(
-    rawState && typeof rawState === "object" ? rawState : {},
+    persisted && typeof persisted === "object" ? persisted : {},
   );
   return { ...current, ...parsed };
 }

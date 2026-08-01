@@ -37,7 +37,7 @@ export const LabeledEdge = memo(function LabeledEdge({
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
-      {(data?.label || data?.originType === "screen") && (
+      {data?.label && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -45,12 +45,10 @@ export const LabeledEdge = memo(function LabeledEdge({
               transform:
                 `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
-              opacity: style?.opacity !== undefined
-                ? style.opacity
-                : (data?.conditionState === "unreachable" ? 0.45 : 1),
+              opacity: data.conditionState === "unreachable" ? 0.45 : 1,
             }}
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] max-w-[140px] truncate shadow-sm nodrag nopan border transition-colors duration-200 flex items-center gap-1",
+              "rounded px-1.5 py-0.5 text-[10px] max-w-[120px] truncate shadow-sm nodrag nopan border transition-colors duration-200",
               isDark
                 ? "bg-slate-800 border-slate-700 text-slate-200"
                 : isHighContrast
@@ -58,12 +56,7 @@ export const LabeledEdge = memo(function LabeledEdge({
                 : "bg-white border-gray-200 text-gray-600",
             )}
           >
-            {data?.originType === "screen" && (
-              <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-500 dark:text-blue-300 font-mono">
-                screen
-              </span>
-            )}
-            {data?.label && <span className="truncate">{data.label}</span>}
+            {data.label}
           </div>
         </EdgeLabelRenderer>
       )}

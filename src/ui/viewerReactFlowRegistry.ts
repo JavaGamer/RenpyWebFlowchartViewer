@@ -1,6 +1,5 @@
 import type { EdgeTypes, NodeTypes } from "@xyflow/react";
 import {
-  ClusterNodeComponent,
   DecisionNodeComponent,
   LabelNodeComponent,
   MenuNodeComponent,
@@ -11,7 +10,6 @@ export const nodeTypes: NodeTypes = {
   labelNode: LabelNodeComponent,
   menuNode: MenuNodeComponent,
   decisionNode: DecisionNodeComponent,
-  clusterNode: ClusterNodeComponent,
 };
 
 export const edgeTypes: EdgeTypes = {

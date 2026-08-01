@@ -16,24 +16,6 @@ import type { FlowEdge, FlowNode } from "../../src/domain";
 import * as ReactFlowLib from "@xyflow/react";
 import type { ParseService } from "../../src/application/parseService";
 import { useViewerStore } from "../../src/application/viewerStore";
-vi.mock("react-resizable-panels", () => ({
-  Group: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="panel-group">{children}</div>
-  ),
-  Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Separator: () => <div data-testid="panel-resize-handle" />,
-}));
-
-vi.mock("@radix-ui/react-context-menu", () => ({
-  Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  Trigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  Content: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  Item: ({ children, onClick, onSelect }: { children: React.ReactNode; onClick?: () => void; onSelect?: () => void }) => (
-    <button type="button" onClick={onSelect || onClick}>{children}</button>
-  ),
-  Separator: () => null,
-}));
 
 vi.mock("@xyflow/react", () => {
   const flowApi: {

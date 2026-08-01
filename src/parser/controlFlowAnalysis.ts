@@ -12,39 +12,17 @@ export function runControlFlowAnalysis(state: ParseGraphState): void {
   analyzeReachability(state);
   analyzeTightCycles(state);
   analyzeCallReturnMismatches(state);
-  analyzeNarrativeDeadEnds(state);
-  analyzeUninitializedVariables(state);
-  analyzeCallReturnContext(state);
 }
 
 function analyzeReachability(state: ParseGraphState): void {
   const visited = new Set<string>();
   const queue: string[] = [];
 
-  const RENPY_ENTRY_LABELS = new Set([
-    "start",
-    "splashscreen",
-    "after_load",
-    "before_main_menu",
-    "main_menu",
-  ]);
-
-  const entryNodes = state.nodes.filter(
-    (n) =>
-      n.type === "LABEL" &&
-      (RENPY_ENTRY_LABELS.has(n.label) ||
-        RENPY_ENTRY_LABELS.has(n.label.replace(/^label:/, "")) ||
-        RENPY_ENTRY_LABELS.has(n.id) ||
-        RENPY_ENTRY_LABELS.has(n.id.replace(/^label:/, ""))),
-  );
-
-  if (entryNodes.length > 0) {
-    for (const node of entryNodes) {
-      queue.push(node.id);
-      visited.add(node.id);
-    }
+  if (state.nodeMap.has("start")) {
+    queue.push("start");
+    visited.add("start");
   } else {
-    // If no entry label exists, start from all nodes with 0 incoming edges
+    // If no "start" label exists, start from all nodes with 0 incoming edges
     for (const node of state.nodes) {
       if (node.type === "LABEL" && !node.isShadowed) {
         const incoming = state.incomingByLabel.get(node.id);
@@ -97,11 +75,11 @@ function analyzeReachability(state: ParseGraphState): void {
 }
 
 function analyzeTightCycles(state: ParseGraphState): void {
-  const visiting = new Set<string>();
-  const fullyExplored = new Set<string>();
+  const path = new Set<string>();
+  const tempVisited = new Set<string>();
 
   function dfsCycle(nodeId: string, currentPath: string[]) {
-    if (visiting.has(nodeId)) {
+    if (path.has(nodeId)) {
       const cycleStartIndex = currentPath.indexOf(nodeId);
       const cycle = currentPath.slice(cycleStartIndex);
       let hasInteraction = false;
@@ -129,8 +107,6 @@ function analyzeTightCycles(state: ParseGraphState): void {
             code: "normalization",
             severity: "warning",
             location: {
-              chapter: state.nodeMap.get(nodeId)?.chapter,
-              construct: "label",
               sourceId: nodeId,
             },
             context: {
@@ -148,8 +124,9 @@ function analyzeTightCycles(state: ParseGraphState): void {
       }
       return;
     }
-    if (fullyExplored.has(nodeId)) return;
-    visiting.add(nodeId);
+    if (tempVisited.has(nodeId)) return;
+    tempVisited.add(nodeId);
+    path.add(nodeId);
     currentPath.push(nodeId);
 
     const outgoingEdges = state.edges.filter(
@@ -161,12 +138,12 @@ function analyzeTightCycles(state: ParseGraphState): void {
     }
 
     currentPath.pop();
-    visiting.delete(nodeId);
-    fullyExplored.add(nodeId);
+    path.delete(nodeId);
   }
 
   for (const node of state.nodes) {
     dfsCycle(node.id, []);
+    tempVisited.clear();
   }
 }
 
@@ -248,135 +225,6 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
               "Verify if this label should be jumped to or called.",
           },
           `uncalled_return|${labelId}`,
-        );
-      }
-    }
-  }
-}
-
-function analyzeNarrativeDeadEnds(state: ParseGraphState): void {
-  for (const node of state.nodes) {
-    if (node.type === "LABEL" && !node.isShadowed) {
-      if (node.label === "main_menu" || node.label === "splashscreen") continue;
-      const outgoing = state.edges.filter((e) => e.source === node.id);
-      const hasReturn = state.hasReturnInLabel.has(node.id);
-      if (outgoing.length === 0 && !hasReturn) {
-        addParseDiagnostic(
-          state,
-          {
-            code: "normalization",
-            severity: "warning",
-            location: {
-              chapter: node.chapter,
-              construct: "label",
-              sourceId: node.id,
-            },
-            context: {
-              category: "narrative_deadend",
-              detail: node.label,
-            },
-            message: `Label "${node.label}" is a narrative dead-end (has no outgoing transitions or return).`,
-            recoveryAction:
-              "Add a jump, call, menu choice, or return statement to prevent narrative soft-lock.",
-          },
-          `narrative_deadend|${node.id}`,
-        );
-      }
-    }
-  }
-}
-
-const BUILTIN_IDENTIFIERS = new Set([
-  "true",
-  "false",
-  "none",
-  "null",
-  "config",
-  "store",
-  "persistent",
-  "renpy",
-  "gui",
-  "_preferences",
-  "_in_replay",
-  "main_menu",
-  "_confirm_quit",
-]);
-
-function analyzeUninitializedVariables(state: ParseGraphState): void {
-  const reportedVars = new Set<string>();
-  for (const item of state.referencedVariables) {
-    const varName = item.varName.trim();
-    if (!varName) continue;
-    const rootVar = varName.split(".")[0] ?? varName;
-    if (
-      BUILTIN_IDENTIFIERS.has(varName.toLowerCase()) ||
-      BUILTIN_IDENTIFIERS.has(rootVar.toLowerCase())
-    ) {
-      continue;
-    }
-    if (
-      !state.declaredGlobalVariables.has(varName) &&
-      !state.declaredGlobalVariables.has(rootVar)
-    ) {
-      const key = `${varName}|${item.location?.sourceId ?? ""}`;
-      if (reportedVars.has(key)) continue;
-      reportedVars.add(key);
-      addParseDiagnostic(
-        state,
-        {
-          code: "normalization",
-          severity: "warning",
-          location: item.location,
-          context: {
-            category: "uninitialized_variable",
-            detail: varName,
-          },
-          message: `Variable "${varName}" is referenced in conditional logic but never declared in default/define.`,
-          recoveryAction:
-            `Add 'default ${varName} = False' or 'define ${varName} = ...' to initialize this variable.`,
-        },
-        `uninitialized_variable|${key}`,
-      );
-    }
-  }
-}
-
-function analyzeCallReturnContext(state: ParseGraphState): void {
-  const callersByTarget = new Map<string, Set<string>>();
-  for (const edge of state.edges) {
-    if (edge.kind === "call") {
-      const existing = callersByTarget.get(edge.target);
-      if (existing) {
-        existing.add(edge.source);
-      } else {
-        callersByTarget.set(edge.target, new Set([edge.source]));
-      }
-    }
-  }
-
-  for (const [calledId, callers] of callersByTarget.entries()) {
-    if (callers.size > 1) {
-      const node = state.nodeMap.get(calledId);
-      if (node) {
-        addParseDiagnostic(
-          state,
-          {
-            code: "normalization",
-            severity: "warning",
-            location: {
-              chapter: node.chapter,
-              construct: "label",
-              sourceId: calledId,
-            },
-            context: {
-              category: "call_return_context",
-              detail: `${node.label} (${callers.size} callers)`,
-            },
-            message: `Label "${node.label}" is called from ${callers.size} separate locations; return paths are multi-contextual.`,
-            recoveryAction:
-              "Inspect incoming call edges to verify flow after return.",
-          },
-          `call_return_context|${calledId}`,
         );
       }
     }

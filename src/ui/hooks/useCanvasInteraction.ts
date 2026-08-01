@@ -43,10 +43,12 @@ export function useCanvasInteraction({
   const {
     focusNodeId,
     activeDialogueResultIndex,
+    readingSpeedWpm,
   } = useViewerStore(
     useShallow((s) => ({
       focusNodeId: s.focusNodeId,
       activeDialogueResultIndex: s.activeDialogueResultIndex,
+      readingSpeedWpm: s.readingSpeedWpm,
     })),
   );
 
@@ -215,6 +217,7 @@ export function useCanvasInteraction({
     flowNodes,
     isLargeExportTarget,
     onMetrics,
+    readingSpeedWpm,
     visibleEdges.length,
     visibleNodeIds.size,
     visibleNodes,
@@ -237,7 +240,6 @@ export function useCanvasInteraction({
     onNodeClick,
     onPaneClick,
     onFocusSelectedNode,
-    focusVisibleNode,
     onSelectDialogueSearchResult,
   };
 }

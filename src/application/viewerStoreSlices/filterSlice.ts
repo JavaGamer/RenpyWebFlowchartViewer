@@ -34,7 +34,6 @@ export interface FilterSliceActions {
   setLayoutDirection: (direction: LayoutDirection) => void;
   setMinDialogue: (value: number) => void;
   toggleChapter: (chapter: string) => void;
-  setAllChaptersCollapsed: (chapters: string[], collapsed: boolean) => void;
   toggleParentLabel: (label: string) => void;
   setAllParentLabelsCollapsed: (labels: string[], collapsed: boolean) => void;
   setLargeGraphModeOverride: (value: boolean | null) => void;
@@ -84,13 +83,6 @@ export const createFilterSlice: StateCreator<
   toggleChapter: (chapter) =>
     set((draft) => {
       draft.collapsedChapters[chapter] = !draft.collapsedChapters[chapter];
-    }),
-
-  setAllChaptersCollapsed: (chapters, collapsed) =>
-    set((draft) => {
-      for (const chapter of chapters) {
-        draft.collapsedChapters[chapter] = collapsed;
-      }
     }),
 
   toggleParentLabel: (label) =>

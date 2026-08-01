@@ -46,12 +46,9 @@ function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
         : edge.timeout.durationSeconds
     }`
     : "normal";
-  const conditionKey = edge.condition
-    ? `cond:${edge.condition.branchKind}:${edge.condition.expression ?? ""}`
-    : "nocond";
   return `${kind}|${edge.source}|${edge.target}|${
     edge.label ?? ""
-  }|${timeoutKey}|${conditionKey}`;
+  }|${timeoutKey}`;
 }
 
 /**
@@ -156,7 +153,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
   }
 
   const normalizedEdges: FlowEdge[] = [];
-  const semanticEdgeMap = new Map<string, FlowEdge>();
+  const semanticEdgeKeys = new Set<string>();
   const nodeIds = new Set(normalizedNodes.map((node) => node.id));
 
   // Validate, normalize and deduplicate edges
@@ -295,11 +292,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
       id: normalizedEdgeId,
     };
     const semanticKey = stableSemanticEdgeId(normalizedEdge, normalizedKind);
-    const existing = semanticEdgeMap.get(semanticKey);
-    if (existing) {
-      if (!existing.originType && normalizedEdge.originType) {
-        existing.originType = normalizedEdge.originType;
-      }
+    if (semanticEdgeKeys.has(semanticKey)) {
       addParseDiagnostic(
         state,
         {
@@ -322,7 +315,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
       );
       continue;
     }
-    semanticEdgeMap.set(semanticKey, normalizedEdge);
+    semanticEdgeKeys.add(semanticKey);
     normalizedEdges.push(normalizedEdge);
   }
 
@@ -346,10 +339,6 @@ export function normalizeGraphState(state: ParseGraphState): void {
   state.calledFromMenuOptionTargets = new Set();
   state.hasReturnInLabel = rebuildReturnTrackingSet(
     state.hasReturnInLabel,
-    state.nodeIds,
-  );
-  state.hasReliableReturnInLabel = rebuildReturnTrackingSet(
-    state.hasReliableReturnInLabel,
     state.nodeIds,
   );
 
@@ -388,4 +377,32 @@ export function normalizeGraphState(state: ParseGraphState): void {
     }
     state.pendingGraphEdgeIds.add(edge.id);
   }
+
+  const assetMap = new Map<
+    string,
+    { name: string; type: "image" | "scene" | "audio"; nodeIds?: string[] }
+  >();
+  for (const node of normalizedNodes) {
+    if (node.audioAssetCues) {
+      for (const cue of node.audioAssetCues) {
+        const assetType: "image" | "scene" | "audio" = cue.type === "scene"
+          ? "scene"
+          : "audio";
+        const key = `${assetType}:${cue.asset}`;
+        const existing = assetMap.get(key);
+        if (existing) {
+          if (existing.nodeIds && !existing.nodeIds.includes(node.id)) {
+            existing.nodeIds.push(node.id);
+          }
+        } else {
+          assetMap.set(key, {
+            name: cue.asset,
+            type: assetType,
+            nodeIds: [node.id],
+          });
+        }
+      }
+    }
+  }
+  state.assets = Array.from(assetMap.values());
 }

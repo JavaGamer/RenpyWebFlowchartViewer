@@ -19,19 +19,10 @@ export function calculateReadingTimeSeconds(
   pauseDuration: number,
   wpm: number,
 ): number {
-  const safeWordCount =
-    typeof wordCount === "number" && Number.isFinite(wordCount)
-      ? Math.max(0, wordCount)
-      : 0;
-  const safePauseDuration =
-    typeof pauseDuration === "number" && Number.isFinite(pauseDuration)
-      ? Math.max(0, pauseDuration)
-      : 0;
-  if (safeWordCount <= 0 && safePauseDuration <= 0) return 0;
-  const effectiveWpm =
-    typeof wpm === "number" && Number.isFinite(wpm) ? Math.max(1, wpm) : 200;
-  const readingSeconds = (safeWordCount / effectiveWpm) * 60;
-  return readingSeconds + safePauseDuration;
+  if (wordCount <= 0 && pauseDuration <= 0) return 0;
+  const effectiveWpm = Math.max(1, wpm);
+  const readingSeconds = (wordCount / effectiveWpm) * 60;
+  return readingSeconds + pauseDuration;
 }
 
 /**
@@ -44,9 +35,6 @@ export function calculateReadingTimeSeconds(
  * - 0 => "0s"
  */
 export function formatReadingTime(seconds: number): string {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
-    return "0s";
-  }
   const totalSeconds = Math.round(seconds);
   if (totalSeconds <= 0) return "0s";
 

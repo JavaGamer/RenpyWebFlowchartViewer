@@ -23,7 +23,6 @@ const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
   "selectedif",
   "sensitiveif",
   "showif",
-  "confirm",
 ]);
 
 export function readScreenActionExpression(

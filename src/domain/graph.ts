@@ -7,7 +7,7 @@ export type NodeRole =
   | "menu"
   | "decision";
 export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
-export type ConditionBranchKind = "if" | "elif" | "else";
+export type ConditionBranchKind = "if" | "elif" | "else" | "while";
 
 export interface ConditionMetadata {
   branchKind: ConditionBranchKind;
@@ -22,11 +22,17 @@ export interface TimeoutMetadata {
 }
 
 export interface AudioAssetCue {
-  type: "play" | "stop" | "queue" | "voice" | "scene" | "show";
+  type: "play" | "stop" | "queue" | "voice" | "scene";
   channel?: string;
   asset: string;
   raw: string;
   lineNum?: number;
+}
+
+export interface FlowAsset {
+  name: string;
+  type: "image" | "scene" | "audio";
+  nodeIds?: string[];
 }
 
 /** A node in the flowchart graph. */
@@ -70,10 +76,6 @@ export interface FlowNode {
   characterDialogue?: Record<string, { lineCount: number; wordCount: number }>;
   /** True when this node is unreachable from entry points. */
   isOrphan?: boolean;
-  /** True when this node represents a local sub-label (.sub_name). */
-  isSubLabel?: boolean;
-  /** Parent label scope for sub-labels. */
-  parentLabelScope?: string;
 }
 
 /** A directed edge in the flowchart graph. */
@@ -89,18 +91,4 @@ export interface FlowEdge {
   condition?: ConditionMetadata;
   /** Optional timeout metadata for timer-driven navigation edges. */
   timeout?: TimeoutMetadata;
-  /** Origin source of the edge navigation (e.g. 'label' or 'screen'). */
-  originType?: "label" | "screen";
 }
-
-/** A synthetic cluster container node representing a collapsed chapter/file. */
-export interface FlowClusterNode {
-  id: string;
-  chapter: string;
-  label: string;
-  childrenNodeIds: string[];
-  dialogueCount: number;
-  nodeCount: number;
-  isCollapsed: boolean;
-}
-

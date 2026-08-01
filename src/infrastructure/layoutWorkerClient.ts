@@ -28,14 +28,16 @@ function getLayoutWorker(): Worker {
   return worker;
 }
 
+let currentRequestId = 0;
+
 export function terminateLayoutWorker() {
+  currentRequestId += 1;
   if (worker) {
     worker.terminate();
     worker = null;
   }
   apiProxy = null;
   isWorkerRunning = false;
-  activeCancelCallback = null;
 }
 
 export function preWarmLayoutWorker(): void {
@@ -63,8 +65,6 @@ export function isLayoutRunning(): boolean {
   return isWorkerRunning;
 }
 
-let activeCancelCallback: (() => void) | null = null;
-
 export function runLayoutInWorker(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
@@ -81,23 +81,17 @@ export function runLayoutInWorker(
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  if (activeCancelCallback) {
-    activeCancelCallback();
+  if (isWorkerRunning) {
+    terminateLayoutWorker();
   }
 
+  currentRequestId += 1;
+  const thisRequestId = currentRequestId;
   isWorkerRunning = true;
   getLayoutWorker();
 
   let cancelled = false;
   let completed = false;
-
-  const cancelHandler = () => {
-    if (!completed) {
-      cancelled = true;
-      terminateLayoutWorker();
-    }
-  };
-  activeCancelCallback = cancelHandler;
 
   let serializedPreviousPositions:
     | Array<[string, { x: number; y: number }]>
@@ -107,12 +101,8 @@ export function runLayoutInWorker(
       serializedPreviousPositions = Array.from(
         options.previousPositions.entries(),
       );
-    } else if (Array.isArray(options.previousPositions)) {
+    } else {
       serializedPreviousPositions = options.previousPositions;
-    } else if (typeof options.previousPositions === "object") {
-      serializedPreviousPositions = Object.entries(
-        options.previousPositions as Record<string, { x: number; y: number }>,
-      );
     }
   }
 
@@ -123,21 +113,15 @@ export function runLayoutInWorker(
     simplifyOptions: options?.simplifyOptions,
   })
     .then((result) => {
-      if (cancelled) return;
+      if (cancelled || thisRequestId !== currentRequestId) return;
       completed = true;
       isWorkerRunning = false;
-      if (activeCancelCallback === cancelHandler) {
-        activeCancelCallback = null;
-      }
       onResult(result);
     })
     .catch((error) => {
-      if (cancelled) return;
+      if (cancelled || thisRequestId !== currentRequestId) return;
       completed = true;
       isWorkerRunning = false;
-      if (activeCancelCallback === cancelHandler) {
-        activeCancelCallback = null;
-      }
       if (onError) {
         onError(error instanceof Error ? error : new Error(String(error)));
       } else {
@@ -145,5 +129,10 @@ export function runLayoutInWorker(
       }
     });
 
-  return cancelHandler;
+  return () => {
+    if (!completed && thisRequestId === currentRequestId) {
+      cancelled = true;
+      terminateLayoutWorker();
+    }
+  };
 }

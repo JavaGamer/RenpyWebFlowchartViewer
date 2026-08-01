@@ -9,16 +9,14 @@ import type { UploadedFile } from "./uploadTypes.ts";
 export async function extractRpyFilesFromZip(
   zipFile: UploadedFile,
 ): Promise<UploadedFile[]> {
-  let buffer: ArrayBuffer;
-  if (zipFile.file) {
-    buffer = await zipFile.file.arrayBuffer();
-  } else if (zipFile.arrayBuffer) {
-    buffer = await zipFile.arrayBuffer();
-  } else {
+  const nativeFile = zipFile.file;
+  if (!nativeFile) {
     throw new Error(
-      `Cannot decompress ZIP "${zipFile.name}": underlying File object or arrayBuffer method is missing.`,
+      `Cannot decompress ZIP "${zipFile.name}": underlying File object is missing.`,
     );
   }
+
+  const buffer = await nativeFile.arrayBuffer();
   const zipData = new Uint8Array(buffer);
 
   const { unzip, strFromU8 } = await import("fflate");
@@ -27,10 +25,7 @@ export async function extractRpyFilesFromZip(
     unzip(
       zipData,
       {
-        filter: (file) =>
-          file.name.toLowerCase().endsWith(".rpy") &&
-          !file.name.endsWith("/") &&
-          !file.name.endsWith("\\"),
+        filter: (file) => file.name.toLowerCase().endsWith(".rpy"),
       },
       (err, unzipped) => {
         if (err) {
@@ -38,43 +33,23 @@ export async function extractRpyFilesFromZip(
           return;
         }
 
-        const files: UploadedFile[] = Object.entries(unzipped)
-          .filter(([path]) => !path.endsWith("/") && !path.endsWith("\\"))
-          .map(([path, data]) => {
-            const normalizedPath = path.replace(/\\/g, "/");
-            const parts = normalizedPath.split("/");
-            const name = parts.filter(Boolean).pop() || "script.rpy";
+        const files: UploadedFile[] = Object.entries(unzipped).map(
+          ([path, data]) => {
+            const parts = path.split("/");
+            const name = parts[parts.length - 1];
             return {
               name,
               size: data.length,
-              webkitRelativePath: normalizedPath,
-              relativePath: normalizedPath,
-              text: async () => {
-                try {
-                  return strFromU8(data);
-                } catch (err) {
-                  throw new Error(
-                    `Failed to decode text for ${normalizedPath}`,
-                    { cause: err },
-                  );
-                }
-              },
-              arrayBuffer: async () => {
-                try {
-                  return new Uint8Array(
-                    data.buffer,
-                    data.byteOffset,
-                    data.byteLength,
-                  ).slice().buffer;
-                } catch (err) {
-                  throw new Error(
-                    `Failed to read ArrayBuffer for ${normalizedPath}`,
-                    { cause: err },
-                  );
-                }
-              },
+              webkitRelativePath: path,
+              text: async () => strFromU8(data),
+              arrayBuffer: async () =>
+                data.buffer.slice(
+                  data.byteOffset,
+                  data.byteOffset + data.byteLength,
+                ),
             };
-          });
+          },
+        );
         resolve(files);
       },
     );

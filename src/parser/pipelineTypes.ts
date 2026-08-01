@@ -1,11 +1,16 @@
-import type { EdgeKind, FlowEdge, FlowNode } from "../domain/index.ts";
+import type {
+  EdgeKind,
+  FlowAsset,
+  FlowEdge,
+  FlowNode,
+} from "../domain/index.ts";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
 export type { EdgeKind };
-export type ConditionalBranchKind = "if" | "elif" | "else";
+export type ConditionalBranchKind = "if" | "elif" | "else" | "while";
 
 export interface ExtractedScreenActionExpression {
   expression: string;
@@ -49,11 +54,7 @@ export interface ParseDiagnosticContext {
     | "unreachable_label"
     | "infinite_loop"
     | "missing_return"
-    | "uncalled_return"
-    | "inter_label_target"
-    | "narrative_deadend"
-    | "uninitialized_variable"
-    | "call_return_context";
+    | "uncalled_return";
   detail?: string;
 }
 
@@ -90,11 +91,7 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return"
-      | "inter_label_target"
-      | "narrative_deadend"
-      | "uninitialized_variable"
-      | "call_return_context";
+      | "uncalled_return";
     detail?: string;
   };
 }
@@ -129,7 +126,6 @@ export interface ParseScanState extends ResolveTargetScanState {
   currentLabelIndent: number | null;
   currentLabelDeclaredName?: string | null;
   currentLabelBaseId?: string | null;
-  currentParentLabel: string | null;
   currentLabelSceneIndex?: number;
   currentLabelHasSplit?: boolean;
   currentLabelHasContentSinceSceneBoundary?: boolean;
@@ -174,20 +170,21 @@ export interface ParseGraphState {
   pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
   canonicalLabelIdByName: Map<string, string>;
   labelDefinitionCountByName: Map<string, number>;
+  labelsByChapter: Map<string, Map<string, string>>;
   globalLabelVariableLiteralTargets: Map<string, string>;
   globalLabelVariableDictTargets: Map<string, Map<string, string>>;
   globalLabelVariableListTargets: Map<string, string[]>;
   globalScreens: Set<string>;
   globalCharacters: Set<string>;
-  declaredGlobalVariables: Set<string>;
-  referencedVariables: Array<{ varName: string; location?: ParseDiagnosticLocation }>;
   diagnostics: ParseDiagnostic[];
   diagnosticIds: Set<string>;
+  assets?: FlowAsset[];
 }
 
 export interface ParseResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  assets?: FlowAsset[];
   diagnostics?: ParseDiagnostic[];
 }
 

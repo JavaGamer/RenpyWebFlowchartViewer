@@ -8,16 +8,6 @@ import {
 import type { ParseService } from "../../src/application/parseService";
 import type { AppActions } from "../../src/application/appStore";
 
-vi.mock("../../src/infrastructure/index.ts", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../src/infrastructure/index.ts")
-  >();
-  return {
-    ...actual,
-    saveProjectToCache: vi.fn().mockResolvedValue(undefined),
-  };
-});
-
 vi.mock("../../src/infrastructure/fileReader", () => ({
   readFileAsText: vi.fn(),
   readFileAsArrayBuffer: vi.fn(),

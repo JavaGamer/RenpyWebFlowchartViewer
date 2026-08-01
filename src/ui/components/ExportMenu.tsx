@@ -15,10 +15,8 @@ interface ExportMenuProps {
   onExportSvg: () => void;
   onExportJson: () => void;
   onExportMermaid: () => void;
-  onExportNarrative: () => void;
-  onExportStandalone: () => void;
-  onExportPdf?: () => void;
-  onExportCsv?: () => void;
+  onExportStoryboard: () => void;
+  onExportHtmlBundle: () => void;
   onExportDebugBundle?: (opts: DebugBundlePrivacyOptions) => void;
   onOpenIssue?: (opts: DebugBundlePrivacyOptions) => void;
   debugPrivacyOptions: DebugBundlePrivacyOptions;
@@ -35,10 +33,8 @@ export function ExportMenu({
   onExportSvg,
   onExportJson,
   onExportMermaid,
-  onExportNarrative,
-  onExportStandalone,
-  onExportPdf,
-  onExportCsv,
+  onExportStoryboard,
+  onExportHtmlBundle,
   onExportDebugBundle,
   onOpenIssue,
   debugPrivacyOptions,
@@ -124,6 +120,87 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              onClick={onExportMermaid}
+              aria-label="Export Mermaid diagram"
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                isDark
+                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+              )}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export .mmd
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              Export as Mermaid diagram
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={onExportStoryboard}
+              aria-label="Export narrative storyboard"
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                isDark
+                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+              )}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export .md
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              Export narrative storyboard
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={onExportHtmlBundle}
+              aria-label="Export offline interactive HTML bundle"
+              className={cn(
+                PRIMARY_BUTTON_CLASS,
+                isDark
+                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
+                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+              )}
+            >
+              <Download size={14} aria-hidden="true" />
+              Export HTML
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              Export offline interactive HTML bundle
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
               onClick={onExportJson}
               aria-label="Export graph as JSON"
               className={cn(
@@ -147,145 +224,6 @@ export function ExportMenu({
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <button
-              onClick={onExportMermaid}
-              aria-label="Export Mermaid"
-              className={cn(
-                PRIMARY_BUTTON_CLASS,
-                isDark
-                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
-              )}
-            >
-              <Download size={14} aria-hidden="true" />
-              Mermaid
-            </button>
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content
-              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-              sideOffset={5}
-            >
-              Export Mermaid (.mmd)
-              <Tooltip.Arrow className="fill-gray-900" />
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <button
-              onClick={onExportNarrative}
-              aria-label="Export Narrative Outline"
-              className={cn(
-                PRIMARY_BUTTON_CLASS,
-                isDark
-                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
-              )}
-            >
-              <Download size={14} aria-hidden="true" />
-              Outline
-            </button>
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content
-              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-              sideOffset={5}
-            >
-              Export Narrative Outline (.md)
-              <Tooltip.Arrow className="fill-gray-900" />
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <button
-              onClick={onExportStandalone}
-              aria-label="Export Standalone HTML"
-              className={cn(
-                PRIMARY_BUTTON_CLASS,
-                isDark
-                  ? "text-slate-300 border border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
-              )}
-            >
-              <Download size={14} aria-hidden="true" />
-              Standalone HTML
-            </button>
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content
-              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-              sideOffset={5}
-            >
-              Export standalone self-contained HTML Viewer
-              <Tooltip.Arrow className="fill-gray-900" />
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-
-        {onExportPdf && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                onClick={onExportPdf}
-                aria-label="Export Vector PDF"
-                className={cn(
-                  PRIMARY_BUTTON_CLASS,
-                  isDark
-                    ? "text-emerald-300 border border-emerald-800 bg-slate-800 hover:bg-slate-700 focus-visible:ring-emerald-400"
-                    : "text-emerald-700 border border-emerald-300 bg-white hover:bg-emerald-50 focus-visible:ring-emerald-500",
-                )}
-              >
-                <Download size={14} aria-hidden="true" />
-                Vector PDF
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-                sideOffset={5}
-              >
-                Export high-resolution Vector PDF document
-                <Tooltip.Arrow className="fill-gray-900" />
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-        )}
-
-        {onExportCsv && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                onClick={onExportCsv}
-                aria-label="Export Dialogue CSV"
-                className={cn(
-                  PRIMARY_BUTTON_CLASS,
-                  isDark
-                    ? "text-cyan-300 border border-cyan-800 bg-slate-800 hover:bg-slate-700 focus-visible:ring-cyan-400"
-                    : "text-cyan-700 border border-cyan-300 bg-white hover:bg-cyan-50 focus-visible:ring-cyan-500",
-                )}
-              >
-                <Download size={14} aria-hidden="true" />
-                Dialogue CSV
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-                sideOffset={5}
-              >
-                Export dialogue script table to CSV
-                <Tooltip.Arrow className="fill-gray-900" />
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-        )}
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

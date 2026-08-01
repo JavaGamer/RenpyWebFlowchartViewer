@@ -74,7 +74,7 @@ export function UrlImportForm({
       <p
         className={cn(
           "mt-2 text-[10px]",
-          isDark ? "text-slate-500" : "text-gray-600",
+          isDark ? "text-slate-500" : "text-gray-400",
         )}
       >
         Note: Remote hosts must support CORS. GitHub repositories and

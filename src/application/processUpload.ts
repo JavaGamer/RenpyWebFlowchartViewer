@@ -16,7 +16,6 @@ import {
 import {
   type ParseDiagnosticPayload,
   readFileAsArrayBuffer,
-  saveProjectToCache,
 } from "../infrastructure/index.ts";
 
 import { validateRpyUpload } from "./uploadValidation.ts";
@@ -206,58 +205,39 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         if (!isActiveRun()) return;
         const batch = orderedRpyFiles.slice(offset, offset + READ_BATCH_SIZE);
 
-        const erroredFileIds = new Set<string>();
-        let inputs: Array<{ name: string; relativePath?: string; content: Uint8Array }>;
-        try {
-          inputs = await Promise.all(
-            batch.map(async (f) => {
-              const id = f.webkitRelativePath || f.name;
-              try {
-                onFileStatusUpdate?.(id, "reading");
-                let content: Uint8Array;
-                if (f.file) {
-                  const buf = await readFileAsArrayBuffer(f.file);
-                  content = new Uint8Array(buf);
-                } else if (f.arrayBuffer) {
-                  const buf = await f.arrayBuffer();
-                  content = new Uint8Array(buf);
-                } else {
-                  const text = await f.text();
-                  content = new TextEncoder().encode(text);
-                }
-                return {
-                  name: f.name,
-                  relativePath: f.webkitRelativePath,
-                  content,
-                };
-              } catch (err) {
-                erroredFileIds.add(id);
-                onFileStatusUpdate?.(
-                  id,
-                  "error",
-                  `Failed to read: ${
-                    err instanceof Error ? err.message : String(err)
-                  }`,
-                );
-                throw err;
-              }
-            }),
-          );
-        } catch (batchErr) {
-          batch.forEach((f) => {
+        const inputs = await Promise.all(
+          batch.map(async (f) => {
             const id = f.webkitRelativePath || f.name;
-            if (!erroredFileIds.has(id)) {
+            try {
+              onFileStatusUpdate?.(id, "reading");
+              let content: Uint8Array;
+              if (f.file) {
+                const buf = await readFileAsArrayBuffer(f.file);
+                content = new Uint8Array(buf);
+              } else if (f.arrayBuffer) {
+                const buf = await f.arrayBuffer();
+                content = new Uint8Array(buf);
+              } else {
+                const text = await f.text();
+                content = new TextEncoder().encode(text);
+              }
+              return {
+                name: f.name,
+                relativePath: f.webkitRelativePath,
+                content,
+              };
+            } catch (err) {
               onFileStatusUpdate?.(
                 id,
                 "error",
-                `Batch read interrupted: ${
-                  batchErr instanceof Error ? batchErr.message : String(batchErr)
+                `Failed to read: ${
+                  err instanceof Error ? err.message : String(err)
                 }`,
               );
+              throw err;
             }
-          });
-          throw batchErr;
-        }
+          }),
+        );
 
         readCount += inputs.length;
         onReadMeasured?.(readCount);
@@ -360,8 +340,6 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               );
             }
 
-            if (!isActiveRun()) return;
-
             // Mark all files in this chunk as successfully completed
             chunkFiles.forEach((f) => {
               const id = f.webkitRelativePath || f.name;
@@ -391,33 +369,6 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       nodeCount: parsedNodes.length,
       edgeCount: parsedEdges.length,
     });
-
-    if (!isActiveRun()) return;
-
-    // Save to cache
-    if (orderedRpyFiles.length > 0) {
-      const firstFile = orderedRpyFiles[0];
-      const projectName = firstFile.webkitRelativePath
-        ? firstFile.webkitRelativePath.split("/")[0]
-        : firstFile.name.replace(/\.[^.]+$/, "");
-
-      try {
-        await saveProjectToCache({
-          id: projectName,
-          name: projectName,
-          lastAccessed: Date.now(),
-          fileCount: orderedRpyFiles.length,
-          nodes: parsedNodes,
-          edges: parsedEdges,
-          diagnostics: parsedDiagnostics,
-        });
-      } catch (err) {
-        console.warn("Failed to save project to cache:", err);
-      }
-    }
-
-    if (!isActiveRun()) return;
-
     actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
   };
 }

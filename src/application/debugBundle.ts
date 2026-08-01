@@ -54,11 +54,7 @@ interface RedactedWarning {
     | "unreachable_label"
     | "infinite_loop"
     | "missing_return"
-    | "uncalled_return"
-    | "inter_label_target"
-    | "narrative_deadend"
-    | "uninitialized_variable"
-    | "call_return_context";
+    | "uncalled_return";
   edgeId?: string;
   sourceId?: string;
   targetId?: string;
@@ -202,11 +198,6 @@ function redactNode(
       ? (privacy.includeRawScriptDetails
         ? node.parentLabelId
         : getNodeAlias(graphAliasContext, node.parentLabelId))
-      : undefined,
-    shadowOfId: node.shadowOfId
-      ? (privacy.includeRawScriptDetails
-        ? node.shadowOfId
-        : getNodeAlias(graphAliasContext, node.shadowOfId))
       : undefined,
     ...(privacy.includeFileNames && node.chapter
       ? { chapter: node.chapter }

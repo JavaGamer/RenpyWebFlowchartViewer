@@ -25,21 +25,10 @@ export function extractSceneAsset(lineText: string): string | null {
   const paramMatch = content.match(
     /^(.*?)\s*\b(?:with|at|behind|onlayer|zorder)\b/i,
   );
-  const asset = paramMatch ? paramMatch[1].trim() : content.trim();
-  return stripQuotes(asset);
-}
-
-export function extractShowAsset(lineText: string): string | null {
-  const match = lineText.match(/^\s*show\s+(.+)$/);
-  if (!match) return null;
-  let content = match[1].trim();
-  if (content.includes("#")) {
-    content = content.split("#")[0].trim();
+  let asset = paramMatch ? paramMatch[1].trim() : content.trim();
+  if (asset.endsWith(":")) {
+    asset = asset.slice(0, -1).trim();
   }
-  const paramMatch = content.match(
-    /^(.*?)\s*\b(?:with|at|behind|onlayer|zorder|as)\b/i,
-  );
-  const asset = paramMatch ? paramMatch[1].trim() : content.trim();
   return stripQuotes(asset);
 }
 

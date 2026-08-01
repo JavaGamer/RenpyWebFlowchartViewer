@@ -42,7 +42,7 @@ export function UploadDropzone({
         >
           Drop your Ren'Py project folder here
         </p>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-gray-400 mt-2">
           or click to{" "}
           <span
             className={cn(
@@ -72,7 +72,7 @@ export function UploadDropzone({
       <span
         className={cn(
           "text-xs px-3 py-1 rounded-full transition-colors duration-200",
-          isDark ? "text-slate-400 bg-slate-800" : "text-gray-700 bg-gray-100",
+          isDark ? "text-slate-400 bg-slate-800" : "text-gray-400 bg-gray-100",
         )}
       >
         All processing is local — your files never leave your device

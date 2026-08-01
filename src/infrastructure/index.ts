@@ -32,11 +32,3 @@ export {
   type PerfTrackerOptions,
 } from "./perf.ts";
 export { workerParseService } from "./workerParseAdapter.ts";
-export {
-  type CachedProject,
-  deleteProjectFromCache,
-  getProjectFromCache,
-  getRecentProjects,
-  type RecentProject,
-  saveProjectToCache,
-} from "./projectCacheStorage.ts";

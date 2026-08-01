@@ -23,6 +23,7 @@ import {
   applyDagreLayout,
   areWorkersSupported,
   runLayoutInWorker,
+  terminateLayoutWorker,
 } from "../../infrastructure/index.ts";
 
 const globalRecord = globalThis as Record<string, unknown>;
@@ -280,6 +281,11 @@ export function useViewerLayout({
     simplifyOptions,
   ]);
 
+  useEffect(() => {
+    return () => {
+      terminateLayoutWorker();
+    };
+  }, []);
 
   return {
     nodes,

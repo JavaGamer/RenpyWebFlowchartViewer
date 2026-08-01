@@ -23,8 +23,6 @@ export interface NodeData extends Record<string, unknown> {
   collapsedLabels?: string[];
   isOrphan?: boolean;
   characterDialogue?: FlowNode["characterDialogue"];
-  isSubLabel?: boolean;
-  parentLabelScope?: string;
 }
 
 export interface EdgeData extends Record<string, unknown> {
@@ -33,7 +31,6 @@ export interface EdgeData extends Record<string, unknown> {
   condition?: FlowEdge["condition"];
   timeout?: FlowEdge["timeout"];
   conditionState?: ConditionReachability;
-  originType?: "label" | "screen";
 }
 
 export interface CanvasNode {
@@ -94,7 +91,6 @@ export interface CanvasEdge {
 export type LabelNodeType = CanvasNode;
 export type MenuNodeType = CanvasNode;
 export type DecisionNodeType = CanvasNode;
-export type ClusterNodeType = CanvasNode;
 export type LabeledEdgeType = CanvasEdge;
 
 export type EdgeKindFilter = EdgeKind;

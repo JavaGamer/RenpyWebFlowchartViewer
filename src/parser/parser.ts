@@ -49,10 +49,8 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
-  const safeFiles = files ?? [];
   // Ensure all file content is decoded to string for the parsing pipeline
-  for (const file of safeFiles) {
-    if (!file) continue;
+  for (const file of files) {
     if (file.content instanceof Uint8Array) {
       file.content = new TextDecoder("utf-8").decode(file.content);
     }
@@ -61,7 +59,7 @@ export async function parseRenpyFiles(
   const perf = createPerfTracker("parser");
   perf.mark("total");
   const state = createGraphState();
-  const orderedFiles = [...safeFiles].sort(compareFiles);
+  const orderedFiles = [...files].sort(compareFiles);
 
   perf.mark("pre-parse");
   preParseInitialization(orderedFiles, state);
@@ -100,6 +98,9 @@ export async function parseRenpyFiles(
           if (options.signal?.aborted) {
             throw new DOMException("Parsing cancelled", "AbortError");
           }
+          if (idx > 0 && idx % 5 === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          }
           perf.mark(`file:${idx}:tokenize`);
           const tokenized = await tokenizeOneFile(file, options, idx);
           perf.measure(`file:${idx}:tokenize`, "parse_file_tokenize_ms", {
@@ -113,6 +114,9 @@ export async function parseRenpyFiles(
     for (let idx = 0; idx < orderedFiles.length; idx += 1) {
       if (options.signal?.aborted) {
         throw new DOMException("Parsing cancelled", "AbortError");
+      }
+      if (idx > 0 && idx % 5 === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
       const tokenized = tokenizedFiles[idx];
       if (!tokenized) {
@@ -149,12 +153,14 @@ export async function parseRenpyFiles(
     nodes: state.nodes.length,
     edges: state.edges.length,
   });
-  if (state.diagnostics.length > 0) {
-    return {
-      nodes: state.nodes,
-      edges: state.edges,
-      diagnostics: state.diagnostics,
-    };
-  }
-  return { nodes: state.nodes, edges: state.edges };
+  const hasAssets = Boolean(state.assets && state.assets.length > 0);
+  const hasDiagnostics = Boolean(
+    state.diagnostics && state.diagnostics.length > 0,
+  );
+  return {
+    nodes: state.nodes,
+    edges: state.edges,
+    ...(hasAssets ? { assets: state.assets } : {}),
+    ...(hasDiagnostics ? { diagnostics: state.diagnostics } : {}),
+  };
 }

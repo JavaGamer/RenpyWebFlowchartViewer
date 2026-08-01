@@ -50,7 +50,7 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 93,
+        "x": 20,
         "y": 20
       }
     },
@@ -62,7 +62,7 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 93,
+        "x": 20,
         "y": 190
       }
     },
@@ -74,7 +74,7 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 20,
+        "x": 93,
         "y": 350
       }
     },
@@ -86,7 +86,7 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 93,
+        "x": 20,
         "y": 520
       }
     }
@@ -99,16 +99,16 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "label": ""
     },
     {
-      "id": "jump_menu_1__end_b_Option B",
-      "source": "menu_1",
-      "target": "end_b",
-      "label": "Option B"
-    },
-    {
       "id": "jump_menu_1__end_a_Option A",
       "source": "menu_1",
       "target": "end_a",
       "label": "Option A"
+    },
+    {
+      "id": "jump_menu_1__end_b_Option B",
+      "source": "menu_1",
+      "target": "end_b",
+      "label": "Option B"
     },
     {
       "id": "seq_end_a__end_b",

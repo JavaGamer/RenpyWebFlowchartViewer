@@ -3,11 +3,7 @@ import type {
   TokenTree,
   TreeNode,
 } from "@renpy/ast/out/tokenizer/token-definitions";
-import type {
-  ParseGraphState,
-  ParseScanState,
-  TokenMetaFlags,
-} from "./pipelineTypes.ts";
+import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
 import { maybeUpdateConditionalState } from "./scanTransitions.ts";
 import { handleToken } from "./tokenHandling.ts";
@@ -76,13 +72,32 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
  */
 
 /**
+ * Computes the leading whitespace indentation level of a line string,
+ * treating tab characters as 8-space (or tabStop) alignment boundaries.
+ */
+export function computeLineIndent(line: string, tabStop = 8): number {
+  let indent = 0;
+  for (let i = 0; i < line.length; i++) {
+    const char = line.charCodeAt(i);
+    if (char === 32) {
+      indent += 1;
+    } else if (char === 9) {
+      indent += tabStop - (indent % tabStop);
+    } else {
+      break;
+    }
+  }
+  return indent;
+}
+
+/**
  * Computes and caches the indent of a specific line in the TextDocument.
- * Indent is measured in terms of character length of leading space and tab characters.
+ * Indent is measured using tab-stop alignment (8 spaces per tab).
  *
  * @param document The text document being parsed.
  * @param lineNumber The 0-indexed line number.
  * @param cache Map containing cached line indent results.
- * @returns The length of the leading whitespace characters on the line.
+ * @returns The leading whitespace column index on the line.
  */
 function getLineIndent(
   document: TextDocument,
@@ -98,15 +113,7 @@ function getLineIndent(
     start: { line: lineNumber, character: 0 },
     end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
   });
-  let indent = 0;
-  const len = line.length;
-  while (indent < len) {
-    const char = line.charCodeAt(indent);
-    if (char !== 32 && char !== 9) {
-      break;
-    }
-    indent++;
-  }
+  const indent = computeLineIndent(line);
   cache.set(lineNumber, indent);
   return indent;
 }
@@ -249,7 +256,7 @@ function getConditionalLogicalLine(
   processLine(logicalText);
   // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
   while (
-    (explicitContinuation || delimiterStack.length > 0 || activeQuote !== null) &&
+    (explicitContinuation || delimiterStack.length > 0) &&
     currentLine + 1 < document.lineCount
   ) {
     currentLine += 1;
@@ -379,132 +386,11 @@ function normalizeLiteralString(raw: string): string {
   const contentStart = start + quoteLen;
   const expectedEnd = isTriple ? quoteChar + quoteChar + quoteChar : quoteChar;
 
-  if (!raw.endsWith(expectedEnd) || contentStart > len - quoteLen) {
+  if (!raw.endsWith(expectedEnd) || len - quoteLen < contentStart) {
     return raw;
   }
 
   return raw.slice(contentStart, len - quoteLen);
-}
-
-/**
- * Traverses a hierarchical AST TreeNode and processes relevant tokens directly.
- */
-function traverseAndProcess(
-  node: TreeNode,
-  metaStack: number[],
-  state: ParseGraphState,
-  scanState: ParseScanState,
-  document: TextDocument,
-  docLines: readonly string[],
-  chapter: string,
-  captureDialogueLines: boolean,
-  screenActionRuleMap: Map<string, ScreenActionKind>,
-  sceneSplitDialogueThreshold: number | undefined,
-  meta: TokenMetaFlags,
-  lineIndentCache: Map<number, number>,
-  lineTextCache: Map<number, string>,
-  conditionalLogicalLineCache: Map<number, string>,
-): void {
-  const token = node.token;
-
-  if (token) {
-    const type = token.type as number;
-    if (RELEVANT_TOKEN_TYPES.has(type)) {
-      analyzeTokenMetaInto(metaStack, meta);
-
-      let tokenText: string | undefined;
-      const val = (): string => {
-        if (tokenText === undefined) {
-          const raw = token.getValue(document);
-          tokenText = type === PARSER_TOKENS.literalString
-            ? normalizeLiteralString(raw)
-            : raw;
-        }
-        return tokenText;
-      };
-
-      const menuDepth = meta.menuDepth;
-      const lineNum = token.startPos.line;
-
-      let lineText = lineTextCache.get(lineNum);
-      if (lineText === undefined) {
-        lineText = docLines[lineNum] ?? "";
-        lineTextCache.set(lineNum, lineText);
-      }
-
-      let lineIndent = lineIndentCache.get(lineNum);
-      if (lineIndent === undefined) {
-        let indent = 0;
-        const len = lineText.length;
-        while (indent < len) {
-          const char = lineText.charCodeAt(indent);
-          if (char !== 32 && char !== 9) {
-            break;
-          }
-          indent++;
-        }
-        lineIndent = indent;
-        lineIndentCache.set(lineNum, lineIndent);
-      }
-
-      const conditionalText = type === PARSER_TOKENS.kwConditional
-        ? getConditionalLogicalLine(
-          document,
-          lineNum,
-          lineTextCache,
-          conditionalLogicalLineCache,
-          docLines,
-        )
-        : lineText;
-
-      maybeUpdateConditionalState(
-        scanState,
-        type,
-        val,
-        lineIndent,
-        conditionalText,
-        lineNum,
-      );
-      handleToken(state, scanState, {
-        type,
-        meta,
-        val,
-        chapter,
-        menuDepth,
-        lineIndent,
-        lineText,
-        lineNum,
-        captureDialogueLines,
-        screenActionRuleMap,
-        sceneSplitDialogueThreshold,
-      });
-    }
-
-    metaStack.push(type);
-  }
-
-  node.children?.forEach((child) => {
-    traverseAndProcess(
-      child,
-      metaStack,
-      state,
-      scanState,
-      document,
-      docLines,
-      chapter,
-      captureDialogueLines,
-      screenActionRuleMap,
-      sceneSplitDialogueThreshold,
-      meta,
-      lineIndentCache,
-      lineTextCache,
-      conditionalLogicalLineCache,
-    );
-  });
-
-  if (token) {
-    metaStack.pop();
-  }
 }
 
 /**
@@ -521,6 +407,35 @@ function traverseAndProcess(
  * @param screenActionRules Optional user custom rules mappings for screen actions.
  * @param sceneSplitDialogueThreshold Dialogue line threshold for automatic scene divisions.
  */
+function collectFlatTokens(
+  node: TreeNode,
+  metaStack: number[],
+  tokens: Array<{
+    type: number;
+    metaTokens: number[];
+    startPos: { line: number; character: number };
+    getValue: (doc: TextDocument) => string;
+  }>,
+): void {
+  const token = node.token;
+  if (token) {
+    const type = token.type as number;
+    if (RELEVANT_TOKEN_TYPES.has(type)) {
+      tokens.push({
+        type,
+        metaTokens: [...metaStack],
+        startPos: token.startPos,
+        getValue: (doc) => token.getValue(doc),
+      });
+    }
+    metaStack.push(type);
+  }
+  node.children.forEach((child) => collectFlatTokens(child, metaStack, tokens));
+  if (token) {
+    metaStack.pop();
+  }
+}
+
 export function processTokenTreeStream(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -532,33 +447,33 @@ export function processTokenTreeStream(
   screenActionRules?: ScreenActionRule[],
   sceneSplitDialogueThreshold?: number,
 ): void {
-  const meta = createEmptyTokenMeta();
-  const screenActionRuleMap = toScreenActionRuleMap(
-    parserVariant,
-    screenActionRules,
-  );
-  const lineIndentCache = new Map<number, number>();
-  const lineTextCache = new Map<number, string>();
-  const conditionalLogicalLineCache = new Map<number, string>();
+  const tokens: Array<{
+    type: number;
+    metaTokens: number[];
+    startPos: { line: number; character: number };
+    startOffset?: number;
+    getValue: (doc: TextDocument) => string;
+  }> = [];
 
-  const docText = document.getText();
-  const docLines = docText.split(/\r?\n/);
+  collectFlatTokens(tokenTree.root, [], tokens);
 
-  traverseAndProcess(
-    tokenTree.root,
-    [],
+  tokens.sort((a, b) => {
+    if (a.startPos.line !== b.startPos.line) {
+      return a.startPos.line - b.startPos.line;
+    }
+    return a.startPos.character - b.startPos.character;
+  });
+
+  processFlatTokens(
     state,
     scanState,
+    tokens,
     document,
-    docLines,
     chapter,
     captureDialogueLines,
-    screenActionRuleMap,
+    parserVariant,
+    screenActionRules,
     sceneSplitDialogueThreshold,
-    meta,
-    lineIndentCache,
-    lineTextCache,
-    conditionalLogicalLineCache,
   );
 }
 

@@ -91,13 +91,14 @@ function processLineState(lineText: string, state: DelimiterState) {
       continue;
     }
 
-    let openingDelimiter: ")" | "]" | "}" | undefined;
-    if (char === "(") openingDelimiter = ")";
-    else if (char === "[") openingDelimiter = "]";
-    else if (char === "{") openingDelimiter = "}";
+    const openingDelimiter = {
+      "(": ")",
+      "[": "]",
+      "{": "}",
+    }[char];
 
     if (openingDelimiter) {
-      state.delimiterStack.push(openingDelimiter);
+      state.delimiterStack.push(openingDelimiter as ")" | "]" | "}");
     } else if (char === ")" || char === "]" || char === "}") {
       if (char === state.delimiterStack[state.delimiterStack.length - 1]) {
         state.delimiterStack.pop();
@@ -239,14 +240,52 @@ export function preParseInitialization(
   files: ParseInputFile[],
   state: ParseGraphState,
 ): void {
+  if (!state.labelsByChapter) {
+    state.labelsByChapter = new Map();
+  }
+  if (!state.labelDefinitionCountByName) {
+    state.labelDefinitionCountByName = new Map();
+  }
+  if (!state.canonicalLabelIdByName) {
+    state.canonicalLabelIdByName = new Map();
+  }
   const items: InitItem[] = [];
 
   for (const file of files) {
     const filePath = file.relativePath ?? file.name;
+    const chapter = filePath.replace(/\\/g, "/").replace(/\.rpy$/i, "");
     const contentStr = typeof file.content === "string"
       ? file.content
       : new TextDecoder("utf-8").decode(file.content);
     const lines = contentStr.split(/\r?\n/);
+
+    let chapterLabels = state.labelsByChapter.get(chapter);
+    if (!chapterLabels) {
+      chapterLabels = new Map();
+      state.labelsByChapter.set(chapter, chapterLabels);
+    }
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const labelMatch =
+        /^label\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*:/i.exec(trimmed);
+      if (labelMatch) {
+        const declaredName = labelMatch[1].trim();
+        if (!chapterLabels.has(declaredName)) {
+          const count =
+            (state.labelDefinitionCountByName.get(declaredName) ?? 0) + 1;
+          state.labelDefinitionCountByName.set(declaredName, count);
+          const canonical = state.canonicalLabelIdByName.get(declaredName) ??
+            declaredName;
+          state.canonicalLabelIdByName.set(declaredName, canonical);
+          const labelId = count === 1
+            ? canonical
+            : `${canonical}__shadow_${count}`;
+          chapterLabels.set(declaredName, labelId);
+        }
+      }
+    }
+
     let currentOffset = 0;
     let idx = 0;
 
@@ -446,11 +485,6 @@ function processAssignment(
   rhsExpression: string,
 ) {
   const cleanExpr = rhsExpression.trim();
-  state.declaredGlobalVariables.add(variableName);
-  const rootVar = variableName.split(".")[0];
-  if (rootVar) {
-    state.declaredGlobalVariables.add(rootVar);
-  }
   if (/Character\s*\(/i.test(cleanExpr)) {
     state.globalCharacters.add(variableName);
   } else {

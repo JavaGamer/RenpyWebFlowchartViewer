@@ -46,7 +46,6 @@ export function buildVisibleNodes(params: {
   collapsedChapters: Record<string, boolean>;
   collapsedLabelChildren: Set<string>;
   conditionHiddenNodeIds?: Set<string>;
-  activePathNodes?: Set<string> | null;
   theme: ThemeName;
   previousById?: Map<string, CanvasNode>;
 }): CanvasNode[] {
@@ -60,26 +59,28 @@ export function buildVisibleNodes(params: {
     collapsedChapters,
     collapsedLabelChildren,
     conditionHiddenNodeIds,
-    activePathNodes,
     theme,
     previousById,
   } = params;
   const query = search.trim().toLowerCase();
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
-    const chapterName = nodeData?.chapter || "default";
-    const chapterCollapsed = Boolean(collapsedChapters[chapterName]);
+    const dialogueCountMatch = String(nodeData.dialogueCount).includes(query);
+    const chapterCollapsed = nodeData.chapter
+      ? collapsedChapters[nodeData.chapter]
+      : false;
     const labelCollapsed = collapsedLabelChildren.has(n.id);
     const matchesSearch = query.length === 0 ||
+      dialogueCountMatch ||
       (searchMatchNodeIds
         ? searchMatchNodeIds.has(n.id)
-        : (nodeData?.label ?? "").toLowerCase().includes(query)) ||
+        : nodeData.label.toLowerCase().includes(query)) ||
       (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
       (includeDialogueLineSearch &&
-        (nodeData?.dialogueLines ?? []).some((line) =>
-          typeof line === "string" && line.toLowerCase().includes(query)
+        (nodeData.dialogueLines ?? []).some((line) =>
+          line.toLowerCase().includes(query)
         ));
-    const matchesDialogue = (nodeData?.dialogueCount ?? 0) >= minDialogue;
+    const matchesDialogue = nodeData.dialogueCount >= minDialogue;
     const hidden = Boolean(
       chapterCollapsed ||
         labelCollapsed ||
@@ -87,9 +88,6 @@ export function buildVisibleNodes(params: {
         !matchesSearch ||
         !matchesDialogue,
     );
-
-    const dimmed = activePathNodes ? !activePathNodes.has(n.id) : false;
-
     const previous = previousById?.get(n.id);
     if (previous) {
       const prevData = previous.data as NodeData;
@@ -110,13 +108,7 @@ export function buildVisibleNodes(params: {
         prevData.shadowOfId === nodeData.shadowOfId &&
         prevData.isTerminalOutcome === nodeData.isTerminalOutcome &&
         prevData.isOrphan === nodeData.isOrphan &&
-        prevData.characterDialogue === nodeData.characterDialogue &&
-        prevData.isSubLabel === nodeData.isSubLabel &&
-        prevData.wordCount === nodeData.wordCount &&
-        prevData.pauseDuration === nodeData.pauseDuration &&
-        prevData.collapsedLabels === nodeData.collapsedLabels &&
-        previous.style?.opacity === (dimmed ? 0.28 : undefined) &&
-        JSON.stringify(previous.style ?? {}) === JSON.stringify({ ...(n.style || {}), opacity: dimmed ? 0.28 : undefined })
+        prevData.characterDialogue === nodeData.characterDialogue
       ) {
         return previous;
       }
@@ -125,10 +117,6 @@ export function buildVisibleNodes(params: {
       ...n,
       data: { ...nodeData, theme },
       hidden,
-      style: {
-        ...(n.style || {}),
-        opacity: dimmed ? 0.28 : undefined,
-      },
     };
   });
 }
@@ -167,7 +155,6 @@ export function buildVisibleEdges(params: {
   largeGraphMode: boolean;
   conditionVisibilityMode?: ConditionVisibilityMode;
   edgeConditionStateById?: Map<string, ConditionReachability>;
-  activePathEdges?: Set<string> | null;
   previousById?: Map<string, CanvasEdge>;
 }): CanvasEdge[] {
   const {
@@ -182,7 +169,6 @@ export function buildVisibleEdges(params: {
     largeGraphMode,
     conditionVisibilityMode = "fade",
     edgeConditionStateById,
-    activePathEdges,
     previousById,
   } = params;
   const visible: CanvasEdge[] = [];
@@ -218,8 +204,6 @@ export function buildVisibleEdges(params: {
     }
 
     const timeoutDash = edgeData.timeout?.isTimeout ? "8 4" : undefined;
-    const isPathEdge = activePathEdges?.has(edge.id) ?? false;
-    const isDimmed = activePathEdges ? !isPathEdge : false;
 
     const unreachableStyle =
       conditionVisibilityMode === "fade" && conditionState === "unreachable"
@@ -232,8 +216,6 @@ export function buildVisibleEdges(params: {
     const finalStrokeDasharray = timeoutDash ||
       unreachableStyle.strokeDasharray || baseDash;
 
-    const finalOpacity = isDimmed ? 0.15 : (unreachableStyle.opacity ?? 1);
-
     const previous = previousById?.get(edge.id);
     const previousData = previous?.data as EdgeData | undefined;
     if (
@@ -244,15 +226,10 @@ export function buildVisibleEdges(params: {
       previousData?.timeout?.durationSeconds ===
         edgeData.timeout?.durationSeconds &&
       previousData?.conditionState === conditionState &&
-      previousData?.condition === edgeData.condition &&
       previous.source === edge.source &&
       previous.target === edge.target &&
       previous.style?.stroke === stroke &&
-      previous.style?.strokeWidth === (isPathEdge ? 2.5 : 1.5) &&
-      previous.style?.strokeDasharray === finalStrokeDasharray &&
-      previous.style?.opacity === finalOpacity &&
-      previous.zIndex === (isPathEdge ? 1000 : undefined) &&
-      previous.animated === isPathEdge
+      previous.style?.strokeDasharray === finalStrokeDasharray
     ) {
       visible.push(previous);
       continue;
@@ -261,15 +238,13 @@ export function buildVisibleEdges(params: {
     visible.push({
       ...edge,
       data: { ...edgeData, label: edgeLabel, kind, conditionState },
-      animated: isPathEdge,
       style: {
         ...(edge.style || {}),
+        ...unreachableStyle,
         stroke,
-        strokeWidth: isPathEdge ? 2.5 : 1.5,
+        strokeWidth: 1.5,
         strokeDasharray: finalStrokeDasharray,
-        opacity: finalOpacity,
       },
-      zIndex: isPathEdge ? 1000 : undefined,
     });
   }
   return visible;
@@ -331,33 +306,53 @@ export function buildConditionalVisibility(params: {
     edgeConditionStateById.set(edge.id, conditionState);
   }
 
-  const explicitEntryIds = Array.from(nodeIds).filter(
-    (id) =>
-      id === "start" ||
-      id === "label:start" ||
-      id === "splashscreen" ||
-      id === "label:splashscreen" ||
-      id === "main_menu" ||
-      id === "label:main_menu" ||
-      id === "before_main_menu" ||
-      id === "label:before_main_menu" ||
-      id === "after_load" ||
-      id === "label:after_load",
-  );
   const roots = Array.from(nodeIds).filter((nodeId) =>
     (incomingCounts.get(nodeId) ?? 0) === 0
   );
-  const startingSet = new Set([...explicitEntryIds, ...roots]);
-  const traversalStarts = startingSet.size > 0
-    ? Array.from(startingSet)
-    : Array.from(nodeIds);
+
+  // 1. Discover baseRoots: structural roots + 1 seed per isolated component/cycle
+  const baseRoots: string[] = [];
+  const structurallyVisited = new Set<string>();
+
+  const candidateSeeds = roots.length > 0 ? roots : Array.from(nodeIds);
+  for (const seed of candidateSeeds) {
+    if (structurallyVisited.has(seed)) continue;
+    baseRoots.push(seed);
+    const structStack = [seed];
+    while (structStack.length > 0) {
+      const curr = structStack.pop()!;
+      if (structurallyVisited.has(curr)) continue;
+      structurallyVisited.add(curr);
+      for (const edge of outgoing.get(curr) ?? []) {
+        structStack.push(edge.target);
+      }
+    }
+  }
+
+  for (const id of nodeIds) {
+    if (!structurallyVisited.has(id)) {
+      baseRoots.push(id);
+      const structStack = [id];
+      while (structStack.length > 0) {
+        const curr = structStack.pop()!;
+        if (structurallyVisited.has(curr)) continue;
+        structurallyVisited.add(curr);
+        for (const edge of outgoing.get(curr) ?? []) {
+          structStack.push(edge.target);
+        }
+      }
+    }
+  }
+
+  // 2. Perform conditional reachability BFS starting strictly from baseRoots
   const reachableNodeIds = new Set<string>();
-  const stack = [...traversalStarts];
+  const stack = [...baseRoots];
   while (stack.length > 0) {
     const nodeId = stack.pop();
     if (!nodeId) continue;
     if (reachableNodeIds.has(nodeId)) continue;
     reachableNodeIds.add(nodeId);
+
     for (const edge of outgoing.get(nodeId) ?? []) {
       const edgeState = edgeConditionStateById.get(edge.id);
       if (edgeState === "unreachable") continue;

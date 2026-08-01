@@ -97,11 +97,25 @@ export function maybeUpdateConditionalState(
     const top = scanState
       .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1]!;
     if (indent < top.indent) {
-      scanState.conditionalDecisionStack.pop();
+      const popped = scanState.conditionalDecisionStack.pop()!;
+      if (
+        popped.decisionNodeId &&
+        !popped.sourceId?.startsWith("menu_") &&
+        !scanState.pendingMenuFallthroughIds.includes(popped.decisionNodeId)
+      ) {
+        scanState.pendingMenuFallthroughIds.push(popped.decisionNodeId);
+      }
       continue;
     }
     if (indent === top.indent && type !== PARSER_TOKENS.kwConditional) {
-      scanState.conditionalDecisionStack.pop();
+      const popped = scanState.conditionalDecisionStack.pop()!;
+      if (
+        popped.decisionNodeId &&
+        !popped.sourceId?.startsWith("menu_") &&
+        !scanState.pendingMenuFallthroughIds.includes(popped.decisionNodeId)
+      ) {
+        scanState.pendingMenuFallthroughIds.push(popped.decisionNodeId);
+      }
       continue;
     }
     break;
@@ -122,7 +136,7 @@ export function maybeUpdateConditionalState(
 }
 
 /**
- * Extracts the conditional keyword (if, elif, else) and the evaluated expression
+ * Extracts the conditional keyword (if, elif, else, while) and the evaluated expression
  * from a raw statement line (e.g. "if x == 5:").
  */
 function parseConditionalHeader(lineText: string): {
@@ -130,7 +144,7 @@ function parseConditionalHeader(lineText: string): {
   expression: string | null;
 } | null {
   const trimmed = lineText.trim();
-  const keywordMatch = /^(if|elif|else)\b/.exec(trimmed);
+  const keywordMatch = /^(if|elif|else|while)\b/.exec(trimmed);
   if (!keywordMatch) return null;
   const kind = keywordMatch[1] as ConditionalBranchKind;
   const headerColonIndex = findTopLevelHeaderColon(trimmed);

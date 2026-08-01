@@ -124,11 +124,7 @@ export function useViewerSearch({
         setDialogueSearchResults(results);
       })
       .catch((error: unknown) => {
-        if (
-          controller.signal.aborted ||
-          (error instanceof Error && error.name === "AbortError") ||
-          (error instanceof DOMException && error.name === "AbortError")
-        ) {
+        if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
         setDialogueSearchResults([]);

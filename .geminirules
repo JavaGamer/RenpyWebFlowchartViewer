@@ -1,0 +1,3 @@
+# Gemini / AGY Agent Rules
+
+- Mandatory: Use Deno (`deno task test`, `deno task build`, `deno task lint`, `deno fmt`) instead of `npm`.

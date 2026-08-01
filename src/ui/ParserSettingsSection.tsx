@@ -91,7 +91,7 @@ export default function ParserSettingsSection({
         Custom screen-action rules are stored in your browser and reused across
         project imports.
       </p>
-      <div className="mt-3 space-y-2" role="group" aria-label="Custom screen action rules">
+      <div className="mt-3 space-y-2" aria-label="Custom screen action rules">
         {selectedVariantCustomRules.map((rule, idx) => (
           <div
             key={`${selectedVariant}-rule-${idx}`}

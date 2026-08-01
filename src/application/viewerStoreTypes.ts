@@ -59,8 +59,6 @@ export interface ViewerSessionState {
   selectedNodeId: string;
   selectedDialogueLineIndex: number | null;
   showAllInspectorLines: boolean;
-  pathStartNodeId: string | null;
-  pathTargetNodeId: string | null;
   activeDialogueResultIndex: number;
   dialogueSearchResults: DialogueSearchResult[];
   showAdvancedControls: boolean;
@@ -109,8 +107,6 @@ export interface ViewerActions {
   setSelectedDialogueLineIndex: (index: number | null) => void;
   toggleShowAllInspectorLines: () => void;
   setShowAllInspectorLines: (show: boolean) => void;
-  setPathStartNodeId: (id: string | null) => void;
-  setPathTargetNodeId: (id: string | null) => void;
   setActiveDialogueResultIndex: (index: number) => void;
   setDialogueSearchResults: (results: DialogueSearchResult[]) => void;
   toggleShowAdvancedControls: () => void;

@@ -42,8 +42,7 @@ export interface ParserTokenMap {
   kwDollarSign?: number;
   kwScreen?: number;
   kwShow?: number;
-  kwDefault?: number;
-  kwDefine?: number;
+  kwHide?: number;
   metaItemAccess?: number;
   metaFunctionCall?: number;
 }
@@ -221,8 +220,7 @@ function buildTokenMap(): ParserTokenMap {
     kwDollarSign: readOptionalEnumEntry(KeywordTokenType.DollarSign),
     kwScreen: readOptionalEnumEntry(KeywordTokenType.Screen),
     kwShow: readOptionalEnumEntry(KeywordTokenType.Show),
-    kwDefault: readOptionalEnumEntry(KeywordTokenType.Default),
-    kwDefine: readOptionalEnumEntry(KeywordTokenType.Define),
+    kwHide: readOptionalEnumEntry(KeywordTokenType.Hide),
     metaItemAccess: readOptionalEnumEntry(MetaTokenType.ItemAccess),
     metaFunctionCall: readOptionalEnumEntry(MetaTokenType.FunctionCall),
   };

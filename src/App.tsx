@@ -8,7 +8,7 @@
  * Ren'Py parser, and renders the resulting flowchart.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   DiagnosticsSection,
@@ -16,11 +16,7 @@ import {
   Header,
   UploadArea,
 } from "./ui/index.ts";
-import {
-  getProjectFromCache,
-  getRecentProjects,
-  preWarmLayoutWorker,
-} from "./infrastructure/index.ts";
+import { preWarmLayoutWorker } from "./infrastructure/index.ts";
 import { useAppStore, useViewerStore } from "./application/index.ts";
 import { cn } from "./ui/utils/cn.ts";
 
@@ -44,38 +40,11 @@ export default function App() {
     })),
   );
   const reset = useAppStore((s) => s.reset);
-  const parseSuccess = useAppStore((s) => s.parseSuccess);
-  const startParsing = useAppStore((s) => s.startParsing);
 
-  const [isRestoring, setIsRestoring] = useState(true);
-
-  // Pre-warm the layout worker on boot and restore last project
+  // Pre-warm the layout worker on boot
   useEffect(() => {
     preWarmLayoutWorker();
-
-    // Auto-restore last accessed project
-    getRecentProjects().then(async (projects) => {
-      if (projects.length > 0) {
-        const lastProject = projects[0];
-        if (lastProject) {
-          startParsing();
-          const fullProject = await getProjectFromCache(lastProject.id);
-          if (fullProject) {
-            parseSuccess(
-              fullProject.nodes,
-              fullProject.edges,
-              fullProject.diagnostics,
-            );
-          } else {
-            reset();
-          }
-        }
-      }
-      setIsRestoring(false);
-    }).catch(() => {
-      setIsRestoring(false);
-    });
-  }, [startParsing, parseSuccess, reset]);
+  }, []);
 
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -101,8 +70,7 @@ export default function App() {
         ? (
           <main
             id="flowchart-main"
-            tabIndex={-1}
-            className="flex-1 flex flex-col overflow-hidden focus:outline-none"
+            className="flex-1 flex flex-col overflow-hidden"
             aria-label="Flowchart viewer"
           >
             {/* Re-upload button */}
@@ -144,22 +112,7 @@ export default function App() {
             <FlowchartViewer key={importRevision} />
           </main>
         )
-        : (
-          <div className="flex-1 flex flex-col relative">
-            {isRestoring && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 dark:bg-slate-950/50 backdrop-blur-sm">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin">
-                  </div>
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    Restoring project...
-                  </span>
-                </div>
-              </div>
-            )}
-            <UploadArea />
-          </div>
-        )}
+        : <UploadArea />}
     </div>
   );
 }

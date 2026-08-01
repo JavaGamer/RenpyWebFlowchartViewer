@@ -34,6 +34,11 @@ export function resolveConditionalSource(
   meta: TokenMetaFlags,
   menuDepth: number,
 ): string | null {
+  const decisionContext = scanState
+    .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+  if (decisionContext) {
+    return decisionContext.decisionNodeId;
+  }
   if (meta.hasMenuOptionBlock) {
     const menu = menuAtDepth(scanState.menuStack, menuDepth);
     return menu?.id ?? scanState.currentLabelId;
@@ -56,42 +61,45 @@ export function handleConditionalHeader(
   if (!pending || scanState.currentLabelId === null) return false;
   const source = resolveConditionalSource(scanState, meta, menuDepth);
   if (!source) return false;
-  if (pending.kind === "if") {
+  if (pending.kind === "if" || pending.kind === "while") {
     state.decisionCounter += 1;
     const decisionNodeId = `decision_${state.decisionCounter}`;
     const references = extractConditionFlagRefs(
       pending.expression ?? undefined,
     );
-    for (const ref of references) {
-      state.referencedVariables.push({
-        varName: ref,
-        location: {
-          chapter,
-          construct: "condition",
-          sourceId: source,
-        },
-      });
-    }
+    const labelPrefix = pending.kind;
     addNode(state, {
       id: decisionNodeId,
       type: "DECISION",
-      label: pending.expression ? `if ${pending.expression}` : "if",
+      label: pending.expression
+        ? `${labelPrefix} ${pending.expression}`
+        : labelPrefix,
       dialogueCount: 0,
       chapter,
       parentLabelId: scanState.currentLabelId ?? undefined,
       condition: {
-        branchKind: "if",
+        branchKind: pending.kind,
         expression: pending.expression ?? undefined,
         references,
         decisionNodeId,
       },
     });
+    const parentContext = scanState
+      .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
     addEdge(state, {
       id: `seq_${source}__${decisionNodeId}`,
       source,
       target: decisionNodeId,
       kind: "sequence",
-      label: "if",
+      label: parentContext ? parentContext.branchKind : labelPrefix,
+      condition: parentContext
+        ? {
+          branchKind: parentContext.branchKind,
+          expression: parentContext.expression ?? undefined,
+          references: parentContext.references,
+          decisionNodeId: parentContext.decisionNodeId,
+        }
+        : undefined,
     });
     addOutgoing(state, source, "sequence");
     addIncoming(state, decisionNodeId, "sequence");
@@ -99,7 +107,7 @@ export function handleConditionalHeader(
       indent: pending.indent,
       decisionNodeId,
       sourceId: source,
-      branchKind: "if",
+      branchKind: pending.kind,
       expression: pending.expression,
       references,
     });
@@ -112,11 +120,19 @@ export function handleConditionalHeader(
     scanState.pendingConditionalHeader = null;
     return false;
   }
-  existing.branchKind = pending.kind;
-  existing.expression = pending.expression;
-  existing.references = extractConditionFlagRefs(
+  const references = extractConditionFlagRefs(
     pending.expression ?? undefined,
   );
+  // Construct a new context representation for elif/else instead of mutating existing in-place
+  scanState
+    .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1] = {
+      indent: pending.indent,
+      decisionNodeId: existing.decisionNodeId,
+      sourceId: existing.sourceId,
+      branchKind: pending.kind,
+      expression: pending.expression,
+      references,
+    };
   scanState.pendingConditionalHeader = null;
   return true;
 }

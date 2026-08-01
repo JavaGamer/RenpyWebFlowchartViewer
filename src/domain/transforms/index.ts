@@ -16,17 +16,5 @@ export {
   buildVisibleNodes,
 } from "./visibility.ts";
 
-export { simplifyGraph } from "./simplify.ts";
+export { collapseLinearChains, simplifyGraph } from "./simplify.ts";
 export type { GraphSimplificationOptions } from "./simplify.ts";
-
-export { findPath } from "./pathFinding.ts";
-export type { PathResult } from "./pathFinding.ts";
-
-export { applyChapterClustering } from "./chapterClustering.ts";
-export type {
-  ChapterClusteringOptions,
-  ChapterClusteringResult,
-} from "./chapterClustering.ts";
-
-export { computeGraphDiff } from "./graphDiff.ts";
-export type { GraphDiffResult } from "./graphDiff.ts";

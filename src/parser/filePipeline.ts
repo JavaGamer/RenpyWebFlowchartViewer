@@ -66,10 +66,9 @@ export async function tokenizeOneFile(
 
   const tokenizeMark = `tokenize:${cacheKey ?? file.name}:${fileIndex ?? -1}`;
   parserPerf?.mark(tokenizeMark);
-  const rawText = typeof file.content === "string"
+  const textContent = typeof file.content === "string"
     ? file.content
-    : (file.content ? new TextDecoder("utf-8").decode(file.content) : "");
-  const textContent = rawText.replace(/^\uFEFF/, "");
+    : new TextDecoder("utf-8").decode(file.content);
   const { document, nodes: tokenTree } = await renpyParse(textContent);
   parserPerf?.measure(tokenizeMark, "parse_tokenize_ms", { file: file.name });
   if (cacheKey && tokenizedCache) {

@@ -9,7 +9,7 @@ import { menuAtDepth } from "../scanTransitions.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
 import { addParseDiagnostic } from "../diagnostics.ts";
 
-const IDENTIFIER_PATTERN = /^\.?[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function addDynamicTargetDiagnostic(
   state: ParseGraphState,
@@ -81,22 +81,29 @@ export function resolveCallContext(
 export function resolveTargetLabelId(
   state: ParseGraphState,
   targetExpression: string,
-  scanState?: ParseScanState,
+  currentChapter?: string,
 ): { resolvedTargetId: string } {
-  let targetName = targetExpression.trim();
-  if (
-    (targetName.startsWith('"') && targetName.endsWith('"')) ||
-    (targetName.startsWith("'") && targetName.endsWith("'"))
-  ) {
-    targetName = targetName.slice(1, -1).trim();
+  const targetName = targetExpression.trim();
+  if (currentChapter) {
+    const localId = state.labelsByChapter?.get(currentChapter)?.get(targetName);
+    if (localId) {
+      return { resolvedTargetId: localId };
+    }
+    for (const node of state.nodeMap.values()) {
+      if (
+        node.type === "LABEL" &&
+        node.chapter === currentChapter &&
+        (node.label === targetName || node.id === targetName)
+      ) {
+        return { resolvedTargetId: node.id };
+      }
+    }
   }
-  let expandedTargetName = targetName;
-  if (targetName.startsWith(".") && scanState?.currentParentLabel) {
-    expandedTargetName = `${scanState.currentParentLabel}${targetName}`;
+  if (state.nodeMap.has(targetName) || state.allLabelIds.has(targetName)) {
+    return { resolvedTargetId: targetName };
   }
-  const resolvedTargetId = state.canonicalLabelIdByName.get(expandedTargetName) ??
-    state.canonicalLabelIdByName.get(targetName) ??
-    expandedTargetName;
+  const resolvedTargetId = state.canonicalLabelIdByName.get(targetName) ??
+    targetName;
   return { resolvedTargetId };
 }
 
@@ -112,11 +119,19 @@ export function emitJumpEdge(
   },
   suppressFallthrough: boolean,
   timeout?: FlowEdge["timeout"],
-  originType?: "label" | "screen",
 ) {
   const { isInOption, source, optionText } = context;
   if (source) {
-    const { resolvedTargetId } = resolveTargetLabelId(state, target, scanState);
+    const sourceNode = state.nodeMap.get(source);
+    const currentChapter = sourceNode?.chapter ??
+      (scanState.currentLabelId
+        ? state.nodeMap.get(scanState.currentLabelId)?.chapter
+        : undefined);
+    const { resolvedTargetId } = resolveTargetLabelId(
+      state,
+      target,
+      currentChapter,
+    );
     const timeoutSuffix = timeout?.isTimeout === true
       ? `_timeout_${
         timeout.durationSeconds === undefined
@@ -135,7 +150,6 @@ export function emitJumpEdge(
       label: isInOption ? (optionText ?? undefined) : undefined,
       condition: context.condition,
       timeout,
-      originType,
     });
     if (!isInOption && scanState.currentLabelId) {
       addOutgoing(state, scanState.currentLabelId, "jump");
@@ -147,13 +161,16 @@ export function emitJumpEdge(
       addOutgoing(state, source, "jump");
       addIncoming(state, resolvedTargetId, "jump");
 
-      const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
-      if (menu && menu.options) {
-        const matchingOpt = optionText
-          ? menu.options.find((opt) => opt.text === optionText)
-          : menu.options[menu.options.length - 1];
-        if (matchingOpt) {
-          matchingOpt.hasExit = true;
+      if (!context.condition) {
+        const menu = menuAtDepth(
+          scanState.menuStack,
+          scanState.menuStack.length,
+        );
+        if (menu && menu.options) {
+          const lastOpt = menu.options[menu.options.length - 1];
+          if (lastOpt) {
+            lastOpt.hasExit = true;
+          }
         }
       }
     }
@@ -177,11 +194,19 @@ export function emitCallEdge(
     condition?: ConditionMetadata;
   },
   timeout?: FlowEdge["timeout"],
-  originType?: "label" | "screen",
 ) {
   const { isInOption, source, optionText } = context;
   if (!source) return;
-  const { resolvedTargetId } = resolveTargetLabelId(state, target, scanState);
+  const sourceNode = state.nodeMap.get(source);
+  const currentChapter = sourceNode?.chapter ??
+    (scanState.currentLabelId
+      ? state.nodeMap.get(scanState.currentLabelId)?.chapter
+      : undefined);
+  const { resolvedTargetId } = resolveTargetLabelId(
+    state,
+    target,
+    currentChapter,
+  );
   const timeoutSuffix = timeout?.isTimeout === true
     ? `_timeout_${
       timeout.durationSeconds === undefined
@@ -200,7 +225,6 @@ export function emitCallEdge(
     label: isInOption ? (optionText ? `call: ${optionText}` : "call") : "call",
     condition: context.condition,
     timeout,
-    originType,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {
@@ -213,11 +237,13 @@ export function emitCallEdge(
   });
   if (isInOption) {
     state.calledFromMenuOptionTargets.add(resolvedTargetId);
-    const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
-    if (menu && menu.options) {
-      const lastOpt = menu.options[menu.options.length - 1];
-      if (lastOpt) {
-        lastOpt.hasExit = true;
+    if (!context.condition) {
+      const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
+      if (menu && menu.options) {
+        const lastOpt = menu.options[menu.options.length - 1];
+        if (lastOpt) {
+          lastOpt.hasExit = true;
+        }
       }
     }
   }
@@ -238,48 +264,39 @@ export function parseDictLiteral(
     }
   }
 
-  function parseKeyOrStringLiteral(): string | null {
+  function parseStringLiteral(): string | null {
     if (i >= content.length) return null;
     const quoteChar = content[i];
-    if (quoteChar === '"' || quoteChar === "'") {
-      i++; // consume quote
-      let str = "";
-      while (i < content.length) {
-        const char = content[i];
-        if (char === "\\") {
-          i++;
-          if (i < content.length) {
-            const nextChar = content[i];
-            if (nextChar === "n") str += "\n";
-            else if (nextChar === "t") str += "\t";
-            else if (nextChar === "r") str += "\r";
-            else str += nextChar;
-            i++;
-          }
-        } else if (char === quoteChar) {
-          i++; // consume closing quote
-          return str;
-        } else {
-          str += char;
+    if (quoteChar !== '"' && quoteChar !== "'") return null;
+    i++; // consume quote
+    let str = "";
+    while (i < content.length) {
+      const char = content[i];
+      if (char === "\\") {
+        i++;
+        if (i < content.length) {
+          const nextChar = content[i];
+          if (nextChar === "n") str += "\n";
+          else if (nextChar === "t") str += "\t";
+          else if (nextChar === "r") str += "\r";
+          else str += nextChar;
           i++;
         }
-      }
-      return null; // unclosed string
-    } else {
-      // Unquoted identifier or number key
-      let token = "";
-      while (i < content.length && !/\s|:|,|\}/.test(content[i])) {
-        token += content[i];
+      } else if (char === quoteChar) {
+        i++; // consume closing quote
+        return str;
+      } else {
+        str += char;
         i++;
       }
-      return token.length > 0 ? token : null;
     }
+    return null; // unclosed string
   }
 
   while (i < content.length) {
     skipWhitespace();
     if (i >= content.length) break;
-    const key = parseKeyOrStringLiteral();
+    const key = parseStringLiteral();
     if (key === null) return null;
 
     skipWhitespace();
@@ -287,7 +304,7 @@ export function parseDictLiteral(
     i++; // consume ':'
 
     skipWhitespace();
-    const val = parseKeyOrStringLiteral();
+    const val = parseStringLiteral();
     if (val === null) return null;
 
     result.set(key, val);
@@ -299,7 +316,7 @@ export function parseDictLiteral(
     }
   }
 
-  return result;
+  return result.size > 0 ? result : null;
 }
 
 export function parseListLiteral(
@@ -361,7 +378,7 @@ export function parseListLiteral(
     }
   }
 
-  return result;
+  return result.length > 0 ? result : null;
 }
 
 export function extractLiteralTarget(expression: string): string | null {

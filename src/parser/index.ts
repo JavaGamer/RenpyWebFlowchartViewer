@@ -20,5 +20,4 @@ export type {
   ParseProgress,
   ParseResult,
 } from "./pipelineTypes.ts";
-export type { RenpyAstNode, RenpyFileAst } from "./astTypes.ts";
 export * from "./workerProtocol.ts";

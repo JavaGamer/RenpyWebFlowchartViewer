@@ -234,53 +234,60 @@ export function splitCurrentLabelOnSceneBoundary(
     chapter,
   });
 
+  const connectedSources = new Set<string>();
+
+  const activeMenu = meta.hasMenuOptionBlock
+    ? menuAtDepth(scanState.menuStack, menuDepth)
+    : null;
+
+  if (activeMenu) {
+    connectSceneSplitFromSource(
+      state,
+      activeMenu.id,
+      nextSceneId,
+      activeMenu.optionText ?? undefined,
+    );
+    connectedSources.add(activeMenu.id);
+  }
+
   if (scanState.pendingMenuFallthroughIds.length > 0) {
-    for (const menuId of scanState.pendingMenuFallthroughIds) {
-      connectSceneSplitFromSource(state, menuId, nextSceneId, "next");
+    for (const sourceId of scanState.pendingMenuFallthroughIds) {
+      if (!connectedSources.has(sourceId)) {
+        connectSceneSplitFromSource(state, sourceId, nextSceneId, "next");
+        connectedSources.add(sourceId);
+      }
     }
     scanState.pendingMenuFallthroughIds = [];
-  } else {
-    const activeMenu = meta.hasMenuOptionBlock
-      ? menuAtDepth(scanState.menuStack, menuDepth)
-      : null;
+  }
+
+  for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
+    const menu = scanState.menuStack[index];
+    if (menuHasFallthrough(menu) && !connectedSources.has(menu.id)) {
+      connectSceneSplitFromSource(
+        state,
+        menu.id,
+        nextSceneId,
+        "next",
+      );
+      connectedSources.add(menu.id);
+    }
+  }
+
+  if (connectedSources.size === 0) {
     const activeDecision = scanState
       .conditionalDecisionStack[
         scanState.conditionalDecisionStack.length - 1
       ];
-    if (activeMenu) {
+    if (activeDecision) {
       connectSceneSplitFromSource(
         state,
-        activeMenu.id,
+        activeDecision.decisionNodeId,
         nextSceneId,
-        activeMenu.optionText ?? undefined,
+        undefined,
+        createDecisionConditionMetadata(activeDecision),
       );
     } else {
-      let fallbackMenu: typeof scanState.menuStack[0] | null = null;
-      for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
-        const menu = scanState.menuStack[index];
-        if (menuHasFallthrough(menu)) {
-          fallbackMenu = menu;
-          break;
-        }
-      }
-      if (fallbackMenu) {
-        connectSceneSplitFromSource(
-          state,
-          fallbackMenu.id,
-          nextSceneId,
-          "next",
-        );
-      } else if (activeDecision) {
-        connectSceneSplitFromSource(
-          state,
-          activeDecision.decisionNodeId,
-          nextSceneId,
-          undefined,
-          createDecisionConditionMetadata(activeDecision),
-        );
-      } else {
-        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
-      }
+      connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
     }
   }
 

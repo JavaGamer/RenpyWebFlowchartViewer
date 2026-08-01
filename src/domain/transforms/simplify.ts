@@ -3,7 +3,6 @@ import type {
   EdgeKind,
   FlowEdge,
   FlowNode,
-  TimeoutMetadata,
 } from "../graph.ts";
 
 export interface GraphSimplificationOptions {
@@ -74,13 +73,9 @@ function inlineNodes(
   for (const node of nodes) {
     if (node.type !== "LABEL") continue;
 
-    // Protect entry start node & Ren'Py entry labels
+    // Protect entry start node
     const isStartNode = node.id === "start" ||
-      node.label.toLowerCase() === "start" ||
-      node.label.toLowerCase() === "splashscreen" ||
-      node.label.toLowerCase() === "main_menu" ||
-      node.label.toLowerCase() === "after_load" ||
-      node.label.toLowerCase() === "before_main_menu";
+      node.label.toLowerCase() === "start";
     if (isStartNode) continue;
 
     // Protect terminal outcomes (end of routes)
@@ -123,7 +118,6 @@ function inlineNodes(
   }
 
   const newEdges: FlowEdge[] = [];
-  let inlinedEdgeCounter = 0;
 
   for (const u of nodes) {
     if (H.has(u.id)) continue;
@@ -131,45 +125,40 @@ function inlineNodes(
     const queue: Array<{
       nodeId: string;
       label: string;
-      kind: EdgeKind | undefined;
-      condition: ConditionMetadata | undefined;
-      timeout: TimeoutMetadata | undefined;
+      kind: EdgeKind;
+      condition?: ConditionMetadata;
+      timeout?: FlowEdge["timeout"];
       originalId?: string;
       isInlinedPath: boolean;
-      path: Set<string>;
+      pathVisited: Set<string>;
     }> = [];
 
-    const initialEdges = outgoingEdges.get(u.id) || [];
-    for (const edge of initialEdges) {
+    for (const edge of outgoingEdges.get(u.id) ?? []) {
       queue.push({
         nodeId: edge.target,
         label: edge.label || "",
-        kind: edge.kind,
+        kind: edge.kind || "sequence",
         condition: edge.condition,
         timeout: edge.timeout,
         originalId: edge.id,
         isInlinedPath: false,
-        path: new Set(),
+        pathVisited: new Set([u.id, edge.target]),
       });
     }
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      if (H.has(current.nodeId)) {
-        if (current.path.has(current.nodeId)) continue;
-      }
 
       const targetNode = nodesMap.get(current.nodeId);
-      const safeLabel = (current.label || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-      const safeCond = (current.condition?.expression || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-
-      if (!targetNode) {
+      if (!targetNode || !H.has(current.nodeId)) {
         newEdges.push({
-          id: (current.isInlinedPath || !current.originalId)
+          id: current.isInlinedPath
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${safeLabel}`
-            : current.originalId,
+            }_${u.id}__${current.nodeId}__inlined_${current.label || ""}_${
+              current.condition?.expression || ""
+            }`
+            : current.originalId!,
           source: u.id,
           target: current.nodeId,
           kind: current.kind,
@@ -180,88 +169,63 @@ function inlineNodes(
         continue;
       }
 
-      if (!H.has(current.nodeId)) {
-        newEdges.push({
-          id: (current.isInlinedPath || !current.originalId)
-            ? `${
-              current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${++inlinedEdgeCounter}_${safeLabel}_${safeCond}`
-            : current.originalId,
-          source: u.id,
-          target: current.nodeId,
-          kind: current.kind,
-          label: current.label || undefined,
-          condition: current.condition,
-          timeout: current.timeout,
-        });
-      } else {
-        const nextPath = new Set(current.path);
-        nextPath.add(current.nodeId);
-        const nextEdges = outgoingEdges.get(current.nodeId) || [];
-        for (const edge of nextEdges) {
-          const mergedLabel = current.label || edge.label || "";
+      const nextEdges = outgoingEdges.get(current.nodeId) || [];
+      for (const edge of nextEdges) {
+        if (current.pathVisited.has(edge.target)) continue;
+        const nextPathVisited = new Set(current.pathVisited);
+        nextPathVisited.add(edge.target);
 
-          let mergedKind = current.kind;
-          if (edge.kind === "call_return" || mergedKind === "call_return") {
-            mergedKind = "call_return";
-          } else if (edge.kind === "call" || mergedKind === "call") {
-            mergedKind = "call";
-          } else if (edge.kind === "jump" || mergedKind === "jump") {
-            mergedKind = "jump";
-          } else {
-            mergedKind = "sequence";
-          }
-
-          let mergedCondition = current.condition || edge.condition;
-          if (current.condition && edge.condition) {
-            const exp1 = current.condition.expression;
-            const exp2 = edge.condition.expression;
-            let mergedExpression: string | undefined;
-            if (exp1 && exp2) {
-              mergedExpression = `(${exp1}) and (${exp2})`;
-            } else {
-              mergedExpression = exp1 || exp2;
-            }
-            const mergedRefs = Array.from(
-              new Set([
-                ...(current.condition.references || []),
-                ...(edge.condition.references || []),
-              ]),
-            ).sort();
-
-            let mergedBranchKind: "if" | "elif" | "else" = "elif";
-            if (
-              current.condition.branchKind === "if" ||
-              edge.condition.branchKind === "if"
-            ) {
-              mergedBranchKind = "if";
-            } else if (
-              current.condition.branchKind === "else" &&
-              edge.condition.branchKind === "else"
-            ) {
-              mergedBranchKind = "else";
-            }
-
-            mergedCondition = {
-              branchKind: mergedBranchKind,
-              expression: mergedExpression,
-              references: mergedRefs,
-              decisionNodeId: current.condition.decisionNodeId ||
-                edge.condition.decisionNodeId,
-            };
-          }
-          const mergedTimeout = current.timeout || edge.timeout;
-
-          queue.push({
-            nodeId: edge.target,
-            label: mergedLabel,
-            kind: mergedKind,
-            condition: mergedCondition,
-            timeout: mergedTimeout,
-            isInlinedPath: true,
-            path: nextPath,
-          });
+        const mergedLabel = current.label || edge.label || "";
+        let mergedKind: EdgeKind = current.kind;
+        if (edge.kind === "call_return" || mergedKind === "call_return") {
+          mergedKind = "call_return";
+        } else if (edge.kind === "call" || mergedKind === "call") {
+          mergedKind = "call";
+        } else if (edge.kind === "jump" || mergedKind === "jump") {
+          mergedKind = "jump";
+        } else {
+          mergedKind = "sequence";
         }
+
+        let mergedCondition = current.condition || edge.condition;
+        if (current.condition && edge.condition) {
+          const exp1 = current.condition.expression;
+          const exp2 = edge.condition.expression;
+          let mergedExpression: string | undefined;
+          if (exp1 && exp2) {
+            mergedExpression = `(${exp1}) and (${exp2})`;
+          } else {
+            mergedExpression = exp1 || exp2;
+          }
+          const mergedRefs = Array.from(
+            new Set([
+              ...(current.condition.references || []),
+              ...(edge.condition.references || []),
+            ]),
+          ).sort();
+
+          mergedCondition = {
+            branchKind: current.condition.branchKind === "if" ||
+                edge.condition.branchKind === "if"
+              ? "if"
+              : "elif",
+            expression: mergedExpression,
+            references: mergedRefs,
+            decisionNodeId: current.condition.decisionNodeId ||
+              edge.condition.decisionNodeId,
+          };
+        }
+        const mergedTimeout = current.timeout || edge.timeout;
+
+        queue.push({
+          nodeId: edge.target,
+          label: mergedLabel,
+          kind: mergedKind,
+          condition: mergedCondition,
+          timeout: mergedTimeout,
+          isInlinedPath: true,
+          pathVisited: nextPathVisited,
+        });
       }
     }
   }
@@ -271,19 +235,7 @@ function inlineNodes(
   return { nodes: remainingNodes, edges: newEdges };
 }
 
-function isProtectedRenpyEntryNode(node: FlowNode): boolean {
-  const lbl = node.label.toLowerCase();
-  return (
-    node.id === "start" ||
-    lbl === "start" ||
-    lbl === "splashscreen" ||
-    lbl === "main_menu" ||
-    lbl === "after_load" ||
-    lbl === "before_main_menu"
-  );
-}
-
-function collapseLinearChains(
+export function collapseLinearChains(
   nodes: FlowNode[],
   edges: FlowEdge[],
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
@@ -313,8 +265,8 @@ function collapseLinearChains(
       A.type === "LABEL" &&
       B.type === "LABEL" &&
       A.chapter === B.chapter &&
-      !isProtectedRenpyEntryNode(A) &&
-      !isProtectedRenpyEntryNode(B) &&
+      A.id !== "start" &&
+      B.id !== "start" &&
       (outgoing.get(A.id)?.length ?? 0) === 1 &&
       (incoming.get(B.id)?.length ?? 0) === 1 &&
       !edge.label &&
@@ -361,13 +313,6 @@ function collapseLinearChains(
       const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
       const audioAssetCues = [...(rootNode.audioAssetCues || [])];
       const collapsedLabels = [...(rootNode.collapsedLabels || [])];
-      const characterDialogue: Record<
-        string,
-        { lineCount: number; wordCount: number }
-      > = {};
-      for (const [spk, st] of Object.entries(rootNode.characterDialogue || {})) {
-        characterDialogue[spk] = { ...st };
-      }
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
@@ -381,17 +326,10 @@ function collapseLinearChains(
         audioAssetCues.push(...(node.audioAssetCues || []));
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
-        if (node.characterDialogue) {
-          for (const [spk, st] of Object.entries(node.characterDialogue)) {
-            if (!characterDialogue[spk]) {
-              characterDialogue[spk] = { lineCount: 0, wordCount: 0 };
-            }
-            characterDialogue[spk]!.lineCount += st.lineCount;
-            characterDialogue[spk]!.wordCount += st.wordCount;
-          }
-        }
         if (node.isShadowed) isShadowed = true;
-        if (node.isTerminalOutcome) isTerminalOutcome = true;
+        if (i === path.length - 1) {
+          isTerminalOutcome = node.isTerminalOutcome;
+        }
         collapsedInto.set(node.id, rootId);
       }
 
@@ -404,14 +342,13 @@ function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
-        characterDialogue: Object.keys(characterDialogue).length > 0
-          ? characterDialogue
-          : undefined,
         isShadowed,
         isTerminalOutcome,
       });
     }
   }
+
+  const cycleRoots = new Set<string>();
 
   // 2. Traverse remaining nodes with outgoing collapsible (handles cycles)
   for (const startId of hasOutgoingCollapsible) {
@@ -424,6 +361,10 @@ function collapseLinearChains(
     while (collapsibleEdges.has(currentId)) {
       const edge = collapsibleEdges.get(currentId)!;
       const nextId = edge.target;
+      if (nextId === startId) {
+        cycleRoots.add(startId);
+        break;
+      }
       if (visited.has(nextId)) break;
       visited.add(nextId);
       path.push(nextId);
@@ -440,13 +381,6 @@ function collapseLinearChains(
       const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
       const audioAssetCues = [...(rootNode.audioAssetCues || [])];
       const collapsedLabels = [...(rootNode.collapsedLabels || [])];
-      const characterDialogue: Record<
-        string,
-        { lineCount: number; wordCount: number }
-      > = {};
-      for (const [spk, st] of Object.entries(rootNode.characterDialogue || {})) {
-        characterDialogue[spk] = { ...st };
-      }
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
@@ -460,17 +394,10 @@ function collapseLinearChains(
         audioAssetCues.push(...(node.audioAssetCues || []));
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
-        if (node.characterDialogue) {
-          for (const [spk, st] of Object.entries(node.characterDialogue)) {
-            if (!characterDialogue[spk]) {
-              characterDialogue[spk] = { lineCount: 0, wordCount: 0 };
-            }
-            characterDialogue[spk]!.lineCount += st.lineCount;
-            characterDialogue[spk]!.wordCount += st.wordCount;
-          }
-        }
         if (node.isShadowed) isShadowed = true;
-        if (node.isTerminalOutcome) isTerminalOutcome = true;
+        if (i === path.length - 1) {
+          isTerminalOutcome = node.isTerminalOutcome;
+        }
         collapsedInto.set(node.id, rootId);
       }
 
@@ -483,9 +410,6 @@ function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
-        characterDialogue: Object.keys(characterDialogue).length > 0
-          ? characterDialogue
-          : undefined,
         isShadowed,
         isTerminalOutcome,
       });
@@ -510,29 +434,38 @@ function collapseLinearChains(
   }
 
   const finalEdges: FlowEdge[] = [];
+  const addedSelfLoopRoots = new Set<string>();
+
   for (const edge of edges) {
-    if (collapsedEdgeIds.has(edge.id)) continue;
+    const sRoot = collapsedInto.get(edge.source) ?? edge.source;
+    const tRoot = collapsedInto.get(edge.target) ?? edge.target;
 
-    const newSource = collapsedInto.has(edge.source)
-      ? collapsedInto.get(edge.source)!
-      : edge.source;
-    const newTarget = collapsedInto.has(edge.target)
-      ? collapsedInto.get(edge.target)!
-      : edge.target;
+    if (collapsedEdgeIds.has(edge.id)) {
+      if (
+        sRoot === tRoot && cycleRoots.has(sRoot) &&
+        !addedSelfLoopRoots.has(sRoot)
+      ) {
+        addedSelfLoopRoots.add(sRoot);
+        finalEdges.push({
+          ...edge,
+          id: `${edge.kind || "sequence"}_${sRoot}__${tRoot}__loop`,
+          source: sRoot,
+          target: tRoot,
+        });
+      }
+      continue;
+    }
 
-    if (newSource === newTarget) continue;
-
-    const isCollapsed = collapsedInto.has(edge.source) ||
-      collapsedInto.has(edge.target);
-
-    finalEdges.push({
-      ...edge,
-      id: isCollapsed
-        ? `${edge.kind || "sequence"}_${newSource}__${newTarget}__collapsed_${edge.id}`
-        : edge.id,
-      source: newSource,
-      target: newTarget,
-    });
+    if (collapsedInto.has(edge.source) || collapsedInto.has(edge.target)) {
+      finalEdges.push({
+        ...edge,
+        id: `${edge.kind || "sequence"}_${sRoot}__${tRoot}__collapsed`,
+        source: sRoot,
+        target: tRoot,
+      });
+    } else {
+      finalEdges.push(edge);
+    }
   }
 
   return { nodes: finalNodes, edges: finalEdges };

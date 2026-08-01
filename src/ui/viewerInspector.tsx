@@ -4,8 +4,6 @@ import { type CanvasNode, type NodeData } from "../domain/index.ts";
 import type { DialogueSearchResult } from "../infrastructure/index.ts";
 import { InspectorSearchResults } from "./components/InspectorSearchResults.tsx";
 import { InspectorNodeDetails } from "./components/InspectorNodeDetails.tsx";
-import { PathExplorerPanel } from "./components/PathExplorerPanel.tsx";
-import type { CanvasEdge, PathResult } from "../domain/index.ts";
 
 type SelectedNodeData = NodeData;
 
@@ -25,15 +23,6 @@ export interface ViewerInspectorProps {
   onToggleShowAllInspectorLines: () => void;
   onSetActiveDialogueResultIndex: (index: number) => void;
   onSelectDialogueSearchResult: (result: DialogueSearchResult) => void;
-  onSetPathStart: () => void;
-  onSetPathTarget: () => void;
-  pathStartNodeId: string | null;
-  pathTargetNodeId: string | null;
-  pathResult: PathResult | null;
-  nodes: CanvasNode[];
-  edges: CanvasEdge[];
-  onClearPath: () => void;
-  onSelectNode: (nodeId: string) => void;
 }
 
 export function ViewerInspector({
@@ -52,15 +41,6 @@ export function ViewerInspector({
   onToggleShowAllInspectorLines,
   onSetActiveDialogueResultIndex,
   onSelectDialogueSearchResult,
-  onSetPathStart,
-  onSetPathTarget,
-  pathStartNodeId,
-  pathTargetNodeId,
-  pathResult,
-  nodes,
-  edges,
-  onClearPath,
-  onSelectNode,
 }: ViewerInspectorProps) {
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -126,23 +106,8 @@ export function ViewerInspector({
             theme={theme}
             isDark={isDark}
             readingSpeedWpm={readingSpeedWpm}
-            onSetPathStart={onSetPathStart}
-            onSetPathTarget={onSetPathTarget}
           />
         )}
-
-      {(pathStartNodeId || pathTargetNodeId) && (
-        <PathExplorerPanel
-          pathResult={pathResult}
-          pathStartNodeId={pathStartNodeId}
-          pathTargetNodeId={pathTargetNodeId}
-          nodes={nodes}
-          edges={edges}
-          onClearPath={onClearPath}
-          onSelectNode={onSelectNode}
-          isDark={isDark}
-        />
-      )}
     </aside>
   );
 }

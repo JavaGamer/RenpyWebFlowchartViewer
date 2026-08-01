@@ -29,7 +29,7 @@ export function createEmptyMockFlags(): Record<string, MockFlagValue> {
 
 /** Returns `true` when `flag` is safe to use as a mock-flags record key. */
 export function isSafeMockFlagKey(flag: string): boolean {
-  return !UNSAFE_MOCK_FLAG_KEYS.has(flag) && !(flag in Object.prototype);
+  return !UNSAFE_MOCK_FLAG_KEYS.has(flag);
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────

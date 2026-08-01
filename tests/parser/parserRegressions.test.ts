@@ -4,6 +4,14 @@ import { resolve } from "node:path";
 import { parseRenpyFiles } from "../../src/parser/parser";
 import { createGraphState } from "../../src/parser/pipelineState";
 import { preParseInitialization } from "../../src/parser/initMapper";
+import { computeLineIndent } from "../../src/parser/tokenScanStage";
+import { extractSceneAsset } from "../../src/parser/handlers/audioCues";
+import { PARSER_TOKENS } from "../../src/parser/parserTokens";
+import {
+  buildConditionalVisibility,
+  collapseLinearChains,
+  simplifyGraph,
+} from "../../src/domain";
 
 function loadFixture(name: string): string {
   const fixturesDir = resolve(import.meta.dirname, "../fixtures");
@@ -2423,5 +2431,214 @@ describe("parseRenpyFiles", () => {
     expect(fallthroughEdge).toBeDefined();
     expect(fallthroughEdge?.target).toBe("start__scene_2");
     expect(fallthroughEdge?.label).toBe("next");
+  });
+
+  // ── Milestone 2 Bug Fix Regressions ──────────────────────────────────────────
+
+  it("m2-regression: computeLineIndent accurately treats tabs as 8-space tab stops", () => {
+    expect(computeLineIndent("    hello")).toBe(4);
+    expect(computeLineIndent("\thello")).toBe(8);
+    expect(computeLineIndent("  \thello")).toBe(8);
+    expect(computeLineIndent("\t    hello")).toBe(12);
+    expect(computeLineIndent("\t\thello")).toBe(16);
+  });
+
+  it("m2-regression: shadowed label target resolution resolves file-local label before falling back to canonical ID", async () => {
+    const files = [
+      {
+        name: "fileA.rpy",
+        content: [
+          "label start:",
+          '    "Starting in A"',
+          "    jump local_label",
+          "",
+          "label local_label:",
+          '    "Local A"',
+          "",
+        ].join("\n"),
+      },
+      {
+        name: "fileB.rpy",
+        content: [
+          "label start:",
+          '    "Starting in B"',
+          "    jump local_label",
+          "",
+          "label local_label:",
+          '    "Local B"',
+          "",
+        ].join("\n"),
+      },
+    ];
+
+    const result = await parseRenpyFiles(files);
+
+    // Verify shadowed label local_label__shadow_2 exists
+    const localBNode = result.nodes.find((n) =>
+      n.id === "local_label__shadow_2"
+    );
+    expect(localBNode).toBeDefined();
+
+    // Verify jump from start__shadow_2 targets local_label__shadow_2, not canonical local_label
+    const jumpFromB = result.edges.find((e) =>
+      e.source === "start__shadow_2" && e.kind === "jump"
+    );
+    expect(jumpFromB).toBeDefined();
+    expect(jumpFromB?.target).toBe("local_label__shadow_2");
+  });
+
+  it("m2-regression: elif/else branches construct distinct decision contexts without in-place mutation", async () => {
+    const script = [
+      "label start:",
+      "    if flag == 1:",
+      '        "One"',
+      "    elif flag == 2:",
+      '        "Two"',
+      "    else:",
+      '        "Other"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "branch.rpy",
+      content: script,
+    }]);
+    const decisionNode = result.nodes.find((n) => n.type === "DECISION");
+    expect(decisionNode).toBeDefined();
+    expect(decisionNode?.condition?.branchKind).toBe("if");
+  });
+
+  it("m2-regression: post-conditional block creates rejoin edge to downstream label/scene statement", async () => {
+    const script = [
+      "label start:",
+      '    "before"',
+      "    if check_flag:",
+      '        "inside if"',
+      "    scene bg space",
+      '    "after conditional"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles(
+      [{ name: "post_cond_rejoin.rpy", content: script }],
+      { sceneSplitDialogueThreshold: 0 },
+    );
+
+    const decisionNode = result.nodes.find((n) => n.type === "DECISION");
+    expect(decisionNode).toBeDefined();
+
+    const rejoinEdge = result.edges.find(
+      (e) =>
+        e.source === decisionNode?.id && e.kind === "sequence" &&
+        e.target === "start__scene_2",
+    );
+    expect(rejoinEdge).toBeDefined();
+    expect(rejoinEdge?.label).toBe("next");
+  });
+
+  it("m2-regression: menu fallthrough is preserved when option jump is conditional", async () => {
+    const script = [
+      "label start:",
+      "    menu:",
+      '        "Conditional option":',
+      "            if flag:",
+      "                jump end_label",
+      "",
+      "label end_label:",
+      '    "end"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "menu_cond_jump.rpy", content: script },
+    ]);
+
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode).toBeDefined();
+
+    // Verify conditional jump edge exists from menu
+    const jumpEdge = result.edges.find(
+      (e) => e.source === menuNode?.id && e.kind === "jump",
+    );
+    expect(jumpEdge).toBeDefined();
+    expect(jumpEdge?.target).toBe("end_label");
+
+    // Fallthrough sequence edge should exist from menuNode because flag condition might be false
+    const fallthroughEdge = result.edges.find(
+      (e) => e.source === menuNode?.id && e.kind === "sequence",
+    );
+    expect(fallthroughEdge).toBeDefined();
+  });
+
+  it("m2-regression: PARSER_TOKENS includes kwShow and kwHide, and while loops create DECISION nodes", async () => {
+    expect(PARSER_TOKENS.kwShow).toBeDefined();
+    expect(PARSER_TOKENS.kwHide).toBeDefined();
+
+    const script = [
+      "label start:",
+      "    while loop_counter > 0:",
+      '        "looping"',
+      "",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "while_loop.rpy",
+      content: script,
+    }]);
+    const whileDecisionNode = result.nodes.find((n) => n.type === "DECISION");
+    expect(whileDecisionNode).toBeDefined();
+    expect(whileDecisionNode?.label).toContain("while");
+  });
+
+  it("m2-regression: extractSceneAsset strips trailing colons from scene statements", () => {
+    expect(extractSceneAsset("scene bg room:")).toBe("bg room");
+    expect(extractSceneAsset("scene bg room with fade:")).toBe("bg room");
+    expect(extractSceneAsset('scene "bg room":')).toBe("bg room");
+    expect(extractSceneAsset("scene bg room")).toBe("bg room");
+  });
+
+  it("adv-regression: buildConditionalVisibility preserves disconnected cycles", () => {
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      { id: "cycle_a", type: "LABEL", label: "cycle_a", dialogueCount: 1 },
+      { id: "cycle_b", type: "LABEL", label: "cycle_b", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "cycle_a", target: "cycle_b", kind: "sequence" },
+      { id: "e2", source: "cycle_b", target: "cycle_a", kind: "sequence" },
+    ];
+
+    const result = buildConditionalVisibility({
+      nodes,
+      edges,
+      mockFlags: {},
+    });
+
+    expect(result.hiddenNodeIds.has("cycle_a")).toBe(false);
+    expect(result.hiddenNodeIds.has("cycle_b")).toBe(false);
+  });
+
+  it("adv-regression: collapseLinearChains preserves loop edge for collapsed pure cycle", () => {
+    const nodes: FlowNode[] = [
+      { id: "loop_a", type: "LABEL", label: "loop_a", dialogueCount: 1 },
+      { id: "loop_b", type: "LABEL", label: "loop_b", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "loop_a", target: "loop_b", kind: "sequence" },
+      { id: "e2", source: "loop_b", target: "loop_a", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      collapseLinearChains: true,
+      inlineUtilities: false,
+      inlineDetours: false,
+      inlineStateToggles: false,
+      inlineEmptyLabels: false,
+      inlineDialogueThreshold: 0,
+    });
+    expect(result.nodes).toHaveLength(1);
+    expect(
+      result.edges.some((e) => e.source === "loop_a" && e.target === "loop_a"),
+    ).toBe(true);
   });
 });

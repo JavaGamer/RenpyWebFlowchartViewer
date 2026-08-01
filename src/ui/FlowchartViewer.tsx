@@ -9,6 +9,11 @@ import {
 import { type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ErrorBoundary } from "react-error-boundary";
+import {
+  exportToHtmlBundle,
+  exportToMermaid,
+  exportToStoryboard,
+} from "../application/index.ts";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type {
@@ -17,16 +22,9 @@ import type {
   FlowEdge,
   FlowNode,
 } from "../domain/index.ts";
-import { saveAs } from "file-saver";
-import { Toaster, toast } from "sonner";
 import {
   type DebugBundlePrivacyOptions,
   type DialogueSearchMode,
-  exportMermaid,
-  exportNarrativeOutline,
-  exportStandaloneHtml,
-  generateDialogueCsv,
-  exportFlowchartToPdf,
   type ParseService,
   useAppStore,
   useDebugBundle,
@@ -207,6 +205,39 @@ export default function FlowchartViewer({
   );
 
   // -- Toolbar callbacks ------------------------------------------------------
+  const onExportMermaid = useCallback(async () => {
+    const mermaidStr = exportToMermaid(flowNodes, flowEdges);
+    const blob = new Blob([mermaidStr], { type: "text/plain" });
+    const { saveAs } = await import("file-saver");
+    saveAs(blob, "renpy-flowchart.mmd");
+  }, [flowNodes, flowEdges]);
+
+  const onExportStoryboard = useCallback(async () => {
+    const mdStr = exportToStoryboard(flowNodes);
+    const blob = new Blob([mdStr], { type: "text/plain" });
+    const { saveAs } = await import("file-saver");
+    saveAs(blob, "renpy-storyboard.md");
+  }, [flowNodes]);
+
+  const onExportHtmlBundle = useCallback(async () => {
+    if (!flowRef.current) return;
+    const { toSvg } = await import("html-to-image");
+    const { saveAs } = await import("file-saver");
+    toSvg(flowRef.current, {
+      backgroundColor: THEMES[theme].pageBg,
+      width: flowRef.current.offsetWidth,
+      height: flowRef.current.offsetHeight,
+    })
+      .then((svgDataUrl) => {
+        const htmlStr = exportToHtmlBundle(svgDataUrl);
+        const blob = new Blob([htmlStr], { type: "text/html" });
+        saveAs(blob, "renpy-flowchart-interactive.html");
+      })
+      .catch((err) => {
+        console.error("HTML Bundle export failed:", err);
+      });
+  }, [theme]);
+
   const onExportJson = useCallback(async () => {
     const graphJson = JSON.stringify(
       { nodes: flowNodes, edges: flowEdges },
@@ -216,27 +247,6 @@ export default function FlowchartViewer({
     const blob = new Blob([graphJson], { type: "application/json" });
     const { saveAs } = await import("file-saver");
     saveAs(blob, "renpy-flowchart.json");
-  }, [flowEdges, flowNodes]);
-
-  const onExportMermaid = useCallback(async () => {
-    const mermaid = exportMermaid(flowNodes, flowEdges);
-    const blob = new Blob([mermaid], { type: "text/plain" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "renpy-flowchart.mmd");
-  }, [flowEdges, flowNodes]);
-
-  const onExportNarrative = useCallback(async () => {
-    const outline = exportNarrativeOutline(flowNodes, flowEdges);
-    const blob = new Blob([outline], { type: "text/markdown" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "renpy-flowchart-outline.md");
-  }, [flowEdges, flowNodes]);
-
-  const onExportStandalone = useCallback(async () => {
-    const html = exportStandaloneHtml(flowNodes, flowEdges);
-    const blob = new Blob([html], { type: "text/html" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "renpy-flowchart-standalone.html");
   }, [flowEdges, flowNodes]);
 
   const onExport = useCallback(async () => {
@@ -305,14 +315,6 @@ export default function FlowchartViewer({
   // -- Global keyboard shortcuts ----------------------------------------------
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const isInputTarget =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable);
-
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         setShowAdvancedControls(false);
@@ -322,9 +324,6 @@ export default function FlowchartViewer({
         }, 0);
         return;
       }
-
-      if (isInputTarget) return;
-
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "e") {
         event.preventDefault();
         onExport();
@@ -349,45 +348,6 @@ export default function FlowchartViewer({
     return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, [onExport, canUndo, canRedo, undo, redo, setShowAdvancedControls]);
 
-  const handleExportPdf = useCallback(async () => {
-    if (!flowRef.current) return;
-    const svg =
-      flowRef.current.querySelector(".react-flow__viewport svg") ||
-      flowRef.current.querySelector("svg");
-    if (!svg) {
-      toast.error("Could not find flowchart SVG container");
-      return;
-    }
-    try {
-      toast.info("Generating Vector PDF...");
-      await exportFlowchartToPdf(svg as SVGElement);
-      toast.success("Vector PDF exported successfully!");
-    } catch (err) {
-      toast.error(
-        "Failed to export PDF: " +
-          (err instanceof Error ? err.message : String(err)),
-      );
-    }
-  }, []);
-
-  const handleExportCsv = useCallback(() => {
-    if (!flowNodes || flowNodes.length === 0) {
-      toast.warning("No flowchart nodes available to export");
-      return;
-    }
-    try {
-      const csvContent = generateDialogueCsv(flowNodes);
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      saveAs(blob, "renpy-dialogue.csv");
-      toast.success("Dialogue CSV exported successfully!");
-    } catch (err) {
-      toast.error(
-        "Failed to export CSV: " +
-          (err instanceof Error ? err.message : String(err)),
-      );
-    }
-  }, [flowNodes]);
-
   // -- Render -----------------------------------------------------------------
   return (
     <div
@@ -398,7 +358,6 @@ export default function FlowchartViewer({
       }}
       data-theme={theme}
     >
-      <Toaster position="bottom-right" duration={3000} />
       {/* Toolbar - always rendered, even when the canvas has errored */}
       <ViewerToolbar
         theme={theme}
@@ -425,10 +384,8 @@ export default function FlowchartViewer({
         onExportSvg={onExportSvg}
         onExportJson={onExportJson}
         onExportMermaid={onExportMermaid}
-        onExportNarrative={onExportNarrative}
-        onExportStandalone={onExportStandalone}
-        onExportPdf={handleExportPdf}
-        onExportCsv={handleExportCsv}
+        onExportStoryboard={onExportStoryboard}
+        onExportHtmlBundle={onExportHtmlBundle}
         onExportDebugBundle={onExportDebugBundle}
         onOpenIssue={onOpenIssue}
         debugPrivacyOptions={debugPrivacyOptions}

@@ -25,8 +25,6 @@ import {
   walkScreenActionExpression,
 } from "./screenActionExtractor.ts";
 
-import { parsePythonBlockAst } from "../../pythonAstParser.ts";
-
 const PYTHON_RENPY_CALL_START_PATTERN = /\brenpy\.(jump|call)\s*\(/g;
 const PYTHON_ASSIGNMENT_PATTERN_SOURCE =
   "^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)(?:[ \\t]*:[^=\\n#]+)?[ \\t]*=(?!=)([^\\n]*)$";
@@ -203,27 +201,6 @@ export function processDirectRenpyBlockCalls(
     });
   }
 
-  for (const astCall of parsePythonBlockAst(blockText)) {
-    if (ignoredMask[astCall.index]) continue;
-    if (astCall.type === "call_in_new_context" && astCall.targetExpression) {
-      events.push({
-        kind: "call",
-        index: astCall.index,
-        callType: "call",
-        construct: "renpy.call_in_new_context" as unknown as "renpy.call",
-        targetExpression: astCall.targetExpression,
-      });
-    } else if (astCall.type === "dict_jump" && astCall.targetExpression) {
-      events.push({
-        kind: "call",
-        index: astCall.index,
-        callType: "jump",
-        construct: "renpy.jump",
-        targetExpression: astCall.targetExpression,
-      });
-    }
-  }
-
   PYTHON_ASSIGNMENT_PATTERN.lastIndex = 0;
   while ((match = PYTHON_ASSIGNMENT_PATTERN.exec(blockText)) !== null) {
     if (ignoredMask[match.index]) continue;
@@ -325,15 +302,7 @@ export function processDirectScreenActionCalls(
     targetExpression: string,
     timeout?: FlowEdge["timeout"],
   ) => {
-    const cName = construct.toLowerCase();
-    let callType = screenActionRuleMap.get(cName);
-    if (!callType) {
-      if (cName === "showmenu" || cName === "show" || cName === "return") {
-        callType = "call";
-      } else if (cName === "replay") {
-        callType = "jump";
-      }
-    }
+    const callType = screenActionRuleMap.get(construct.toLowerCase());
     if (!callType) return;
     const context = resolveCallContext(scanState, meta, menuDepth);
     const targets = extractStaticTargetsFromArgumentList(
@@ -367,9 +336,9 @@ export function processDirectScreenActionCalls(
       if (seenCalls.has(dedupeKey)) continue;
       seenCalls.add(dedupeKey);
       if (callType === "jump") {
-        emitJumpEdge(state, scanState, target, context, false, timeout, "screen");
+        emitJumpEdge(state, scanState, target, context, false, timeout);
       } else {
-        emitCallEdge(state, scanState, target, context, timeout, "screen");
+        emitCallEdge(state, scanState, target, context, timeout);
       }
     }
   };

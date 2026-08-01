@@ -74,9 +74,10 @@ export function Modal({
           : (
             <>
               {/* Sidebar Overlay */}
-              {modal && (
-                <Dialog.Overlay className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in" />
-              )}
+              <div
+                className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in"
+                aria-hidden="true"
+              />
               <Dialog.Content
                 className={cn(
                   "fixed right-0 top-0 bottom-0 w-full max-w-md shadow-2xl z-50 flex flex-col focus:outline-none animate-slide-in transition-colors duration-200",
