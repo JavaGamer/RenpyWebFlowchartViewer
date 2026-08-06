@@ -7,6 +7,7 @@ import { addParseDiagnostic } from "./diagnostics.ts";
 import {
   buildMockFlagsFromVariableState,
   evaluateConditionExpression,
+  type FlowEdge,
 } from "../domain/index.ts";
 
 /**
@@ -18,13 +19,26 @@ import {
  * 4. Path-aware variable state propagation and static condition evaluation.
  */
 export function runControlFlowAnalysis(state: ParseGraphState): void {
-  analyzeReachability(state);
-  analyzeTightCycles(state);
-  analyzeCallReturnMismatches(state);
-  propagateVariableMutationsAndEvaluateConditions(state);
+  const outgoingMap = new Map<string, FlowEdge[]>();
+  for (const edge of state.edges) {
+    let list = outgoingMap.get(edge.source);
+    if (!list) {
+      list = [];
+      outgoingMap.set(edge.source, list);
+    }
+    list.push(edge);
+  }
+
+  analyzeReachability(state, outgoingMap);
+  analyzeTightCycles(state, outgoingMap);
+  analyzeCallReturnMismatches(state, outgoingMap);
+  propagateVariableMutationsAndEvaluateConditions(state, outgoingMap);
 }
 
-function analyzeReachability(state: ParseGraphState): void {
+function analyzeReachability(
+  state: ParseGraphState,
+  outgoingMap: Map<string, FlowEdge[]>,
+): void {
   const visited = new Set<string>();
   const queue: string[] = [];
 
@@ -46,7 +60,7 @@ function analyzeReachability(state: ParseGraphState): void {
 
   while (queue.length > 0) {
     const currId = queue.shift()!;
-    const outgoingEdges = state.edges.filter((e) => e.source === currId);
+    const outgoingEdges = outgoingMap.get(currId) ?? [];
     for (const edge of outgoingEdges) {
       if (!visited.has(edge.target)) {
         if (state.nodeMap.has(edge.target)) {
@@ -69,6 +83,7 @@ function analyzeReachability(state: ParseGraphState): void {
             chapter: node.chapter,
             construct: "label",
             sourceId: node.id,
+            sourceLocation: node.sourceLocation,
           },
           context: {
             category: "unreachable_label",
@@ -84,80 +99,104 @@ function analyzeReachability(state: ParseGraphState): void {
   }
 }
 
-function analyzeTightCycles(state: ParseGraphState): void {
-  const path = new Set<string>();
-  const tempVisited = new Set<string>();
+/**
+ * Iterative stack-based 3-color DFS to detect dialogue-less tight infinite loops safely
+ * without stack overflow or N^2 array scanning.
+ */
+function analyzeTightCycles(
+  state: ParseGraphState,
+  outgoingMap: Map<string, FlowEdge[]>,
+): void {
+  // 0 = unvisited, 1 = visiting (in path), 2 = visited (fully processed)
+  const color = new Map<string, number>();
 
-  function dfsCycle(nodeId: string, currentPath: string[]) {
-    if (path.has(nodeId)) {
-      const cycleStartIndex = currentPath.indexOf(nodeId);
-      const cycle = currentPath.slice(cycleStartIndex);
-      let hasInteraction = false;
-      for (const id of cycle) {
-        const node = state.nodeMap.get(id);
-        if (node) {
-          if (
-            node.type === "MENU" ||
-            node.dialogueCount > 0 ||
-            (node.pauseDuration && node.pauseDuration > 0)
-          ) {
-            hasInteraction = true;
-            break;
+  for (const startNode of state.nodes) {
+    if (color.get(startNode.id)) continue;
+
+    const stack: Array<{ nodeId: string; edgeIndex: number }> = [
+      { nodeId: startNode.id, edgeIndex: 0 },
+    ];
+    color.set(startNode.id, 1);
+    const pathNodes: string[] = [startNode.id];
+
+    while (stack.length > 0) {
+      const top = stack[stack.length - 1]!;
+      const outgoing = (outgoingMap.get(top.nodeId) ?? []).filter(
+        (e) => e.kind === "sequence" || e.kind === "jump" || e.kind === "call",
+      );
+
+      if (top.edgeIndex < outgoing.length) {
+        const edge = outgoing[top.edgeIndex]!;
+        top.edgeIndex += 1;
+        const targetId = edge.target;
+        const targetColor = color.get(targetId) ?? 0;
+
+        if (targetColor === 1) {
+          // Cycle detected!
+          const cycleStartIndex = pathNodes.indexOf(targetId);
+          if (cycleStartIndex !== -1) {
+            const cycle = pathNodes.slice(cycleStartIndex);
+            let hasInteraction = false;
+            for (const id of cycle) {
+              const node = state.nodeMap.get(id);
+              if (
+                node &&
+                (node.type === "MENU" ||
+                  node.dialogueCount > 0 ||
+                  (node.pauseDuration && node.pauseDuration > 0))
+              ) {
+                hasInteraction = true;
+                break;
+              }
+            }
+            if (!hasInteraction) {
+              const cycleLabels = cycle
+                .map((id) => state.nodeMap.get(id)?.label ?? id)
+                .join(" -> ");
+              const cycleKey = [...cycle].sort().join("|");
+              const targetNode = state.nodeMap.get(targetId);
+              addParseDiagnostic(
+                state,
+                {
+                  code: "normalization",
+                  severity: "warning",
+                  location: {
+                    sourceId: targetId,
+                    sourceLocation: targetNode?.sourceLocation,
+                  },
+                  context: {
+                    category: "infinite_loop",
+                    detail: cycleLabels,
+                  },
+                  message:
+                    `Dialogue-less infinite loop detected: ${cycleLabels} -> ${
+                      state.nodeMap.get(targetId)?.label ?? targetId
+                    }`,
+                  recoveryAction:
+                    "Add a dialogue line, a menu choice, or a pause statement to break the tight loop.",
+                },
+                `infinite_loop|${cycleKey}`,
+              );
+            }
           }
+        } else if (targetColor === 0) {
+          color.set(targetId, 1);
+          pathNodes.push(targetId);
+          stack.push({ nodeId: targetId, edgeIndex: 0 });
         }
+      } else {
+        color.set(top.nodeId, 2);
+        pathNodes.pop();
+        stack.pop();
       }
-      if (!hasInteraction) {
-        const cycleLabels = cycle
-          .map((id) => state.nodeMap.get(id)?.label ?? id)
-          .join(" -> ");
-        const cycleKey = [...cycle].sort().join("|");
-        addParseDiagnostic(
-          state,
-          {
-            code: "normalization",
-            severity: "warning",
-            location: {
-              sourceId: nodeId,
-            },
-            context: {
-              category: "infinite_loop",
-              detail: cycleLabels,
-            },
-            message: `Dialogue-less infinite loop detected: ${cycleLabels} -> ${
-              state.nodeMap.get(nodeId)?.label ?? nodeId
-            }`,
-            recoveryAction:
-              "Add a dialogue line, a menu choice, or a pause statement to break the tight loop.",
-          },
-          `infinite_loop|${cycleKey}`,
-        );
-      }
-      return;
     }
-    if (tempVisited.has(nodeId)) return;
-    tempVisited.add(nodeId);
-    path.add(nodeId);
-    currentPath.push(nodeId);
-
-    const outgoingEdges = state.edges.filter(
-      (e) =>
-        e.source === nodeId && (e.kind === "sequence" || e.kind === "jump"),
-    );
-    for (const edge of outgoingEdges) {
-      dfsCycle(edge.target, currentPath);
-    }
-
-    currentPath.pop();
-    path.delete(nodeId);
-  }
-
-  for (const node of state.nodes) {
-    dfsCycle(node.id, []);
-    tempVisited.clear();
   }
 }
 
-function analyzeCallReturnMismatches(state: ParseGraphState): void {
+function analyzeCallReturnMismatches(
+  state: ParseGraphState,
+  outgoingMap: Map<string, FlowEdge[]>,
+): void {
   function canReachReturn(startId: string): boolean {
     const visited = new Set<string>();
     const queue = [startId];
@@ -168,9 +207,8 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
       if (state.hasReturnInLabel.has(currId)) {
         return true;
       }
-      const outgoingEdges = state.edges.filter(
-        (e) =>
-          e.source === currId && (e.kind === "sequence" || e.kind === "jump"),
+      const outgoingEdges = (outgoingMap.get(currId) ?? []).filter(
+        (e) => e.kind === "sequence" || e.kind === "jump",
       );
       for (const edge of outgoingEdges) {
         if (!visited.has(edge.target)) {
@@ -195,6 +233,7 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
               chapter: node.chapter,
               construct: "label",
               sourceId: calledId,
+              sourceLocation: node.sourceLocation,
             },
             context: {
               category: "missing_return",
@@ -224,6 +263,7 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
               chapter: node.chapter,
               construct: "label",
               sourceId: labelId,
+              sourceLocation: node.sourceLocation,
             },
             context: {
               category: "uncalled_return",
@@ -268,6 +308,7 @@ function mergePathStates(
 
 function propagateVariableMutationsAndEvaluateConditions(
   state: ParseGraphState,
+  outgoingMap: Map<string, FlowEdge[]>,
 ): void {
   const startCanonicalId = state.canonicalLabelIdByName?.get("start");
   const entryId = (state.nodeMap.has("start") ? "start" : startCanonicalId) ??
@@ -330,7 +371,7 @@ function propagateVariableMutationsAndEvaluateConditions(
       }
     }
 
-    const outgoing = state.edges.filter((e) => e.source === currId);
+    const outgoing = outgoingMap.get(currId) ?? [];
     for (const edge of outgoing) {
       if (edge.condition?.expression) {
         const mockFlags = buildMockFlagsFromVariableState(

@@ -41,13 +41,15 @@ describe("parseRenpyFiles", () => {
       ]),
     );
 
-    expect(result.edges).toContainEqual({
-      id: "seq_start__second",
-      source: "start",
-      target: "second",
-      kind: "sequence",
-      label: "next",
-    });
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        id: "seq_start__second",
+        source: "start",
+        target: "second",
+        kind: "sequence",
+        label: "next",
+      }),
+    );
   });
 
   it("keeps duplicate label nodes visible across files while preserving local sequence edges", async () => {

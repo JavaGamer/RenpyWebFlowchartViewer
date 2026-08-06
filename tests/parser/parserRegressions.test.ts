@@ -7,11 +7,7 @@ import { preParseInitialization } from "../../src/parser/initMapper";
 import { computeLineIndent } from "../../src/parser/tokenScanStage";
 import { extractSceneAsset } from "../../src/parser/handlers/audioCues";
 import { PARSER_TOKENS } from "../../src/parser/parserTokens";
-import {
-  buildConditionalVisibility,
-  collapseLinearChains,
-  simplifyGraph,
-} from "../../src/domain";
+import { buildConditionalVisibility, simplifyGraph } from "../../src/domain";
 
 function loadFixture(name: string): string {
   const fixturesDir = resolve(import.meta.dirname, "../fixtures");
@@ -2001,50 +1997,55 @@ describe("parseRenpyFiles", () => {
     expect(scene2).toBeDefined();
 
     expect(scene1?.audioAssetCues).toEqual([
-      {
+      expect.objectContaining({
         type: "scene",
         asset: "bg room",
         raw: "scene bg room with fade",
         lineNum: 1,
-      },
-      {
+      }),
+      expect.objectContaining({
         type: "play",
         channel: "music",
         asset: "audio/bgm_chill.ogg",
         raw: 'play music "audio/bgm_chill.ogg" fadein 1.0',
         lineNum: 2,
-      },
-      {
+      }),
+      expect.objectContaining({
         type: "play",
         channel: "sound",
         asset: "audio/sfx_ding.wav",
         raw: 'play sound "audio/sfx_ding.wav"',
         lineNum: 6,
-      },
-      {
+      }),
+      expect.objectContaining({
         type: "voice",
         asset: "audio/voice_line_1.mp3",
         raw: 'voice "audio/voice_line_1.mp3"',
         lineNum: 7,
-      },
-      {
+      }),
+      expect.objectContaining({
         type: "stop",
         channel: "music",
         asset: "",
         raw: "stop music fadeout 2.0",
         lineNum: 9,
-      },
-      {
+      }),
+      expect.objectContaining({
         type: "queue",
         channel: "music",
         asset: "theme_track",
         raw: "queue music theme_track",
         lineNum: 10,
-      },
+      }),
     ]);
 
     expect(scene2?.audioAssetCues).toEqual([
-      { type: "scene", asset: "bg beach", raw: "scene bg beach", lineNum: 11 },
+      expect.objectContaining({
+        type: "scene",
+        asset: "bg beach",
+        raw: "scene bg beach",
+        lineNum: 11,
+      }),
     ]);
   });
 

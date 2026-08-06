@@ -21,12 +21,31 @@ export interface TimeoutMetadata {
   durationSeconds?: number;
 }
 
+export interface SourcePosition {
+  /** 0-indexed line number */
+  line: number;
+  /** 0-indexed character offset within the line */
+  character: number;
+  /** 0-indexed absolute character offset from beginning of document */
+  offset: number;
+}
+
+export interface SourceLocation {
+  /** Chapter identifier or file path */
+  file: string;
+  /** Start position (inclusive) */
+  start: SourcePosition;
+  /** End position (exclusive) */
+  end: SourcePosition;
+}
+
 export interface AudioAssetCue {
   type: "play" | "stop" | "queue" | "voice" | "scene";
   channel?: string;
   asset: string;
   raw: string;
   lineNum?: number;
+  sourceLocation?: SourceLocation;
 }
 
 export interface FlowAsset {
@@ -72,10 +91,14 @@ export interface FlowNode {
   menuPromptLineNum?: number;
   /** Label names collapsed into this node during linear chain collapsing. */
   collapsedLabels?: string[];
+  /** Detailed source ranges for all labels collapsed into this node. */
+  collapsedLocations?: SourceLocation[];
   /** Dialogue stats grouped by character identifier. */
   characterDialogue?: Record<string, { lineCount: number; wordCount: number }>;
   /** True when this node is unreachable from entry points. */
   isOrphan?: boolean;
+  /** Primary source location mapping for this node. */
+  sourceLocation?: SourceLocation;
 }
 
 /** A directed edge in the flowchart graph. */
@@ -93,4 +116,6 @@ export interface FlowEdge {
   timeout?: TimeoutMetadata;
   /** True when static path evaluation proves this condition branch is unreachable. */
   conditionIsStaticallyFalse?: boolean;
+  /** Primary source location mapping for this edge statement (jump/call/choice). */
+  sourceLocation?: SourceLocation;
 }

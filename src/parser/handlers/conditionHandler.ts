@@ -83,6 +83,7 @@ export function handleConditionalHeader(
         references,
         decisionNodeId,
       },
+      sourceLocation: pending.sourceLocation,
     });
     const parentContext = scanState
       .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
@@ -100,6 +101,7 @@ export function handleConditionalHeader(
           decisionNodeId: parentContext.decisionNodeId,
         }
         : undefined,
+      sourceLocation: pending.sourceLocation,
     });
     addOutgoing(state, source, "sequence");
     addIncoming(state, decisionNodeId, "sequence");
@@ -110,6 +112,7 @@ export function handleConditionalHeader(
       branchKind: pending.kind,
       expression: pending.expression,
       references,
+      sourceLocation: pending.sourceLocation,
     });
     scanState.pendingConditionalHeader = null;
     return true;

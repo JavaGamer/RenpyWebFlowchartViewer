@@ -1,6 +1,6 @@
 import { PARSER_TOKENS } from "./parserTokens.ts";
-import type { ParseScanState } from "./pipelineTypes.ts";
-import type { ConditionalBranchKind } from "./pipelineTypes.ts";
+import type { ConditionalBranchKind, ParseScanState } from "./pipelineTypes.ts";
+import type { SourceLocation } from "../domain/index.ts";
 
 /**
  * Calculates the index of the parent menu block in the menu stack based on menu depth.
@@ -51,6 +51,8 @@ export function edgeIdWithOption(
  * @param getTokenText Callback returning raw token string content.
  * @param indent The leading whitespace indent level of the current line.
  * @param lineText Raw or logical multiline text contents of the line.
+ * @param lineNumber Optional 0-indexed line number.
+ * @param sourceLocation Optional calculated token source location.
  */
 export function maybeUpdateConditionalState(
   scanState: ParseScanState,
@@ -59,6 +61,7 @@ export function maybeUpdateConditionalState(
   indent: number,
   lineText?: string,
   lineNumber?: number,
+  sourceLocation?: SourceLocation,
 ) {
   if (!scanState.conditionalDecisionStack) {
     scanState.conditionalDecisionStack = [];
@@ -132,7 +135,11 @@ export function maybeUpdateConditionalState(
   }
   const parsedHeader = parseConditionalHeader(lineText ?? tokenText);
   if (!parsedHeader) return;
-  scanState.pendingConditionalHeader = { ...parsedHeader, indent };
+  scanState.pendingConditionalHeader = {
+    ...parsedHeader,
+    indent,
+    sourceLocation,
+  };
 }
 
 /**

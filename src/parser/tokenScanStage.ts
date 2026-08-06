@@ -3,6 +3,7 @@ import type {
   TokenTree,
   TreeNode,
 } from "@renpy/ast/out/tokenizer/token-definitions";
+import type { SourceLocation } from "../domain/index.ts";
 import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
 import { maybeUpdateConditionalState } from "./scanTransitions.ts";
@@ -18,7 +19,7 @@ import {
  * Represents a flattened token-like structure extracted from the AST tree.
  * Used during parsing to process token information uniformly.
  */
-interface FlatTokenLike {
+export interface FlatTokenLike {
   /** The type of token (corresponds to PARSER_TOKENS numbers) */
   type: number;
   /** Meta token IDs representing scope details (e.g. within menu, python, etc.) */
@@ -27,8 +28,36 @@ interface FlatTokenLike {
   startPos: { line: number; character: number };
   /** Optional character offset of the token from the beginning of the file */
   startOffset?: number;
+  /** End position of the token in the text document */
+  endPos?: { line: number; character: number };
+  /** End character offset of the token */
+  endOffset?: number;
   /** Callback function to retrieve the raw string value of the token from the document */
   getValue: (document: TextDocument) => string;
+}
+
+export function getTokenSourceLocation(
+  token: FlatTokenLike,
+  document: TextDocument,
+  file: string,
+): SourceLocation {
+  const startOffset = token.startOffset ?? document.offsetAt(token.startPos);
+  const rawText = token.getValue(document);
+  const endOffset = token.endOffset ?? (startOffset + rawText.length);
+  const endPos = token.endPos ?? document.positionAt(endOffset);
+  return {
+    file,
+    start: {
+      line: token.startPos.line,
+      character: token.startPos.character,
+      offset: startOffset,
+    },
+    end: {
+      line: endPos.line,
+      character: endPos.character,
+      offset: endOffset,
+    },
+  };
 }
 
 /**
@@ -338,6 +367,8 @@ export function processFlatToken(
     )
     : lineText;
 
+  const sourceLocation = getTokenSourceLocation(token, document, chapter);
+
   maybeUpdateConditionalState(
     scanState,
     type,
@@ -345,7 +376,9 @@ export function processFlatToken(
     lineIndent,
     conditionalText,
     token.startPos.line,
+    sourceLocation,
   );
+
   handleToken(state, scanState, {
     type,
     meta,
@@ -358,6 +391,7 @@ export function processFlatToken(
     captureDialogueLines,
     screenActionRuleMap,
     sceneSplitDialogueThreshold,
+    sourceLocation,
   });
 }
 
@@ -410,27 +444,33 @@ function normalizeLiteralString(raw: string): string {
 function collectFlatTokens(
   node: TreeNode,
   metaStack: number[],
-  tokens: Array<{
-    type: number;
-    metaTokens: number[];
-    startPos: { line: number; character: number };
-    getValue: (doc: TextDocument) => string;
-  }>,
+  tokens: Array<FlatTokenLike>,
+  doc?: TextDocument,
 ): void {
   const token = node.token;
   if (token) {
     const type = token.type as number;
     if (RELEVANT_TOKEN_TYPES.has(type)) {
+      const rawText = doc ? token.getValue(doc) : "";
+      const startOffset = (token as { startOffset?: number }).startOffset ??
+        (doc ? doc.offsetAt(token.startPos) : 0);
+      const endOffset = startOffset + rawText.length;
+      const endPos = doc ? doc.positionAt(endOffset) : token.startPos;
       tokens.push({
         type,
         metaTokens: [...metaStack],
         startPos: token.startPos,
-        getValue: (doc) => token.getValue(doc),
+        startOffset,
+        endPos,
+        endOffset,
+        getValue: (document) => token.getValue(document),
       });
     }
     metaStack.push(type);
   }
-  node.children.forEach((child) => collectFlatTokens(child, metaStack, tokens));
+  node.children.forEach((child) =>
+    collectFlatTokens(child, metaStack, tokens, doc)
+  );
   if (token) {
     metaStack.pop();
   }
@@ -447,15 +487,9 @@ export function processTokenTreeStream(
   screenActionRules?: ScreenActionRule[],
   sceneSplitDialogueThreshold?: number,
 ): void {
-  const tokens: Array<{
-    type: number;
-    metaTokens: number[];
-    startPos: { line: number; character: number };
-    startOffset?: number;
-    getValue: (doc: TextDocument) => string;
-  }> = [];
+  const tokens: FlatTokenLike[] = [];
 
-  collectFlatTokens(tokenTree.root, [], tokens);
+  collectFlatTokens(tokenTree.root, [], tokens, document);
 
   tokens.sort((a, b) => {
     if (a.startPos.line !== b.startPos.line) {
@@ -543,6 +577,8 @@ export function processFlatTokens(
       )
       : lineText;
 
+    const sourceLocation = getTokenSourceLocation(token, document, chapter);
+
     maybeUpdateConditionalState(
       scanState,
       type,
@@ -550,7 +586,9 @@ export function processFlatTokens(
       lineIndent,
       conditionalText,
       token.startPos.line,
+      sourceLocation,
     );
+
     handleToken(state, scanState, {
       type,
       meta,
@@ -563,6 +601,7 @@ export function processFlatTokens(
       captureDialogueLines,
       screenActionRuleMap,
       sceneSplitDialogueThreshold,
+      sourceLocation,
     });
   }
 }

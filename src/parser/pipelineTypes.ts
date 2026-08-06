@@ -3,6 +3,7 @@ import type {
   FlowAsset,
   FlowEdge,
   FlowNode,
+  SourceLocation,
 } from "../domain/index.ts";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
@@ -21,6 +22,7 @@ export interface PendingConditionalHeader {
   kind: ConditionalBranchKind;
   indent: number;
   expression: string | null;
+  sourceLocation?: SourceLocation;
 }
 
 export interface ConditionalDecisionContext {
@@ -30,6 +32,7 @@ export interface ConditionalDecisionContext {
   branchKind: ConditionalBranchKind;
   expression: string | null;
   references: string[];
+  sourceLocation?: SourceLocation;
 }
 
 export interface ParseDiagnosticLocation {
@@ -39,6 +42,7 @@ export interface ParseDiagnosticLocation {
   targetId?: string;
   edgeId?: string;
   targetExpression?: string;
+  sourceLocation?: SourceLocation;
 }
 
 export interface ParseDiagnosticContext {
@@ -159,6 +163,9 @@ export interface ParseScanState extends ResolveTargetScanState {
   currentLabelHasSplit?: boolean;
   currentLabelHasContentSinceSceneBoundary?: boolean;
   currentSceneDialogueCount?: number;
+  currentLabelStartLoc?: SourceLocation | null;
+  currentLabelEndLoc?: SourceLocation | null;
+  currentMenuStartLoc?: SourceLocation | null;
   menuStack: Array<{
     id: string;
     optionText: string | null;

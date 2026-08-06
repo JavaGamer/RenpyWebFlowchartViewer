@@ -4,7 +4,11 @@ import type {
   ResolveTargetScanState,
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
-import { type ConditionMetadata, type FlowEdge } from "../../domain/index.ts";
+import {
+  type ConditionMetadata,
+  type FlowEdge,
+  type SourceLocation,
+} from "../../domain/index.ts";
 import { menuAtDepth } from "../scanTransitions.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
 import { addParseDiagnostic } from "../diagnostics.ts";
@@ -116,6 +120,7 @@ export function emitJumpEdge(
     source: string | null;
     optionText: string | null;
     condition?: ConditionMetadata;
+    sourceLocation?: SourceLocation;
   },
   suppressFallthrough: boolean,
   timeout?: FlowEdge["timeout"],
@@ -150,6 +155,7 @@ export function emitJumpEdge(
       label: isInOption ? (optionText ?? undefined) : undefined,
       condition: context.condition,
       timeout,
+      sourceLocation: context.sourceLocation,
     });
     if (!isInOption && scanState.currentLabelId) {
       addOutgoing(state, scanState.currentLabelId, "jump");
@@ -192,6 +198,7 @@ export function emitCallEdge(
     source: string | null;
     optionText: string | null;
     condition?: ConditionMetadata;
+    sourceLocation?: SourceLocation;
   },
   timeout?: FlowEdge["timeout"],
 ) {
@@ -225,6 +232,7 @@ export function emitCallEdge(
     label: isInOption ? (optionText ? `call: ${optionText}` : "call") : "call",
     condition: context.condition,
     timeout,
+    sourceLocation: context.sourceLocation,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {

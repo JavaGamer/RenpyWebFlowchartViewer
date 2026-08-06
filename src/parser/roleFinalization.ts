@@ -30,6 +30,7 @@ function emitShadowedTargetResolutionDiagnostics(state: ParseGraphState): void {
           edgeId: edge.id,
           sourceId: edge.source,
           targetId: edge.target,
+          sourceLocation: edge.sourceLocation,
         },
         context: {
           category: "shadowed_target_resolution",

@@ -306,16 +306,18 @@ describe("parser stage modules", () => {
       4,
       multilineGroupedHeader,
     );
-    expect(scanState.pendingConditionalHeader).toEqual({
-      kind: "if",
-      indent: 4,
-      expression: [
-        "(",
-        '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , : tokens',
-        "    guard_flag,",
-        ") and fallback_ready",
-      ].join("\n"),
-    });
+    expect(scanState.pendingConditionalHeader).toEqual(
+      expect.objectContaining({
+        kind: "if",
+        indent: 4,
+        expression: [
+          "(",
+          '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , : tokens',
+          "    guard_flag,",
+          ") and fallback_ready",
+        ].join("\n"),
+      }),
+    );
 
     const multilineBackslashHeader = [
       "elif route_a and \\",
@@ -328,11 +330,13 @@ describe("parser stage modules", () => {
       4,
       multilineBackslashHeader,
     );
-    expect(scanState.pendingConditionalHeader).toEqual({
-      kind: "elif",
-      indent: 4,
-      expression: ["route_a and \\", "    route_b"].join("\n"),
-    });
+    expect(scanState.pendingConditionalHeader).toEqual(
+      expect.objectContaining({
+        kind: "elif",
+        indent: 4,
+        expression: ["route_a and \\", "    route_b"].join("\n"),
+      }),
+    );
 
     maybeUpdateConditionalState(
       scanState,
@@ -442,16 +446,18 @@ describe("parser stage modules", () => {
       lineTextCache,
       conditionalLogicalLineCache,
     );
-    expect(scanState.pendingConditionalHeader).toEqual({
-      kind: "if",
-      indent: 0,
-      expression: [
-        "(",
-        '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , :',
-        "    guard_flag,",
-        ")",
-      ].join("\n"),
-    });
+    expect(scanState.pendingConditionalHeader).toEqual(
+      expect.objectContaining({
+        kind: "if",
+        indent: 0,
+        expression: [
+          "(",
+          '    route_map["a:b"] == {"k": "v:1"},  # comment with ) , :',
+          "    guard_flag,",
+          ")",
+        ].join("\n"),
+      }),
+    );
 
     processFlatToken(
       state,
@@ -469,11 +475,16 @@ describe("parser stage modules", () => {
       lineTextCache,
       conditionalLogicalLineCache,
     );
-    expect(scanState.pendingConditionalHeader).toEqual({
-      kind: "elif",
-      indent: 0,
-      expression: ["route_a and \\", "    route_b"].join("\n"),
-    });
+    expect(scanState.pendingConditionalHeader).toEqual(
+      expect.objectContaining({
+        kind: "elif",
+        indent: 0,
+        expression: [
+          "route_a and \\",
+          "    route_b",
+        ].join("\n"),
+      }),
+    );
   });
 
   it("processFlatTokens processes token stream in order", () => {

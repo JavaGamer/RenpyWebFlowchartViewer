@@ -4,6 +4,8 @@ export type {
   FlowAsset,
   FlowEdge,
   FlowNode,
+  SourceLocation,
+  SourcePosition,
 } from "./graph.ts";
 
 export type {

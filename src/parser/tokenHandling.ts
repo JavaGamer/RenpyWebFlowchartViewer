@@ -48,6 +48,7 @@ export {
 } from "./handlers/jumpCallHandler.ts";
 export { stripInlineComment } from "./handlers/screen/screenHandlerEntry.ts";
 import { extractLiteralTarget } from "./handlers/jumpCallHandler.ts";
+import type { SourceLocation } from "../domain/index.ts";
 import type { VariableMutation, VariableValue } from "./pipelineTypes.ts";
 
 export function parseAndRecordVariableMutation(
@@ -156,6 +157,7 @@ interface HandleTokenInput {
   captureDialogueLines: boolean;
   screenActionRuleMap: Map<string, ScreenActionKind>;
   sceneSplitDialogueThreshold?: number;
+  sourceLocation?: SourceLocation;
 }
 
 export function ensureScanStateInitialized(scanState: ParseScanState): void {
@@ -217,8 +219,23 @@ export function handleToken(
     lineNum,
     captureDialogueLines,
     screenActionRuleMap,
+    sourceLocation,
   } = input;
   resetStaleWaitFlags(scanState, type);
+
+  if (scanState.currentLabelId && sourceLocation) {
+    const activeNode = state.nodeMap.get(scanState.currentLabelId);
+    if (activeNode) {
+      if (!activeNode.sourceLocation) {
+        activeNode.sourceLocation = sourceLocation;
+      } else {
+        activeNode.sourceLocation = {
+          ...activeNode.sourceLocation,
+          end: sourceLocation.end,
+        };
+      }
+    }
+  }
 
   if (
     scanState.currentLabelId !== null &&
@@ -247,6 +264,7 @@ export function handleToken(
 
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     scanState.waitForLabelName = true;
+    scanState.currentLabelStartLoc = sourceLocation ?? null;
     scanState.pendingMenuFallthroughIds = [];
     for (const openMenu of scanState.menuStack) {
       if (menuHasFallthrough(openMenu)) {
@@ -306,6 +324,7 @@ export function handleToken(
         target: newLabelId,
         kind: "sequence",
         label: "next",
+        sourceLocation,
       });
       addOutgoing(state, scanState.currentLabelId, "sequence");
       addIncoming(state, newLabelId, "sequence");
@@ -329,6 +348,7 @@ export function handleToken(
         target: newLabelId,
         kind: "sequence",
         label: "next",
+        sourceLocation,
       });
       addOutgoing(state, menuId, "sequence");
       addIncoming(state, newLabelId, "sequence");
@@ -338,6 +358,14 @@ export function handleToken(
     scanState.labelHasExplicitExit = false;
     scanState.waitForLabelName = false;
 
+    const labelSourceLocation = scanState.currentLabelStartLoc && sourceLocation
+      ? {
+        file: sourceLocation.file,
+        start: scanState.currentLabelStartLoc.start,
+        end: sourceLocation.end,
+      }
+      : sourceLocation;
+
     addNode(state, {
       id: newLabelId,
       type: "LABEL",
@@ -346,8 +374,9 @@ export function handleToken(
       chapter,
       isShadowed: definitionCount > 1,
       shadowOfId: definitionCount > 1 ? canonicalLabelId : undefined,
+      sourceLocation: labelSourceLocation,
     });
-    if (definitionCount > 1) {
+    if (definitionCount > 1 && canonicalLabelId) {
       const diagnosticId =
         `shadowed_label|${chapter}|${declaredLabelName}|${newLabelId}|${canonicalLabelId}`;
       addParseDiagnostic(
@@ -360,6 +389,7 @@ export function handleToken(
             construct: "label",
             sourceId: newLabelId,
             targetId: canonicalLabelId,
+            sourceLocation: labelSourceLocation,
           },
           context: {
             category: "shadowed_label",
@@ -400,6 +430,7 @@ export function handleToken(
             asset: sceneAsset,
             raw: lineText.trim(),
             lineNum,
+            sourceLocation,
           });
         }
       }
@@ -421,6 +452,7 @@ export function handleToken(
             asset: cue.asset,
             raw: lineText.trim(),
             lineNum,
+            sourceLocation,
           });
         }
       }
@@ -442,6 +474,7 @@ export function handleToken(
             asset: cue.asset ?? "",
             raw: lineText.trim(),
             lineNum,
+            sourceLocation,
           });
         }
       }
@@ -463,6 +496,7 @@ export function handleToken(
             asset: cue.asset,
             raw: lineText.trim(),
             lineNum,
+            sourceLocation,
           });
         }
       }
@@ -488,6 +522,7 @@ export function handleToken(
             asset: voiceAsset,
             raw: lineText.trim(),
             lineNum,
+            sourceLocation,
           });
         }
       }
@@ -580,6 +615,7 @@ export function handleToken(
       dialogueCount: 0,
       chapter,
       parentLabelId: scanState.currentLabelId,
+      sourceLocation,
     });
     for (const closedMenu of poppedMenus) {
       if (!menuHasFallthrough(closedMenu)) continue;
@@ -589,6 +625,7 @@ export function handleToken(
         target: newMenuId,
         kind: "sequence",
         label: "next",
+        sourceLocation,
       });
       addOutgoing(state, closedMenu.id, "sequence");
       addIncoming(state, newMenuId, "sequence");
@@ -620,6 +657,7 @@ export function handleToken(
             decisionNodeId: decisionContext.decisionNodeId,
           }
           : undefined,
+        sourceLocation,
       });
       addOutgoing(state, source, "sequence");
       addIncoming(state, newMenuId, "sequence");
@@ -719,7 +757,13 @@ export function handleToken(
       return;
     }
     for (const target of targets) {
-      emitJumpEdge(state, scanState, target, context, true);
+      emitJumpEdge(
+        state,
+        scanState,
+        target,
+        { ...context, sourceLocation },
+        true,
+      );
     }
     scanState.waitForJumpTarget = false;
     scanState.waitForJumpExpressionTarget = false;
@@ -739,7 +783,7 @@ export function handleToken(
   ) {
     const target = val();
     const context = resolveCallContext(scanState, meta, menuDepth);
-    emitCallEdge(state, scanState, target, context);
+    emitCallEdge(state, scanState, target, { ...context, sourceLocation });
 
     scanState.waitForCallTarget = false;
     return;

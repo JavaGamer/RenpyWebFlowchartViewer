@@ -333,6 +333,20 @@ export function collapseLinearChains(
         collapsedInto.set(node.id, rootId);
       }
 
+      const collapsedLocations = path
+        .map((id) => nodeMap.get(id)?.sourceLocation)
+        .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
+
+      const firstLoc = collapsedLocations[0];
+      const lastLoc = collapsedLocations[collapsedLocations.length - 1];
+      const combinedSourceLocation = firstLoc && lastLoc
+        ? {
+          file: firstLoc.file,
+          start: firstLoc.start,
+          end: lastLoc.end,
+        }
+        : rootNode.sourceLocation;
+
       mergedNodesMap.set(rootId, {
         ...rootNode,
         dialogueCount,
@@ -342,6 +356,10 @@ export function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
+        collapsedLocations: collapsedLocations.length > 0
+          ? collapsedLocations
+          : rootNode.collapsedLocations,
+        sourceLocation: combinedSourceLocation,
         isShadowed,
         isTerminalOutcome,
       });
@@ -401,6 +419,20 @@ export function collapseLinearChains(
         collapsedInto.set(node.id, rootId);
       }
 
+      const collapsedLocations = path
+        .map((id) => nodeMap.get(id)?.sourceLocation)
+        .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
+
+      const firstLoc = collapsedLocations[0];
+      const lastLoc = collapsedLocations[collapsedLocations.length - 1];
+      const combinedSourceLocation = firstLoc && lastLoc
+        ? {
+          file: firstLoc.file,
+          start: firstLoc.start,
+          end: lastLoc.end,
+        }
+        : rootNode.sourceLocation;
+
       mergedNodesMap.set(rootId, {
         ...rootNode,
         dialogueCount,
@@ -410,6 +442,10 @@ export function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
+        collapsedLocations: collapsedLocations.length > 0
+          ? collapsedLocations
+          : rootNode.collapsedLocations,
+        sourceLocation: combinedSourceLocation,
         isShadowed,
         isTerminalOutcome,
       });

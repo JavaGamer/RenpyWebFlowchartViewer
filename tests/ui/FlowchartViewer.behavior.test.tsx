@@ -344,7 +344,7 @@ describe("FlowchartViewer behavior coverage", () => {
     expect(screen.getByTestId("react-flow")).toBeInTheDocument();
   });
 
-  it("shows error fallback and keeps toolbar functional when canvas layout hook throws", async () => {
+  it("shows error fallback and keeps toolbar functional when canvas layout hook throws", () => {
     // Suppress expected React error boundary console noise
     const consoleError = vi.spyOn(console, "error").mockImplementation(
       () => {},
