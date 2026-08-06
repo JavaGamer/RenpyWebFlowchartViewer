@@ -28,7 +28,7 @@ async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
     () => ({ finalizeRoles: vi.fn() }),
   );
 
-  return import("../../src/parser/parser");
+  return await import("../../src/parser/parser");
 }
 
 describe("parseRenpyFiles coverage gaps", () => {
@@ -38,12 +38,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("falls back to sequential parsing when maxParallelFiles is non-finite", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async () => ({
-      file: { name: "a.rpy" },
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn(() =>
+      Promise.resolve({
+        file: { name: "a.rpy" },
+        tokenState: {},
+      })
+    );
 
     const { parseRenpyFiles } = await loadParserWithMocks({
       parseOneFile,
@@ -63,7 +65,7 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("throws when a tokenized file is missing after parallel tokenization", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
     const tokenizeOneFile = vi
       .fn()
@@ -92,12 +94,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("uses sequential path when maxParallelFiles is exactly 1", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async () => ({
-      file: { name: "a.rpy" },
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn(() =>
+      Promise.resolve({
+        file: { name: "a.rpy" },
+        tokenState: {},
+      })
+    );
 
     const { parseRenpyFiles } = await loadParserWithMocks({
       parseOneFile,
@@ -116,12 +120,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("uses sequential path when maxParallelFiles is 0 (treated as <= 1)", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async () => ({
-      file: { name: "a.rpy" },
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn(() =>
+      Promise.resolve({
+        file: { name: "a.rpy" },
+        tokenState: {},
+      })
+    );
 
     const { parseRenpyFiles } = await loadParserWithMocks({
       parseOneFile,
@@ -142,12 +148,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   it("returns empty result when files array is empty, even with high maxParallelFiles", async () => {
     // Regression: getMaxParallelFiles() used to return 0 for empty input,
     // causing pLimit(0) to throw. It must now clamp to at least 1.
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async () => ({
-      file: { name: "a.rpy" },
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn(() =>
+      Promise.resolve({
+        file: { name: "a.rpy" },
+        tokenState: {},
+      })
+    );
 
     const { parseRenpyFiles } = await loadParserWithMocks({
       parseOneFile,
@@ -164,12 +172,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("falls back to file name comparison when normalized relative paths are identical", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async () => ({
-      file: { name: "a.rpy" },
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn(() =>
+      Promise.resolve({
+        file: { name: "a.rpy" },
+        tokenState: {},
+      })
+    );
 
     const { parseRenpyFiles } = await loadParserWithMocks({
       parseOneFile,
@@ -203,12 +213,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("reports currentFile as the file name in sequential progress when relativePath is absent", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async () => ({
-      file: { name: "a.rpy" },
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn(() =>
+      Promise.resolve({
+        file: { name: "a.rpy" },
+        tokenState: {},
+      })
+    );
     const progressFiles: string[] = [];
 
     const { parseRenpyFiles } = await loadParserWithMocks({
@@ -230,12 +242,14 @@ describe("parseRenpyFiles coverage gaps", () => {
   });
 
   it("reports currentFile as the file name in parallel progress when relativePath is absent", async () => {
-    const parseOneFile = vi.fn(async () => undefined);
+    const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(async (file: { name: string }) => ({
-      file,
-      tokenState: {},
-    }));
+    const tokenizeOneFile = vi.fn((file: { name: string }) =>
+      Promise.resolve({
+        file,
+        tokenState: {},
+      })
+    );
     const progressFiles: string[] = [];
 
     const { parseRenpyFiles } = await loadParserWithMocks({

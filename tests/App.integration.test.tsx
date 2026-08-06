@@ -99,8 +99,8 @@ vi.mock("../src/infrastructure/parserWorkerClient", () => {
   return {
     parseRenpyFilesInWorker: vi.fn(async (
       { files }: { files: Array<{ name: string; content: string }> },
-    ) => parser.parseRenpyFiles(files)),
-    searchDialogueLinesInWorker: vi.fn(async () => []),
+    ) => await parser.parseRenpyFiles(files)),
+    searchDialogueLinesInWorker: vi.fn(() => Promise.resolve([])),
     areWorkersSupported: () => true,
     getWorkerPoolSize: () => 1,
   };

@@ -65,6 +65,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={onExport}
               aria-label="Export flowchart as PNG"
               aria-keyshortcuts="Control+E Meta+E"
@@ -93,6 +94,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={onExportSvg}
               aria-label="Export flowchart as SVG"
               className={cn(
@@ -120,6 +122,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={onExportMermaid}
               aria-label="Export Mermaid diagram"
               className={cn(
@@ -147,6 +150,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={onExportStoryboard}
               aria-label="Export narrative storyboard"
               className={cn(
@@ -174,6 +178,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={onExportHtmlBundle}
               aria-label="Export offline interactive HTML bundle"
               className={cn(
@@ -201,6 +206,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={onExportJson}
               aria-label="Export graph as JSON"
               className={cn(
@@ -228,6 +234,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={() => onExportDebugBundle?.(debugPrivacyOptions)}
               aria-label="Export debug bundle"
               className={cn(
@@ -255,6 +262,7 @@ export function ExportMenu({
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
+              type="button"
               onClick={() => onOpenIssue?.(debugPrivacyOptions)}
               aria-label="Open new GitHub issue"
               className={cn(
@@ -328,6 +336,7 @@ export function ExportMenu({
       <div className="flex flex-wrap items-center gap-2 w-full">
         {ZOOM_PRESETS.map((preset) => (
           <button
+            type="button"
             key={preset}
             onClick={() => onZoomTo(preset)}
             className={cn(

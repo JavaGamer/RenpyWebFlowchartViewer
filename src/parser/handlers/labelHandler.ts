@@ -106,9 +106,20 @@ export function remapLabelIdReferences(
       pendingCallReturn.callTargetId = toId;
     }
   }
-  for (const edge of state.edges) {
-    if (edge.source === fromId) edge.source = toId;
-    if (edge.target === fromId) edge.target = toId;
+  if (state.graph.hasNode(fromId)) {
+    const incidentEdges = state.graph.edges(fromId);
+    for (const edgeId of incidentEdges) {
+      const edge = state.edgeMap.get(edgeId);
+      if (edge) {
+        if (edge.source === fromId) edge.source = toId;
+        if (edge.target === fromId) edge.target = toId;
+      }
+    }
+  } else {
+    for (const edge of state.edges) {
+      if (edge.source === fromId) edge.source = toId;
+      if (edge.target === fromId) edge.target = toId;
+    }
   }
   for (const stateNode of state.nodeMap.values()) {
     if (stateNode.parentLabelId === fromId) {
@@ -158,8 +169,16 @@ export function remapLabelIdReferences(
     }
   }
 
+  for (const edgeId of state.pendingGraphEdgeIds) {
+    const edge = state.edgeMap.get(edgeId);
+    if (edge) {
+      if (edge.source === fromId) edge.source = toId;
+      if (edge.target === fromId) edge.target = toId;
+    }
+  }
+
   for (const edgeId of [...state.pendingGraphEdgeIds]) {
-    const edge = state.edges.find((e) => e.id === edgeId);
+    const edge = state.edgeMap.get(edgeId);
     if (
       edge && state.graph.hasNode(edge.source) &&
       state.graph.hasNode(edge.target)

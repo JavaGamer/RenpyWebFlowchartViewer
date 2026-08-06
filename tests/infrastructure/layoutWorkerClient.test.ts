@@ -3,22 +3,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FlowEdge, FlowNode } from "../../src/domain";
 
 class SyncPromise {
-  private value: any;
-  private error: any;
+  private value: unknown;
+  private error: unknown;
   private state: "pending" | "resolved" | "rejected" = "pending";
-  private resolveCallbacks: Array<(v: any) => void> = [];
-  private rejectCallbacks: Array<(e: any) => void> = [];
+  private resolveCallbacks: Array<(v: unknown) => void> = [];
+  private rejectCallbacks: Array<(e: unknown) => void> = [];
 
   constructor(
-    executor: (resolve: (v: any) => void, reject: (e: any) => void) => void,
+    executor: (
+      resolve: (v: unknown) => void,
+      reject: (e: unknown) => void,
+    ) => void,
   ) {
-    const resolve = (val: any) => {
+    const resolve = (val: unknown) => {
       if (this.state !== "pending") return;
       this.state = "resolved";
       this.value = val;
       for (const cb of this.resolveCallbacks) cb(val);
     };
-    const reject = (err: any) => {
+    const reject = (err: unknown) => {
       if (this.state !== "pending") return;
       this.state = "rejected";
       this.error = err;
@@ -31,7 +34,7 @@ class SyncPromise {
     }
   }
 
-  then(onResolve: (v: any) => any, onReject?: (e: any) => any) {
+  then(onResolve: (v: unknown) => unknown, onReject?: (e: unknown) => unknown) {
     if (this.state === "resolved") {
       try {
         const nextVal = onResolve(this.value);
@@ -75,15 +78,15 @@ class SyncPromise {
     });
   }
 
-  catch(onReject: (e: any) => any) {
+  catch(onReject: (e: unknown) => unknown) {
     return this.then((v) => v, onReject);
   }
 
-  static resolve(val: any) {
+  static resolve(val: unknown) {
     return new SyncPromise((resolve) => resolve(val));
   }
 
-  static reject(err: any) {
+  static reject(err: unknown) {
     return new SyncPromise((_, reject) => reject(err));
   }
 }
@@ -92,7 +95,7 @@ export const mockWorkersSupported = true;
 vi.mock(
   "../../src/infrastructure/parserWorkerClient",
   async (importOriginal) => {
-    const original = await importOriginal<any>();
+    const original = await importOriginal<Record<string, unknown>>();
     return {
       ...original,
       areWorkersSupported: () => mockWorkersSupported,
@@ -103,7 +106,19 @@ vi.mock(
 vi.mock("comlink", () => {
   let activeRequestId = 0;
   return {
-    wrap: (worker: any) => {
+    wrap: (
+      worker: {
+        postMessage: (msg: unknown) => void;
+        addEventListener: (
+          type: string,
+          listener: (event: MessageEvent) => void,
+        ) => void;
+        removeEventListener: (
+          type: string,
+          listener: (event: MessageEvent) => void,
+        ) => void;
+      },
+    ) => {
       return {
         preWarm: () => {
           const requestId = ++activeRequestId;
@@ -112,7 +127,7 @@ vi.mock("comlink", () => {
             type: "preWarm",
           });
           return new SyncPromise((resolve, reject) => {
-            const listener = (event: any) => {
+            const listener = (event: MessageEvent) => {
               const msg = event.data;
               if (msg.requestId !== requestId) return;
               worker.removeEventListener("message", listener);
@@ -123,7 +138,7 @@ vi.mock("comlink", () => {
                 resolve(undefined);
               }
             };
-            const errorListener = (event: any) => {
+            const errorListener = (event: ErrorEvent) => {
               worker.removeEventListener("error", errorListener);
               worker.removeEventListener("message", listener);
               reject(
@@ -135,10 +150,10 @@ vi.mock("comlink", () => {
           });
         },
         runLayout: (
-          rawNodes: any,
-          rawEdges: any,
-          direction: any,
-          options: any,
+          rawNodes: unknown,
+          rawEdges: unknown,
+          direction: unknown,
+          options: unknown,
         ) => {
           const requestId = ++activeRequestId;
           worker.postMessage({
@@ -149,7 +164,7 @@ vi.mock("comlink", () => {
             options,
           });
           return new SyncPromise((resolve, reject) => {
-            const listener = (event: any) => {
+            const listener = (event: MessageEvent) => {
               const msg = event.data;
               if (msg.requestId !== requestId) return;
               worker.removeEventListener("message", listener);
@@ -160,7 +175,7 @@ vi.mock("comlink", () => {
                 resolve(msg.result);
               }
             };
-            const errorListener = (event: any) => {
+            const errorListener = (event: ErrorEvent) => {
               worker.removeEventListener("error", errorListener);
               worker.removeEventListener("message", listener);
               reject(
@@ -200,7 +215,7 @@ let mockWorkerInstance: MockWorkerInstance;
  * that object rather than the implicit `this`.
  */
 function createMockWorkerClass() {
-  return vi.fn().mockImplementation(function MockWorkerImpl(this: any) {
+  return vi.fn().mockImplementation(function MockWorkerImpl(this: unknown) {
     const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
 
     const instance: MockWorkerInstance = {
@@ -253,7 +268,7 @@ const noEdges: FlowEdge[] = [];
  */
 async function freshClient() {
   vi.resetModules();
-  return import("../../src/infrastructure/layoutWorkerClient");
+  return await import("../../src/infrastructure/layoutWorkerClient");
 }
 
 // ---------------------------------------------------------------------------

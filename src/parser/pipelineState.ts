@@ -36,6 +36,7 @@ export function createGraphState(): ParseGraphState {
     globalCharacters: new Set<string>(),
     diagnostics: [],
     diagnosticIds: new Set<string>(),
+    dynamicJumpRules: [],
   };
 }
 

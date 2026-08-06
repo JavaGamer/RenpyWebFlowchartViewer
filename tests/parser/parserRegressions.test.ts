@@ -2289,7 +2289,7 @@ describe("parseRenpyFiles", () => {
       .toBeUndefined();
   });
 
-  it("registers character definitions in globalCharacters set", async () => {
+  it("registers character definitions in globalCharacters set", () => {
     const files = [
       {
         name: "init.rpy",
@@ -2349,7 +2349,7 @@ describe("parseRenpyFiles", () => {
     );
   });
 
-  it("correctly strips comments in triple-quoted strings without mangling", async () => {
+  it("correctly strips comments in triple-quoted strings without mangling", () => {
     const files = [
       {
         name: "triple_comments.rpy",
@@ -2372,7 +2372,7 @@ describe("parseRenpyFiles", () => {
     expect(resolved).toContain("not a comment!");
   });
 
-  it("handles multiline dictionary declarations with column-0 lines inside python blocks", async () => {
+  it("handles multiline dictionary declarations with column-0 lines inside python blocks", () => {
     const files = [
       {
         name: "multiline_dict.rpy",

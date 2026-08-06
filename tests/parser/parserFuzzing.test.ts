@@ -81,6 +81,7 @@ describe("Automated Property-Based Parser Fuzzing", () => {
       } catch (err) {
         throw new Error(
           `Parser threw uncaught exception on fuzz run ${run}:\n${err}\nFuzzed Script Input:\n${fuzzedContent}`,
+          { cause: err },
         );
       }
 

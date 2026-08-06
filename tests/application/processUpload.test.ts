@@ -123,20 +123,20 @@ describe("createProcessUpload", () => {
   });
 
   it("runs non-chunked parse flow and dispatches success", async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
-      `content:${file.name}`
+    vi.mocked(readFileAsText).mockImplementation((file: File) =>
+      Promise.resolve(`content:${file.name}`)
     );
     const actions = makeActions();
-    const parse = vi.fn(async (request) => {
+    const parse = vi.fn((request) => {
       request.onProgress?.({
         doneFiles: 2,
         totalFiles: 2,
         currentFile: "b.rpy",
       });
-      return {
+      return Promise.resolve({
         nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
         edges: [],
-      };
+      });
     });
     const parseService: ParseService = {
       parse,
@@ -182,14 +182,16 @@ describe("createProcessUpload", () => {
   });
 
   it("sorts uploads by relative path and forwards stable file identity to parsing", async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
-      `content:${file.name}`
+    vi.mocked(readFileAsText).mockImplementation((file: File) =>
+      Promise.resolve(`content:${file.name}`)
     );
     const actions = makeActions();
-    const parse = vi.fn(async () => ({
-      nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
-      edges: [],
-    }));
+    const parse = vi.fn(() =>
+      Promise.resolve({
+        nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
+        edges: [],
+      })
+    );
     const parseService: ParseService = {
       parse,
       searchDialogueLines: vi.fn(),
@@ -225,14 +227,16 @@ describe("createProcessUpload", () => {
   });
 
   it("captures dialogue lines in auto mode for non-large uploads", async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
-      `content:${file.name}`
+    vi.mocked(readFileAsText).mockImplementation((file: File) =>
+      Promise.resolve(`content:${file.name}`)
     );
     const actions = makeActions();
-    const parse = vi.fn(async () => ({
-      nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
-      edges: [],
-    }));
+    const parse = vi.fn(() =>
+      Promise.resolve({
+        nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
+        edges: [],
+      })
+    );
     const parseService: ParseService = {
       parse,
       searchDialogueLines: vi.fn(),
@@ -255,12 +259,12 @@ describe("createProcessUpload", () => {
   });
 
   it("uses chunked parse flow for large uploads and emits partial updates", async () => {
-    vi.mocked(readFileAsText).mockImplementation(async (file: File) =>
-      `content:${file.name}`
+    vi.mocked(readFileAsText).mockImplementation((file: File) =>
+      Promise.resolve(`content:${file.name}`)
     );
     const actions = makeActions();
     let callIndex = 0;
-    const parse = vi.fn(async (request) => {
+    const parse = vi.fn((request) => {
       callIndex += 1;
       request.onProgress?.({
         doneFiles: request.files.length,

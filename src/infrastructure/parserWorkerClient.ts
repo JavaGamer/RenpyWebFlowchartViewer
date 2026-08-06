@@ -147,7 +147,7 @@ async function computeFileCacheKeys(
     });
   }
 
-  return Promise.all(
+  return await Promise.all(
     files.map(async (file) => {
       const data = typeof file.content === "string"
         ? textEncoder.encode(file.content)

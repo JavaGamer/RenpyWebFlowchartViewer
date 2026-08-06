@@ -21,7 +21,11 @@ export function classifyNodeRole(
   node: FlowNode,
 ): FlowNode["role"] {
   if (node.type === "MENU") return "menu";
-  if (node.type === "DECISION") return "decision";
+  if (node.type === "DECISION") {
+    if (node.condition?.branchKind === "while") return "while_loop";
+    if (node.condition?.branchKind === "for") return "for_loop";
+    return "decision";
+  }
 
   const incoming = state.incomingByLabel.get(node.id);
   const outgoing = state.outgoingByLabel.get(node.id);

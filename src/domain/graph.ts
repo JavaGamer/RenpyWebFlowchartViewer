@@ -5,9 +5,21 @@ export type NodeRole =
   | "utility"
   | "state_toggle"
   | "menu"
-  | "decision";
+  | "decision"
+  | "while_loop"
+  | "for_loop";
 export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
-export type ConditionBranchKind = "if" | "elif" | "else" | "while";
+export type ConditionBranchKind = "if" | "elif" | "else" | "while" | "for";
+
+export interface LabelParameter {
+  name: string;
+  defaultValue?: string;
+}
+
+export interface CallArgument {
+  name?: string;
+  value: string;
+}
 
 export interface ConditionMetadata {
   branchKind: ConditionBranchKind;
@@ -99,6 +111,8 @@ export interface FlowNode {
   isOrphan?: boolean;
   /** Primary source location mapping for this node. */
   sourceLocation?: SourceLocation;
+  /** Declared parameters for parameterized label definitions. */
+  parameters?: LabelParameter[];
 }
 
 /** A directed edge in the flowchart graph. */
@@ -118,4 +132,6 @@ export interface FlowEdge {
   conditionIsStaticallyFalse?: boolean;
   /** Primary source location mapping for this edge statement (jump/call/choice). */
   sourceLocation?: SourceLocation;
+  /** Passed arguments for call statements. */
+  arguments?: CallArgument[];
 }

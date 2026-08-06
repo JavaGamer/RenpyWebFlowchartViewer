@@ -118,6 +118,7 @@ export function ChapterFiltersSettings({
                   : null;
                 return (
                   <button
+                    type="button"
                     key={chapter}
                     onClick={() => toggleChapter(chapter)}
                     className={cn(
@@ -240,6 +241,7 @@ export function ChapterFiltersSettings({
                   <>
                     {visibleLabelSubgraphToggles.map((label) => (
                       <button
+                        type="button"
                         key={label}
                         onClick={() => toggleParentLabel(label)}
                         className={cn(

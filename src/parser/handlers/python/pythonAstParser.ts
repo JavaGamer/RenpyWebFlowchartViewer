@@ -28,24 +28,54 @@ function unquoteString(text: string): string {
   const prefixMatch =
     /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])?/
       .exec(trimmed);
-  if (prefixMatch && prefixMatch[0]) {
-    trimmed = trimmed.slice(prefixMatch[0].length);
+  const prefix = prefixMatch ? prefixMatch[0] : "";
+  if (prefix) {
+    trimmed = trimmed.slice(prefix.length);
   }
+  const isRaw = prefix.toLowerCase().includes("r");
+
+  let rawInner: string;
   if (
     (trimmed.startsWith('"""') && trimmed.endsWith('"""') &&
       trimmed.length >= 6) ||
     (trimmed.startsWith("'''") && trimmed.endsWith("'''") &&
       trimmed.length >= 6)
   ) {
-    return trimmed.slice(3, -3);
-  }
-  if (
+    rawInner = trimmed.slice(3, -3);
+  } else if (
     (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2)
   ) {
-    return trimmed.slice(1, -1);
+    rawInner = trimmed.slice(1, -1);
+  } else {
+    return trimmed;
   }
-  return trimmed;
+
+  if (isRaw) return rawInner;
+
+  let result = "";
+  let i = 0;
+  while (i < rawInner.length) {
+    const char = rawInner[i]!;
+    if (char === "\\") {
+      i++;
+      if (i < rawInner.length) {
+        const nextChar = rawInner[i]!;
+        if (nextChar === "n") result += "\n";
+        else if (nextChar === "t") result += "\t";
+        else if (nextChar === "r") result += "\r";
+        else result += nextChar;
+        i++;
+      } else {
+        result += "\\";
+      }
+    } else {
+      result += char;
+      i++;
+    }
+  }
+
+  return result;
 }
 
 function extractNodeText(code: string, node: SyntaxNode): string {
@@ -119,8 +149,11 @@ export function parsePythonBlock(code: string): PythonParsedBlock {
     enter(nodeRef) {
       const node = nodeRef.node;
 
-      // Handle AssignStatement (e.g. x = "val", y: str = "val", a = b = "val")
-      if (node.name === "AssignStatement") {
+      // Handle AssignStatement and AugmentedAssignStatement (e.g. x = "val", x += 1, y: str = "val")
+      if (
+        node.name === "AssignStatement" ||
+        node.name === "AugmentedAssignStatement"
+      ) {
         const targetVariables: string[] = [];
         let typeAnnotation: string | undefined;
         let valueNode: SyntaxNode | null = null;
@@ -132,7 +165,9 @@ export function parsePythonBlock(code: string): PythonParsedBlock {
           } else if (child.name === "TypeDef") {
             typeAnnotation = extractNodeText(code, child);
           } else if (
+            child.name !== "Comment" &&
             child.name !== "AssignOp" &&
+            child.name !== "UpdateOp" &&
             child.name !== ":" &&
             child.name !== "="
           ) {
@@ -143,7 +178,7 @@ export function parsePythonBlock(code: string): PythonParsedBlock {
 
         if (
           valueNode && valueNode.name === "VariableName" &&
-          targetVariables.length > 1
+          targetVariables.length > 1 && node.name === "AssignStatement"
         ) {
           targetVariables.pop();
         }
@@ -168,13 +203,20 @@ export function parsePythonBlock(code: string): PythonParsedBlock {
         }
       }
 
-      // Handle CallExpression (e.g. renpy.jump(...) or renpy.call(...))
+      // Handle CallExpression (e.g. renpy.jump(...), renpy.call(...), renpy.jump_out_of_context(...))
       if (node.name === "CallExpression") {
         const calleeNode = node.firstChild;
         if (calleeNode && calleeNode.name === "MemberExpression") {
           const calleeText = extractNodeText(code, calleeNode);
-          if (calleeText === "renpy.jump" || calleeText === "renpy.call") {
-            const funcKind = calleeText === "renpy.jump" ? "jump" : "call";
+          if (
+            calleeText === "renpy.jump" ||
+            calleeText === "renpy.call" ||
+            calleeText === "renpy.jump_out_of_context"
+          ) {
+            const funcKind = (calleeText === "renpy.jump" ||
+                calleeText === "renpy.jump_out_of_context")
+              ? "jump"
+              : "call";
             const argListNode = calleeNode.nextSibling;
             if (argListNode && argListNode.name === "ArgList") {
               // Extract argument text inside parentheses

@@ -1,9 +1,12 @@
 export type {
+  CallArgument,
+  ConditionBranchKind,
   ConditionMetadata,
   EdgeKind,
   FlowAsset,
   FlowEdge,
   FlowNode,
+  LabelParameter,
   SourceLocation,
   SourcePosition,
 } from "./graph.ts";

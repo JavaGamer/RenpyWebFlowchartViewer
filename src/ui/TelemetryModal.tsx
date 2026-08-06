@@ -105,7 +105,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
       }}
       title="Performance Telemetry"
       description="Performance throughput and timing statistics of the Ren'Py flowchart parser."
-      isDark={true}
+      isDark
       headerAction={<Activity size={18} className="text-violet-400" />}
       className="bg-gray-900/90 backdrop-blur-xl ring-white/10"
     >

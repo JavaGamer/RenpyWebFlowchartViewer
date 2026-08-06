@@ -61,7 +61,9 @@ export function handleConditionalHeader(
   if (!pending || scanState.currentLabelId === null) return false;
   const source = resolveConditionalSource(scanState, meta, menuDepth);
   if (!source) return false;
-  if (pending.kind === "if" || pending.kind === "while") {
+  if (
+    pending.kind === "if" || pending.kind === "while" || pending.kind === "for"
+  ) {
     state.decisionCounter += 1;
     const decisionNodeId = `decision_${state.decisionCounter}`;
     const references = extractConditionFlagRefs(

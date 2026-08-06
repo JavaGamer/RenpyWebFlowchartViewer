@@ -7,22 +7,25 @@ import {
 } from "../../src/infrastructure/workerProtocol";
 
 class SyncPromise {
-  private value: any;
-  private error: any;
+  private value: unknown;
+  private error: unknown;
   private state: "pending" | "resolved" | "rejected" = "pending";
-  private resolveCallbacks: Array<(v: any) => void> = [];
-  private rejectCallbacks: Array<(e: any) => void> = [];
+  private resolveCallbacks: Array<(v: unknown) => void> = [];
+  private rejectCallbacks: Array<(e: unknown) => void> = [];
 
   constructor(
-    executor: (resolve: (v: any) => void, reject: (e: any) => void) => void,
+    executor: (
+      resolve: (v: unknown) => void,
+      reject: (e: unknown) => void,
+    ) => void,
   ) {
-    const resolve = (val: any) => {
+    const resolve = (val: unknown) => {
       if (this.state !== "pending") return;
       this.state = "resolved";
       this.value = val;
       for (const cb of this.resolveCallbacks) cb(val);
     };
-    const reject = (err: any) => {
+    const reject = (err: unknown) => {
       if (this.state !== "pending") return;
       this.state = "rejected";
       this.error = err;
@@ -35,7 +38,7 @@ class SyncPromise {
     }
   }
 
-  then(onResolve: (v: any) => any, onReject?: (e: any) => any) {
+  then(onResolve: (v: unknown) => unknown, onReject?: (e: unknown) => unknown) {
     if (this.state === "resolved") {
       try {
         const nextVal = onResolve(this.value);
@@ -79,28 +82,40 @@ class SyncPromise {
     });
   }
 
-  catch(onReject: (e: any) => any) {
+  catch(onReject: (e: unknown) => unknown) {
     return this.then((v) => v, onReject);
   }
 
-  static resolve(val: any) {
+  static resolve(val: unknown) {
     return new SyncPromise((resolve) => resolve(val));
   }
 
-  static reject(err: any) {
+  static reject(err: unknown) {
     return new SyncPromise((_, reject) => reject(err));
   }
 }
 
 vi.mock("comlink", () => {
   return {
-    wrap: (worker: any) => {
+    wrap: (
+      worker: {
+        postMessage: (msg: unknown) => void;
+        addEventListener: (
+          type: string,
+          listener: (event: MessageEvent) => void,
+        ) => void;
+        removeEventListener: (
+          type: string,
+          listener: (event: MessageEvent) => void,
+        ) => void;
+      },
+    ) => {
       return {
         parse: (
-          requestId: any,
-          files: any,
-          options: any,
-          progressProxy: any,
+          requestId: unknown,
+          files: unknown,
+          options: Record<string, unknown>,
+          progressProxy: (msg: unknown) => void,
         ) => {
           worker.postMessage({
             protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
@@ -118,7 +133,7 @@ vi.mock("comlink", () => {
             isFinalChunk: options.isFinalChunk,
           });
           return new SyncPromise((resolve, reject) => {
-            const listener = (event: any) => {
+            const listener = (event: MessageEvent) => {
               const msg = event.data;
               if (msg.requestId !== requestId) return;
               if (msg.type === "progress" && progressProxy) {
@@ -140,7 +155,11 @@ vi.mock("comlink", () => {
             worker.addEventListener("message", listener);
           });
         },
-        parseChunk: (requestId: any, files: any, options: any) => {
+        parseChunk: (
+          requestId: unknown,
+          files: unknown,
+          options: Record<string, unknown>,
+        ) => {
           worker.postMessage({
             protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
             type: "parse_chunk",
@@ -152,7 +171,7 @@ vi.mock("comlink", () => {
             screenActionRules: options.screenActionRules,
           });
           return new SyncPromise((resolve, reject) => {
-            const listener = (event: any) => {
+            const listener = (event: MessageEvent) => {
               const msg = event.data;
               if (msg.requestId !== requestId) return;
               if (msg.type === "chunk_result") {
@@ -176,7 +195,7 @@ vi.mock("comlink", () => {
             worker.addEventListener("message", listener);
           });
         },
-        finalize: (requestId: any, options: any) => {
+        finalize: (requestId: unknown, options: Record<string, unknown>) => {
           worker.postMessage({
             protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
             type: "finalize",
@@ -184,7 +203,7 @@ vi.mock("comlink", () => {
             ...options,
           });
           return new SyncPromise((resolve, reject) => {
-            const listener = (event: any) => {
+            const listener = (event: MessageEvent) => {
               const msg = event.data;
               if (msg.requestId !== requestId) return;
               if (msg.type === "finalize_result") {
@@ -203,7 +222,11 @@ vi.mock("comlink", () => {
             worker.addEventListener("message", listener);
           });
         },
-        search: (requestId: any, query: any, options: any) => {
+        search: (
+          requestId: unknown,
+          query: unknown,
+          options: Record<string, unknown>,
+        ) => {
           worker.postMessage({
             protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
             type: "search",
@@ -212,7 +235,7 @@ vi.mock("comlink", () => {
             ...options,
           });
           return new SyncPromise((resolve, reject) => {
-            const listener = (event: any) => {
+            const listener = (event: MessageEvent) => {
               const msg = event.data;
               if (msg.requestId !== requestId) return;
               if (msg.type === "search_result") {
@@ -227,7 +250,7 @@ vi.mock("comlink", () => {
             worker.addEventListener("message", listener);
           });
         },
-        cancel: (requestId: any) => {
+        cancel: (requestId: unknown) => {
           worker.postMessage({
             protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
             type: "cancel",
@@ -236,8 +259,8 @@ vi.mock("comlink", () => {
         },
       };
     },
-    proxy: (fn: any) => fn,
-    transfer: (value: any) => value,
+    proxy: (fn: unknown) => fn,
+    transfer: (value: unknown) => value,
     releaseProxy: Symbol("releaseProxy"),
   };
 });

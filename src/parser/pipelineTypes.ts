@@ -10,8 +10,17 @@ import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
+import type { ConditionBranchKind as DomainConditionBranchKind } from "../domain/index.ts";
+
 export type { EdgeKind };
-export type ConditionalBranchKind = "if" | "elif" | "else" | "while";
+export type ConditionalBranchKind = DomainConditionBranchKind;
+
+export interface DynamicJumpRule {
+  expressionPattern: string | RegExp;
+  targets:
+    | string[]
+    | ((expression: string, state: ParseGraphState) => string[]);
+}
 
 export interface ExtractedScreenActionExpression {
   expression: string;
@@ -180,6 +189,7 @@ export interface ParseScanState extends ResolveTargetScanState {
   waitForJumpTarget: boolean;
   waitForJumpExpressionTarget: boolean;
   waitForCallTarget: boolean;
+  waitForCallExpressionTarget?: boolean;
   waitForMenuNameForId: string | null;
   lastConditionalLine?: number;
   lastProcessedCustomLineNum?: number;
@@ -219,6 +229,7 @@ export interface ParseGraphState {
   diagnostics: ParseDiagnostic[];
   diagnosticIds: Set<string>;
   assets?: FlowAsset[];
+  dynamicJumpRules?: DynamicJumpRule[];
 }
 
 export interface ParseResult {
@@ -252,6 +263,7 @@ export interface ParseOptions {
   captureDialogueLines?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  dynamicJumpRules?: DynamicJumpRule[];
   sceneSplitDialogueThreshold?: number;
   signal?: AbortSignal;
 }

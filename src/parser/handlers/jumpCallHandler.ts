@@ -5,8 +5,10 @@ import type {
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
 import {
+  type CallArgument,
   type ConditionMetadata,
   type FlowEdge,
+  type LabelParameter,
   type SourceLocation,
 } from "../../domain/index.ts";
 import { menuAtDepth } from "../scanTransitions.ts";
@@ -14,6 +16,162 @@ import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
 import { addParseDiagnostic } from "../diagnostics.ts";
 
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+export function splitBalancedArguments(text: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let inQuote: string | null = null;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    if (inQuote) {
+      current += char;
+      if (char === "\\") {
+        if (i + 1 < text.length) {
+          current += text[i + 1]!;
+          i++;
+        }
+      } else if (char === inQuote) {
+        inQuote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      inQuote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (char === "{") braceDepth++;
+    else if (char === "}") braceDepth = Math.max(0, braceDepth - 1);
+
+    if (
+      char === "," && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0
+    ) {
+      if (current.trim()) result.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim()) {
+    result.push(current.trim());
+  }
+
+  return result;
+}
+
+export function extractParenthesizedArguments(
+  lineText: string,
+  prefixPattern: RegExp,
+): string | null {
+  const match = prefixPattern.exec(lineText);
+  if (!match) return null;
+  const startIdx = match.index + match[0].length;
+  if (lineText[startIdx] !== "(") return null;
+
+  let parenDepth = 0;
+  let inQuote: string | null = null;
+  let content = "";
+
+  for (let i = startIdx; i < lineText.length; i++) {
+    const char = lineText[i]!;
+    if (inQuote) {
+      content += char;
+      if (char === "\\") {
+        if (i + 1 < lineText.length) {
+          content += lineText[i + 1]!;
+          i++;
+        }
+      } else if (char === inQuote) {
+        inQuote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      inQuote = char;
+      content += char;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth++;
+      if (parenDepth > 1) content += char;
+    } else if (char === ")") {
+      parenDepth--;
+      if (parenDepth === 0) return content;
+      content += char;
+    } else {
+      content += char;
+    }
+  }
+
+  return null;
+}
+
+export function parseLabelParameters(
+  lineText: string,
+): LabelParameter[] | undefined {
+  const argText = extractParenthesizedArguments(
+    lineText,
+    /label\s+[A-Za-z_][A-Za-z0-9_]*\s*/i,
+  );
+  if (!argText || !argText.trim()) return undefined;
+  const rawParams = splitBalancedArguments(argText);
+  const params: LabelParameter[] = [];
+  for (const raw of rawParams) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx !== -1) {
+      const name = trimmed.substring(0, eqIdx).trim();
+      const defaultValue = trimmed.substring(eqIdx + 1).trim();
+      params.push({ name, defaultValue });
+    } else {
+      params.push({ name: trimmed });
+    }
+  }
+  return params.length > 0 ? params : undefined;
+}
+
+export function parseCallArguments(
+  lineText: string,
+): CallArgument[] | undefined {
+  const argText = extractParenthesizedArguments(
+    lineText,
+    /call\s+(?:expression\s+.*?\s+pass\s+|expression\s+.*?\s+|[A-Za-z_][A-Za-z0-9_]*\s+pass\s+|[A-Za-z_][A-Za-z0-9_]*\s*)/i,
+  );
+  if (!argText || !argText.trim()) return undefined;
+  const rawArgs = splitBalancedArguments(argText);
+  const args: CallArgument[] = [];
+  for (const raw of rawArgs) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (
+      eqIdx !== -1 &&
+      /^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed.substring(0, eqIdx).trim())
+    ) {
+      const name = trimmed.substring(0, eqIdx).trim();
+      const value = trimmed.substring(eqIdx + 1).trim();
+      args.push({ name, value });
+    } else {
+      args.push({ value: trimmed });
+    }
+  }
+  return args.length > 0 ? args : undefined;
+}
 
 export function addDynamicTargetDiagnostic(
   state: ParseGraphState,
@@ -200,6 +358,7 @@ export function emitCallEdge(
     condition?: ConditionMetadata;
     sourceLocation?: SourceLocation;
   },
+  callArgs?: CallArgument[],
   timeout?: FlowEdge["timeout"],
 ) {
   const { isInOption, source, optionText } = context;
@@ -233,6 +392,7 @@ export function emitCallEdge(
     condition: context.condition,
     timeout,
     sourceLocation: context.sourceLocation,
+    arguments: callArgs,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {
@@ -464,20 +624,27 @@ export function extractLiteralTarget(expression: string): string | null {
     return null;
   }
 
-  if (!rest.endsWith(quote) || rest.length < quote.length * 2) {
-    return null;
-  }
-
-  const inner = rest.substring(quote.length, rest.length - quote.length);
   const isRaw = prefix.toLowerCase().includes("r");
+  let i = quote.length;
   let result = "";
-  let i = 0;
-  while (i < inner.length) {
-    const char = inner[i];
+
+  while (i < rest.length) {
+    if (
+      rest.startsWith(quote, i) &&
+      (i === 0 || rest[i - 1] !== "\\" || (i >= 2 && rest[i - 2] === "\\"))
+    ) {
+      const remainder = rest.substring(i + quote.length).trim();
+      if (remainder.length === 0) {
+        return result.trim() || null;
+      }
+      return null;
+    }
+
+    const char = rest[i]!;
     if (char === "\\" && !isRaw) {
       i++;
-      if (i < inner.length) {
-        const nextChar = inner[i];
+      if (i < rest.length) {
+        const nextChar = rest[i]!;
         if (nextChar === "n") result += "\n";
         else if (nextChar === "t") result += "\t";
         else if (nextChar === "r") result += "\r";
@@ -492,8 +659,7 @@ export function extractLiteralTarget(expression: string): string | null {
     }
   }
 
-  if (result.trim().length === 0) return null;
-  return result;
+  return null;
 }
 
 export function extractIdentifierTarget(expression: string): string | null {
@@ -591,7 +757,6 @@ export function resolveExpressionTargets(
           return [globalVal];
         }
       }
-      return [];
     }
 
     const dictMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+)\s*\]$/.exec(
@@ -638,8 +803,62 @@ export function resolveExpressionTargets(
       }
     }
 
+    const ruleTargets = resolvePatternMatches(trimmed, scanState, state);
+    if (ruleTargets.length > 0) {
+      return ruleTargets;
+    }
+
     return [];
   } else {
     return [trimmed];
   }
+}
+
+function resolvePatternMatches(
+  trimmed: string,
+  _scanState: ParseScanState,
+  state?: ParseGraphState,
+): string[] {
+  if (state?.dynamicJumpRules) {
+    for (const rule of state.dynamicJumpRules) {
+      const isMatch = typeof rule.expressionPattern === "string"
+        ? trimmed.includes(rule.expressionPattern)
+        : rule.expressionPattern.test(trimmed);
+      if (isMatch) {
+        const targets = typeof rule.targets === "function"
+          ? rule.targets(trimmed, state)
+          : rule.targets;
+        if (targets.length > 0) return targets;
+      }
+    }
+  }
+
+  let prefix = "";
+  const prefixMatch =
+    /(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])?["']([^"'\n{]+)/
+      .exec(trimmed);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+  }
+
+  if (prefix && state) {
+    const candidates = new Set<string>();
+    if (state.canonicalLabelIdByName) {
+      for (const labelName of state.canonicalLabelIdByName.keys()) {
+        if (labelName.startsWith(prefix)) {
+          candidates.add(labelName);
+        }
+      }
+    }
+    if (state.allLabelIds) {
+      for (const labelId of state.allLabelIds) {
+        if (labelId.startsWith(prefix)) {
+          candidates.add(labelId);
+        }
+      }
+    }
+    if (candidates.size > 0) return Array.from(candidates);
+  }
+
+  return [];
 }

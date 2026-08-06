@@ -68,7 +68,7 @@ describe("UI Components Unit Tests", () => {
     it("shows large export target warnings when flag is true", () => {
       render(
         <Tooltip.Provider>
-          <ExportMenu {...defaultProps} isLargeExportTarget={true} />
+          <ExportMenu {...defaultProps} isLargeExportTarget />
         </Tooltip.Provider>,
       );
 
@@ -131,7 +131,7 @@ describe("UI Components Unit Tests", () => {
 
       expect(screen.getByText(/Failed to fetch URL/i)).toBeInTheDocument();
 
-      rerender(<UrlImportForm {...defaultProps} isFetchingUrl={true} />);
+      rerender(<UrlImportForm {...defaultProps} isFetchingUrl />);
       expect(screen.getByRole("button", { name: /Loading/i })).toBeDisabled();
     });
   });

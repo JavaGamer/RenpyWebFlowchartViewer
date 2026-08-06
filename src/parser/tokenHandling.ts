@@ -29,6 +29,8 @@ import {
   addDynamicTargetDiagnostic,
   emitCallEdge,
   emitJumpEdge,
+  parseCallArguments,
+  parseLabelParameters,
   resolveCallContext,
   resolveExpressionTargets,
 } from "./handlers/jumpCallHandler.ts";
@@ -259,6 +261,28 @@ export function handleToken(
     } else if (/^gameover\b/i.test(trimmed)) {
       scanState.lastProcessedCustomLineNum = lineNum;
       scanState.labelHasExplicitExit = true;
+    } else if (/^(?:\$\s*)?break\b/i.test(trimmed)) {
+      scanState.lastProcessedCustomLineNum = lineNum;
+      scanState.labelHasExplicitExit = true;
+    } else if (/^(?:\$\s*)?continue\b/i.test(trimmed)) {
+      scanState.lastProcessedCustomLineNum = lineNum;
+      const loopContext = [...scanState.conditionalDecisionStack]
+        .reverse()
+        .find((c) => c.branchKind === "while" || c.branchKind === "for");
+      if (loopContext && scanState.currentLabelId) {
+        addEdge(state, {
+          id:
+            `seq_${scanState.currentLabelId}__${loopContext.decisionNodeId}_continue`,
+          source: scanState.currentLabelId,
+          target: loopContext.decisionNodeId,
+          kind: "sequence",
+          label: "continue",
+          sourceLocation,
+        });
+        addOutgoing(state, scanState.currentLabelId, "sequence");
+        addIncoming(state, loopContext.decisionNodeId, "sequence");
+      }
+      scanState.labelHasExplicitExit = true;
     }
   }
 
@@ -289,8 +313,8 @@ export function handleToken(
   ) {
     const declaredLabelName = val().trim();
     let newLabelId = state.labelsByChapter.get(chapter)?.get(declaredLabelName);
-    let definitionCount = 1;
-    let canonicalLabelId = declaredLabelName;
+    let definitionCount: number;
+    let canonicalLabelId: string;
     if (newLabelId) {
       definitionCount =
         state.labelDefinitionCountByName.get(declaredLabelName) ?? 1;
@@ -366,6 +390,8 @@ export function handleToken(
       }
       : sourceLocation;
 
+    const parameters = parseLabelParameters(lineText);
+
     addNode(state, {
       id: newLabelId,
       type: "LABEL",
@@ -375,6 +401,7 @@ export function handleToken(
       isShadowed: definitionCount > 1,
       shadowOfId: definitionCount > 1 ? canonicalLabelId : undefined,
       sourceLocation: labelSourceLocation,
+      parameters,
     });
     if (definitionCount > 1 && canonicalLabelId) {
       const diagnosticId =
@@ -706,11 +733,26 @@ export function handleToken(
 
   if (PARSER_TOKENS.kwScreen !== undefined && type === PARSER_TOKENS.kwScreen) {
     scanState.waitForCallTarget = false;
+    scanState.waitForCallExpressionTarget = false;
     scanState.waitForJumpTarget = false;
+    scanState.waitForJumpExpressionTarget = false;
     return;
   }
 
-  if (type === PARSER_TOKENS.kwJump && meta.hasJumpStatement) {
+  if (
+    PARSER_TOKENS.kwExpression !== undefined &&
+    type === PARSER_TOKENS.kwExpression
+  ) {
+    if (scanState.waitForJumpTarget) {
+      scanState.waitForJumpExpressionTarget = true;
+    }
+    if (scanState.waitForCallTarget) {
+      scanState.waitForCallExpressionTarget = true;
+    }
+    return;
+  }
+
+  if (type === PARSER_TOKENS.kwJump) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     scanState.waitForJumpTarget = true;
     scanState.waitForJumpExpressionTarget = false;
@@ -723,18 +765,23 @@ export function handleToken(
     (PARSER_TOKENS.metaItemAccess !== undefined &&
       type === PARSER_TOKENS.metaItemAccess) ||
     (PARSER_TOKENS.metaFunctionCall !== undefined &&
-      type === PARSER_TOKENS.metaFunctionCall);
+      type === PARSER_TOKENS.metaFunctionCall) ||
+    scanState.waitForJumpExpressionTarget;
 
   if (
     isJumpTargetToken &&
-    scanState.waitForJumpTarget &&
-    meta.hasJumpStatement
+    scanState.waitForJumpTarget
   ) {
-    const targetExpression = val();
+    const rawExpr = scanState.waitForJumpExpressionTarget && lineText
+      ? (lineText.includes("expression")
+        ? lineText.substring(lineText.indexOf("expression") + 10).trim()
+        : val())
+      : val();
+    const targetExpression = rawExpr;
     const targets = resolveExpressionTargets(
       scanState,
       targetExpression,
-      false,
+      scanState.waitForJumpExpressionTarget,
       state,
     );
     const context = resolveCallContext(scanState, meta, menuDepth);
@@ -770,22 +817,63 @@ export function handleToken(
     return;
   }
 
-  if (type === PARSER_TOKENS.kwCall && meta.hasCallStatement) {
+  if (type === PARSER_TOKENS.kwCall) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     scanState.waitForCallTarget = true;
+    scanState.waitForCallExpressionTarget = false;
     return;
   }
 
-  if (
-    type === PARSER_TOKENS.entityFunctionName &&
-    scanState.waitForCallTarget &&
-    meta.hasCallStatement
-  ) {
-    const target = val();
-    const context = resolveCallContext(scanState, meta, menuDepth);
-    emitCallEdge(state, scanState, target, { ...context, sourceLocation });
+  const isCallTargetToken = type === PARSER_TOKENS.entityFunctionName ||
+    (PARSER_TOKENS.entityIdentifier !== undefined &&
+      type === PARSER_TOKENS.entityIdentifier) ||
+    (PARSER_TOKENS.metaItemAccess !== undefined &&
+      type === PARSER_TOKENS.metaItemAccess) ||
+    (PARSER_TOKENS.metaFunctionCall !== undefined &&
+      type === PARSER_TOKENS.metaFunctionCall) ||
+    Boolean(scanState.waitForCallExpressionTarget);
 
+  if (
+    isCallTargetToken &&
+    scanState.waitForCallTarget
+  ) {
+    const rawExpr = scanState.waitForCallExpressionTarget && lineText
+      ? (lineText.includes("expression")
+        ? lineText.substring(lineText.indexOf("expression") + 10).trim()
+        : val())
+      : val();
+    const targetExpression = rawExpr;
+    const targets = resolveExpressionTargets(
+      scanState,
+      targetExpression,
+      Boolean(scanState.waitForCallExpressionTarget),
+      state,
+    );
+    const context = resolveCallContext(scanState, meta, menuDepth);
+    const callArgs = parseCallArguments(lineText);
+    if (targets.length === 0) {
+      addDynamicTargetDiagnostic(
+        state,
+        chapter,
+        "call expression",
+        targetExpression,
+        context.source ?? undefined,
+      );
+      scanState.waitForCallTarget = false;
+      scanState.waitForCallExpressionTarget = false;
+      return;
+    }
+    for (const target of targets) {
+      emitCallEdge(
+        state,
+        scanState,
+        target,
+        { ...context, sourceLocation },
+        callArgs,
+      );
+    }
     scanState.waitForCallTarget = false;
+    scanState.waitForCallExpressionTarget = false;
     return;
   }
 

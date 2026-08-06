@@ -204,7 +204,7 @@ const parserApi = {
                 ) {
                   return undefined;
                 }
-                return tokenizeOneFile(
+                return await tokenizeOneFile(
                   file,
                   {
                     tokenizedCache,

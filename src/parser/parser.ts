@@ -59,6 +59,9 @@ export async function parseRenpyFiles(
   const perf = createPerfTracker("parser");
   perf.mark("total");
   const state = createGraphState();
+  if (options.dynamicJumpRules) {
+    state.dynamicJumpRules = options.dynamicJumpRules;
+  }
   const orderedFiles = [...files].sort(compareFiles);
 
   perf.mark("pre-parse");

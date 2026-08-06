@@ -62,7 +62,7 @@ describe("fetchFilesFromUrl", () => {
       headers: {
         get: (name: string) => (name === "Content-Type" ? "text/plain" : null),
       },
-      text: async () => 'label start:\n    "Hello world"',
+      text: () => Promise.resolve('label start:\n    "Hello world"'),
     } as unknown as Response;
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -89,7 +89,7 @@ describe("fetchFilesFromUrl", () => {
           name: string,
         ) => (name === "Content-Type" ? "application/zip" : null),
       },
-      arrayBuffer: async () => mockBuffer,
+      arrayBuffer: () => Promise.resolve(mockBuffer),
     } as unknown as Response;
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -98,7 +98,7 @@ describe("fetchFilesFromUrl", () => {
     const mockExtracted: UploadedFile[] = [{
       name: "extracted.rpy",
       size: 10,
-      text: async () => "extracted",
+      text: () => Promise.resolve("extracted"),
     }];
     vi.mocked(extractRpyFilesFromZip).mockResolvedValue(mockExtracted);
 
@@ -140,7 +140,7 @@ describe("fetchFilesFromUrl", () => {
       headers: {
         get: (name: string) => (name === "Content-Type" ? "image/png" : null),
       },
-      text: async () => "fake image content",
+      text: () => Promise.resolve("fake image content"),
     } as unknown as Response;
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse);
@@ -157,7 +157,7 @@ describe("fetchFilesFromUrl", () => {
       headers: {
         get: (name: string) => (name === "Content-Type" ? "text/plain" : null),
       },
-      text: async () => 'label start:\n    "hello"',
+      text: () => Promise.resolve('label start:\n    "hello"'),
     } as unknown as Response;
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(

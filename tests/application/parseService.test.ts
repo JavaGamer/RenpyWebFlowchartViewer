@@ -3,23 +3,27 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock(
   "../../src/infrastructure/parserWorkerClient",
   () => ({
-    parseRenpyFilesInWorker: vi.fn(async (request) => ({
-      nodes: [{
-        id: `node:${request.files.length}`,
-        type: "LABEL",
-        label: "n",
-        dialogueCount: 0,
-      }],
-      edges: [],
-    })),
-    searchDialogueLinesInWorker: vi.fn(async (request) => [
-      {
-        nodeId: "n1",
-        nodeLabel: "node",
-        lineIndex: 0,
-        lineText: request.query,
-      },
-    ]),
+    parseRenpyFilesInWorker: vi.fn((request) =>
+      Promise.resolve({
+        nodes: [{
+          id: `node:${request.files.length}`,
+          type: "LABEL",
+          label: "n",
+          dialogueCount: 0,
+        }],
+        edges: [],
+      })
+    ),
+    searchDialogueLinesInWorker: vi.fn((request) =>
+      Promise.resolve([
+        {
+          nodeId: "n1",
+          nodeLabel: "node",
+          lineIndex: 0,
+          lineText: request.query,
+        },
+      ])
+    ),
   }),
 );
 

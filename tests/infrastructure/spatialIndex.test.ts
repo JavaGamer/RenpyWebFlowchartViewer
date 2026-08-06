@@ -40,13 +40,13 @@ describe("SpatialQuadtree Viewport Virtualization", () => {
         id: "a",
         type: "labelNode",
         position: { x: 50, y: 50 },
-        data: {} as any,
+        data: {} as CanvasNode["data"],
       },
       {
         id: "b",
         type: "labelNode",
         position: { x: 2000, y: 2000 },
-        data: {} as any,
+        data: {} as CanvasNode["data"],
       },
     ];
 

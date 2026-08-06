@@ -269,7 +269,7 @@ export function processDirectScreenActionCalls(
       if (callType === "jump") {
         emitJumpEdge(state, scanState, target, context, false, timeout);
       } else {
-        emitCallEdge(state, scanState, target, context, timeout);
+        emitCallEdge(state, scanState, target, context, undefined, timeout);
       }
     }
   };
@@ -297,12 +297,14 @@ export function resetStaleWaitFlags(
     scanState.waitForJumpTarget = false;
     scanState.waitForJumpExpressionTarget = false;
     scanState.waitForCallTarget = false;
+    scanState.waitForCallExpressionTarget = false;
     scanState.waitForMenuNameForId = null;
     return;
   }
   const isJumpTargetTokenCheck = type === PARSER_TOKENS.entityFunctionName ||
     (PARSER_TOKENS.entityIdentifier !== undefined &&
-      type === PARSER_TOKENS.entityIdentifier);
+      type === PARSER_TOKENS.entityIdentifier) ||
+    Boolean(scanState.waitForJumpExpressionTarget);
 
   if (scanState.waitForJumpTarget && !isJumpTargetTokenCheck) {
     if (
@@ -324,10 +326,22 @@ export function resetStaleWaitFlags(
   }
   const isCallTargetTokenCheck = type === PARSER_TOKENS.entityFunctionName ||
     (PARSER_TOKENS.entityIdentifier !== undefined &&
-      type === PARSER_TOKENS.entityIdentifier);
+      type === PARSER_TOKENS.entityIdentifier) ||
+    (PARSER_TOKENS.kwExpression !== undefined &&
+      type === PARSER_TOKENS.kwExpression) ||
+    ((PARSER_TOKENS as unknown as Record<string, number | undefined>)
+      .kwPass !== undefined &&
+      type ===
+        (PARSER_TOKENS as unknown as Record<string, number | undefined>)
+          .kwPass) ||
+    (PARSER_TOKENS.metaItemAccess !== undefined &&
+      type === PARSER_TOKENS.metaItemAccess) ||
+    (PARSER_TOKENS.metaFunctionCall !== undefined &&
+      type === PARSER_TOKENS.metaFunctionCall);
 
   if (scanState.waitForCallTarget && !isCallTargetTokenCheck) {
     scanState.waitForCallTarget = false;
+    scanState.waitForCallExpressionTarget = false;
   }
   if (
     scanState.waitForMenuNameForId && type !== PARSER_TOKENS.entityFunctionName

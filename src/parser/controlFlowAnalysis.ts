@@ -7,8 +7,79 @@ import { addParseDiagnostic } from "./diagnostics.ts";
 import {
   buildMockFlagsFromVariableState,
   evaluateConditionExpression,
+  type CallArgument,
   type FlowEdge,
 } from "../domain/index.ts";
+
+function parseForLoopSequenceValues(
+  expression?: string,
+): { varName: string; values: VariableValue[] } | null {
+  if (!expression) return null;
+  const match = /^([A-Za-z0-9_,\s]+)\s+in\s+(.+)$/.exec(expression.trim());
+  if (!match) return null;
+  const rawVarTarget = match[1]!.trim();
+  const primaryVar = rawVarTarget.split(",")[0]!.trim();
+  const rhs = match[2]!.trim();
+
+  const rangeMatch = /^range\s*\(([^)]+)\)$/.exec(rhs);
+  if (rangeMatch) {
+    const parts = rangeMatch[1]!.split(",").map((p) => parseInt(p.trim(), 10));
+    if (parts.length === 1 && !isNaN(parts[0]!)) {
+      const values: number[] = [];
+      for (let i = 0; i < parts[0]!; i++) values.push(i);
+      return { varName: primaryVar, values };
+    } else if (parts.length >= 2 && !isNaN(parts[0]!) && !isNaN(parts[1]!)) {
+      const start = parts[0]!;
+      const stop = parts[1]!;
+      const step = parts.length >= 3 && !isNaN(parts[2]!) ? parts[2]! : 1;
+      const values: number[] = [];
+      if (step > 0) {
+        for (let i = start; i < stop; i += step) values.push(i);
+      } else if (step < 0) {
+        for (let i = start; i > stop; i += step) values.push(i);
+      }
+      return { varName: primaryVar, values };
+    }
+  }
+
+  if (rhs.startsWith("[") && rhs.endsWith("]")) {
+    const rawItems = rhs.substring(1, rhs.length - 1).split(",");
+    const values: string[] = [];
+    for (const item of rawItems) {
+      const trimmed = item.trim().replace(/^["']|["']$/g, "");
+      if (trimmed) values.push(trimmed);
+    }
+    if (values.length > 0) return { varName: primaryVar, values };
+  }
+
+  return null;
+}
+
+function parseArgumentValue(
+  valStr: string,
+  variables?: Map<string, VariableValue>,
+  persistent?: Map<string, VariableValue>,
+): VariableValue {
+  const trimmed = valStr.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  if (trimmed !== "" && !isNaN(Number(trimmed))) {
+    return Number(trimmed);
+  }
+  if (trimmed === "True" || trimmed === "true") return true;
+  if (trimmed === "False" || trimmed === "false") return false;
+  if (variables && variables.has(trimmed)) {
+    return variables.get(trimmed)!;
+  }
+  if (persistent && persistent.has(trimmed)) {
+    return persistent.get(trimmed)!;
+  }
+  return trimmed;
+}
 
 /**
  * Runs control-flow analysis on the finalized graph state.
@@ -48,31 +119,33 @@ function analyzeReachability(
   } else {
     // If no "start" label exists, start from all nodes with 0 incoming edges
     for (const node of state.nodes) {
-      if (node.type === "LABEL" && !node.isShadowed) {
-        const incoming = state.incomingByLabel.get(node.id);
-        if (!incoming || incoming.size === 0) {
-          queue.push(node.id);
-          visited.add(node.id);
-        }
+      if (
+        node.role === "story" &&
+        (!state.incomingByLabel.has(node.id) ||
+          state.incomingByLabel.get(node.id)!.size === 0)
+      ) {
+        queue.push(node.id);
+        visited.add(node.id);
       }
     }
   }
 
   while (queue.length > 0) {
     const currId = queue.shift()!;
-    const outgoingEdges = outgoingMap.get(currId) ?? [];
-    for (const edge of outgoingEdges) {
+    const outgoing = outgoingMap.get(currId) ?? [];
+    for (const edge of outgoing) {
       if (!visited.has(edge.target)) {
-        if (state.nodeMap.has(edge.target)) {
-          visited.add(edge.target);
-          queue.push(edge.target);
-        }
+        visited.add(edge.target);
+        queue.push(edge.target);
       }
     }
   }
 
   for (const node of state.nodes) {
-    if (node.type === "LABEL" && !node.isShadowed && !visited.has(node.id)) {
+    if (
+      node.role === "story" &&
+      !visited.has(node.id)
+    ) {
       node.isOrphan = true;
       addParseDiagnostic(
         state,
@@ -89,9 +162,10 @@ function analyzeReachability(
             category: "unreachable_label",
             detail: node.label,
           },
-          message: `Label "${node.label}" is unreachable from entry points.`,
+          message:
+            `Label "${node.label}" is unreachable from start or any entry node.`,
           recoveryAction:
-            "Ensure there is a jump, call, or sequence path to this label.",
+            "Add a jump or call to this label or verify entry point logic.",
         },
         `unreachable_label|${node.id}`,
       );
@@ -107,22 +181,21 @@ function analyzeTightCycles(
   state: ParseGraphState,
   outgoingMap: Map<string, FlowEdge[]>,
 ): void {
-  // 0 = unvisited, 1 = visiting (in path), 2 = visited (fully processed)
-  const color = new Map<string, number>();
+  const color = new Map<string, number>(); // 0: unvisited, 1: visiting, 2: visited
+  const stack: Array<{ nodeId: string; edgeIndex: number }> = [];
+  const pathNodes: string[] = [];
 
-  for (const startNode of state.nodes) {
-    if (color.get(startNode.id)) continue;
+  for (const node of state.nodes) {
+    if ((color.get(node.id) ?? 0) !== 0) continue;
 
-    const stack: Array<{ nodeId: string; edgeIndex: number }> = [
-      { nodeId: startNode.id, edgeIndex: 0 },
-    ];
-    color.set(startNode.id, 1);
-    const pathNodes: string[] = [startNode.id];
+    color.set(node.id, 1);
+    pathNodes.push(node.id);
+    stack.push({ nodeId: node.id, edgeIndex: 0 });
 
     while (stack.length > 0) {
       const top = stack[stack.length - 1]!;
       const outgoing = (outgoingMap.get(top.nodeId) ?? []).filter(
-        (e) => e.kind === "sequence" || e.kind === "jump" || e.kind === "call",
+        (e) => e.kind === "sequence" || e.kind === "jump",
       );
 
       if (top.edgeIndex < outgoing.length) {
@@ -138,12 +211,14 @@ function analyzeTightCycles(
             const cycle = pathNodes.slice(cycleStartIndex);
             let hasInteraction = false;
             for (const id of cycle) {
-              const node = state.nodeMap.get(id);
+              const n = state.nodeMap.get(id);
               if (
-                node &&
-                (node.type === "MENU" ||
-                  node.dialogueCount > 0 ||
-                  (node.pauseDuration && node.pauseDuration > 0))
+                n &&
+                (n.type === "MENU" ||
+                  n.dialogueCount > 0 ||
+                  (n.pauseDuration && n.pauseDuration > 0) ||
+                  n.role === "while_loop" ||
+                  n.role === "for_loop")
               ) {
                 hasInteraction = true;
                 break;
@@ -208,7 +283,12 @@ function analyzeCallReturnMismatches(
         return true;
       }
       const outgoingEdges = (outgoingMap.get(currId) ?? []).filter(
-        (e) => e.kind === "sequence" || e.kind === "jump",
+        (e) =>
+          e.kind === "sequence" ||
+          e.kind === "jump" ||
+          (e.kind === "call" &&
+            (state.hasReturnInLabel.has(e.target) ||
+              state.hasReliableReturnInLabel.has(e.target))),
       );
       for (const edge of outgoingEdges) {
         if (!visited.has(edge.target)) {
@@ -288,15 +368,21 @@ function mergePathStates(
   let changed = false;
   const newVars = new Map(existing.variables);
   for (const [k, v] of incoming.variables.entries()) {
-    if (!newVars.has(k) || newVars.get(k) !== v) {
+    if (!newVars.has(k)) {
       newVars.set(k, v);
+      changed = true;
+    } else if (newVars.get(k) !== v) {
+      newVars.delete(k);
       changed = true;
     }
   }
   const newPersist = new Map(existing.persistent);
   for (const [k, v] of incoming.persistent.entries()) {
-    if (!newPersist.has(k) || newPersist.get(k) !== v) {
+    if (!newPersist.has(k)) {
       newPersist.set(k, v);
+      changed = true;
+    } else if (newPersist.get(k) !== v) {
+      newPersist.delete(k);
       changed = true;
     }
   }
@@ -347,6 +433,16 @@ function propagateVariableMutationsAndEvaluateConditions(
       persistent: new Map(currState.persistent),
     };
 
+    const currNode = state.nodeMap.get(currId);
+    if (currNode && currNode.condition?.branchKind === "for") {
+      const parsedFor = parseForLoopSequenceValues(
+        currNode.condition.expression,
+      );
+      if (parsedFor && parsedFor.values.length > 0) {
+        nextState.variables.set(parsedFor.varName, parsedFor.values[0]!);
+      }
+    }
+
     const mutations = state.nodeMutations?.get(currId);
     if (mutations) {
       for (const mut of mutations) {
@@ -388,14 +484,55 @@ function propagateVariableMutationsAndEvaluateConditions(
         }
       }
 
+      let edgeState = nextState;
+      if (edge.kind === "call" && edge.arguments && edge.arguments.length > 0) {
+        const targetNode = state.nodeMap.get(edge.target);
+        if (targetNode && targetNode.parameters) {
+          const newVars = new Map(nextState.variables);
+          const positionalArgs = edge.arguments.filter((a) => !a.name);
+          let posIndex = 0;
+          for (let i = 0; i < targetNode.parameters.length; i++) {
+            const param = targetNode.parameters[i]!;
+            const kwArg = edge.arguments.find((a) => a.name === param.name);
+            let valObj: CallArgument | undefined = kwArg;
+            if (!valObj && posIndex < positionalArgs.length) {
+              valObj = positionalArgs[posIndex++];
+            }
+            if (valObj) {
+              newVars.set(
+                param.name,
+                parseArgumentValue(
+                  valObj.value,
+                  nextState.variables,
+                  nextState.persistent,
+                ),
+              );
+            } else if (param.defaultValue !== undefined) {
+              newVars.set(
+                param.name,
+                parseArgumentValue(
+                  param.defaultValue,
+                  nextState.variables,
+                  nextState.persistent,
+                ),
+              );
+            }
+          }
+          edgeState = {
+            variables: newVars,
+            persistent: new Map(nextState.persistent),
+          };
+        }
+      }
+
       const existingTargetState = nodeStates.get(edge.target);
       if (!existingTargetState) {
-        nodeStates.set(edge.target, nextState);
+        nodeStates.set(edge.target, edgeState);
         queue.push(edge.target);
       } else {
         const { merged, changed } = mergePathStates(
           existingTargetState,
-          nextState,
+          edgeState,
         );
         if (changed) {
           nodeStates.set(edge.target, merged);

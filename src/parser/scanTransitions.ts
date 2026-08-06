@@ -129,7 +129,7 @@ export function maybeUpdateConditionalState(
   const tokenText = getTokenText();
   if (
     tokenText === "if" || tokenText === "elif" || tokenText === "else" ||
-    tokenText === "while"
+    tokenText === "while" || tokenText === "for"
   ) {
     scanState.conditionalIndentStack.push(indent);
   }
@@ -143,7 +143,7 @@ export function maybeUpdateConditionalState(
 }
 
 /**
- * Extracts the conditional keyword (if, elif, else, while) and the evaluated expression
+ * Extracts the conditional keyword (if, elif, else, while, for) and the evaluated expression
  * from a raw statement line (e.g. "if x == 5:").
  */
 function parseConditionalHeader(lineText: string): {
@@ -151,7 +151,7 @@ function parseConditionalHeader(lineText: string): {
   expression: string | null;
 } | null {
   const trimmed = lineText.trim();
-  const keywordMatch = /^(if|elif|else|while)\b/.exec(trimmed);
+  const keywordMatch = /^(if|elif|else|while|for)\b/.exec(trimmed);
   if (!keywordMatch) return null;
   const kind = keywordMatch[1] as ConditionalBranchKind;
   const headerColonIndex = findTopLevelHeaderColon(trimmed);
