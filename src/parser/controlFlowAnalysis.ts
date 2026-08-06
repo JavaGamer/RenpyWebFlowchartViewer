@@ -1,5 +1,13 @@
-import type { ParseGraphState } from "./pipelineTypes.ts";
+import type {
+  ParseGraphState,
+  PathVariableState,
+  VariableValue,
+} from "./pipelineTypes.ts";
 import { addParseDiagnostic } from "./diagnostics.ts";
+import {
+  buildMockFlagsFromVariableState,
+  evaluateConditionExpression,
+} from "../domain/index.ts";
 
 /**
  * Runs control-flow analysis on the finalized graph state.
@@ -7,11 +15,13 @@ import { addParseDiagnostic } from "./diagnostics.ts";
  * 1. Unreachable labels (orphans).
  * 2. Dialogue-less tight infinite cycles.
  * 3. Call-return mismatches.
+ * 4. Path-aware variable state propagation and static condition evaluation.
  */
 export function runControlFlowAnalysis(state: ParseGraphState): void {
   analyzeReachability(state);
   analyzeTightCycles(state);
   analyzeCallReturnMismatches(state);
+  propagateVariableMutationsAndEvaluateConditions(state);
 }
 
 function analyzeReachability(state: ParseGraphState): void {
@@ -226,6 +236,130 @@ function analyzeCallReturnMismatches(state: ParseGraphState): void {
           },
           `uncalled_return|${labelId}`,
         );
+      }
+    }
+  }
+}
+
+function mergePathStates(
+  existing: PathVariableState,
+  incoming: PathVariableState,
+): { merged: PathVariableState; changed: boolean } {
+  let changed = false;
+  const newVars = new Map(existing.variables);
+  for (const [k, v] of incoming.variables.entries()) {
+    if (!newVars.has(k) || newVars.get(k) !== v) {
+      newVars.set(k, v);
+      changed = true;
+    }
+  }
+  const newPersist = new Map(existing.persistent);
+  for (const [k, v] of incoming.persistent.entries()) {
+    if (!newPersist.has(k) || newPersist.get(k) !== v) {
+      newPersist.set(k, v);
+      changed = true;
+    }
+  }
+  return {
+    merged: { variables: newVars, persistent: newPersist },
+    changed,
+  };
+}
+
+function propagateVariableMutationsAndEvaluateConditions(
+  state: ParseGraphState,
+): void {
+  const startCanonicalId = state.canonicalLabelIdByName?.get("start");
+  const entryId = (state.nodeMap.has("start") ? "start" : startCanonicalId) ??
+    state.nodes[0]?.id;
+  if (!entryId) return;
+
+  const initialVars = new Map<string, VariableValue>();
+  for (const [k, v] of state.globalLabelVariableLiteralTargets.entries()) {
+    initialVars.set(k, v);
+  }
+  const initialPersist = new Map<string, VariableValue>();
+  if (state.globalPersistentVariables) {
+    for (const [k, v] of state.globalPersistentVariables.entries()) {
+      initialPersist.set(k, v);
+    }
+  }
+
+  const nodeStates = new Map<string, PathVariableState>();
+  nodeStates.set(entryId, {
+    variables: initialVars,
+    persistent: initialPersist,
+  });
+
+  const queue: string[] = [entryId];
+  const visitCounts = new Map<string, number>();
+
+  while (queue.length > 0) {
+    const currId = queue.shift()!;
+    const count = (visitCounts.get(currId) ?? 0) + 1;
+    visitCounts.set(currId, count);
+    if (count > 50) continue; // Loop guard for cyclic graphs
+
+    const currState = nodeStates.get(currId)!;
+    const nextState: PathVariableState = {
+      variables: new Map(currState.variables),
+      persistent: new Map(currState.persistent),
+    };
+
+    const mutations = state.nodeMutations?.get(currId);
+    if (mutations) {
+      for (const mut of mutations) {
+        const store = mut.isPersistent
+          ? nextState.persistent
+          : nextState.variables;
+        if (mut.operator === "=") {
+          store.set(mut.variableName, mut.value);
+        } else if (mut.operator === "+=" && typeof mut.value === "number") {
+          const raw = store.get(mut.variableName);
+          const prev = typeof raw === "number"
+            ? raw
+            : (!isNaN(Number(raw)) ? Number(raw) : 0);
+          store.set(mut.variableName, prev + mut.value);
+        } else if (mut.operator === "-=" && typeof mut.value === "number") {
+          const raw = store.get(mut.variableName);
+          const prev = typeof raw === "number"
+            ? raw
+            : (!isNaN(Number(raw)) ? Number(raw) : 0);
+          store.set(mut.variableName, prev - mut.value);
+        }
+      }
+    }
+
+    const outgoing = state.edges.filter((e) => e.source === currId);
+    for (const edge of outgoing) {
+      if (edge.condition?.expression) {
+        const mockFlags = buildMockFlagsFromVariableState(
+          nextState.variables,
+          nextState.persistent,
+        );
+        const res = evaluateConditionExpression(
+          edge.condition.expression,
+          mockFlags,
+        );
+        if (res === "false") {
+          edge.conditionIsStaticallyFalse = true;
+          continue; // Do not propagate along statically false branch
+        }
+      }
+
+      const existingTargetState = nodeStates.get(edge.target);
+      if (!existingTargetState) {
+        nodeStates.set(edge.target, nextState);
+        queue.push(edge.target);
+      } else {
+        const { merged, changed } = mergePathStates(
+          existingTargetState,
+          nextState,
+        );
+        if (changed) {
+          nodeStates.set(edge.target, merged);
+          queue.push(edge.target);
+        }
       }
     }
   }

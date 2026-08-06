@@ -27,6 +27,8 @@ import {
 } from "../../config/viewerConfig.ts";
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "../viewerConstants.ts";
 
+import { type AABB, createSpatialIndex } from "../../infrastructure/index.ts";
+
 export interface UseGraphVisibilityProps {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
@@ -36,6 +38,7 @@ export interface UseGraphVisibilityProps {
   parseService: ParseService;
   previousVisibleNodesByIdRef: React.MutableRefObject<Map<string, CanvasNode>>;
   previousVisibleEdgesByIdRef: React.MutableRefObject<Map<string, CanvasEdge>>;
+  viewportBounds?: AABB | null;
 }
 
 export function useGraphVisibility({
@@ -47,6 +50,7 @@ export function useGraphVisibility({
   parseService,
   previousVisibleNodesByIdRef,
   previousVisibleEdgesByIdRef,
+  viewportBounds,
 }: UseGraphVisibilityProps) {
   const {
     searchInput,
@@ -244,8 +248,8 @@ export function useGraphVisibility({
       collapsedLabelChildren,
       conditionVisibilityMode,
       conditionalVisibility.hiddenNodeIds,
-      dialogueMatchNodeIds,
       dialogueLineSearchEnabled,
+      dialogueMatchNodeIds,
       effectiveSearch,
       minDialogue,
       nodes,
@@ -255,9 +259,28 @@ export function useGraphVisibility({
     ],
   );
 
+  const logicalVisibleNodes = visibleNodes;
+
+  const spatialIndex = useMemo(() => {
+    if (!viewportBounds || nodes.length < 150) return null;
+    return createSpatialIndex(nodes);
+  }, [nodes, viewportBounds]);
+
+  const spatiallyFilteredNodes = useMemo(() => {
+    if (!spatialIndex || !viewportBounds) return visibleNodes;
+    const visibleIds = spatialIndex.queryRange(viewportBounds);
+    return visibleNodes.filter(
+      (n) =>
+        !n.hidden &&
+        (n.id === selectedNodeId ||
+          n.id === focusNodeId ||
+          visibleIds.has(n.id)),
+    );
+  }, [focusNodeId, selectedNodeId, spatialIndex, viewportBounds, visibleNodes]);
+
   const visibleNodeIds = useMemo(
-    () => new Set(visibleNodes.filter((n) => !n.hidden).map((n) => n.id)),
-    [visibleNodes],
+    () => new Set(spatiallyFilteredNodes.map((n) => n.id)),
+    [spatiallyFilteredNodes],
   );
 
   const visibleEdges = useMemo(
@@ -363,7 +386,8 @@ export function useGraphVisibility({
     dialogueMatchNodeIds,
     activeDialogueSearchResults,
     nodeSearchMatchIds,
-    visibleNodes,
+    logicalVisibleNodes,
+    visibleNodes: spatiallyFilteredNodes,
     visibleNodeIds,
     visibleEdges,
     selectedNode,

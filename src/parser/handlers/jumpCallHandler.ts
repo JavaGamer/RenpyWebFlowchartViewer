@@ -293,25 +293,79 @@ export function parseDictLiteral(
     return null; // unclosed string
   }
 
+  function skipValueExpression() {
+    let braceCount = 0;
+    let bracketCount = 0;
+    let parenCount = 0;
+    let inQuote: string | null = null;
+
+    while (i < content.length) {
+      const char = content[i];
+      if (inQuote) {
+        if (char === "\\") {
+          i += 2;
+          continue;
+        }
+        if (char === inQuote) {
+          inQuote = null;
+        }
+        i++;
+        continue;
+      }
+
+      if (char === '"' || char === "'") {
+        inQuote = char;
+        i++;
+        continue;
+      }
+
+      if (char === "{") braceCount++;
+      else if (char === "}") {
+        if (braceCount === 0) break;
+        braceCount--;
+      } else if (char === "[") bracketCount++;
+      else if (char === "]") {
+        if (bracketCount === 0) break;
+        bracketCount--;
+      } else if (char === "(") parenCount++;
+      else if (char === ")") {
+        if (parenCount === 0) break;
+        parenCount--;
+      } else if (
+        char === "," && braceCount === 0 && bracketCount === 0 &&
+        parenCount === 0
+      ) {
+        break;
+      }
+      i++;
+    }
+  }
+
   while (i < content.length) {
     skipWhitespace();
     if (i >= content.length) break;
     const key = parseStringLiteral();
-    if (key === null) return null;
+    if (key === null) {
+      skipValueExpression();
+      if (i < content.length && content[i] === ",") i++;
+      continue;
+    }
 
     skipWhitespace();
-    if (i >= content.length || content[i] !== ":") return null;
+    if (i >= content.length || content[i] !== ":") break;
     i++; // consume ':'
 
     skipWhitespace();
     const val = parseStringLiteral();
-    if (val === null) return null;
-
-    result.set(key, val);
+    if (val !== null) {
+      result.set(key, val);
+    } else {
+      skipValueExpression();
+    }
 
     skipWhitespace();
     if (i < content.length) {
-      if (content[i] !== ",") return null;
+      if (content[i] !== ",") break;
       i++; // consume ','
     }
   }
@@ -383,8 +437,9 @@ export function parseListLiteral(
 
 export function extractLiteralTarget(expression: string): string | null {
   const trimmed = expression.trim();
-  const prefixMatch = /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[rR]|[uU]|[bB])?/
-    .exec(trimmed);
+  const prefixMatch =
+    /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])?/
+      .exec(trimmed);
   const prefix = prefixMatch ? prefixMatch[0] : "";
   const rest = trimmed.substring(prefix.length);
 

@@ -32,6 +32,7 @@ import { ViewerInspector } from "./viewerInspector.tsx";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
 import { useGraphVisibility } from "./hooks/useGraphVisibility.ts";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction.ts";
+import { useViewportBounds } from "./hooks/useViewportBounds.ts";
 
 export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
@@ -161,6 +162,12 @@ export function FlowchartCanvas({
     onRelayoutComplete,
   });
 
+  const { bounds: viewportBounds, updateBounds } = useViewportBounds(
+    flowRef,
+    flowInstanceRef,
+    400,
+  );
+
   // -- Visibility Hook --------------------------------------------------------
   const {
     chapters,
@@ -174,6 +181,7 @@ export function FlowchartCanvas({
     conditionalVisibility,
     effectiveSearch,
     activeDialogueSearchResults,
+    logicalVisibleNodes,
     visibleNodes,
     visibleNodeIds,
     visibleEdges,
@@ -194,6 +202,7 @@ export function FlowchartCanvas({
     parseService,
     previousVisibleNodesByIdRef,
     previousVisibleEdgesByIdRef,
+    viewportBounds,
   });
 
   // -- Interaction Hook -------------------------------------------------------
@@ -221,26 +230,28 @@ export function FlowchartCanvas({
   useEffect(() => {
     const current = previousVisibleNodesByIdRef.current;
     if (
-      current.size === visibleNodes.length &&
-      visibleNodes.every((node) => current.get(node.id) === node)
+      current.size === logicalVisibleNodes.length &&
+      logicalVisibleNodes.every((node: CanvasNode) =>
+        current.get(node.id) === node
+      )
     ) {
       return;
     }
     previousVisibleNodesByIdRef.current = new Map(
-      visibleNodes.map((node) => [node.id, node]),
+      logicalVisibleNodes.map((node: CanvasNode) => [node.id, node]),
     );
-  }, [visibleNodes]);
+  }, [logicalVisibleNodes]);
 
   useEffect(() => {
     const current = previousVisibleEdgesByIdRef.current;
     if (
       current.size === visibleEdges.length &&
-      visibleEdges.every((edge) => current.get(edge.id) === edge)
+      visibleEdges.every((edge: CanvasEdge) => current.get(edge.id) === edge)
     ) {
       return;
     }
     previousVisibleEdgesByIdRef.current = new Map(
-      visibleEdges.map((edge) => [edge.id, edge]),
+      visibleEdges.map((edge: CanvasEdge) => [edge.id, edge]),
     );
   }, [visibleEdges]);
 
@@ -291,11 +302,13 @@ export function FlowchartCanvas({
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            onMove={updateBounds}
             onInit={(instance) => {
               flowInstanceRef.current = instance as ReactFlowInstance<
                 CanvasNode,
                 CanvasEdge
               >;
+              updateBounds();
             }}
             fitView
             fitViewOptions={{ padding: 0.2 }}

@@ -32,3 +32,8 @@ export {
   type PerfTrackerOptions,
 } from "./perf.ts";
 export { workerParseService } from "./workerParseAdapter.ts";
+export {
+  type AABB,
+  createSpatialIndex,
+  SpatialQuadtree,
+} from "./spatialIndex.ts";

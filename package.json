@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
+    "@lezer/common": "^1.5.2",
+    "@lezer/python": "^1.1.19",
     "@renpy/ast": "^0.1.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-virtual": "^3.14.6",

@@ -40,9 +40,16 @@ export {
   simplifyGraph,
 } from "./transforms/index.ts";
 
-export { extractConditionFlagRefs } from "./conditionLogic.ts";
+export {
+  buildMockFlagsFromVariableState,
+  evaluateConditionExpression,
+  extractConditionFlagRefs,
+} from "./conditionLogic.ts";
 
-export type { MockFlagValue } from "./conditionLogic.ts";
+export type {
+  ConditionEvaluationResult,
+  MockFlagValue,
+} from "./conditionLogic.ts";
 
 export {
   BaseDomainError,

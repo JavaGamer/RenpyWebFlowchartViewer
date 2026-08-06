@@ -90,7 +90,7 @@ function evaluateInstructions(
   instructions: EvalInstruction[],
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
-  const stack: ConditionEvaluationResult[] = [];
+  const stack: string[] = [];
 
   for (const inst of instructions) {
     if (inst.type === "IVAR") {
@@ -100,26 +100,15 @@ function evaluateInstructions(
         stack.push("true");
       } else if (lower === "false" || lower === "none" || lower === "null") {
         stack.push("false");
-      } else if (val) {
-        const flagVal = flags[val];
-        stack.push(
-          flagVal === "true" || flagVal === "false" ? flagVal : "unknown",
-        );
+      } else if (val && flags[val] !== undefined) {
+        stack.push(String(flags[val]));
       } else {
         stack.push("unknown");
       }
+    } else if (inst.type === "INUMBER" || inst.type === "INUM") {
+      stack.push(String(inst.value ?? 0));
     } else if (inst.type === "ISTR") {
-      const val = typeof inst.value === "string" ? inst.value : "";
-      const lower = val.toLowerCase();
-      if (lower === "true") {
-        stack.push("true");
-      } else if (lower === "false") {
-        stack.push("false");
-      } else {
-        stack.push("unknown");
-      }
-    } else if (inst.type === "INUM") {
-      stack.push("unknown");
+      stack.push(String(inst.value ?? ""));
     } else if (inst.type === "IEXPR") {
       if (Array.isArray(inst.value)) {
         stack.push(
@@ -132,7 +121,11 @@ function evaluateInstructions(
       const val = stack.pop();
       if (!val) throw new Error("Stack underflow");
       stack.push(
-        val === "unknown" ? "unknown" : val === "true" ? "false" : "true",
+        val === "unknown"
+          ? "unknown"
+          : (val === "true" || val === "1")
+          ? "false"
+          : "true",
       );
     } else if (inst.type === "IOP2") {
       const right = stack.pop();
@@ -143,7 +136,7 @@ function evaluateInstructions(
       if (op === "and" || op === "&&") {
         if (left === "false" || right === "false") {
           stack.push("false");
-        } else if (left === "true" && right === "true") {
+        } else if (left !== "unknown" && right !== "unknown") {
           stack.push("true");
         } else {
           stack.push("unknown");
@@ -160,9 +153,30 @@ function evaluateInstructions(
         if (left === "unknown" || right === "unknown") {
           stack.push("unknown");
         } else {
-          const equal = left === right;
+          const numL = Number(left);
+          const numR = Number(right);
+          const equal = (!isNaN(numL) && !isNaN(numR))
+            ? numL === numR
+            : left === right;
           const res = op === "==" ? equal : !equal;
           stack.push(res ? "true" : "false");
+        }
+      } else if (op === "<" || op === ">" || op === "<=" || op === ">=") {
+        if (left === "unknown" || right === "unknown") {
+          stack.push("unknown");
+        } else {
+          const numL = Number(left);
+          const numR = Number(right);
+          if (!isNaN(numL) && !isNaN(numR)) {
+            let res = false;
+            if (op === "<") res = numL < numR;
+            else if (op === ">") res = numL > numR;
+            else if (op === "<=") res = numL <= numR;
+            else if (op === ">=") res = numL >= numR;
+            stack.push(res ? "true" : "false");
+          } else {
+            stack.push("unknown");
+          }
         }
       } else {
         stack.push("unknown");
@@ -170,7 +184,9 @@ function evaluateInstructions(
     }
   }
 
-  return stack.pop() ?? "unknown";
+  const finalVal = stack.pop() ?? "unknown";
+  if (finalVal === "true" || finalVal === "false") return finalVal;
+  return "unknown";
 }
 
 const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);
@@ -194,4 +210,31 @@ export function evaluateConditionExpression(
   } catch {
     return "unknown";
   }
+}
+
+export function buildMockFlagsFromVariableState(
+  variables: Map<string, unknown>,
+  persistent?: Map<string, unknown>,
+): Record<string, MockFlagValue> {
+  const flags: Record<string, MockFlagValue> = {};
+
+  for (const [key, val] of variables.entries()) {
+    if (val === true || val === "true") flags[key] = "true";
+    else if (val === false || val === "false") flags[key] = "false";
+    else if (typeof val === "number" || typeof val === "string") {
+      flags[key] = val as MockFlagValue;
+    } else flags[key] = "unknown";
+  }
+
+  if (persistent) {
+    for (const [key, val] of persistent.entries()) {
+      if (val === true || val === "true") flags[key] = "true";
+      else if (val === false || val === "false") flags[key] = "false";
+      else if (typeof val === "number" || typeof val === "string") {
+        flags[key] = val as MockFlagValue;
+      } else flags[key] = "unknown";
+    }
+  }
+
+  return flags;
 }

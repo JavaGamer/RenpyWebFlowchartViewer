@@ -115,10 +115,39 @@ export type ParseDiagnostic =
   | UnresolvedTargetParseDiagnostic
   | ShadowedLabelParseDiagnostic;
 
+export type VariableValue = string | boolean | number | null;
+
+export interface InitVariableDescriptor {
+  name: string;
+  rawExpression: string;
+  value: VariableValue | Map<string, string> | string[];
+  kind: "define" | "default" | "python" | "persistent";
+  priority: number;
+  filePath: string;
+  lineIndex: number;
+  isPersistent: boolean;
+}
+
+export interface VariableMutation {
+  variableName: string;
+  operator: "=" | "+=" | "-=" | "toggle";
+  value: VariableValue;
+  rawExpression: string;
+  nodeId: string;
+  lineNum: number;
+  isPersistent: boolean;
+}
+
+export interface PathVariableState {
+  variables: Map<string, VariableValue>;
+  persistent: Map<string, VariableValue>;
+}
+
 export interface ResolveTargetScanState {
   labelVariableLiteralTargets: Map<string, string>;
   labelVariableDictTargets: Map<string, Map<string, string>>;
   labelVariableListTargets: Map<string, string[]>;
+  persistentTargets?: Map<string, string>;
 }
 
 export interface ParseScanState extends ResolveTargetScanState {
@@ -147,6 +176,7 @@ export interface ParseScanState extends ResolveTargetScanState {
   waitForMenuNameForId: string | null;
   lastConditionalLine?: number;
   lastProcessedCustomLineNum?: number;
+  currentPathState?: PathVariableState;
 }
 
 export interface ParseGraphState {
@@ -174,6 +204,9 @@ export interface ParseGraphState {
   globalLabelVariableLiteralTargets: Map<string, string>;
   globalLabelVariableDictTargets: Map<string, Map<string, string>>;
   globalLabelVariableListTargets: Map<string, string[]>;
+  globalPersistentVariables?: Map<string, VariableValue>;
+  initVariables?: Map<string, InitVariableDescriptor>;
+  nodeMutations?: Map<string, VariableMutation[]>;
   globalScreens: Set<string>;
   globalCharacters: Set<string>;
   diagnostics: ParseDiagnostic[];
@@ -186,6 +219,7 @@ export interface ParseResult {
   edges: FlowEdge[];
   assets?: FlowAsset[];
   diagnostics?: ParseDiagnostic[];
+  initVariables?: Map<string, InitVariableDescriptor>;
 }
 
 export interface ParseProgress {

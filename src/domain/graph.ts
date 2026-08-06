@@ -91,4 +91,6 @@ export interface FlowEdge {
   condition?: ConditionMetadata;
   /** Optional timeout metadata for timer-driven navigation edges. */
   timeout?: TimeoutMetadata;
+  /** True when static path evaluation proves this condition branch is unreachable. */
+  conditionIsStaticallyFalse?: boolean;
 }

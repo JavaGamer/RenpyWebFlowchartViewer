@@ -88,6 +88,16 @@ export function remapLabelIdReferences(
   replaceSetEntry(state.calledLabels, fromId, toId);
   replaceSetEntry(state.calledFromMenuOptionTargets, fromId, toId);
 
+  if (state.nodeMutations?.has(fromId)) {
+    const muts = state.nodeMutations.get(fromId)!;
+    state.nodeMutations.delete(fromId);
+    for (const m of muts) {
+      m.nodeId = toId;
+    }
+    const existing = state.nodeMutations.get(toId) ?? [];
+    state.nodeMutations.set(toId, [...existing, ...muts]);
+  }
+
   for (const pendingCallReturn of state.pendingCallReturns) {
     if (pendingCallReturn.returnTargetId === fromId) {
       pendingCallReturn.returnTargetId = toId;
