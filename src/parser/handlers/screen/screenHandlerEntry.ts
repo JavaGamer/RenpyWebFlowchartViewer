@@ -2,6 +2,7 @@ import type {
   ParseGraphState,
   ParseScanState,
   TokenMetaFlags,
+  VariableValue,
 } from "../../pipelineTypes.ts";
 import type { ScreenActionKind } from "../../../config/parserRules.ts";
 import { isMenuKeywordTokenType, PARSER_TOKENS } from "../../parserTokens.ts";
@@ -16,10 +17,13 @@ import {
 } from "../jumpCallHandler.ts";
 import type { FlowEdge } from "../../../domain/index.ts";
 import {
+  extractNestedExpressionValue,
   extractScreenActionExpressions,
   extractStaticTargetsFromArgumentList,
   walkScreenActionExpression,
 } from "./screenActionExtractor.ts";
+import { extractLiteralTarget } from "../../tokenHandling.ts";
+import { splitTopLevelArguments } from "./bracketMatcher.ts";
 
 import { parsePythonBlock } from "../python/pythonAstParser.ts";
 
@@ -228,19 +232,209 @@ export function processDirectScreenActionCalls(
   screenActionRuleMap: Map<string, ScreenActionKind>,
 ) {
   const seenCalls = new Set<string>();
+  const screenHeaderMatch = /^screen\s+([A-Za-z_][A-Za-z0-9_]*)/i.exec(
+    blockText.trimStart(),
+  );
+  const screenName = screenHeaderMatch ? screenHeaderMatch[1] : null;
+  if (screenName) {
+    state.globalScreens.add(screenName);
+  }
+
   const emitActionCall = (
     construct: string,
     targetExpression: string,
     timeout?: FlowEdge["timeout"],
   ) => {
-    const callType = screenActionRuleMap.get(construct.toLowerCase());
+    const lower = construct.toLowerCase();
+
+    if (lower === "nullaction") return;
+
+    const activeNodeId = scanState.currentLabelId;
+
+    if (lower === "setvariable") {
+      const args = splitTopLevelArguments(targetExpression);
+      if (args.length >= 2) {
+        const rawVarArg = extractNestedExpressionValue(args[0]);
+        const rawVar = extractLiteralTarget(rawVarArg) ??
+          rawVarArg.trim().replace(/^['"]|['"]$/g, "");
+        const valExpr = extractNestedExpressionValue(args[1]);
+
+        let isPersistent = false;
+        let varName = rawVar;
+        if (varName.startsWith("persistent.")) {
+          isPersistent = true;
+          varName = varName.substring("persistent.".length);
+        }
+
+        const resolvedVal = resolveStaticTargetExpression(
+          valExpr,
+          scanState,
+          state,
+        );
+        const literalVal = extractLiteralTarget(valExpr) ?? resolvedVal;
+
+        if (isPersistent) {
+          if (!scanState.persistentTargets) {
+            scanState.persistentTargets = new Map();
+          }
+          if (!state.globalPersistentVariables) {
+            state.globalPersistentVariables = new Map();
+          }
+          if (literalVal !== null) {
+            scanState.persistentTargets.set(varName, literalVal);
+            state.globalPersistentVariables.set(varName, literalVal);
+          } else {
+            scanState.persistentTargets.delete(varName);
+            state.globalPersistentVariables.delete(varName);
+          }
+        } else {
+          if (literalVal !== null) {
+            scanState.labelVariableLiteralTargets.set(varName, literalVal);
+          } else {
+            scanState.labelVariableLiteralTargets.delete(varName);
+          }
+        }
+
+        let mutationVal: VariableValue = literalVal;
+        if (mutationVal === null || typeof mutationVal === "string") {
+          const str = String(mutationVal ?? valExpr);
+          if (str === "True" || str === "true") mutationVal = true;
+          else if (str === "False" || str === "false") mutationVal = false;
+          else if (str === "None" || str === "none") mutationVal = null;
+          else if (/^-?\d+(\.\d+)?$/.test(str)) mutationVal = Number(str);
+          else mutationVal = str;
+        }
+
+        if (activeNodeId) {
+          if (!state.nodeMutations) state.nodeMutations = new Map();
+          let muts = state.nodeMutations.get(activeNodeId);
+          if (!muts) {
+            muts = [];
+            state.nodeMutations.set(activeNodeId, muts);
+          }
+          muts.push({
+            variableName: varName,
+            operator: "=",
+            value: mutationVal,
+            rawExpression: valExpr,
+            nodeId: activeNodeId,
+            lineNum: 0,
+            isPersistent,
+          });
+        }
+      }
+      return;
+    }
+
+    if (lower === "togglevariable") {
+      const args = splitTopLevelArguments(targetExpression);
+      if (args.length >= 1) {
+        const rawVarArg = extractNestedExpressionValue(args[0]);
+        const rawVar = extractLiteralTarget(rawVarArg) ??
+          rawVarArg.trim().replace(/^['"]|['"]$/g, "");
+        const trueValExpr = args[1] ? extractNestedExpressionValue(args[1]) : "True";
+        const falseValExpr = args[2] ? extractNestedExpressionValue(args[2]) : "False";
+
+        let isPersistent = false;
+        let varName = rawVar;
+        if (varName.startsWith("persistent.")) {
+          isPersistent = true;
+          varName = varName.substring("persistent.".length);
+        }
+
+        const targetMap = isPersistent
+          ? scanState.persistentTargets
+          : scanState.labelVariableLiteralTargets;
+        const currentVal = targetMap?.get(varName);
+        const trueValStr = extractLiteralTarget(trueValExpr) ?? trueValExpr;
+        const falseValStr = extractLiteralTarget(falseValExpr) ?? falseValExpr;
+
+        const toggledValStr =
+          (currentVal === trueValStr || currentVal === "true" ||
+              currentVal === "True")
+            ? falseValStr
+            : trueValStr;
+
+        if (isPersistent) {
+          if (!scanState.persistentTargets) {
+            scanState.persistentTargets = new Map();
+          }
+          if (!state.globalPersistentVariables) {
+            state.globalPersistentVariables = new Map();
+          }
+          scanState.persistentTargets.set(varName, toggledValStr);
+          state.globalPersistentVariables.set(varName, toggledValStr);
+        } else {
+          scanState.labelVariableLiteralTargets.set(varName, toggledValStr);
+        }
+
+        if (activeNodeId) {
+          if (!state.nodeMutations) state.nodeMutations = new Map();
+          let muts = state.nodeMutations.get(activeNodeId);
+          if (!muts) {
+            muts = [];
+            state.nodeMutations.set(activeNodeId, muts);
+          }
+          muts.push({
+            variableName: varName,
+            operator: "toggle",
+            value: toggledValStr,
+            rawExpression: targetExpression,
+            nodeId: activeNodeId,
+            lineNum: 0,
+            isPersistent,
+          });
+        }
+      }
+      return;
+    }
+
+    if (lower === "show" || lower === "hide") {
+      const targets = extractStaticTargetsFromArgumentList(
+        state,
+        targetExpression,
+        scanState,
+      );
+      for (const target of targets) {
+        state.globalScreens.add(target);
+      }
+      return;
+    }
+
+    if (lower === "showmenu") {
+      const targets = extractStaticTargetsFromArgumentList(
+        state,
+        targetExpression,
+        scanState,
+      );
+      const context = resolveCallContext(scanState, meta, menuDepth);
+      for (const target of targets) {
+        if (state.canonicalLabelIdByName.has(target)) {
+          emitJumpEdge(state, scanState, target, context, false, timeout);
+        } else {
+          state.globalScreens.add(target);
+        }
+      }
+      return;
+    }
+
+    if (
+      lower === "confirm" || lower === "if" ||
+      lower === "selectedif" || lower === "sensitiveif" || lower === "showif"
+    ) {
+      return;
+    }
+
+    const callType = screenActionRuleMap.get(lower);
     if (!callType) return;
+
     const context = resolveCallContext(scanState, meta, menuDepth);
     const targets = extractStaticTargetsFromArgumentList(
       state,
       targetExpression,
       scanState,
     );
+
     if (targets.length === 0) {
       addDynamicTargetDiagnostic(
         state,
@@ -251,9 +445,10 @@ export function processDirectScreenActionCalls(
       );
       return;
     }
+
     for (const target of targets) {
       const dedupeKey = [
-        construct.toLowerCase(),
+        lower,
         target,
         context.source ?? "",
         timeout?.isTimeout
@@ -266,6 +461,7 @@ export function processDirectScreenActionCalls(
       ].join("|");
       if (seenCalls.has(dedupeKey)) continue;
       seenCalls.add(dedupeKey);
+
       if (callType === "jump") {
         emitJumpEdge(state, scanState, target, context, false, timeout);
       } else {

@@ -23,6 +23,12 @@ const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
   "selectedif",
   "sensitiveif",
   "showif",
+  "confirm",
+]);
+
+const SCREEN_ACTION_TRIGGER_KEYWORDS = new Set([
+  "action",
+  "selected_action",
 ]);
 
 export function readScreenActionExpression(
@@ -140,7 +146,7 @@ export function extractScreenActionExpressions(
       }
     }
     if (
-      identifier.identifier === "action" &&
+      SCREEN_ACTION_TRIGGER_KEYWORDS.has(identifier.identifier.toLowerCase()) &&
       allowsActionExtractionOnLine(currentLineFirstTopLevelIdentifier) &&
       isIdentifierBoundary(blockText[index - 1]) &&
       isIdentifierBoundary(blockText[identifier.endIndex])
@@ -286,6 +292,32 @@ export function walkScreenActionExpression(
   if (!parsedArguments || parsedArguments.endIndex !== trimmed.length) return;
 
   visitCall(construct, parsedArguments.argument);
+
+  const lower = construct.toLowerCase();
+  if (lower === "confirm" || lower === "if") {
+    const args = splitTopLevelArguments(parsedArguments.argument);
+    for (let i = 0; i < args.length; i += 1) {
+      const arg = args[i];
+      const equalsIndex = findTopLevelDelimiterIndex(arg, "=");
+      if (equalsIndex > 0) {
+        const kw = arg.slice(0, equalsIndex).trim().toLowerCase();
+        if (
+          kw === "yes" || kw === "no" || kw === "yes_action" ||
+          kw === "no_action" || kw === "true" || kw === "false" ||
+          kw === "true_action" || kw === "false_action"
+        ) {
+          walkScreenActionExpression(
+            arg.slice(equalsIndex + 1).trim(),
+            visitCall,
+          );
+        }
+      } else if (i === 1 || i === 2) {
+        walkScreenActionExpression(arg.trim(), visitCall);
+      }
+    }
+    return;
+  }
+
   if (!isRecursiveScreenActionWrapper(construct)) {
     return;
   }

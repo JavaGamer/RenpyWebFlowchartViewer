@@ -20,13 +20,20 @@ describe("parser rule variants", () => {
     );
   });
 
-  it("includes only Jump and Call predefined rules for the renpy variant", () => {
+  it("includes predefined rules for the renpy variant", () => {
     const renpyRules = getPredefinedScreenActionRules("renpy");
-    expect(renpyRules).toHaveLength(2);
+    expect(renpyRules).toHaveLength(9);
     expect(renpyRules).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ actionName: "Jump", actionKind: "jump" }),
         expect.objectContaining({ actionName: "Call", actionKind: "call" }),
+        expect.objectContaining({ actionName: "Show", actionKind: "show" }),
+        expect.objectContaining({ actionName: "Hide", actionKind: "hide" }),
+        expect.objectContaining({ actionName: "ShowMenu", actionKind: "show_menu" }),
+        expect.objectContaining({ actionName: "SetVariable", actionKind: "set_variable" }),
+        expect.objectContaining({ actionName: "ToggleVariable", actionKind: "toggle_variable" }),
+        expect.objectContaining({ actionName: "Confirm", actionKind: "confirm" }),
+        expect.objectContaining({ actionName: "NullAction", actionKind: "null_action" }),
       ]),
     );
   });
@@ -45,12 +52,12 @@ describe("parser rule variants", () => {
 
   it("mergeScreenActionRules with empty custom rules returns only predefined rules", () => {
     const rules = mergeScreenActionRules("renpy", []);
-    expect(rules).toHaveLength(2);
+    expect(rules).toHaveLength(9);
   });
 
   it("mergeScreenActionRules with undefined custom rules returns only predefined rules", () => {
     const rules = mergeScreenActionRules("renpy", undefined);
-    expect(rules).toHaveLength(2);
+    expect(rules).toHaveLength(9);
   });
 
   it("mergeScreenActionRules discards rules with an invalid actionKind", () => {
@@ -66,7 +73,7 @@ describe("parser rule variants", () => {
       actionName: "   ",
       actionKind: "jump",
     }]);
-    expect(rules).toHaveLength(2); // only predefined Jump and Call
+    expect(rules).toHaveLength(9);
   });
 
   it("normalizes rule lookup keys for matching", () => {
@@ -85,7 +92,7 @@ describe("parser rule variants", () => {
 
   it("toScreenActionRuleMap with undefined customRules still returns predefined rules", () => {
     const ruleMap = toScreenActionRuleMap("renpy", undefined);
-    expect(ruleMap.size).toBe(2);
+    expect(ruleMap.size).toBe(9);
   });
 });
 

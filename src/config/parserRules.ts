@@ -1,5 +1,14 @@
 export type ParserVariant = string;
-export type ScreenActionKind = "jump" | "call";
+export type ScreenActionKind =
+  | "jump"
+  | "call"
+  | "show"
+  | "hide"
+  | "set_variable"
+  | "toggle_variable"
+  | "confirm"
+  | "null_action"
+  | "show_menu";
 
 export interface ScreenActionRule {
   actionName: string;
@@ -16,6 +25,13 @@ export interface ParserVariantPlugin {
 const RENPY_DEFAULT_SCREEN_ACTION_RULES: ScreenActionRule[] = [
   { actionName: "Jump", actionKind: "jump" },
   { actionName: "Call", actionKind: "call" },
+  { actionName: "Show", actionKind: "show" },
+  { actionName: "Hide", actionKind: "hide" },
+  { actionName: "ShowMenu", actionKind: "show_menu" },
+  { actionName: "SetVariable", actionKind: "set_variable" },
+  { actionName: "ToggleVariable", actionKind: "toggle_variable" },
+  { actionName: "Confirm", actionKind: "confirm" },
+  { actionName: "NullAction", actionKind: "null_action" },
 ];
 
 const ST_DEFAULT_SCREEN_ACTION_RULES: ScreenActionRule[] = [
@@ -71,7 +87,7 @@ export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
     const normalized = normalizeScreenActionRule(rule);
     if (!normalized) {
       throw new Error(
-        `Invalid defaultScreenActionRule in plugin "${normalizedId}": actionName must be non-empty and actionKind must be "jump" or "call". Got: ${
+        `Invalid defaultScreenActionRule in plugin "${normalizedId}": actionName must be non-empty and actionKind must be valid. Got: ${
           JSON.stringify(rule)
         }`,
       );
@@ -86,12 +102,24 @@ export function registerParserVariantPlugin(plugin: ParserVariantPlugin): void {
   });
 }
 
+const VALID_SCREEN_ACTION_KINDS = new Set<ScreenActionKind>([
+  "jump",
+  "call",
+  "show",
+  "hide",
+  "set_variable",
+  "toggle_variable",
+  "confirm",
+  "null_action",
+  "show_menu",
+]);
+
 export function normalizeScreenActionRule(
   rule: ScreenActionRule,
 ): ScreenActionRule | null {
   const actionName = rule.actionName.trim();
   if (!actionName) return null;
-  if (rule.actionKind !== "jump" && rule.actionKind !== "call") return null;
+  if (!VALID_SCREEN_ACTION_KINDS.has(rule.actionKind)) return null;
   return { actionName, actionKind: rule.actionKind };
 }
 

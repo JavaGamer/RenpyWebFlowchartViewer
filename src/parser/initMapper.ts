@@ -284,8 +284,9 @@ export function preParseInitialization(
   const items: InitItem[] = [];
 
   for (const file of files) {
-    const filePath = file.relativePath ?? file.name;
-    const chapter = filePath.replace(/\\/g, "/").replace(/\.rpy$/i, "");
+    const rawPath = file.relativePath ?? file.name;
+    const filePath = rawPath.replace(/\\/g, "/");
+    const chapter = filePath.replace(/\.rpy$/i, "");
     const contentStr = typeof file.content === "string"
       ? file.content
       : new TextDecoder("utf-8").decode(file.content);
@@ -337,7 +338,7 @@ export function preParseInitialization(
       }
 
       // 1. Detect init offset
-      const offsetMatch = /^init\s+offset\s*=\s*(-?\d+)/i.exec(trimmed);
+      const offsetMatch = /^init\s+offset\s*=\s*([+-]?\d+)/i.exec(trimmed);
       if (offsetMatch) {
         currentOffset = parseInt(offsetMatch[1], 10);
         idx += 1;
@@ -365,9 +366,10 @@ export function preParseInitialization(
       }
 
       // 3. Detect init blocks
-      const initPriorityPythonMatch = /^init\s+(-?\d+)\s+python\s*:(.*)$/i.exec(
-        trimmed,
-      );
+      const initPriorityPythonMatch =
+        /^init\s+([+-]?\d+)\s+python\s*:(.*)$/i.exec(
+          trimmed,
+        ) ?? /^init\s+python\s+([+-]?\d+)\s*:(.*)$/i.exec(trimmed);
       if (initPriorityPythonMatch) {
         const priority = currentOffset +
           parseInt(initPriorityPythonMatch[1], 10);
@@ -388,7 +390,7 @@ export function preParseInitialization(
         continue;
       }
 
-      const initPriorityMatch = /^init\s+(-?\d+)\s*:(.*)$/i.exec(trimmed);
+      const initPriorityMatch = /^init\s+([+-]?\d+)\s*:(.*)$/i.exec(trimmed);
       if (initPriorityMatch) {
         const priority = currentOffset + parseInt(initPriorityMatch[1], 10);
         const { body, endLineIndex } = getLogicalBodyAndEndLine(
@@ -448,7 +450,7 @@ export function preParseInitialization(
 
       // 4. Detect define or default
       const defineDefaultMatch =
-        /^(define|default)(?:\s+(-?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i
+        /^(define|default)(?:\s+([+-]?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i
           .exec(trimmed);
       if (defineDefaultMatch) {
         const stmtKind = defineDefaultMatch[1].toLowerCase() as
@@ -515,7 +517,7 @@ export function preParseInitialization(
     }
   }
 
-  // Sort by priority, then statement kind (define < default < python), then file name, then line index
+  // Sort by priority, then statement kind (define < python/persistent < default), then file name, then line index
   items.sort((a, b) => {
     if (a.priority !== b.priority) {
       return a.priority - b.priority;
@@ -523,13 +525,13 @@ export function preParseInitialization(
     const subPriorityA = a.kind === "define"
       ? 0
       : a.kind === "python" || a.kind === "persistent"
-      ? 0.5
-      : 1;
+      ? 1
+      : 2;
     const subPriorityB = b.kind === "define"
       ? 0
       : b.kind === "python" || b.kind === "persistent"
-      ? 0.5
-      : 1;
+      ? 1
+      : 2;
     if (subPriorityA !== subPriorityB) {
       return subPriorityA - subPriorityB;
     }
@@ -558,7 +560,10 @@ export function preParseInitialization(
 
     for (const item of items) {
       if (item.type === "screen" && item.variableName) {
-        state.globalScreens.add(item.variableName);
+        if (!state.globalScreens.has(item.variableName)) {
+          state.globalScreens.add(item.variableName);
+          stateChanged = true;
+        }
       } else if (
         (item.type === "define_default" || item.type === "dollar_assignment") &&
         item.variableName &&
@@ -577,9 +582,23 @@ export function preParseInitialization(
         );
         if (changed) stateChanged = true;
       } else if (item.type === "python_block" && item.body) {
-        processPythonBlockText(state, item.body);
+        const changed = processPythonBlockText(
+          state,
+          item.body,
+          item.priority,
+          item.filePath,
+          item.lineIndex,
+        );
+        if (changed) stateChanged = true;
       } else if (item.type === "init_block" && item.body) {
-        processInitBlockText(state, item.body);
+        const changed = processInitBlockText(
+          state,
+          item.body,
+          item.priority,
+          item.filePath,
+          item.lineIndex,
+        );
+        if (changed) stateChanged = true;
       }
     }
   }
@@ -671,13 +690,25 @@ function processAssignment(
     } else {
       const dictVal = parseDictLiteral(cleanExpr);
       if (dictVal !== null) {
-        state.globalLabelVariableDictTargets.set(variableName, dictVal);
-        valueChanged = true;
+        const existingDict = state.globalLabelVariableDictTargets.get(variableName);
+        const existingStr = existingDict
+          ? JSON.stringify(Array.from(existingDict.entries()))
+          : null;
+        const newStr = JSON.stringify(Array.from(dictVal.entries()));
+        if (existingStr !== newStr) {
+          state.globalLabelVariableDictTargets.set(variableName, dictVal);
+          valueChanged = true;
+        }
       } else {
         const listVal = parseListLiteral(cleanExpr);
         if (listVal !== null) {
-          state.globalLabelVariableListTargets.set(variableName, listVal);
-          valueChanged = true;
+          const existingList = state.globalLabelVariableListTargets.get(variableName);
+          const existingStr = existingList ? JSON.stringify(existingList) : null;
+          const newStr = JSON.stringify(listVal);
+          if (existingStr !== newStr) {
+            state.globalLabelVariableListTargets.set(variableName, listVal);
+            valueChanged = true;
+          }
         } else if (prevVal !== parsedVal) {
           targetMap.set(variableName, parsedVal);
           valueChanged = true;
@@ -791,6 +822,32 @@ function processInitBlockText(
         kind,
         varName.startsWith("persistent."),
         itemPriority,
+        filePath,
+        blockLineIndex + idx,
+      );
+      if (changed) blockChanged = true;
+      idx = endLineIndex + 1;
+      continue;
+    }
+
+    // Nested dollar assignment ($ var = val)
+    const dollarMatch =
+      /^[ \t]*\$\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$/.exec(trimmed);
+    if (dollarMatch) {
+      const varName = dollarMatch[1].trim();
+      const isPersist = varName.startsWith("persistent.");
+      const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(
+        lines,
+        idx,
+        dollarMatch[2],
+      );
+      const changed = processAssignment(
+        state,
+        varName,
+        stripInlineComment(expression),
+        isPersist ? "persistent" : "python",
+        isPersist,
+        priority,
         filePath,
         blockLineIndex + idx,
       );

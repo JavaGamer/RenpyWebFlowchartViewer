@@ -238,6 +238,7 @@ export interface ParseResult {
   assets?: FlowAsset[];
   diagnostics?: ParseDiagnostic[];
   initVariables?: Map<string, InitVariableDescriptor>;
+  nodeMutations?: Map<string, VariableMutation[]>;
 }
 
 export interface ParseProgress {

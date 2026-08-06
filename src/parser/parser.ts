@@ -159,6 +159,9 @@ export async function parseRenpyFiles(
   const hasInitVars = Boolean(
     state.initVariables && state.initVariables.size > 0,
   );
+  const hasNodeMutations = Boolean(
+    state.nodeMutations && state.nodeMutations.size > 0,
+  );
   const hasAssets = Boolean(state.assets && state.assets.length > 0);
   const hasDiagnostics = Boolean(
     state.diagnostics && state.diagnostics.length > 0,
@@ -167,6 +170,7 @@ export async function parseRenpyFiles(
     nodes: state.nodes,
     edges: state.edges,
     ...(hasInitVars ? { initVariables: state.initVariables } : {}),
+    ...(hasNodeMutations ? { nodeMutations: state.nodeMutations } : {}),
     ...(hasAssets ? { assets: state.assets } : {}),
     ...(hasDiagnostics ? { diagnostics: state.diagnostics } : {}),
   };
