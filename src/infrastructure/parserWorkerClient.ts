@@ -508,6 +508,8 @@ export interface ParseChunkRequest {
   isFinalChunk?: boolean;
 }
 
+import type { PendingCallReturn } from "../parser/index.ts";
+
 export interface ParseChunkResult {
   nodes: ParseWorkerClientResult["nodes"];
   edges: ParseWorkerClientResult["edges"];
@@ -515,7 +517,7 @@ export interface ParseChunkResult {
 }
 
 interface InternalChunkResult extends ParseChunkResult {
-  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  pendingCallReturns: PendingCallReturn[];
   hasReliableReturnInLabel: string[];
   globalScreens: string[];
   labelDefinitionCount: Array<[string, number]>;

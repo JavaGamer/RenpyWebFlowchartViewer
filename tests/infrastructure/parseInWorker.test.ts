@@ -719,7 +719,8 @@ describe("parseRenpyFilesInWorker", () => {
     });
 
     // Advance fake timers to resolve cache keys and chunk parsing
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
+      await Promise.resolve();
       await vi.advanceTimersByTimeAsync(10);
     }
 

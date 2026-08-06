@@ -1,8 +1,11 @@
 import type {
+  CallArgument,
+  CallContext,
   ConditionMetadata,
   EdgeKind,
   FlowEdge,
   FlowNode,
+  SourceLocation,
 } from "../graph.ts";
 
 export interface GraphSimplificationOptions {
@@ -128,6 +131,9 @@ function inlineNodes(
       kind: EdgeKind;
       condition?: ConditionMetadata;
       timeout?: FlowEdge["timeout"];
+      arguments?: CallArgument[];
+      sourceLocation?: SourceLocation;
+      callContext?: CallContext;
       originalId?: string;
       isInlinedPath: boolean;
       pathVisited: Set<string>;
@@ -140,6 +146,9 @@ function inlineNodes(
         kind: edge.kind || "sequence",
         condition: edge.condition,
         timeout: edge.timeout,
+        arguments: edge.arguments,
+        sourceLocation: edge.sourceLocation,
+        callContext: edge.callContext,
         originalId: edge.id,
         isInlinedPath: false,
         pathVisited: new Set([u.id, edge.target]),
@@ -165,6 +174,22 @@ function inlineNodes(
           label: current.label || undefined,
           condition: current.condition,
           timeout: current.timeout,
+          arguments: current.arguments,
+          sourceLocation: current.sourceLocation,
+          callContext: current.callContext
+            ? current.isInlinedPath
+              ? {
+                ...current.callContext,
+                callSiteId: current.callContext.callSiteId === current.nodeId
+                  ? u.id
+                  : current.callContext.callSiteId,
+                returnTargetId:
+                  current.callContext.returnTargetId === current.nodeId
+                    ? u.id
+                    : current.callContext.returnTargetId,
+              }
+              : current.callContext
+            : undefined,
         });
         continue;
       }
@@ -217,12 +242,28 @@ function inlineNodes(
         }
         const mergedTimeout = current.timeout || edge.timeout;
 
+        let mergedCallContext = current.callContext || edge.callContext;
+        if (mergedCallContext) {
+          mergedCallContext = {
+            ...mergedCallContext,
+            callSiteId: mergedCallContext.callSiteId === current.nodeId
+              ? u.id
+              : mergedCallContext.callSiteId,
+            returnTargetId: mergedCallContext.returnTargetId === current.nodeId
+              ? u.id
+              : mergedCallContext.returnTargetId,
+          };
+        }
+
         queue.push({
           nodeId: edge.target,
           label: mergedLabel,
           kind: mergedKind,
           condition: mergedCondition,
           timeout: mergedTimeout,
+          arguments: current.arguments || edge.arguments,
+          sourceLocation: current.sourceLocation || edge.sourceLocation,
+          callContext: mergedCallContext,
           isInlinedPath: true,
           pathVisited: nextPathVisited,
         });
@@ -476,6 +517,16 @@ export function collapseLinearChains(
     const sRoot = collapsedInto.get(edge.source) ?? edge.source;
     const tRoot = collapsedInto.get(edge.target) ?? edge.target;
 
+    const updatedCallContext = edge.callContext
+      ? {
+        ...edge.callContext,
+        callSiteId: collapsedInto.get(edge.callContext.callSiteId) ??
+          edge.callContext.callSiteId,
+        returnTargetId: collapsedInto.get(edge.callContext.returnTargetId) ??
+          edge.callContext.returnTargetId,
+      }
+      : undefined;
+
     if (collapsedEdgeIds.has(edge.id)) {
       if (
         sRoot === tRoot && cycleRoots.has(sRoot) &&
@@ -487,6 +538,7 @@ export function collapseLinearChains(
           id: `${edge.kind || "sequence"}_${sRoot}__${tRoot}__loop`,
           source: sRoot,
           target: tRoot,
+          callContext: updatedCallContext,
         });
       }
       continue;
@@ -495,12 +547,17 @@ export function collapseLinearChains(
     if (collapsedInto.has(edge.source) || collapsedInto.has(edge.target)) {
       finalEdges.push({
         ...edge,
-        id: `${edge.kind || "sequence"}_${sRoot}__${tRoot}__collapsed`,
+        id: `${edge.id}__collapsed`,
         source: sRoot,
         target: tRoot,
+        callContext: updatedCallContext,
       });
     } else {
-      finalEdges.push(edge);
+      finalEdges.push(
+        updatedCallContext !== edge.callContext
+          ? { ...edge, callContext: updatedCallContext }
+          : edge,
+      );
     }
   }
 

@@ -1,4 +1,6 @@
 import type {
+  CallArgument,
+  ConditionBranchKind as DomainConditionBranchKind,
   EdgeKind,
   FlowAsset,
   FlowEdge,
@@ -10,10 +12,16 @@ import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
-import type { ConditionBranchKind as DomainConditionBranchKind } from "../domain/index.ts";
-
 export type { EdgeKind };
 export type ConditionalBranchKind = DomainConditionBranchKind;
+
+export interface PendingCallReturn {
+  returnTargetId: string;
+  callTargetId: string;
+  callEdgeId: string;
+  callContextId: string;
+  arguments?: CallArgument[];
+}
 
 export interface DynamicJumpRule {
   expressionPattern: string | RegExp;
@@ -214,7 +222,7 @@ export interface ParseGraphState {
   hasReliableReturnInLabel: Set<string>;
   calledLabels: Set<string>;
   calledFromMenuOptionTargets: Set<string>;
-  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  pendingCallReturns: PendingCallReturn[];
   canonicalLabelIdByName: Map<string, string>;
   labelDefinitionCountByName: Map<string, number>;
   labelsByChapter: Map<string, Map<string, string>>;

@@ -68,6 +68,7 @@ export interface ViewerSessionState {
   conditionVisibilityMode: ConditionVisibilityMode;
   selectedSearchChapter: string;
   selectedSearchNodeKinds: Record<"LABEL" | "MENU" | "DECISION", boolean>;
+  selectedCallContextId: string | null;
 }
 
 export interface ViewerActions {
@@ -120,6 +121,8 @@ export interface ViewerActions {
   setSelectedSearchNodeKinds: (
     kinds: Record<"LABEL" | "MENU" | "DECISION", boolean>,
   ) => void;
+  setSelectedCallContextId: (id: string | null) => void;
+  clearCallContextHighlight: () => void;
 
   /** Resets all session state to defaults. Called on component unmount. */
   resetSession: () => void;

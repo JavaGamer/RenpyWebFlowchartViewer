@@ -16,6 +16,7 @@ export interface SelectionSliceState {
   selectedNodeId: string;
   selectedDialogueLineIndex: number | null;
   showAllInspectorLines: boolean;
+  selectedCallContextId: string | null;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -26,6 +27,8 @@ export interface SelectionSliceActions {
   setSelectedDialogueLineIndex: (index: number | null) => void;
   toggleShowAllInspectorLines: () => void;
   setShowAllInspectorLines: (show: boolean) => void;
+  setSelectedCallContextId: (id: string | null) => void;
+  clearCallContextHighlight: () => void;
 }
 
 export type SelectionSlice = SelectionSliceState & SelectionSliceActions;
@@ -37,6 +40,7 @@ export const defaultSelectionState: SelectionSliceState = {
   selectedNodeId: "",
   selectedDialogueLineIndex: null,
   showAllInspectorLines: false,
+  selectedCallContextId: null,
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -72,5 +76,15 @@ export const createSelectionSlice: StateCreator<
   setShowAllInspectorLines: (show) =>
     set((draft) => {
       draft.showAllInspectorLines = show;
+    }),
+
+  setSelectedCallContextId: (id) =>
+    set((draft) => {
+      draft.selectedCallContextId = id;
+    }),
+
+  clearCallContextHighlight: () =>
+    set((draft) => {
+      draft.selectedCallContextId = null;
     }),
 });

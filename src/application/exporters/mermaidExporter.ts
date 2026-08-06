@@ -16,8 +16,12 @@ export function exportToMermaid(nodes: FlowNode[], edges: FlowEdge[]): string {
 
   for (const edge of edges) {
     let edgeStr = `  ${edge.source} -->`;
-    if (edge.label) {
-      edgeStr += `|"${edge.label.replace(/"/g, "'")}"|`;
+    const labelText =
+      edge.kind === "call_return" && edge.callContext?.returnTargetId
+        ? `return to ${edge.callContext.returnTargetId}`
+        : (edge.label ?? "");
+    if (labelText) {
+      edgeStr += `|"${labelText.replace(/"/g, "'")}"|`;
     }
     edgeStr += ` ${edge.target}`;
     lines.push(edgeStr);

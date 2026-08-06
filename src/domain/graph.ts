@@ -115,6 +115,14 @@ export interface FlowNode {
   parameters?: LabelParameter[];
 }
 
+export interface CallContext {
+  callContextId: string;
+  callEdgeId: string;
+  callSiteId: string;
+  returnTargetId: string;
+  arguments?: CallArgument[];
+}
+
 /** A directed edge in the flowchart graph. */
 export interface FlowEdge {
   id: string;
@@ -134,4 +142,6 @@ export interface FlowEdge {
   sourceLocation?: SourceLocation;
   /** Passed arguments for call statements. */
   arguments?: CallArgument[];
+  /** Context tagging linking call and call_return edges to their origin stack frame. */
+  callContext?: CallContext;
 }

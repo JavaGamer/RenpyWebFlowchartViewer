@@ -98,6 +98,9 @@ export function buildVisibleNodes(params: {
         prevData.theme === theme &&
         prevData.label === nodeData.label &&
         prevData.dialogueCount === nodeData.dialogueCount &&
+        prevData.wordCount === nodeData.wordCount &&
+        prevData.pauseDuration === nodeData.pauseDuration &&
+        prevData.collapsedLabels === nodeData.collapsedLabels &&
         prevData.dialogueLines === nodeData.dialogueLines &&
         prevData.audioAssetCues === nodeData.audioAssetCues &&
         prevData.nodeType === nodeData.nodeType &&
@@ -152,10 +155,12 @@ export function buildVisibleEdges(params: {
   decisionColor?: string;
   labelColor?: string;
   menuColor?: string;
+  accentColor?: string;
   largeGraphMode: boolean;
   conditionVisibilityMode?: ConditionVisibilityMode;
   edgeConditionStateById?: Map<string, ConditionReachability>;
   previousById?: Map<string, CanvasEdge>;
+  selectedCallContextId?: string | null;
 }): CanvasEdge[] {
   const {
     edges,
@@ -166,12 +171,15 @@ export function buildVisibleEdges(params: {
     decisionColor,
     labelColor,
     menuColor,
+    accentColor,
     largeGraphMode,
     conditionVisibilityMode = "fade",
     edgeConditionStateById,
     previousById,
+    selectedCallContextId,
   } = params;
   const visible: CanvasEdge[] = [];
+  const isCallContextActive = Boolean(selectedCallContextId);
   for (const edge of edges) {
     const edgeData = (edge.data as EdgeData | undefined) ?? { label: "" };
     const kind = normalizeEdgeKind(edgeData.kind);
@@ -188,11 +196,26 @@ export function buildVisibleEdges(params: {
       ? ""
       : (edgeData.label ?? "");
 
+    // Call context matching
+    const matchesCallContext = isCallContextActive &&
+      (edgeData.callContext?.callContextId === selectedCallContextId ||
+        edgeData.callContext?.callEdgeId === selectedCallContextId ||
+        edge.id === selectedCallContextId);
+
     // Semantic edge colors and dash styles
     let stroke = edgeColor;
+    let strokeWidth = 1.5;
     let baseDash: string | undefined = undefined;
+    let callContextOpacity: number | undefined = undefined;
 
-    if (edgeData.condition) {
+    if (matchesCallContext) {
+      stroke = accentColor ?? "#3b82f6";
+      strokeWidth = 3.5;
+      baseDash = "6 3";
+    } else if (isCallContextActive && kind === "call_return") {
+      callContextOpacity = 0.2;
+      baseDash = "2 4";
+    } else if (edgeData.condition) {
       stroke = decisionColor ?? edgeColor;
       baseDash = "5 3";
     } else if (kind === "call" || kind === "call_return") {
@@ -213,6 +236,8 @@ export function buildVisibleEdges(params: {
         }
         : {};
 
+    const finalOpacity = callContextOpacity ?? unreachableStyle.opacity;
+
     const finalStrokeDasharray = timeoutDash ||
       unreachableStyle.strokeDasharray || baseDash;
 
@@ -222,6 +247,7 @@ export function buildVisibleEdges(params: {
       previous &&
       previousData?.label === edgeLabel &&
       previousData?.kind === kind &&
+      previousData?.callContext === edgeData.callContext &&
       previousData?.timeout?.isTimeout === edgeData.timeout?.isTimeout &&
       previousData?.timeout?.durationSeconds ===
         edgeData.timeout?.durationSeconds &&
@@ -229,6 +255,8 @@ export function buildVisibleEdges(params: {
       previous.source === edge.source &&
       previous.target === edge.target &&
       previous.style?.stroke === stroke &&
+      previous.style?.strokeWidth === strokeWidth &&
+      previous.style?.opacity === finalOpacity &&
       previous.style?.strokeDasharray === finalStrokeDasharray
     ) {
       visible.push(previous);
@@ -242,7 +270,8 @@ export function buildVisibleEdges(params: {
         ...(edge.style || {}),
         ...unreachableStyle,
         stroke,
-        strokeWidth: 1.5,
+        strokeWidth,
+        opacity: finalOpacity,
         strokeDasharray: finalStrokeDasharray,
       },
     });

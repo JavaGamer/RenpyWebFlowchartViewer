@@ -1,4 +1,4 @@
-import type { EdgeKind, FlowEdge, FlowNode } from "./graph.ts";
+import type { CallContext, EdgeKind, FlowEdge, FlowNode } from "./graph.ts";
 import type { CSSProperties } from "react";
 import type { EdgeMarker, Position } from "@xyflow/react";
 
@@ -31,6 +31,7 @@ export interface EdgeData extends Record<string, unknown> {
   condition?: FlowEdge["condition"];
   timeout?: FlowEdge["timeout"];
   conditionState?: ConditionReachability;
+  callContext?: CallContext;
 }
 
 export interface CanvasNode {

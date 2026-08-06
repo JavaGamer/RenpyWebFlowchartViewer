@@ -6,8 +6,8 @@ import type {
 import { addParseDiagnostic } from "./diagnostics.ts";
 import {
   buildMockFlagsFromVariableState,
-  evaluateConditionExpression,
   type CallArgument,
+  evaluateConditionExpression,
   type FlowEdge,
 } from "../domain/index.ts";
 

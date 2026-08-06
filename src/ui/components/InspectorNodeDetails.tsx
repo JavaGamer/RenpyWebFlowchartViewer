@@ -1,20 +1,105 @@
 import { useCallback, useMemo, useRef } from "react";
+import { useViewerStore } from "../../application/index.ts";
+import {
+  Image as ImageIcon,
+  Mic as MicIcon,
+  Music as MusicIcon,
+  PhoneCall,
+  Volume2 as Volume2Icon,
+  VolumeX as VolumeXIcon,
+} from "lucide-react";
+import { cn } from "../utils/cn.ts";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { renderHighlightedText } from "../viewerText.tsx";
-import { cn } from "../utils/cn.ts";
-import type { NodeData } from "../../domain/index.ts";
+import type { FlowEdge, NodeData } from "../../domain/index.ts";
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../../config/viewerConfig.ts";
 import {
   calculateReadingTimeSeconds,
   formatReadingTime,
 } from "../utils/readingTime.ts";
-import {
-  Image as ImageIcon,
-  Mic as MicIcon,
-  Music as MusicIcon,
-  Volume2 as Volume2Icon,
-  VolumeX as VolumeXIcon,
-} from "lucide-react";
+
+function CallOriginsSection({
+  selectedNodeId,
+  flowEdges,
+  isDark,
+}: {
+  selectedNodeId: string;
+  flowEdges?: FlowEdge[];
+  isDark: boolean;
+}) {
+  const selectedCallContextId = useViewerStore((s) => s.selectedCallContextId);
+  const setSelectedCallContextId = useViewerStore(
+    (s) => s.setSelectedCallContextId,
+  );
+  const callEdges = useMemo(() => {
+    if (!flowEdges) return [];
+    return flowEdges.filter(
+      (e: FlowEdge) => e.target === selectedNodeId && e.kind === "call",
+    );
+  }, [flowEdges, selectedNodeId]);
+
+  if (callEdges.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "text-xs space-y-1.5 mt-2 pt-2 border-t",
+        isDark ? "border-slate-800" : "border-gray-100",
+      )}
+    >
+      <div
+        className={cn(
+          "font-semibold flex items-center gap-1.5",
+          isDark ? "text-slate-300" : "text-gray-700",
+        )}
+      >
+        <PhoneCall size={12} className="text-violet-500 shrink-0" />
+        Call Origins ({callEdges.length})
+      </div>
+      <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1">
+        {callEdges.map((edge: FlowEdge) => {
+          const ctxId = edge.callContext?.callContextId ??
+            edge.callContext?.callEdgeId ??
+            edge.id;
+          const isActive = selectedCallContextId === ctxId;
+          const argText = edge.arguments && edge.arguments.length > 0
+            ? ` (${
+              edge.arguments.map((
+                a,
+              ) => (a.name ? `${a.name}=${a.value}` : a.value)).join(", ")
+            })`
+            : "";
+          return (
+            <button
+              key={edge.id}
+              type="button"
+              onClick={() => setSelectedCallContextId(isActive ? null : ctxId)}
+              className={cn(
+                "flex items-center justify-between text-[11px] px-2 py-1 rounded border text-left cursor-pointer transition-colors",
+                isActive
+                  ? isDark
+                    ? "bg-violet-950/80 border-violet-500 text-violet-200 font-medium"
+                    : "bg-violet-50 border-violet-400 text-violet-900 font-medium"
+                  : isDark
+                  ? "bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800"
+                  : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100",
+              )}
+            >
+              <span className="truncate">
+                Called from{" "}
+                <span className="font-mono font-semibold">{edge.source}</span>
+                {argText}
+              </span>
+              <span className="text-[9px] uppercase px-1 py-0.5 rounded font-mono shrink-0 ml-1 opacity-75">
+                {isActive ? "Active" : "Highlight"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function renderCueItem(
   cue: import("../../domain/graph.ts").AudioAssetCue,
@@ -153,6 +238,7 @@ interface InspectorNodeDetailsProps {
   isDark: boolean;
   /** Reading speed WPM from the viewer store. */
   readingSpeedWpm: number;
+  flowEdges?: FlowEdge[];
 }
 
 /* eslint-disable react-hooks/incompatible-library */
@@ -168,6 +254,7 @@ export function InspectorNodeDetails({
   theme,
   isDark,
   readingSpeedWpm,
+  flowEdges,
 }: InspectorNodeDetailsProps) {
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -375,6 +462,8 @@ export function InspectorNodeDetails({
           </div>
         </div>
       )}
+
+      <CallOriginsSection selectedNodeId={selectedNodeId} flowEdges={flowEdges} isDark={isDark} />
 
       {!showMediaCuesInDialogue && selectedNodeData.audioAssetCues &&
         selectedNodeData.audioAssetCues.length > 0 && (

@@ -19,5 +19,6 @@ export type {
   ParseOptions,
   ParseProgress,
   ParseResult,
+  PendingCallReturn,
 } from "./pipelineTypes.ts";
 export * from "./workerProtocol.ts";

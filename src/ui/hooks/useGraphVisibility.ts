@@ -72,6 +72,7 @@ export function useGraphVisibility({
     conditionVisibilityMode,
     selectedSearchChapter,
     selectedSearchNodeKinds,
+    selectedCallContextId,
   } = useViewerStore(
     useShallow((s) => ({
       searchInput: s.searchInput,
@@ -93,6 +94,7 @@ export function useGraphVisibility({
       conditionVisibilityMode: s.conditionVisibilityMode,
       selectedSearchChapter: s.selectedSearchChapter,
       selectedSearchNodeKinds: s.selectedSearchNodeKinds,
+      selectedCallContextId: s.selectedCallContextId,
     })),
   );
 
@@ -294,11 +296,13 @@ export function useGraphVisibility({
         decisionColor: THEMES[theme].decisionBorder,
         labelColor: THEMES[theme].labelBorder,
         menuColor: THEMES[theme].menuBorder,
+        accentColor: THEMES[theme].labelTitle ?? "#3b82f6",
         largeGraphMode,
         conditionVisibilityMode,
         edgeConditionStateById: conditionalVisibility.edgeConditionStateById,
         // eslint-disable-next-line react-hooks/refs
         previousById: previousVisibleEdgesByIdRef.current,
+        selectedCallContextId,
       }),
     [
       conditionalVisibility.edgeConditionStateById,
@@ -306,6 +310,7 @@ export function useGraphVisibility({
       edges,
       largeGraphMode,
       previousVisibleEdgesByIdRef,
+      selectedCallContextId,
       showCallReturns,
       theme,
       visibleEdgeKinds,

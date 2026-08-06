@@ -380,9 +380,20 @@ export function emitCallEdge(
         : String(timeout.durationSeconds)
     }`
     : "";
+  const lineSuffix = context.sourceLocation?.start.line !== undefined
+    ? `_L${context.sourceLocation.start.line}`
+    : "";
   const edgeId = `call_${source}__${resolvedTargetId}_${
     optionText ?? ""
-  }${timeoutSuffix}`;
+  }${lineSuffix}${timeoutSuffix}`;
+  const callContextId = `ctx_${edgeId}`;
+  const callContext = {
+    callContextId,
+    callEdgeId: edgeId,
+    callSiteId: source,
+    returnTargetId: source,
+    arguments: callArgs,
+  };
   addEdge(state, {
     id: edgeId,
     source,
@@ -393,6 +404,7 @@ export function emitCallEdge(
     timeout,
     sourceLocation: context.sourceLocation,
     arguments: callArgs,
+    callContext,
   });
   state.calledLabels.add(resolvedTargetId);
   if (!isInOption && scanState.currentLabelId) {
@@ -402,6 +414,9 @@ export function emitCallEdge(
   state.pendingCallReturns.push({
     returnTargetId: source,
     callTargetId: resolvedTargetId,
+    callEdgeId: edgeId,
+    callContextId,
+    arguments: callArgs,
   });
   if (isInOption) {
     state.calledFromMenuOptionTargets.add(resolvedTargetId);

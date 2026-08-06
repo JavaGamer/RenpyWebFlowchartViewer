@@ -6,6 +6,7 @@ import {
   type ParseGraphState,
   type ParseInputFile,
   parseRenpyFiles,
+  type PendingCallReturn,
   processTokenizedFile,
   type TokenizedFile,
   tokenizeOneFile,
@@ -129,7 +130,7 @@ export interface InternalChunkResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
-  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  pendingCallReturns: PendingCallReturn[];
   hasReliableReturnInLabel: string[];
   globalScreens: string[];
   labelDefinitionCount: Array<[string, number]>;
@@ -151,7 +152,7 @@ const parserApi = {
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
-    },
+    } = {},
     onProgress?: (progress: ProgressPayload) => void,
   ): Promise<ParseWorkerClientResult> {
     const sessionId = options.sessionId || "default";
@@ -411,9 +412,7 @@ const parserApi = {
       nodes: FlowNode[];
       edges: FlowEdge[];
       diagnostics?: ParseDiagnosticPayload[];
-      pendingCallReturns: Array<
-        { returnTargetId: string; callTargetId: string }
-      >;
+      pendingCallReturns: PendingCallReturn[];
       hasReliableReturnInLabel: string[];
       globalScreens: string[];
       labelDefinitionCount: Array<[string, number]>;
@@ -448,7 +447,7 @@ const parserApi = {
           );
         }
         session.accumulatedState.pendingCallReturns.push(
-          ...options.pendingCallReturns,
+          ...(options.pendingCallReturns as PendingCallReturn[]),
         );
         for (const label of options.hasReliableReturnInLabel) {
           session.accumulatedState.hasReliableReturnInLabel.add(label);
@@ -491,7 +490,7 @@ const parserApi = {
         state.diagnostics = options.diagnostics
           ? (options.diagnostics as ParseDiagnostic[])
           : [];
-        state.pendingCallReturns = options.pendingCallReturns;
+        state.pendingCallReturns = options.pendingCallReturns as PendingCallReturn[];
         state.hasReliableReturnInLabel = new Set(
           options.hasReliableReturnInLabel,
         );

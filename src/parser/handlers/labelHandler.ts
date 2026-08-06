@@ -106,19 +106,16 @@ export function remapLabelIdReferences(
       pendingCallReturn.callTargetId = toId;
     }
   }
-  if (state.graph.hasNode(fromId)) {
-    const incidentEdges = state.graph.edges(fromId);
-    for (const edgeId of incidentEdges) {
-      const edge = state.edgeMap.get(edgeId);
-      if (edge) {
-        if (edge.source === fromId) edge.source = toId;
-        if (edge.target === fromId) edge.target = toId;
+  for (const edge of state.edges) {
+    if (edge.source === fromId) edge.source = toId;
+    if (edge.target === fromId) edge.target = toId;
+    if (edge.callContext) {
+      if (edge.callContext.callSiteId === fromId) {
+        edge.callContext.callSiteId = toId;
       }
-    }
-  } else {
-    for (const edge of state.edges) {
-      if (edge.source === fromId) edge.source = toId;
-      if (edge.target === fromId) edge.target = toId;
+      if (edge.callContext.returnTargetId === fromId) {
+        edge.callContext.returnTargetId = toId;
+      }
     }
   }
   for (const stateNode of state.nodeMap.values()) {

@@ -332,8 +332,12 @@ export function processDirectScreenActionCalls(
         const rawVarArg = extractNestedExpressionValue(args[0]);
         const rawVar = extractLiteralTarget(rawVarArg) ??
           rawVarArg.trim().replace(/^['"]|['"]$/g, "");
-        const trueValExpr = args[1] ? extractNestedExpressionValue(args[1]) : "True";
-        const falseValExpr = args[2] ? extractNestedExpressionValue(args[2]) : "False";
+        const trueValExpr = args[1]
+          ? extractNestedExpressionValue(args[1])
+          : "True";
+        const falseValExpr = args[2]
+          ? extractNestedExpressionValue(args[2])
+          : "False";
 
         let isPersistent = false;
         let varName = rawVar;
@@ -526,7 +530,7 @@ export function resetStaleWaitFlags(
     (PARSER_TOKENS.kwExpression !== undefined &&
       type === PARSER_TOKENS.kwExpression) ||
     ((PARSER_TOKENS as unknown as Record<string, number | undefined>)
-      .kwPass !== undefined &&
+          .kwPass !== undefined &&
       type ===
         (PARSER_TOKENS as unknown as Record<string, number | undefined>)
           .kwPass) ||

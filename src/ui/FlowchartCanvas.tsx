@@ -208,6 +208,7 @@ export function FlowchartCanvas({
   // -- Interaction Hook -------------------------------------------------------
   const {
     onNodeClick,
+    onEdgeClick,
     onPaneClick,
     onFocusSelectedNode,
     onSelectDialogueSearchResult,
@@ -301,6 +302,7 @@ export function FlowchartCanvas({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
+            onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}
             onMove={updateBounds}
             onInit={(instance) => {
@@ -351,6 +353,7 @@ export function FlowchartCanvas({
           onToggleShowAllInspectorLines={toggleShowAllInspectorLines}
           onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
           onSelectDialogueSearchResult={onSelectDialogueSearchResult}
+          flowEdges={flowEdges}
         />
       </div>
     </>

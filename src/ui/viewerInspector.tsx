@@ -1,6 +1,6 @@
 import { cn } from "./utils/cn.ts";
 import { useViewerStore } from "../application/index.ts";
-import { type CanvasNode, type NodeData } from "../domain/index.ts";
+import { type CanvasNode, type FlowEdge, type NodeData } from "../domain/index.ts";
 import type { DialogueSearchResult } from "../infrastructure/index.ts";
 import { InspectorSearchResults } from "./components/InspectorSearchResults.tsx";
 import { InspectorNodeDetails } from "./components/InspectorNodeDetails.tsx";
@@ -23,6 +23,7 @@ export interface ViewerInspectorProps {
   onToggleShowAllInspectorLines: () => void;
   onSetActiveDialogueResultIndex: (index: number) => void;
   onSelectDialogueSearchResult: (result: DialogueSearchResult) => void;
+  flowEdges?: FlowEdge[];
 }
 
 export function ViewerInspector({
@@ -41,6 +42,7 @@ export function ViewerInspector({
   onToggleShowAllInspectorLines,
   onSetActiveDialogueResultIndex,
   onSelectDialogueSearchResult,
+  flowEdges,
 }: ViewerInspectorProps) {
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -106,6 +108,7 @@ export function ViewerInspector({
             theme={theme}
             isDark={isDark}
             readingSpeedWpm={readingSpeedWpm}
+            flowEdges={flowEdges}
           />
         )}
     </aside>

@@ -57,12 +57,16 @@ export function useCanvasInteraction({
     setSelectedDialogueLineIndex,
     setShowAllInspectorLines,
     setActiveDialogueResultIndex,
+    setSelectedCallContextId,
+    selectedCallContextId,
   } = useViewerStore(
     useShallow((s) => ({
       setSelectedNodeId: s.setSelectedNodeId,
       setSelectedDialogueLineIndex: s.setSelectedDialogueLineIndex,
       setShowAllInspectorLines: s.setShowAllInspectorLines,
       setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
+      setSelectedCallContextId: s.setSelectedCallContextId,
+      selectedCallContextId: s.selectedCallContextId,
     })),
   );
 
@@ -86,9 +90,24 @@ export function useCanvasInteraction({
     setShowAllInspectorLines,
   ]);
 
+  const onEdgeClick = useCallback((_: unknown, edge: CanvasEdge) => {
+    const callCtx = edge.data?.callContext;
+    const ctxId = callCtx?.callContextId ?? callCtx?.callEdgeId ?? edge.id;
+    if (
+      callCtx || edge.data?.kind === "call" || edge.data?.kind === "call_return"
+    ) {
+      if (selectedCallContextId === ctxId) {
+        setSelectedCallContextId(null);
+      } else {
+        setSelectedCallContextId(ctxId);
+      }
+    }
+  }, [selectedCallContextId, setSelectedCallContextId]);
+
   const onPaneClick = useCallback(() => {
     clearSelection();
-  }, [clearSelection]);
+    setSelectedCallContextId(null);
+  }, [clearSelection, setSelectedCallContextId]);
 
   const onFocusSelectedNode = useCallback(() => {
     if (!focusNodeId || !flowInstanceRef.current) return;
@@ -238,6 +257,7 @@ export function useCanvasInteraction({
 
   return {
     onNodeClick,
+    onEdgeClick,
     onPaneClick,
     onFocusSelectedNode,
     onSelectDialogueSearchResult,

@@ -1,5 +1,6 @@
 export type {
   CallArgument,
+  CallContext,
   ConditionBranchKind,
   ConditionMetadata,
   EdgeKind,

@@ -1,6 +1,6 @@
 import type { FlowEdge, FlowNode } from "../domain/index.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
-import type { ParseInputFile } from "./pipelineTypes.ts";
+import type { ParseInputFile, PendingCallReturn } from "./pipelineTypes.ts";
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 3 as const;
 
@@ -90,7 +90,7 @@ export interface FinalizeRequestMessage {
   nodes: FlowNode[];
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
-  pendingCallReturns: Array<{ returnTargetId: string; callTargetId: string }>;
+  pendingCallReturns: PendingCallReturn[];
   hasReliableReturnInLabel: string[];
   globalScreens: string[];
   labelDefinitionCount: Array<[string, number]>;
@@ -245,7 +245,7 @@ export interface ChunkResultResponseMessage {
   nodes: FlowNode[];
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
-  pendingCallReturns?: Array<{ returnTargetId: string; callTargetId: string }>;
+  pendingCallReturns?: PendingCallReturn[];
   hasReliableReturnInLabel?: string[];
   globalScreens?: string[];
   labelDefinitionCount?: Array<[string, number]>;

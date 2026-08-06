@@ -29,11 +29,26 @@ describe("parser rule variants", () => {
         expect.objectContaining({ actionName: "Call", actionKind: "call" }),
         expect.objectContaining({ actionName: "Show", actionKind: "show" }),
         expect.objectContaining({ actionName: "Hide", actionKind: "hide" }),
-        expect.objectContaining({ actionName: "ShowMenu", actionKind: "show_menu" }),
-        expect.objectContaining({ actionName: "SetVariable", actionKind: "set_variable" }),
-        expect.objectContaining({ actionName: "ToggleVariable", actionKind: "toggle_variable" }),
-        expect.objectContaining({ actionName: "Confirm", actionKind: "confirm" }),
-        expect.objectContaining({ actionName: "NullAction", actionKind: "null_action" }),
+        expect.objectContaining({
+          actionName: "ShowMenu",
+          actionKind: "show_menu",
+        }),
+        expect.objectContaining({
+          actionName: "SetVariable",
+          actionKind: "set_variable",
+        }),
+        expect.objectContaining({
+          actionName: "ToggleVariable",
+          actionKind: "toggle_variable",
+        }),
+        expect.objectContaining({
+          actionName: "Confirm",
+          actionKind: "confirm",
+        }),
+        expect.objectContaining({
+          actionName: "NullAction",
+          actionKind: "null_action",
+        }),
       ]),
     );
   });

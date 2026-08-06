@@ -690,7 +690,9 @@ function processAssignment(
     } else {
       const dictVal = parseDictLiteral(cleanExpr);
       if (dictVal !== null) {
-        const existingDict = state.globalLabelVariableDictTargets.get(variableName);
+        const existingDict = state.globalLabelVariableDictTargets.get(
+          variableName,
+        );
         const existingStr = existingDict
           ? JSON.stringify(Array.from(existingDict.entries()))
           : null;
@@ -702,8 +704,12 @@ function processAssignment(
       } else {
         const listVal = parseListLiteral(cleanExpr);
         if (listVal !== null) {
-          const existingList = state.globalLabelVariableListTargets.get(variableName);
-          const existingStr = existingList ? JSON.stringify(existingList) : null;
+          const existingList = state.globalLabelVariableListTargets.get(
+            variableName,
+          );
+          const existingStr = existingList
+            ? JSON.stringify(existingList)
+            : null;
           const newStr = JSON.stringify(listVal);
           if (existingStr !== newStr) {
             state.globalLabelVariableListTargets.set(variableName, listVal);
@@ -831,8 +837,8 @@ function processInitBlockText(
     }
 
     // Nested dollar assignment ($ var = val)
-    const dollarMatch =
-      /^[ \t]*\$\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$/.exec(trimmed);
+    const dollarMatch = /^[ \t]*\$\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$/
+      .exec(trimmed);
     if (dollarMatch) {
       const varName = dollarMatch[1].trim();
       const isPersist = varName.startsWith("persistent.");
