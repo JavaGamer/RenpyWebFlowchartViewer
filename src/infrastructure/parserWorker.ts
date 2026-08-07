@@ -1,7 +1,9 @@
 import { expose } from "comlink";
 import {
   createGraphState,
+  extractNodeDetailsFromTokens,
   finalizeRoles,
+  type NodeDetailsPayload,
   type ParseDiagnostic,
   type ParseGraphState,
   type ParseInputFile,
@@ -28,7 +30,11 @@ import type {
   ParseWorkerClientResult,
 } from "./workerProtocol.ts";
 
-type TokenizedCacheEntry = { document: TextDocument; tokenTree: TokenTree };
+type TokenizedCacheEntry = {
+  chapter: string;
+  document: TextDocument;
+  tokenTree: TokenTree;
+};
 
 class BoundedTokenizedCache extends Map<string, TokenizedCacheEntry> {
   private readonly maxEntries: number;
@@ -69,6 +75,7 @@ const tokenizedCache = new BoundedTokenizedCache(MAX_TOKENIZED_CACHE_ENTRIES);
 
 interface SessionState {
   accumulatedState: ParseGraphState;
+  rawFilesByChapter: Map<string, ParseInputFile>;
   dialogueSearchDocs: DialogueSearchDocument[];
   dialogueSearchMiniSearch: MiniSearch<DialogueSearchDocument> | null;
 }
@@ -80,6 +87,7 @@ function getSession(sessionId: string): SessionState {
   if (!session) {
     session = {
       accumulatedState: createGraphState(),
+      rawFilesByChapter: new Map(),
       dialogueSearchDocs: [],
       dialogueSearchMiniSearch: null,
     };
@@ -92,11 +100,84 @@ function clearSession(sessionId: string) {
   sessions.delete(sessionId);
 }
 
-function buildDialogueSearchIndex(
+async function getOrFetchTokenizedMap(
   session: SessionState,
-  nodes: { id: string; label: string; dialogueLines?: string[] }[],
+  nodes: FlowNode[],
+): Promise<Map<string, { document: TextDocument; tokenTree: TokenTree }>> {
+  const tokenizedFilesByChapter = new Map<
+    string,
+    { document: TextDocument; tokenTree: TokenTree }
+  >();
+
+  for (const entry of tokenizedCache.values()) {
+    const rawFile = session.rawFilesByChapter.get(entry.chapter);
+    if (rawFile) {
+      const rawContentStr = typeof rawFile.content === "string"
+        ? rawFile.content
+        : new TextDecoder("utf-8").decode(rawFile.content);
+      if (entry.document.getText() === rawContentStr) {
+        tokenizedFilesByChapter.set(entry.chapter, {
+          document: entry.document,
+          tokenTree: entry.tokenTree,
+        });
+      }
+    }
+  }
+
+  const missingChapters = new Set<string>();
+  for (const node of nodes) {
+    const chapter = node.chapter || "";
+    if (chapter && !tokenizedFilesByChapter.has(chapter)) {
+      missingChapters.add(chapter);
+    }
+  }
+
+  for (const chapter of missingChapters) {
+    const rawFile = session.rawFilesByChapter.get(chapter);
+    if (rawFile) {
+      const tokenized = await tokenizeOneFile(rawFile, { tokenizedCache });
+      tokenizedFilesByChapter.set(chapter, {
+        document: tokenized.document,
+        tokenTree: tokenized.tokenTree,
+      });
+    }
+  }
+
+  return tokenizedFilesByChapter;
+}
+
+async function buildDialogueSearchIndex(
+  session: SessionState,
+  nodes: FlowNode[],
 ) {
   session.dialogueSearchDocs = [];
+  const unhydrated = nodes.filter((n) =>
+    n.dialogueCount > 0 && !n.dialogueLines
+  );
+  if (unhydrated.length > 0) {
+    const tokenizedFilesByChapter = await getOrFetchTokenizedMap(
+      session,
+      unhydrated,
+    );
+    const extractedDetails = extractNodeDetailsFromTokens(
+      unhydrated,
+      tokenizedFilesByChapter,
+    );
+    for (const [id, payload] of Object.entries(extractedDetails)) {
+      const node = session.accumulatedState.nodeMap.get(id);
+      if (node && payload.dialogueLines) {
+        node.dialogueLines = payload.dialogueLines;
+        if (payload.dialogueLineNums) {
+          node.dialogueLineNums = payload.dialogueLineNums;
+        }
+        if (payload.audioAssetCues) {
+          node.audioAssetCues = payload.audioAssetCues;
+        }
+        node.isDetailsLoaded = true;
+      }
+    }
+  }
+
   for (const node of nodes) {
     if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
     for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
@@ -137,7 +218,7 @@ export interface InternalChunkResult {
   canonicalLabelIds: Array<[string, string]>;
 }
 
-const parserApi = {
+export const parserApi = {
   async parse(
     requestId: number,
     files: ParseInputFile[],
@@ -147,6 +228,7 @@ const parserApi = {
       wantsProgress?: boolean;
       maxParallelFiles?: number;
       captureDialogueLines?: boolean;
+      deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
       appendToActiveGraph?: boolean;
@@ -172,13 +254,22 @@ const parserApi = {
       if (file.content instanceof Uint8Array) {
         file.content = new TextDecoder("utf-8").decode(file.content);
       }
+      const chapterSource = file.relativePath ?? file.name;
+      const chapter = chapterSource.replace(/\\/g, "/").replace(/\.rpy$/i, "");
+      session.rawFilesByChapter.set(chapter, file);
     }
 
     try {
       let result;
       if (appendToActiveGraph) {
         if (resetActiveGraph) {
+          for (const sId of Array.from(sessions.keys())) {
+            if (sId !== sessionId) {
+              sessions.delete(sId);
+            }
+          }
           session.accumulatedState = createGraphState();
+          session.rawFilesByChapter.clear();
           session.dialogueSearchDocs = [];
           session.dialogueSearchMiniSearch = null;
         }
@@ -243,6 +334,7 @@ const parserApi = {
           }
           processTokenizedFile(session.accumulatedState, tokenized, {
             captureDialogueLines: options.captureDialogueLines !== false,
+            deferDetails: options.deferDetails,
             parserVariant: options.parserVariant,
             screenActionRules: options.screenActionRules,
           });
@@ -284,6 +376,7 @@ const parserApi = {
           tokenizedCache,
           fileCacheKeys: options.fileCacheKeys,
           captureDialogueLines: options.captureDialogueLines !== false,
+          deferDetails: options.deferDetails,
           parserVariant: options.parserVariant,
           screenActionRules: options.screenActionRules,
           onProgress: ({ doneFiles, totalFiles, currentFile }) => {
@@ -313,30 +406,27 @@ const parserApi = {
         session.accumulatedState = createGraphState();
         session.accumulatedState.nodes = result.nodes;
         session.accumulatedState.edges = result.edges;
+        for (const n of result.nodes) {
+          session.accumulatedState.nodeMap.set(n.id, n);
+        }
+        for (const e of result.edges) {
+          session.accumulatedState.edgeMap.set(e.id, e);
+        }
         buildDialogueSearchIndex(session, result.nodes);
       }
 
       if (wantsProgress && pendingProgress) {
         onProgress(pendingProgress);
-        pendingProgress = null;
       }
 
-      if (cancelledRequests.has(requestId)) {
-        throw new Error("Parsing cancelled");
-      }
-
-      return {
-        nodes: result.nodes,
-        edges: result.edges,
-        diagnostics: result.diagnostics as ParseDiagnosticPayload[] | undefined,
-      };
+      return result;
     } finally {
       const wasCancelled = cancelledRequests.has(requestId);
       if (activeRequestId === requestId) {
         activeRequestId = null;
       }
       cancelledRequests.delete(requestId);
-      if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
+      if (wasCancelled) {
         clearSession(sessionId);
       }
     }
@@ -348,6 +438,7 @@ const parserApi = {
     options: {
       fileCacheKeys?: string[];
       captureDialogueLines?: boolean;
+      deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
     },
@@ -375,6 +466,7 @@ const parserApi = {
         );
         processTokenizedFile(chunkState, tokenized, {
           captureDialogueLines: options.captureDialogueLines !== false,
+          deferDetails: options.deferDetails,
           parserVariant: options.parserVariant,
           screenActionRules: options.screenActionRules,
         });
@@ -405,10 +497,90 @@ const parserApi = {
     }
   },
 
+  async tokenize(
+    requestId: number,
+    files: ParseInputFile[],
+    options: {
+      fileCacheKeys?: string[];
+      storeOffThread?: boolean;
+    } = {},
+  ): Promise<{ fileCacheKeys: string[]; elapsedMs: number }> {
+    const startedAt = performance.now();
+    const fileCacheKeys: string[] = [];
+    for (let idx = 0; idx < files.length; idx += 1) {
+      if (cancelledRequests.has(requestId)) {
+        cancelledRequests.delete(requestId);
+        throw new Error("Tokenize cancelled");
+      }
+      const file = files[idx]!;
+      if (file.content instanceof Uint8Array) {
+        file.content = new TextDecoder("utf-8").decode(file.content);
+      }
+      const tokenized = await tokenizeOneFile(
+        file,
+        { tokenizedCache, fileCacheKeys: options.fileCacheKeys },
+        idx,
+      );
+      if (tokenized.cacheKey) {
+        fileCacheKeys.push(tokenized.cacheKey);
+      }
+    }
+    cancelledRequests.delete(requestId);
+    return {
+      fileCacheKeys,
+      elapsedMs: performance.now() - startedAt,
+    };
+  },
+
+  async extractDetails(
+    requestId: number,
+    nodeIds: string[],
+    options: { sessionId?: string } = {},
+  ): Promise<Record<string, NodeDetailsPayload>> {
+    if (cancelledRequests.has(requestId)) {
+      cancelledRequests.delete(requestId);
+      return {};
+    }
+    const sessionId = options.sessionId || "default";
+    const session = getSession(sessionId);
+    const targetNodeSet = new Set(nodeIds);
+    const nodesToExtract = session.accumulatedState.nodes.filter((n) =>
+      targetNodeSet.has(n.id)
+    );
+
+    const tokenizedFilesByChapter = await getOrFetchTokenizedMap(
+      session,
+      nodesToExtract,
+    );
+
+    const details = extractNodeDetailsFromTokens(
+      nodesToExtract,
+      tokenizedFilesByChapter,
+    );
+
+    for (const [id, payload] of Object.entries(details)) {
+      const node = session.accumulatedState.nodeMap.get(id);
+      if (node) {
+        if (payload.dialogueLines) node.dialogueLines = payload.dialogueLines;
+        if (payload.dialogueLineNums) {
+          node.dialogueLineNums = payload.dialogueLineNums;
+        }
+        if (payload.audioAssetCues) {
+          node.audioAssetCues = payload.audioAssetCues;
+        }
+        node.isDetailsLoaded = true;
+      }
+    }
+
+    cancelledRequests.delete(requestId);
+    return details;
+  },
+
   async finalize(
     requestId: number,
     options: {
       sessionId?: string;
+      files?: ParseInputFile[];
       nodes: FlowNode[];
       edges: FlowEdge[];
       diagnostics?: ParseDiagnosticPayload[];
@@ -431,16 +603,42 @@ const parserApi = {
     const appendToActiveGraph = options.appendToActiveGraph === true;
     const isFinalChunk = options.isFinalChunk !== false;
 
+    if (options.files) {
+      for (const file of options.files) {
+        if (file.content instanceof Uint8Array) {
+          file.content = new TextDecoder("utf-8").decode(file.content);
+        }
+        const chapterSource = file.relativePath ?? file.name;
+        const chapter = chapterSource.replace(/\\/g, "/").replace(
+          /\.rpy$/i,
+          "",
+        );
+        session.rawFilesByChapter.set(chapter, file);
+      }
+    }
+
     try {
       if (appendToActiveGraph) {
         if (options.resetActiveGraph) {
+          for (const sId of Array.from(sessions.keys())) {
+            if (sId !== sessionId) {
+              sessions.delete(sId);
+            }
+          }
           session.accumulatedState = createGraphState();
+          session.rawFilesByChapter.clear();
           session.dialogueSearchDocs = [];
           session.dialogueSearchMiniSearch = null;
         }
 
-        session.accumulatedState.nodes.push(...options.nodes);
-        session.accumulatedState.edges.push(...options.edges);
+        for (const node of options.nodes) {
+          session.accumulatedState.nodes.push(node);
+          session.accumulatedState.nodeMap.set(node.id, node);
+        }
+        for (const edge of options.edges) {
+          session.accumulatedState.edges.push(edge);
+          session.accumulatedState.edgeMap.set(edge.id, edge);
+        }
         if (options.diagnostics) {
           session.accumulatedState.diagnostics.push(
             ...(options.diagnostics as ParseDiagnostic[]),
@@ -487,10 +685,13 @@ const parserApi = {
         const state = createGraphState();
         state.nodes = options.nodes;
         state.edges = options.edges;
+        for (const n of options.nodes) state.nodeMap.set(n.id, n);
+        for (const e of options.edges) state.edgeMap.set(e.id, e);
         state.diagnostics = options.diagnostics
           ? (options.diagnostics as ParseDiagnostic[])
           : [];
-        state.pendingCallReturns = options.pendingCallReturns as PendingCallReturn[];
+        state.pendingCallReturns = options
+          .pendingCallReturns as PendingCallReturn[];
         state.hasReliableReturnInLabel = new Set(
           options.hasReliableReturnInLabel,
         );
@@ -499,6 +700,7 @@ const parserApi = {
           options.labelDefinitionCount,
         );
         state.canonicalLabelIdByName = new Map(options.canonicalLabelIds);
+        session.accumulatedState = state;
 
         finalizeRoles(state);
         buildDialogueSearchIndex(session, state.nodes);
@@ -518,7 +720,7 @@ const parserApi = {
     } finally {
       const wasCancelled = cancelledRequests.has(requestId);
       cancelledRequests.delete(requestId);
-      if ((appendToActiveGraph && isFinalChunk) || wasCancelled) {
+      if (wasCancelled) {
         clearSession(sessionId);
       }
     }

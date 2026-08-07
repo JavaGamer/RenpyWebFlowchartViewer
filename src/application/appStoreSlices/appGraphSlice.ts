@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { FlowEdge, FlowNode } from "../../domain/index.ts";
+import type { AudioAssetCue, FlowEdge, FlowNode } from "../../domain/index.ts";
 import type { ParseDiagnosticPayload } from "../../infrastructure/index.ts";
 import type { AppStore } from "../appStore.ts";
 
@@ -11,6 +11,16 @@ export interface AppGraphState {
 }
 
 export interface AppGraphActions {
+  updateNodeDetails: (
+    details: Record<
+      string,
+      {
+        dialogueLines?: string[];
+        dialogueLineNums?: number[];
+        audioAssetCues?: AudioAssetCue[];
+      }
+    >,
+  ) => void;
   partialParseSuccess: (
     nodes: FlowNode[],
     edges: FlowEdge[],
@@ -39,6 +49,23 @@ export const createAppGraphSlice: StateCreator<
   AppGraphSlice
 > = (set) => ({
   ...defaultAppGraphState,
+
+  updateNodeDetails: (details) =>
+    set((draft) => {
+      for (const node of draft.flowNodes) {
+        const payload = details[node.id];
+        if (payload) {
+          if (payload.dialogueLines) node.dialogueLines = payload.dialogueLines;
+          if (payload.dialogueLineNums) {
+            node.dialogueLineNums = payload.dialogueLineNums;
+          }
+          if (payload.audioAssetCues) {
+            node.audioAssetCues = payload.audioAssetCues;
+          }
+          node.isDetailsLoaded = true;
+        }
+      }
+    }),
 
   partialParseSuccess: (nodes, edges, diagnostics) =>
     set((draft) => {

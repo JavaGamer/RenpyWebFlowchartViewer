@@ -12,7 +12,7 @@ import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
-export type { EdgeKind };
+export type { EdgeKind, TextDocument, TokenTree };
 export type ConditionalBranchKind = DomainConditionBranchKind;
 
 export interface PendingCallReturn {
@@ -187,6 +187,7 @@ export interface ParseScanState extends ResolveTargetScanState {
     id: string;
     optionText: string | null;
     options?: Array<{ text: string; hasExit: boolean }>;
+    sourceLocation?: SourceLocation;
   }>;
   pendingMenuFallthroughIds: string[];
   conditionalIndentStack: number[];
@@ -266,10 +267,11 @@ export interface ParseOptions {
   maxParallelFiles?: number;
   tokenizedCache?: Map<
     string,
-    { document: TextDocument; tokenTree: TokenTree }
+    { chapter?: string; document: TextDocument; tokenTree: TokenTree }
   >;
   fileCacheKeys?: string[];
   captureDialogueLines?: boolean;
+  deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
   dynamicJumpRules?: DynamicJumpRule[];

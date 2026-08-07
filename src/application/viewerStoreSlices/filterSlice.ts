@@ -13,6 +13,8 @@ import type {
   LayoutDirection,
 } from "../../domain/index.ts";
 import type { ViewerStore } from "../viewerStoreTypes.ts";
+import { useAppStore } from "../appStore.ts";
+import { useViewerStore } from "../viewerStore.ts";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -80,22 +82,60 @@ export const createFilterSlice: StateCreator<
       draft.minDialogue = value;
     }),
 
-  toggleChapter: (chapter) =>
+  toggleChapter: (chapter) => {
+    let nodesToFetch: string[] = [];
     set((draft) => {
-      draft.collapsedChapters[chapter] = !draft.collapsedChapters[chapter];
-    }),
+      const willBeCollapsed = !draft.collapsedChapters[chapter];
+      draft.collapsedChapters[chapter] = willBeCollapsed;
+      if (!willBeCollapsed) {
+        nodesToFetch = useAppStore.getState().flowNodes.filter(
+          (n) => n.chapter === chapter && !n.isDetailsLoaded,
+        ).map((n) => n.id);
+      }
+    });
+    if (nodesToFetch.length > 0) {
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch);
+    }
+  },
 
-  toggleParentLabel: (label) =>
+  toggleParentLabel: (label) => {
+    let nodesToFetch: string[] = [];
     set((draft) => {
-      draft.collapsedParentLabels[label] = !draft.collapsedParentLabels[label];
-    }),
+      const willBeCollapsed = !draft.collapsedParentLabels[label];
+      draft.collapsedParentLabels[label] = willBeCollapsed;
+      if (!willBeCollapsed) {
+        nodesToFetch = useAppStore.getState().flowNodes.filter(
+          (n) =>
+            (n.parentLabelId === label || n.label === label) &&
+            !n.isDetailsLoaded,
+        ).map((n) => n.id);
+      }
+    });
+    if (nodesToFetch.length > 0) {
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch);
+    }
+  },
 
-  setAllParentLabelsCollapsed: (labels, collapsed) =>
+  setAllParentLabelsCollapsed: (labels, collapsed) => {
+    let nodesToFetch: string[] = [];
     set((draft) => {
       for (const label of labels) {
         draft.collapsedParentLabels[label] = collapsed;
       }
-    }),
+      if (!collapsed) {
+        const labelSet = new Set(labels);
+        nodesToFetch = useAppStore.getState().flowNodes.filter(
+          (n) =>
+            ((n.parentLabelId && labelSet.has(n.parentLabelId)) ||
+              labelSet.has(n.label)) &&
+            !n.isDetailsLoaded,
+        ).map((n) => n.id);
+      }
+    });
+    if (nodesToFetch.length > 0) {
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch);
+    }
+  },
 
   setLargeGraphModeOverride: (value) =>
     set((draft) => {

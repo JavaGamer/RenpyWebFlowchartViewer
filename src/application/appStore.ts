@@ -36,6 +36,16 @@ export interface AppState {
 }
 
 export interface AppActions {
+  updateNodeDetails: (
+    details: Record<
+      string,
+      {
+        dialogueLines?: string[];
+        dialogueLineNums?: number[];
+        audioAssetCues?: import("../domain/index.ts").AudioAssetCue[];
+      }
+    >,
+  ) => void;
   reset: () => void;
   startReading: (fileCount: number) => void;
   startParsing: () => void;

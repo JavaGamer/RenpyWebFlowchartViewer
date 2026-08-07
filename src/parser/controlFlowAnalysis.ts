@@ -113,9 +113,16 @@ function analyzeReachability(
   const visited = new Set<string>();
   const queue: string[] = [];
 
-  if (state.nodeMap.has("start")) {
-    queue.push("start");
-    visited.add("start");
+  const canonicalStart = state.canonicalLabelIdByName.get("start") ?? "start";
+  const startId = state.nodeMap.has("start")
+    ? "start"
+    : state.nodeMap.has(canonicalStart)
+    ? canonicalStart
+    : null;
+
+  if (startId) {
+    queue.push(startId);
+    visited.add(startId);
   } else {
     // If no "start" label exists, start from all nodes with 0 incoming edges
     for (const node of state.nodes) {

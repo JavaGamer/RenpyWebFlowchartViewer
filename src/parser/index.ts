@@ -12,6 +12,7 @@ export {
   tokenizeOneFile,
 } from "./filePipeline.ts";
 export { finalizeRoles } from "./roleFinalization.ts";
+export { extractNodeDetailsFromTokens } from "./tokenScanStage.ts";
 export type {
   ParseDiagnostic,
   ParseGraphState,
@@ -20,5 +21,7 @@ export type {
   ParseProgress,
   ParseResult,
   PendingCallReturn,
+  TextDocument,
+  TokenTree,
 } from "./pipelineTypes.ts";
 export * from "./workerProtocol.ts";

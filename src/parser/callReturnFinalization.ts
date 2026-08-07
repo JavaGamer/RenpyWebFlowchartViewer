@@ -10,8 +10,7 @@ export function materializeCallReturnEdges(state: ParseGraphState): void {
       callContextId,
       arguments: callArgs,
     } = item;
-    const hasExplicitReturn =
-      state.hasReliableReturnInLabel.has(callTargetId);
+    const hasExplicitReturn = state.hasReliableReturnInLabel.has(callTargetId);
     if (!hasExplicitReturn) {
       continue;
     }

@@ -89,7 +89,9 @@ function inlineNodes(
     if (incomingCount === 0) continue;
 
     let shouldInline = false;
-    if (options.inlineUtilities && node.role === "utility") {
+    if (node.chapter === "__unresolved__") {
+      shouldInline = false;
+    } else if (options.inlineUtilities && node.role === "utility") {
       shouldInline = true;
     } else if (options.inlineDetours && node.role === "detour") {
       shouldInline = true;

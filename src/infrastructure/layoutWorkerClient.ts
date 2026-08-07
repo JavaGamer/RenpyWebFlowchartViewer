@@ -1,4 +1,4 @@
-import { type Remote, wrap } from "comlink";
+import { releaseProxy, type Remote, wrap } from "comlink";
 import type {
   CanvasEdge,
   CanvasNode,
@@ -32,11 +32,18 @@ let currentRequestId = 0;
 
 export function terminateLayoutWorker() {
   currentRequestId += 1;
+  if (apiProxy) {
+    try {
+      apiProxy[releaseProxy]();
+    } catch {
+      // Ignore
+    }
+    apiProxy = null;
+  }
   if (worker) {
     worker.terminate();
     worker = null;
   }
-  apiProxy = null;
   isWorkerRunning = false;
 }
 

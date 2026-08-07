@@ -133,6 +133,7 @@ export async function parseRenpyFiles(
       perf.mark(`file:${idx}:scan`);
       processTokenizedFile(state, tokenized, {
         captureDialogueLines: options.captureDialogueLines,
+        deferDetails: options.deferDetails,
         parserVariant: options.parserVariant,
         screenActionRules: options.screenActionRules,
         sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,

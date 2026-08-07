@@ -1,6 +1,7 @@
 export {
   type ChunkResultResponseMessage,
   type DialogueSearchResult,
+  type NodeDetailsPayload,
   type ParseChunkRequestMessage,
   type ParseDiagnosticPayload,
   type ParseWorkerClientRequest,
@@ -8,12 +9,14 @@ export {
 } from "./workerProtocol.ts";
 export {
   areWorkersSupported,
+  extractNodeDetailsInWorker,
   getWorkerPoolSize,
   type ParseChunkRequest,
   type ParseChunkResult,
   parseChunksInParallel,
   parseRenpyFilesInWorker,
   searchDialogueLinesInWorker,
+  tokenizeFilesInWorker,
 } from "./parserWorkerClient.ts";
 export { readFileAsArrayBuffer, readFileAsText } from "./fileReader.ts";
 export {

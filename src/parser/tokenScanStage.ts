@@ -3,7 +3,11 @@ import type {
   TokenTree,
   TreeNode,
 } from "@renpy/ast/out/tokenizer/token-definitions";
-import type { SourceLocation } from "../domain/index.ts";
+import type {
+  AudioAssetCue,
+  FlowNode,
+  SourceLocation,
+} from "../domain/index.ts";
 import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
 import { maybeUpdateConditionalState } from "./scanTransitions.ts";
@@ -14,6 +18,14 @@ import {
   type ScreenActionKind,
   toScreenActionRuleMap,
 } from "../config/parserRules.ts";
+import type { NodeDetailsPayload } from "./workerProtocol.ts";
+import {
+  extractPlayCue,
+  extractQueueCue,
+  extractSceneAsset,
+  extractStopCue,
+  extractVoiceCue,
+} from "./handlers/audioCues.ts";
 
 /**
  * Represents a flattened token-like structure extracted from the AST tree.
@@ -486,6 +498,7 @@ export function processTokenTreeStream(
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
   sceneSplitDialogueThreshold?: number,
+  deferDetails?: boolean,
 ): void {
   const tokens: FlatTokenLike[] = [];
 
@@ -508,6 +521,7 @@ export function processTokenTreeStream(
     parserVariant,
     screenActionRules,
     sceneSplitDialogueThreshold,
+    deferDetails,
   );
 }
 
@@ -525,6 +539,7 @@ export function processFlatTokens(
   parserVariant?: ParserVariant,
   screenActionRules?: ScreenActionRule[],
   sceneSplitDialogueThreshold?: number,
+  deferDetails?: boolean,
 ): void {
   const meta = createEmptyTokenMeta();
   const screenActionRuleMap = toScreenActionRuleMap(
@@ -599,9 +614,162 @@ export function processFlatTokens(
       lineText,
       lineNum: token.startPos.line,
       captureDialogueLines,
+      deferDetails,
       screenActionRuleMap,
       sceneSplitDialogueThreshold,
       sourceLocation,
     });
   }
+}
+
+export function extractNodeDetailsFromTokens(
+  nodes: FlowNode[],
+  tokenizedFilesByChapter: Map<
+    string,
+    { document: TextDocument; tokenTree: TokenTree }
+  >,
+): Record<string, NodeDetailsPayload> {
+  const result: Record<string, NodeDetailsPayload> = {};
+
+  for (const node of nodes) {
+    if (!node.sourceLocation) continue;
+    const chapter = node.chapter || "";
+    const tokenized = tokenizedFilesByChapter.get(chapter) ||
+      (!chapter && tokenizedFilesByChapter.size > 0
+        ? tokenizedFilesByChapter.values().next().value
+        : undefined);
+    if (!tokenized) continue;
+
+    const { document, tokenTree } = tokenized;
+    const startLine = node.sourceLocation.start.line;
+    const endLine = node.sourceLocation.end.line;
+
+    const dialogueLines: string[] = [];
+    const dialogueLineNums: number[] = [];
+    const audioAssetCues: AudioAssetCue[] = [];
+
+    const flatTokens: FlatTokenLike[] = [];
+    collectFlatTokens(tokenTree.root, [], flatTokens, document);
+    flatTokens.sort((a, b) => {
+      if (a.startPos.line !== b.startPos.line) {
+        return a.startPos.line - b.startPos.line;
+      }
+      return a.startPos.character - b.startPos.character;
+    });
+
+    const docLines = document.getText().split(/\r?\n/);
+    const lineTextCache = new Map<number, string>();
+
+    for (const token of flatTokens) {
+      const lineNum = token.startPos.line;
+      if (lineNum < startLine || lineNum > endLine) continue;
+      const type = token.type as number;
+      if (!RELEVANT_TOKEN_TYPES.has(type)) continue;
+
+      const lineText = getLineText(document, lineNum, lineTextCache, docLines);
+      const rawVal = token.getValue(document);
+      const valStr = type === PARSER_TOKENS.literalString
+        ? normalizeLiteralString(rawVal)
+        : rawVal;
+
+      if (type === PARSER_TOKENS.literalString) {
+        const meta = createEmptyTokenMeta();
+        if (token.metaTokens) {
+          analyzeTokenMetaInto(token.metaTokens, meta);
+        }
+        const isSay = (meta.hasSayNarrator || meta.hasSayCharacter ||
+          meta.hasSayStatement) && !meta.hasMenuOption;
+        const isInMenu = meta.hasMenuBlock || meta.hasMenuOptionBlock ||
+          meta.menuDepth > 0;
+
+        const isTarget = isSay && (node.type === "MENU" ? isInMenu : !isInMenu);
+
+        if (isTarget) {
+          const trimmed = lineText.trim();
+          const isCustomStatement = /^(gameover|title|timedchoice)\b/i.test(
+            trimmed,
+          );
+          const isAudioOrSceneCue =
+            /^(play|queue|sound|music|voice|scene|stop)\b/i.test(trimmed);
+          if (!isCustomStatement && !isAudioOrSceneCue) {
+            dialogueLines.push(valStr);
+            dialogueLineNums.push(lineNum);
+          }
+        }
+      } else if (type === PARSER_TOKENS.kwScene) {
+        const sceneAsset = extractSceneAsset(lineText);
+        if (sceneAsset) {
+          audioAssetCues.push({
+            type: "scene",
+            asset: sceneAsset,
+            raw: lineText.trim(),
+            lineNum,
+            sourceLocation: getTokenSourceLocation(token, document, chapter),
+          });
+        }
+      } else if (type === PARSER_TOKENS.kwPlay) {
+        const cue = extractPlayCue(lineText);
+        if (cue) {
+          audioAssetCues.push({
+            type: "play",
+            channel: cue.channel,
+            asset: cue.asset,
+            raw: lineText.trim(),
+            lineNum,
+            sourceLocation: getTokenSourceLocation(token, document, chapter),
+          });
+        }
+      } else if (type === PARSER_TOKENS.kwStop) {
+        const cue = extractStopCue(lineText);
+        if (cue) {
+          audioAssetCues.push({
+            type: "stop",
+            channel: cue.channel,
+            asset: cue.asset ?? "",
+            raw: lineText.trim(),
+            lineNum,
+            sourceLocation: getTokenSourceLocation(token, document, chapter),
+          });
+        }
+      } else if (type === PARSER_TOKENS.kwQueue) {
+        const cue = extractQueueCue(lineText);
+        if (cue) {
+          audioAssetCues.push({
+            type: "queue",
+            channel: cue.channel,
+            asset: cue.asset,
+            raw: lineText.trim(),
+            lineNum,
+            sourceLocation: getTokenSourceLocation(token, document, chapter),
+          });
+        }
+      } else if (
+        type === PARSER_TOKENS.kwVoice ||
+        (type === PARSER_TOKENS.kwOther &&
+          valStr.trim().toLowerCase() === "voice")
+      ) {
+        const voiceAsset = extractVoiceCue(lineText);
+        if (voiceAsset) {
+          audioAssetCues.push({
+            type: "voice",
+            asset: voiceAsset,
+            raw: lineText.trim(),
+            lineNum,
+            sourceLocation: getTokenSourceLocation(token, document, chapter),
+          });
+        }
+      }
+    }
+
+    result[node.id] = {
+      nodeId: node.id,
+      dialogueLines: dialogueLines.length > 0 ? dialogueLines : undefined,
+      dialogueLineNums: dialogueLineNums.length > 0
+        ? dialogueLineNums
+        : undefined,
+      audioAssetCues: audioAssetCues.length > 0 ? audioAssetCues : undefined,
+    };
+  }
+
+  return result;
 }

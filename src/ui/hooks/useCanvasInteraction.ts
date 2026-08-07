@@ -84,6 +84,7 @@ export function useCanvasInteraction({
     setSelectedNodeId(node.id);
     setSelectedDialogueLineIndex(null);
     setShowAllInspectorLines(false);
+    useViewerStore.getState().fetchNodeDetails([node.id]);
   }, [
     setSelectedNodeId,
     setSelectedDialogueLineIndex,
@@ -132,19 +133,12 @@ export function useCanvasInteraction({
 
   const onSelectDialogueSearchResult = useCallback(
     (result: DialogueSearchResult) => {
-      const targetNode = visibleNodes.find((node) =>
-        node.id === result.nodeId && !node.hidden
-      );
-      const targetNodeData = targetNode?.data as
-        | { dialogueLines?: string[] }
-        | undefined;
-      const totalLines = targetNodeData?.dialogueLines?.length ?? 0;
       const selectedLineOutsidePreview =
         result.lineIndex > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
-      const hasTruncation = totalLines > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
       setSelectedNodeId(result.nodeId);
       setSelectedDialogueLineIndex(result.lineIndex);
-      setShowAllInspectorLines(hasTruncation && selectedLineOutsidePreview);
+      setShowAllInspectorLines(selectedLineOutsidePreview);
+      useViewerStore.getState().fetchNodeDetails([result.nodeId]);
       focusVisibleNode(result.nodeId);
     },
     [
@@ -152,7 +146,6 @@ export function useCanvasInteraction({
       setSelectedNodeId,
       setSelectedDialogueLineIndex,
       setShowAllInspectorLines,
-      visibleNodes,
     ],
   );
 

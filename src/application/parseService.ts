@@ -1,5 +1,7 @@
 import type {
   DialogueSearchResult,
+  NodeDetailsPayload,
+  ParseInputFile,
   ParseWorkerClientRequest,
   ParseWorkerClientResult,
 } from "../parser/index.ts";
@@ -15,4 +17,13 @@ export interface ParseService {
     maxResults?: number;
     signal?: AbortSignal;
   }): Promise<DialogueSearchResult[]>;
+  tokenizeFiles?(
+    files: ParseInputFile[],
+    signal?: AbortSignal,
+  ): Promise<{ fileCacheKeys: string[]; elapsedMs: number }>;
+  extractNodeDetails?(
+    nodeIds: string[],
+    sessionId?: string,
+    signal?: AbortSignal,
+  ): Promise<Record<string, NodeDetailsPayload>>;
 }

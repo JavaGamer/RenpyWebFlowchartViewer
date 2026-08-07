@@ -69,9 +69,12 @@ export interface ViewerSessionState {
   selectedSearchChapter: string;
   selectedSearchNodeKinds: Record<"LABEL" | "MENU" | "DECISION", boolean>;
   selectedCallContextId: string | null;
+  loadingNodeDetailIds: Set<string>;
+  hydratedNodeDetailIds: Set<string>;
 }
 
 export interface ViewerActions {
+  fetchNodeDetails: (nodeIds: string[]) => Promise<void>;
   // Persisted setters
   setTheme: (theme: ThemeName) => void;
   setLayoutDensity: (density: LayoutDensity) => void;

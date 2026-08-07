@@ -1,8 +1,8 @@
-import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import type { AudioAssetCue, FlowEdge, FlowNode } from "../domain/index.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { ParseInputFile, PendingCallReturn } from "./pipelineTypes.ts";
 
-export const PARSER_WORKER_PROTOCOL_VERSION = 3 as const;
+export const PARSER_WORKER_PROTOCOL_VERSION = 4 as const;
 
 export interface ParseProgressPayload {
   doneFiles: number;
@@ -22,6 +22,7 @@ export interface ParseWorkerClientRequest {
   signal?: AbortSignal;
   maxParallelFiles?: number;
   captureDialogueLines?: boolean;
+  deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
   appendToActiveGraph?: boolean;
@@ -49,11 +50,56 @@ export interface ParseRequestMessage {
   wantsProgress?: boolean;
   maxParallelFiles?: number;
   captureDialogueLines?: boolean;
+  deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
+}
+
+export interface TokenizeRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "tokenize";
+  requestId: number;
+  files: ParseInputFile[];
+  fileCacheKeys?: string[];
+  storeOffThread?: boolean;
+}
+
+export interface SerializedTokenPayload {
+  type: number;
+  metaTokens: number[];
+  startLine: number;
+  startChar: number;
+  endLine: number;
+  endChar: number;
+  startOffset: number;
+  endOffset: number;
+  val?: string;
+}
+
+export interface SerializedTokenizedFilePayload {
+  fileIndex: number;
+  cacheKey?: string;
+  chapter: string;
+  docText: string;
+  tokens: SerializedTokenPayload[];
+}
+
+export interface NodeDetailsPayload {
+  nodeId: string;
+  dialogueLines?: string[];
+  dialogueLineNums?: number[];
+  audioAssetCues?: AudioAssetCue[];
+}
+
+export interface ExtractDetailsRequestMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "extract_details";
+  requestId: number;
+  sessionId?: string;
+  nodeIds: string[];
 }
 
 export interface DialogueSearchResult {
@@ -79,6 +125,7 @@ export interface ParseChunkRequestMessage {
   files: ParseInputFile[];
   fileCacheKeys?: string[];
   captureDialogueLines?: boolean;
+  deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
 }
@@ -109,6 +156,8 @@ export interface CancelRequestMessage {
 export type WorkerRequestMessage =
   | ParseRequestMessage
   | ParseChunkRequestMessage
+  | TokenizeRequestMessage
+  | ExtractDetailsRequestMessage
   | FinalizeRequestMessage
   | SearchRequestMessage
   | CancelRequestMessage;
@@ -253,6 +302,23 @@ export interface ChunkResultResponseMessage {
   elapsedMs?: number;
 }
 
+export interface TokenizeResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "tokenize_result";
+  requestId: number;
+  fileCacheKeys: string[];
+  tokenizedFiles?: SerializedTokenizedFilePayload[];
+  elapsedMs?: number;
+}
+
+export interface ExtractDetailsResponseMessage {
+  protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
+  type: "extract_details_result";
+  requestId: number;
+  details: Record<string, NodeDetailsPayload>;
+  elapsedMs?: number;
+}
+
 export interface FinalizeResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
   type: "finalize_result";
@@ -268,6 +334,8 @@ export type WorkerResponseMessage =
   | ProgressResponseMessage
   | ResultResponseMessage
   | ChunkResultResponseMessage
+  | TokenizeResponseMessage
+  | ExtractDetailsResponseMessage
   | FinalizeResponseMessage
   | ErrorResponseMessage
   | SearchResultResponseMessage;

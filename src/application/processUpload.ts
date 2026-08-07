@@ -287,6 +287,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               resetActiveGraph: offset === 0 && parseOffset === 0,
               isFinalChunk: isLastChunk,
               captureDialogueLines: shouldCaptureDialogueLines,
+              deferDetails: shouldUseChunking ||
+                effectiveDialogueMode === "countOnly",
               parserVariant,
               screenActionRules: customScreenActionRules,
               signal: controller.signal,

@@ -18,12 +18,14 @@ export function menuAtDepth(
     id: string;
     optionText: string | null;
     options?: Array<{ text: string; hasExit: boolean }>;
+    sourceLocation?: SourceLocation;
   }[],
   depth: number,
 ): {
   id: string;
   optionText: string | null;
   options?: Array<{ text: string; hasExit: boolean }>;
+  sourceLocation?: SourceLocation;
 } | null {
   return depth > 0 ? (menuStack[depth - 1] ?? null) : null;
 }

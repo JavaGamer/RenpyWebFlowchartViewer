@@ -315,6 +315,14 @@ export default function FlowchartViewer({
   // -- Global keyboard shortcuts ----------------------------------------------
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isInput = target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable
+      );
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         setShowAdvancedControls(false);
@@ -324,6 +332,8 @@ export default function FlowchartViewer({
         }, 0);
         return;
       }
+      if (isInput) return;
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "e") {
         event.preventDefault();
         onExport();

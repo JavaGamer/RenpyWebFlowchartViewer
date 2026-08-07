@@ -34,3 +34,23 @@ export function exportToStoryboard(nodes: FlowNode[]): string {
 
   return lines.join("\n");
 }
+
+import { extractNodeDetailsInWorker } from "../../infrastructure/index.ts";
+import { useAppStore } from "../appStore.ts";
+
+export async function exportToStoryboardWithHydration(
+  nodes: FlowNode[],
+): Promise<string> {
+  const unhydratedIds = nodes
+    .filter((n) =>
+      n.dialogueCount > 0 && !n.isDetailsLoaded && !n.dialogueLines
+    )
+    .map((n) => n.id);
+  if (unhydratedIds.length > 0) {
+    const details = await extractNodeDetailsInWorker(unhydratedIds);
+    useAppStore.getState().updateNodeDetails(details);
+    const updatedNodes = useAppStore.getState().flowNodes;
+    return exportToStoryboard(updatedNodes);
+  }
+  return exportToStoryboard(nodes);
+}

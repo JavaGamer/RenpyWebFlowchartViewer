@@ -157,6 +157,7 @@ interface HandleTokenInput {
   lineText: string;
   lineNum: number;
   captureDialogueLines: boolean;
+  deferDetails?: boolean;
   screenActionRuleMap: Map<string, ScreenActionKind>;
   sceneSplitDialogueThreshold?: number;
   sourceLocation?: SourceLocation;
@@ -446,7 +447,7 @@ export function handleToken(
       menuDepth,
       input.sceneSplitDialogueThreshold,
     );
-    if (scanState.currentLabelId) {
+    if (scanState.currentLabelId && !input.deferDetails) {
       const ownerNode = state.nodeMap.get(scanState.currentLabelId);
       if (ownerNode) {
         const sceneAsset = extractSceneAsset(lineText);
@@ -467,7 +468,7 @@ export function handleToken(
 
   if (PARSER_TOKENS.kwPlay !== undefined && type === PARSER_TOKENS.kwPlay) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    if (scanState.currentLabelId) {
+    if (scanState.currentLabelId && !input.deferDetails) {
       const ownerNode = state.nodeMap.get(scanState.currentLabelId);
       if (ownerNode) {
         const cue = extractPlayCue(lineText);
@@ -489,7 +490,7 @@ export function handleToken(
 
   if (PARSER_TOKENS.kwStop !== undefined && type === PARSER_TOKENS.kwStop) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    if (scanState.currentLabelId) {
+    if (scanState.currentLabelId && !input.deferDetails) {
       const ownerNode = state.nodeMap.get(scanState.currentLabelId);
       if (ownerNode) {
         const cue = extractStopCue(lineText);
@@ -511,7 +512,7 @@ export function handleToken(
 
   if (PARSER_TOKENS.kwQueue !== undefined && type === PARSER_TOKENS.kwQueue) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    if (scanState.currentLabelId) {
+    if (scanState.currentLabelId && !input.deferDetails) {
       const ownerNode = state.nodeMap.get(scanState.currentLabelId);
       if (ownerNode) {
         const cue = extractQueueCue(lineText);
@@ -538,7 +539,7 @@ export function handleToken(
 
   if (isVoiceToken) {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
-    if (scanState.currentLabelId) {
+    if (scanState.currentLabelId && !input.deferDetails) {
       const ownerNode = state.nodeMap.get(scanState.currentLabelId);
       if (ownerNode) {
         const voiceAsset = extractVoiceCue(lineText);
@@ -690,7 +691,12 @@ export function handleToken(
       addIncoming(state, newMenuId, "sequence");
     }
 
-    scanState.menuStack.push({ id: newMenuId, optionText: null, options: [] });
+    scanState.menuStack.push({
+      id: newMenuId,
+      optionText: null,
+      options: [],
+      sourceLocation: sourceLocation ? { ...sourceLocation } : undefined,
+    });
     assertInvariant(
       scanState.menuStack.length <= menuDepth,
       `menu stack depth exceeded menu meta depth (${scanState.menuStack.length} > ${menuDepth})`,
@@ -952,7 +958,7 @@ export function handleToken(
           charStats.lineCount += 1;
           charStats.wordCount += stats.wordCount;
 
-          if (captureDialogueLines) {
+          if (captureDialogueLines && !input.deferDetails) {
             if (!ownerNode.dialogueLines) {
               ownerNode.dialogueLines = [];
               ownerNode.dialogueLineNums = [];
@@ -965,6 +971,19 @@ export function handleToken(
             } else {
               ownerNode.dialogueLines.splice(insertIdx, 0, line);
               lineNums.splice(insertIdx, 0, lineNum);
+            }
+            ownerNode.isDetailsLoaded = true;
+          }
+          if (ownerNode.sourceLocation && input.sourceLocation) {
+            ownerNode.sourceLocation.end = input.sourceLocation.end;
+          }
+          if (menu && input.sourceLocation) {
+            if (menu.sourceLocation) {
+              menu.sourceLocation.end = input.sourceLocation.end;
+            }
+            const menuNode = state.nodeMap.get(menu.id);
+            if (menuNode?.sourceLocation) {
+              menuNode.sourceLocation.end = input.sourceLocation.end;
             }
           }
           if (ownerNode.type === "MENU" && isInMenuPrompt) {

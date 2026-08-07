@@ -300,6 +300,10 @@ export function preParseInitialization(
 
     for (const line of lines) {
       const trimmed = line.trim();
+      if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+      const indent = /^[ \t]*/.exec(line)?.[0].length ?? 0;
+      if (indent > 0) continue;
+
       const labelMatch =
         /^label\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*:/i.exec(trimmed);
       if (labelMatch) {

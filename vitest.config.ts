@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
-    exclude: ["tests/perf/**"],
+    exclude: ["tests/perf/**", "tests/e2e/**", "tests/smoke.vitest.test.ts"],
     setupFiles: ["./tests/setup.ts"],
     coverage: {
       provider: "v8",

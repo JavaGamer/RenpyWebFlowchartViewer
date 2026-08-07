@@ -1,4 +1,5 @@
 export type {
+  AudioAssetCue,
   CallArgument,
   CallContext,
   ConditionBranchKind,

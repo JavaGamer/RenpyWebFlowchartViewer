@@ -1,10 +1,15 @@
-import { proxy, type Remote, transfer, wrap } from "comlink";
+import { proxy, releaseProxy, type Remote, transfer, wrap } from "comlink";
 import MiniSearch from "minisearch";
+import type { FlowNode } from "../domain/index.ts";
 import {
   createGraphState,
+  extractNodeDetailsFromTokens,
   finalizeRoles,
+  type ParseInputFile,
   processTokenizedFile,
+  type TextDocument,
   tokenizeOneFile,
+  type TokenTree,
 } from "../parser/index.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
@@ -14,6 +19,7 @@ import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
 import type { ParserWorkerApi } from "./parserWorker.ts";
 import {
   type DialogueSearchResult,
+  type NodeDetailsPayload,
   type ParseProgressPayload,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
@@ -42,6 +48,10 @@ const apiPool: (Remote<ParserWorkerApi> | null)[] = new Array(MAX_POOL_SIZE)
   .fill(null);
 const idleTimeoutIds: (number | null)[] = new Array(MAX_POOL_SIZE).fill(null);
 let isWorkerSpawningFailed = false;
+
+export function setWorkerSpawningFailedForTesting(failed: boolean): void {
+  isWorkerSpawningFailed = failed;
+}
 
 export function areWorkersSupported(): boolean {
   if (typeof globalThis.Worker === "undefined") return false;
@@ -96,6 +106,15 @@ function getWorkerApi(index: number): Remote<ParserWorkerApi> {
 function terminateWorker(index: number): void {
   if (index < 0 || index >= MAX_POOL_SIZE) return;
   clearIdleTimeout(index);
+  const p = apiPool[index];
+  if (p) {
+    try {
+      p[releaseProxy]();
+    } catch {
+      // Ignore proxy release error
+    }
+    apiPool[index] = null;
+  }
   const w = workerPool[index];
   if (w) {
     try {
@@ -104,7 +123,6 @@ function terminateWorker(index: number): void {
       // Ignore worker termination errors
     }
     workerPool[index] = null;
-    apiPool[index] = null;
   }
 }
 
@@ -163,6 +181,7 @@ async function computeFileCacheKeys(
 
 interface FallbackState {
   graphState: ReturnType<typeof createGraphState>;
+  rawFilesByChapter: Map<string, ParseInputFile>;
   docs: DialogueSearchDocument[];
   miniSearch: MiniSearch<DialogueSearchDocument> | null;
 }
@@ -174,6 +193,7 @@ function getActiveFallbackState(reset = false): FallbackState {
   if (reset || !activeFallbackState) {
     activeFallbackState = {
       graphState: createGraphState(),
+      rawFilesByChapter: new Map(),
       docs: [],
       miniSearch: null,
     };
@@ -181,16 +201,52 @@ function getActiveFallbackState(reset = false): FallbackState {
   return activeFallbackState;
 }
 
-function fallbackBuildDialogueSearchIndex(
+async function fallbackBuildDialogueSearchIndex(
   fallbackState: FallbackState,
-  nodes: { id: string; label: string; dialogueLines?: string[] }[],
+  nodes: FlowNode[],
 ) {
   fallbackState.docs = [];
+  const unhydrated = nodes.filter((n) =>
+    n.dialogueCount > 0 && !n.dialogueLines
+  );
+  if (unhydrated.length > 0 && fallbackState.rawFilesByChapter.size > 0) {
+    const tokenizedFilesByChapter = new Map<
+      string,
+      { document: TextDocument; tokenTree: TokenTree }
+    >();
+    for (
+      const [chapter, rawFile] of fallbackState.rawFilesByChapter.entries()
+    ) {
+      const tokenized = await tokenizeOneFile(rawFile);
+      tokenizedFilesByChapter.set(chapter, {
+        document: tokenized.document,
+        tokenTree: tokenized.tokenTree,
+      });
+    }
+    const extracted = extractNodeDetailsFromTokens(
+      unhydrated,
+      tokenizedFilesByChapter,
+    );
+    for (const [id, payload] of Object.entries(extracted)) {
+      const node = fallbackState.graphState.nodeMap.get(id);
+      if (node) {
+        if (payload.dialogueLines) node.dialogueLines = payload.dialogueLines;
+        if (payload.dialogueLineNums) {
+          node.dialogueLineNums = payload.dialogueLineNums;
+        }
+        if (payload.audioAssetCues) {
+          node.audioAssetCues = payload.audioAssetCues;
+        }
+        node.isDetailsLoaded = true;
+      }
+    }
+  }
+
   for (const node of nodes) {
     if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
     for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
       fallbackState.docs.push({
-        id: `${node.id}::${idx + 1}`,
+        id: `${node.id}:${idx}`,
         nodeId: node.id,
         nodeLabel: node.label,
         lineIndex: idx + 1,
@@ -216,6 +272,7 @@ async function parseRenpyFilesFallback(
     resetActiveGraph,
     isFinalChunk,
     captureDialogueLines,
+    deferDetails,
     parserVariant,
     screenActionRules,
     onProgress,
@@ -227,14 +284,17 @@ async function parseRenpyFilesFallback(
     throw new DOMException("Parsing cancelled", "AbortError");
   }
 
+  const currentFallback = getActiveFallbackState(resetActiveGraph);
+
   // Convert any Uint8Array contents to strings
   for (const file of files) {
     if (file.content instanceof Uint8Array) {
       file.content = new TextDecoder("utf-8").decode(file.content);
     }
+    const chapterSource = file.relativePath ?? file.name;
+    const chapter = chapterSource.replace(/\\/g, "/").replace(/\.rpy$/i, "");
+    currentFallback.rawFilesByChapter.set(chapter, file);
   }
-
-  const currentFallback = getActiveFallbackState(resetActiveGraph);
 
   try {
     for (let idx = 0; idx < files.length; idx += 1) {
@@ -244,6 +304,7 @@ async function parseRenpyFilesFallback(
       const tokenized = await tokenizeOneFile(files[idx], {}, idx);
       processTokenizedFile(currentFallback.graphState, tokenized, {
         captureDialogueLines: captureDialogueLines !== false,
+        deferDetails,
         parserVariant,
         screenActionRules,
       });
@@ -257,7 +318,7 @@ async function parseRenpyFilesFallback(
 
     if (isFinalChunk) {
       finalizeRoles(currentFallback.graphState);
-      fallbackBuildDialogueSearchIndex(
+      await fallbackBuildDialogueSearchIndex(
         currentFallback,
         currentFallback.graphState.nodes,
       );
@@ -297,6 +358,7 @@ export function parseRenpyFilesInWorker(
     resetActiveGraph,
     isFinalChunk,
     captureDialogueLines,
+    deferDetails,
     parserVariant,
     screenActionRules,
     onProgress,
@@ -313,6 +375,7 @@ export function parseRenpyFilesInWorker(
     return parseChunksInParallel({
       files,
       captureDialogueLines,
+      deferDetails,
       parserVariant,
       screenActionRules,
       signal,
@@ -384,6 +447,7 @@ export function parseRenpyFilesInWorker(
             wantsProgress: !!onProgress,
             maxParallelFiles,
             captureDialogueLines,
+            deferDetails,
             parserVariant,
             screenActionRules,
             appendToActiveGraph,
@@ -500,6 +564,7 @@ export function searchDialogueLinesInWorker({
 export interface ParseChunkRequest {
   files: ParseWorkerClientRequest["files"];
   captureDialogueLines?: boolean;
+  deferDetails?: boolean;
   parserVariant?: ParseWorkerClientRequest["parserVariant"];
   screenActionRules?: ParseWorkerClientRequest["screenActionRules"];
   signal?: AbortSignal;
@@ -527,6 +592,7 @@ interface InternalChunkResult extends ParseChunkResult {
 export function parseChunksInParallel({
   files,
   captureDialogueLines,
+  deferDetails,
   parserVariant,
   screenActionRules,
   signal,
@@ -540,6 +606,12 @@ export function parseChunksInParallel({
   const sessionId = activeSessionId;
   if (signal?.aborted) {
     return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
+  }
+
+  for (const file of files) {
+    if (file.content instanceof Uint8Array) {
+      file.content = new TextDecoder("utf-8").decode(file.content);
+    }
   }
 
   const poolSize = getPoolSize();
@@ -602,6 +674,7 @@ export function parseChunksInParallel({
         getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFilesArg, {
           fileCacheKeys: chunkCacheKeys,
           captureDialogueLines,
+          deferDetails,
           parserVariant,
           screenActionRules,
         })
@@ -637,15 +710,81 @@ export function parseChunksInParallel({
         throw new DOMException("Parsing cancelled", "AbortError");
       }
 
-      const mergedNodes = results.flatMap((r) => r.nodes);
-      const mergedEdges = results.flatMap((r) => r.edges);
-      const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
-      const mergedPendingCallReturns = results.flatMap((r) =>
-        r.pendingCallReturns
-      );
+      const seenLabelCounts = new Map<string, number>();
+      const chunkRemapMaps: Map<string, string>[] = [];
+      const mergedNodes: ParseWorkerClientResult["nodes"] = [];
+      const mergedEdges: ParseWorkerClientResult["edges"] = [];
 
+      for (const r of results) {
+        const idRemapForChunk = new Map<string, string>();
+
+        for (const node of r.nodes) {
+          if (
+            node.type === "LABEL" || node.type === "MENU" ||
+            node.type === "DECISION"
+          ) {
+            const rawLabel = node.label || node.id;
+            const currentCount = (seenLabelCounts.get(rawLabel) ?? 0) + 1;
+            seenLabelCounts.set(rawLabel, currentCount);
+
+            const expectedId = currentCount === 1
+              ? rawLabel
+              : `${rawLabel}__dup_${currentCount}`;
+            if (node.id !== expectedId) {
+              idRemapForChunk.set(node.id, expectedId);
+              node.id = expectedId;
+            }
+          }
+          mergedNodes.push(node);
+        }
+
+        for (const edge of r.edges) {
+          if (idRemapForChunk.has(edge.source)) {
+            edge.source = idRemapForChunk.get(edge.source)!;
+          }
+          if (idRemapForChunk.has(edge.target)) {
+            edge.target = idRemapForChunk.get(edge.target)!;
+          }
+          mergedEdges.push(edge);
+        }
+        chunkRemapMaps.push(idRemapForChunk);
+      }
+      const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
+      const mergedPendingCallReturns: PendingCallReturn[] = [];
+      const mergedHasReliableReturnInLabelSet = new Set<string>();
+
+      for (let chunkIdx = 0; chunkIdx < results.length; chunkIdx += 1) {
+        const r = results[chunkIdx]!;
+        const remap = chunkRemapMaps[chunkIdx]!;
+
+        if (r.pendingCallReturns) {
+          for (const pcr of r.pendingCallReturns) {
+            const callTargetId = remap.get(pcr.callTargetId) ??
+              pcr.callTargetId;
+            const returnTargetId = pcr.returnTargetId
+              ? (remap.get(pcr.returnTargetId) ?? pcr.returnTargetId)
+              : pcr.returnTargetId;
+            const callContextId = pcr.callContextId
+              ? (remap.get(pcr.callContextId) ?? pcr.callContextId)
+              : pcr.callContextId;
+            mergedPendingCallReturns.push({
+              ...pcr,
+              callTargetId,
+              returnTargetId,
+              callContextId,
+            });
+          }
+        }
+
+        if (r.hasReliableReturnInLabel) {
+          for (const label of r.hasReliableReturnInLabel) {
+            const remapped = remap.get(label) ?? label;
+            mergedHasReliableReturnInLabelSet.add(remapped);
+          }
+        }
+      }
       const mergedHasReliableReturnInLabel = Array.from(
-        new Set(results.flatMap((r) => r.hasReliableReturnInLabel)),
+        mergedHasReliableReturnInLabelSet,
       );
       const mergedGlobalScreens = Array.from(
         new Set(results.flatMap((r) => r.globalScreens)),
@@ -660,9 +799,14 @@ export function parseChunksInParallel({
       const mergedLabelDefinitionCount = Array.from(labelCountMap.entries());
 
       const canonicalMap = new Map<string, string>();
-      for (const r of results) {
+      for (let chunkIdx = 0; chunkIdx < results.length; chunkIdx += 1) {
+        const r = results[chunkIdx]!;
+        const remap = chunkRemapMaps[chunkIdx];
         for (const [name, id] of r.canonicalLabelIds) {
-          canonicalMap.set(name, id);
+          if (!canonicalMap.has(name)) {
+            const finalId = remap?.get(id) ?? id;
+            canonicalMap.set(name, finalId);
+          }
         }
       }
       const mergedCanonicalLabelIds = Array.from(canonicalMap.entries());
@@ -688,6 +832,7 @@ export function parseChunksInParallel({
 
         getWorkerApi(0).finalize(finalizeRequestId, {
           sessionId,
+          files,
           nodes: mergedNodes,
           edges: mergedEdges,
           diagnostics: mergedDiagnostics,
@@ -726,6 +871,122 @@ export function parseChunksInParallel({
           });
       });
     });
+  });
+}
+
+export function tokenizeFilesInWorker(
+  files: ParseWorkerClientRequest["files"],
+  signal?: AbortSignal,
+): Promise<{ fileCacheKeys: string[]; elapsedMs: number }> {
+  if (!areWorkersSupported()) {
+    return computeFileCacheKeys(files).then((keys) => ({
+      fileCacheKeys: keys,
+      elapsedMs: 0,
+    }));
+  }
+
+  const requestId = ++requestCounter;
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException("Tokenize cancelled", "AbortError"));
+  }
+
+  return computeFileCacheKeys(files).then((fileCacheKeys) => {
+    if (signal?.aborted) {
+      throw new DOMException("Tokenize cancelled", "AbortError");
+    }
+
+    const transfers: Transferable[] = [];
+    for (const file of files) {
+      if (file.content instanceof Uint8Array) {
+        transfers.push(file.content.buffer);
+      }
+    }
+
+    const filesArg = transfers.length > 0 ? transfer(files, transfers) : files;
+
+    return getWorkerApi(0).tokenize(requestId, filesArg, { fileCacheKeys });
+  });
+}
+
+export function extractNodeDetailsInWorker(
+  nodeIds: string[],
+  sessionId?: string,
+  signal?: AbortSignal,
+): Promise<Record<string, NodeDetailsPayload>> {
+  if (!areWorkersSupported()) {
+    if (signal?.aborted) {
+      return Promise.reject(
+        new DOMException("Extract details cancelled", "AbortError"),
+      );
+    }
+    const fallbackState = getActiveFallbackState();
+    const targetSet = new Set(nodeIds);
+    const unhydratedNodes = fallbackState.graphState.nodes.filter(
+      (n) => targetSet.has(n.id) && !n.isDetailsLoaded && !n.dialogueLines,
+    );
+    return (async () => {
+      if (
+        unhydratedNodes.length > 0 && fallbackState.rawFilesByChapter.size > 0
+      ) {
+        const tokenizedFilesByChapter = new Map<
+          string,
+          { document: TextDocument; tokenTree: TokenTree }
+        >();
+        for (
+          const [chapter, rawFile] of fallbackState.rawFilesByChapter.entries()
+        ) {
+          const tokenized = await tokenizeOneFile(rawFile);
+          tokenizedFilesByChapter.set(chapter, {
+            document: tokenized.document,
+            tokenTree: tokenized.tokenTree,
+          });
+        }
+        const extracted = extractNodeDetailsFromTokens(
+          unhydratedNodes,
+          tokenizedFilesByChapter,
+        );
+        for (const [id, payload] of Object.entries(extracted)) {
+          const node = fallbackState.graphState.nodeMap.get(id);
+          if (node) {
+            if (payload.dialogueLines) {
+              node.dialogueLines = payload.dialogueLines;
+            }
+            if (payload.dialogueLineNums) {
+              node.dialogueLineNums = payload.dialogueLineNums;
+            }
+            if (payload.audioAssetCues) {
+              node.audioAssetCues = payload.audioAssetCues;
+            }
+            node.isDetailsLoaded = true;
+          }
+        }
+      }
+
+      const nodes = fallbackState.graphState.nodes.filter((n) =>
+        targetSet.has(n.id)
+      );
+      const details: Record<string, NodeDetailsPayload> = {};
+      for (const node of nodes) {
+        details[node.id] = {
+          nodeId: node.id,
+          dialogueLines: node.dialogueLines,
+          dialogueLineNums: node.dialogueLineNums,
+          audioAssetCues: node.audioAssetCues,
+        };
+      }
+      return details;
+    })();
+  }
+
+  const requestId = ++requestCounter;
+  if (signal?.aborted) {
+    return Promise.reject(
+      new DOMException("Extract details cancelled", "AbortError"),
+    );
+  }
+
+  return getWorkerApi(0).extractDetails(requestId, nodeIds, {
+    sessionId: sessionId || activeSessionId || "default",
   });
 }
 

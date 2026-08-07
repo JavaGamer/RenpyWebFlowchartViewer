@@ -1,4 +1,3 @@
-import { chromium } from "playwright";
 import { describe, expect, it } from "vitest";
 import { createServer } from "vite";
 import type { ViteDevServer } from "vite";
@@ -10,6 +9,7 @@ describe("Flowchart Viewer E2E Tests", () => {
   it.skipIf(isWindowsDeno)(
     "should load the app, upload a mock .rpy file, and display parsed stats",
     async () => {
+      const { chromium } = await import("playwright");
       // 1. Programmatically start Vite dev server with project config but root base
       const server: ViteDevServer = await createServer({
         server: { port: 5173 },

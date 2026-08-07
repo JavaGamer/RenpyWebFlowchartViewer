@@ -34,6 +34,7 @@ type ParseFileOptions = Pick<
   | "tokenizedCache"
   | "fileCacheKeys"
   | "captureDialogueLines"
+  | "deferDetails"
   | "parserVariant"
   | "screenActionRules"
   | "sceneSplitDialogueThreshold"
@@ -72,7 +73,7 @@ export async function tokenizeOneFile(
   const { document, nodes: tokenTree } = await renpyParse(textContent);
   parserPerf?.measure(tokenizeMark, "parse_tokenize_ms", { file: file.name });
   if (cacheKey && tokenizedCache) {
-    tokenizedCache.set(cacheKey, { document, tokenTree });
+    tokenizedCache.set(cacheKey, { chapter, document, tokenTree });
   }
   return { file, chapter, document, tokenTree, cacheKey };
 }
@@ -83,6 +84,7 @@ export function processTokenizedFile(
   options: Pick<
     ParseFileOptions,
     | "captureDialogueLines"
+    | "deferDetails"
     | "parserVariant"
     | "screenActionRules"
     | "sceneSplitDialogueThreshold"
@@ -101,6 +103,7 @@ export function processTokenizedFile(
     options.parserVariant,
     options.screenActionRules,
     options.sceneSplitDialogueThreshold,
+    options.deferDetails,
   );
   parserPerf?.measure("scan", "parse_scan_ms", { file: file.name });
 }

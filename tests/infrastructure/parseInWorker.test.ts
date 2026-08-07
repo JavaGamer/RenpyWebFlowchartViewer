@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type FinalizeRequestMessage,
@@ -257,6 +256,39 @@ vi.mock("comlink", () => {
             requestId,
           });
         },
+        tokenize: (
+          requestId: unknown,
+          files: unknown,
+          options: Record<string, unknown>,
+        ) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: "tokenize",
+            requestId,
+            files,
+            fileCacheKeys: options?.fileCacheKeys,
+          });
+          return new SyncPromise((resolve) => {
+            resolve({
+              fileCacheKeys: (options?.fileCacheKeys as string[]) || [],
+              elapsedMs: 0,
+            });
+          });
+        },
+        extractDetails: (
+          requestId: unknown,
+          nodeIds: unknown,
+        ) => {
+          worker.postMessage({
+            protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
+            type: "extract_details",
+            requestId,
+            nodeIds,
+          });
+          return new SyncPromise((resolve) => {
+            resolve({});
+          });
+        },
       };
     },
     proxy: (fn: unknown) => fn,
@@ -302,11 +334,14 @@ async function waitForPostedMessages(count: number): Promise<void> {
   );
 }
 
+import { setWorkerSpawningFailedForTesting } from "../../src/infrastructure/parserWorkerClient.ts";
+
 describe("parseRenpyFilesInWorker", () => {
   beforeEach(() => {
     postedMessages = [];
     workerMessageHandlers = new Set();
     mockWorkers = [];
+    setWorkerSpawningFailedForTesting(false);
     vi.stubGlobal("Worker", MockWorker as unknown as typeof Worker);
     vi.resetModules();
   });
@@ -718,10 +753,10 @@ describe("parseRenpyFilesInWorker", () => {
       maxParallelFiles: 2,
     });
 
-    // Advance fake timers to resolve cache keys and chunk parsing
-    for (let i = 0; i < 20; i++) {
-      await Promise.resolve();
+    // Advance fake timers until cache keys resolve and chunk requests are posted
+    for (let i = 0; i < 50 && postedMessages.length < 2; i++) {
       await vi.advanceTimersByTimeAsync(10);
+      await Promise.resolve();
     }
 
     const parseChunks = postedMessages.filter((
@@ -735,7 +770,7 @@ describe("parseRenpyFilesInWorker", () => {
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: "chunk_result",
-      requestId: parseChunks[0].requestId,
+      requestId: parseChunks[0]!.requestId,
       nodes: [{ id: "a" }],
       edges: [],
       pendingCallReturns: [],
@@ -747,7 +782,7 @@ describe("parseRenpyFilesInWorker", () => {
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
       type: "chunk_result",
-      requestId: parseChunks[1].requestId,
+      requestId: parseChunks[1]!.requestId,
       nodes: [{ id: "b" }],
       edges: [],
       pendingCallReturns: [],
@@ -757,9 +792,10 @@ describe("parseRenpyFilesInWorker", () => {
       canonicalLabelIds: [],
     });
 
-    // Advance fake timers to resolve chunk results and post finalize request
-    for (let i = 0; i < 10; i++) {
-      await vi.advanceTimersByTimeAsync(0);
+    // Advance fake timers until chunk results resolve and finalize request is posted
+    for (let i = 0; i < 50 && postedMessages.length < 3; i++) {
+      await vi.advanceTimersByTimeAsync(10);
+      await Promise.resolve();
     }
 
     const finalizeMsg = postedMessages.find((m): m is FinalizeRequestMessage =>

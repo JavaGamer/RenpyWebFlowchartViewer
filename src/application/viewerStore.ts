@@ -246,6 +246,8 @@ export const useViewerStore = create<ViewerStore>()(
         resetSession: () =>
           set((draft) => {
             Object.assign(draft, defaultSessionState);
+            draft.loadingNodeDetailIds = new Set<string>();
+            draft.hydratedNodeDetailIds = new Set<string>();
             draft.mockFlags = createEmptyMockFlags();
           }),
       })),

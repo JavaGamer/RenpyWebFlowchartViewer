@@ -27,15 +27,33 @@ export class SpatialQuadtree {
     this.depth = depth;
   }
 
+  private getChildIndex(b: AABB): number {
+    const midX = (this.bounds.minX + this.bounds.maxX) / 2;
+    const midY = (this.bounds.minY + this.bounds.maxY) / 2;
+    const top = b.maxY <= midY;
+    const bottom = b.minY >= midY;
+    const left = b.maxX <= midX;
+    const right = b.minX >= midX;
+
+    if (left && top) return 0;
+    if (right && top) return 1;
+    if (left && bottom) return 2;
+    if (right && bottom) return 3;
+    return -1;
+  }
+
   public insert(item: SpatialItem): void {
     if (!this.intersects(this.bounds, item.bounds)) {
       return;
     }
 
     if (this.children) {
-      for (const child of this.children) {
-        child.insert(item);
+      const idx = this.getChildIndex(item.bounds);
+      if (idx !== -1) {
+        this.children[idx]!.insert(item);
+        return;
       }
+      this.items.push(item);
       return;
     }
 
@@ -43,12 +61,16 @@ export class SpatialQuadtree {
 
     if (this.items.length > this.maxItems && this.depth < this.maxDepth) {
       this.subdivide();
-      for (const existingItem of this.items) {
-        for (const child of this.children!) {
-          child.insert(existingItem);
+      const oldItems = this.items;
+      this.items = [];
+      for (const existingItem of oldItems) {
+        const idx = this.getChildIndex(existingItem.bounds);
+        if (idx !== -1) {
+          this.children![idx]!.insert(existingItem);
+        } else {
+          this.items.push(existingItem);
         }
       }
-      this.items = [];
     }
   }
 

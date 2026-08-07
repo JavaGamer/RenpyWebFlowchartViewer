@@ -344,6 +344,9 @@ export function InspectorNodeDetails({
   const totalLines = selectedNodeData.dialogueLines?.length ?? 0;
   const showInspectorToggle = totalLines > INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
 
+  const loadingNodeDetailIds = useViewerStore((s) => s.loadingNodeDetailIds);
+  const isLoadingDetails = loadingNodeDetailIds.has(selectedNodeId);
+
   return (
     <div className="space-y-2">
       <div className="text-xs">
@@ -356,6 +359,11 @@ export function InspectorNodeDetails({
         </span>{" "}
         {selectedNodeData.dialogueCount ?? 0}
       </div>
+      {isLoadingDetails && (
+        <div className="text-xs p-2 rounded border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300 animate-pulse my-2">
+          Loading full dialogue & audio cues...
+        </div>
+      )}
       {(selectedNodeData.wordCount ?? 0) > 0 && (
         <div className="text-xs">
           <span className="font-semibold text-gray-500">Reading time:</span>
@@ -463,7 +471,11 @@ export function InspectorNodeDetails({
         </div>
       )}
 
-      <CallOriginsSection selectedNodeId={selectedNodeId} flowEdges={flowEdges} isDark={isDark} />
+      <CallOriginsSection
+        selectedNodeId={selectedNodeId}
+        flowEdges={flowEdges}
+        isDark={isDark}
+      />
 
       {!showMediaCuesInDialogue && selectedNodeData.audioAssetCues &&
         selectedNodeData.audioAssetCues.length > 0 && (

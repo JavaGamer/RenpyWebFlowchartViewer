@@ -46,7 +46,9 @@ function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
         : edge.timeout.durationSeconds
     }`
     : "normal";
-  const idKey = (kind === "call" || kind === "call_return") ? `|${edge.id}` : "";
+  const idKey = (kind === "call" || kind === "call_return")
+    ? `|${edge.id}`
+    : "";
   return `${kind}|${edge.source}|${edge.target}|${
     edge.label ?? ""
   }${idKey}|${timeoutKey}`;

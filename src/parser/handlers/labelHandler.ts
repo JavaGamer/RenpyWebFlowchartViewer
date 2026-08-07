@@ -88,6 +88,19 @@ export function remapLabelIdReferences(
   replaceSetEntry(state.calledLabels, fromId, toId);
   replaceSetEntry(state.calledFromMenuOptionTargets, fromId, toId);
 
+  for (const chapterLabels of state.labelsByChapter.values()) {
+    for (const [declName, mappedId] of chapterLabels.entries()) {
+      if (mappedId === fromId) {
+        chapterLabels.set(declName, toId);
+      }
+    }
+  }
+  for (const [name, mappedId] of state.canonicalLabelIdByName.entries()) {
+    if (mappedId === fromId) {
+      state.canonicalLabelIdByName.set(name, toId);
+    }
+  }
+
   if (state.nodeMutations?.has(fromId)) {
     const muts = state.nodeMutations.get(fromId)!;
     state.nodeMutations.delete(fromId);
