@@ -11,7 +11,7 @@ async function readAllDirectoryEntries(
 ): Promise<FileSystemEntry[]> {
   const allEntries: FileSystemEntry[] = [];
 
-  const read = async (): Promise<FileSystemEntry[]> => {
+  const read = (): Promise<FileSystemEntry[]> => {
     return new Promise((resolve, reject) => {
       directoryReader.readEntries((entries) => {
         resolve(entries);

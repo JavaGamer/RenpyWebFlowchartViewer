@@ -66,6 +66,7 @@ export default function Header() {
           </select>
 
           <button
+            type="button"
             onClick={() => setTelemetryOpen(true)}
             className={cn(
               "rounded-lg p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",

@@ -95,6 +95,7 @@ export default function App() {
                 </span>
               )}
               <button
+                type="button"
                 onClick={reset}
                 className={cn(
                   "sm:ml-auto text-xs underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded",

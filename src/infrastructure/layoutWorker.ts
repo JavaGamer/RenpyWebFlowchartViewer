@@ -35,7 +35,7 @@ const layoutApi = {
       nodes = simplified.nodes;
       edges = simplified.edges;
     }
-    return applyElkLayout(nodes, edges, direction, {
+    return await applyElkLayout(nodes, edges, direction, {
       theme: options?.theme,
       layoutDensity: options?.layoutDensity,
       previousPositions: options?.previousPositions,

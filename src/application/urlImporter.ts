@@ -78,7 +78,7 @@ export async function fetchFilesFromUrl(
     const zipVirtualFile: UploadedFile = {
       name,
       size: buffer.byteLength,
-      text: async () => "",
+      text: () => Promise.resolve(""),
       file: new File([buffer], name, { type: "application/zip" }),
     };
     return extractRpyFilesFromZip(zipVirtualFile);
@@ -97,7 +97,7 @@ export async function fetchFilesFromUrl(
       {
         name,
         size: textContent.length,
-        text: async () => textContent,
+        text: () => Promise.resolve(textContent),
       },
     ];
   }

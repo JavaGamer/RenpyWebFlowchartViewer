@@ -28,6 +28,7 @@ export default function DiagnosticsSection(
       aria-label="Parser warnings"
     >
       <button
+        type="button"
         onClick={() => setIsCollapsed(!isCollapsed)}
         className={cn(
           "w-full flex items-center justify-between text-left focus:outline-none focus-visible:ring-2 rounded px-1 py-1",

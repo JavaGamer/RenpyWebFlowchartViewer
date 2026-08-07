@@ -576,6 +576,7 @@ export const parserApi = {
     return details;
   },
 
+  // deno-lint-ignore require-await
   async finalize(
     requestId: number,
     options: {
@@ -726,6 +727,7 @@ export const parserApi = {
     }
   },
 
+  // deno-lint-ignore require-await
   async search(
     requestId: number,
     query: string,

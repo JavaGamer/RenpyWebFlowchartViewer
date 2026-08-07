@@ -35,8 +35,9 @@ export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
       reader.onerror = rejectRead;
       reader.onabort = rejectRead;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reader as any).readAsText(file);
+        (reader as unknown as { readAsText: (file: File) => void }).readAsText(
+          file,
+        );
       } catch (err) {
         reject(err);
       }
