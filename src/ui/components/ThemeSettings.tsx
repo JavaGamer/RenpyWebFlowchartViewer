@@ -190,7 +190,7 @@ export function ThemeSettings({
             <span
               className={cn(
                 "font-medium mr-1",
-                isDark ? "text-slate-355" : "text-gray-700",
+                isDark ? "text-slate-300" : "text-gray-700",
               )}
             >
               Large graph mode

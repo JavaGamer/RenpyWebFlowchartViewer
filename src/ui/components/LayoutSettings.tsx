@@ -196,7 +196,7 @@ export function LayoutSettings({
             </Button>
           </div>
         </label>
-        <div className="col-span-2 flex justify-between items-center pt-1">
+        <div className="col-span-3 flex justify-between items-center pt-1">
           <Button
             onClick={onRelayout}
             isDark={isDark}

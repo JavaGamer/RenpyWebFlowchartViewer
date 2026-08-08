@@ -34,12 +34,34 @@ export function splitBalancedArguments(text: string): string[] {
           current += text[i + 1]!;
           i++;
         }
+      } else if (inQuote.length === 3) {
+        if (
+          char === inQuote[0] &&
+          i + 2 < text.length &&
+          text[i + 1] === char &&
+          text[i + 2] === char
+        ) {
+          current += char + char;
+          i += 2;
+          inQuote = null;
+        }
       } else if (char === inQuote) {
         inQuote = null;
       }
       continue;
     }
 
+    if (
+      (char === '"' || char === "'") &&
+      i + 2 < text.length &&
+      text[i + 1] === char &&
+      text[i + 2] === char
+    ) {
+      inQuote = char.repeat(3);
+      current += inQuote;
+      i += 2;
+      continue;
+    }
     if (char === '"' || char === "'") {
       inQuote = char;
       current += char;
@@ -73,10 +95,11 @@ export function splitBalancedArguments(text: string): string[] {
 
 export function extractParenthesizedArguments(
   lineText: string,
-  prefixPattern: RegExp,
+  prefixRegex: RegExp,
 ): string | null {
-  const match = prefixPattern.exec(lineText);
+  const match = prefixRegex.exec(lineText);
   if (!match) return null;
+
   const startIdx = match.index + match[0].length;
   if (lineText[startIdx] !== "(") return null;
 
@@ -150,7 +173,7 @@ export function parseCallArguments(
 ): CallArgument[] | undefined {
   const argText = extractParenthesizedArguments(
     lineText,
-    /call\s+(?:expression\s+.*?\s+pass\s+|expression\s+.*?\s+|[A-Za-z_][A-Za-z0-9_]*\s+pass\s+|[A-Za-z_][A-Za-z0-9_]*\s*)/i,
+    /call\s+(?:expression\s+.*?\s+pass\s+|expression\s+.*?(?=\()|[A-Za-z_][A-Za-z0-9_]*\s+pass\s+|[A-Za-z_][A-Za-z0-9_]*\s*)/i,
   );
   if (!argText || !argText.trim()) return undefined;
   const rawArgs = splitBalancedArguments(argText);

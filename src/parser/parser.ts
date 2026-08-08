@@ -28,7 +28,9 @@ function getMaxParallelFiles(
   requested: number | undefined,
   fileCount: number,
 ): number {
-  if (requested === undefined || !Number.isFinite(requested)) return 1;
+  if (requested === undefined || !Number.isFinite(requested)) {
+    return Math.max(1, Math.min(4, fileCount));
+  }
   const normalized = Math.floor(requested);
   if (normalized <= 1) return 1;
   return Math.max(1, Math.min(normalized, fileCount));
@@ -80,7 +82,7 @@ export async function parseRenpyFiles(
       if (options.signal?.aborted) {
         throw new DOMException("Parsing cancelled", "AbortError");
       }
-      if (idx > 0 && idx % 5 === 0) {
+      if (idx > 0 && idx % 25 === 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
       const file = orderedFiles[idx];
@@ -101,7 +103,7 @@ export async function parseRenpyFiles(
           if (options.signal?.aborted) {
             throw new DOMException("Parsing cancelled", "AbortError");
           }
-          if (idx > 0 && idx % 5 === 0) {
+          if (idx > 0 && idx % 25 === 0) {
             await new Promise<void>((resolve) => setTimeout(resolve, 0));
           }
           perf.mark(`file:${idx}:tokenize`);
@@ -118,7 +120,7 @@ export async function parseRenpyFiles(
       if (options.signal?.aborted) {
         throw new DOMException("Parsing cancelled", "AbortError");
       }
-      if (idx > 0 && idx % 5 === 0) {
+      if (idx > 0 && idx % 25 === 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
       const tokenized = tokenizedFiles[idx];

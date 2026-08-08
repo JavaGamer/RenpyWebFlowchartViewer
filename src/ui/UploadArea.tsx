@@ -291,7 +291,7 @@ export default function UploadArea({
         {phase !== "reading" && phase !== "parsing" && (
           <div
             className={cn(
-              "mt-4 border rounded-xl overflow-hidden transition-all duration-205 shadow-sm",
+              "mt-4 border rounded-xl overflow-hidden transition-all duration-200 shadow-sm",
               isDark
                 ? "border-slate-800 bg-slate-900"
                 : "border-gray-200 bg-white",

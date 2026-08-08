@@ -650,7 +650,7 @@ export function InspectorNodeDetails({
           className={cn(
             "text-xs hover:underline focus-visible:outline-none focus-visible:ring-2 rounded transition-colors mt-2 cursor-pointer",
             isDark
-              ? "text-violet-355 focus-visible:ring-violet-400"
+              ? "text-violet-400 focus-visible:ring-violet-400"
               : "text-violet-700 focus-visible:ring-violet-500",
           )}
         >

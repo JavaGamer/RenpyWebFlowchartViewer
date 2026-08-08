@@ -134,7 +134,7 @@ export default function ParserSettingsSection({
                 "rounded-md border px-2 py-1 text-[11px] transition-colors duration-200",
                 isDark
                   ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
-                  : "border-gray-300 bg-white text-gray-650 hover:bg-gray-50",
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
               )}
               onClick={() => removeCustomRule(idx)}
             >
@@ -147,7 +147,7 @@ export default function ParserSettingsSection({
         type="button"
         onClick={addCustomRule}
         className={cn(
-          "mt-3 rounded-md border px-2 py-1 text-[11px] transition-colors duration-205",
+          "mt-3 rounded-md border px-2 py-1 text-[11px] transition-colors duration-200",
           isDark
             ? "border-violet-800 bg-slate-800 text-violet-300 hover:bg-slate-700"
             : "border-violet-300 bg-white text-violet-700 hover:bg-violet-50",

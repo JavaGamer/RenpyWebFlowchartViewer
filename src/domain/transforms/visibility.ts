@@ -95,6 +95,14 @@ export function buildVisibleNodes(params: {
         previous.hidden === hidden &&
         previous.position.x === n.position.x &&
         previous.position.y === n.position.y &&
+        previous.selected === n.selected &&
+        previous.dragging === n.dragging &&
+        previous.draggable === n.draggable &&
+        previous.selectable === n.selectable &&
+        previous.width === n.width &&
+        previous.height === n.height &&
+        previous.measured?.width === n.measured?.width &&
+        previous.measured?.height === n.measured?.height &&
         prevData.theme === theme &&
         prevData.label === nodeData.label &&
         prevData.dialogueCount === nodeData.dialogueCount &&
@@ -245,6 +253,9 @@ export function buildVisibleEdges(params: {
     const previousData = previous?.data as EdgeData | undefined;
     if (
       previous &&
+      previous.selected === edge.selected &&
+      previous.animated === edge.animated &&
+      previous.hidden === edge.hidden &&
       previousData?.label === edgeLabel &&
       previousData?.kind === kind &&
       previousData?.callContext === edgeData.callContext &&

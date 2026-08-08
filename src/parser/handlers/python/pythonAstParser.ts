@@ -26,11 +26,16 @@ export interface PythonParsedBlock {
 function unquoteString(text: string): string {
   let trimmed = text.trim();
   const prefixMatch =
-    /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])?/
+    /^(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])/
       .exec(trimmed);
-  const prefix = prefixMatch ? prefixMatch[0] : "";
-  if (prefix) {
-    trimmed = trimmed.slice(prefix.length);
+  let prefix = "";
+  if (prefixMatch) {
+    const candidate = prefixMatch[0];
+    const rest = trimmed.slice(candidate.length);
+    if (rest.startsWith('"') || rest.startsWith("'")) {
+      prefix = candidate;
+      trimmed = rest;
+    }
   }
   const isRaw = prefix.toLowerCase().includes("r");
 

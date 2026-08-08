@@ -368,7 +368,7 @@ export function ExportMenu({
             "ml-auto",
             isDark
               ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 focus-visible:ring-violet-400"
-              : "bg-white border-gray-300 text-gray-750 hover:bg-gray-50 focus-visible:ring-violet-500",
+              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:ring-violet-500",
           )}
           aria-expanded={showAdvancedControls}
           aria-controls="viewer-advanced-controls"

@@ -715,6 +715,15 @@ export function parseChunksInParallel({
       const mergedNodes: ParseWorkerClientResult["nodes"] = [];
       const mergedEdges: ParseWorkerClientResult["edges"] = [];
 
+      const canonicalLabelNames = new Set<string>();
+      for (const r of results) {
+        if (r.canonicalLabelIds) {
+          for (const [name] of r.canonicalLabelIds) {
+            canonicalLabelNames.add(name);
+          }
+        }
+      }
+
       for (const r of results) {
         const idRemapForChunk = new Map<string, string>();
 
@@ -739,11 +748,33 @@ export function parseChunksInParallel({
         }
 
         for (const edge of r.edges) {
+          let remapped = false;
           if (idRemapForChunk.has(edge.source)) {
             edge.source = idRemapForChunk.get(edge.source)!;
+            remapped = true;
           }
-          if (idRemapForChunk.has(edge.target)) {
+          if (
+            idRemapForChunk.has(edge.target) &&
+            !canonicalLabelNames.has(edge.target)
+          ) {
             edge.target = idRemapForChunk.get(edge.target)!;
+            remapped = true;
+          }
+          if (edge.callContext) {
+            const siteRemapped = idRemapForChunk.get(edge.callContext.callSiteId);
+            const returnRemapped = idRemapForChunk.get(
+              edge.callContext.returnTargetId,
+            );
+            if (siteRemapped || returnRemapped) {
+              edge.callContext = {
+                ...edge.callContext,
+                callSiteId: siteRemapped ?? edge.callContext.callSiteId,
+                returnTargetId: returnRemapped ?? edge.callContext.returnTargetId,
+              };
+            }
+          }
+          if (remapped) {
+            edge.id = `${edge.kind}_${edge.source}__${edge.target}`;
           }
           mergedEdges.push(edge);
         }

@@ -166,9 +166,7 @@ function inlineNodes(
           id: current.isInlinedPath
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${current.label || ""}_${
-              current.condition?.expression || ""
-            }`
+            }_${u.id}__${current.nodeId}__inlined_${current.originalId!}_${newEdges.length}`
             : current.originalId!,
           source: u.id,
           target: current.nodeId,
@@ -266,6 +264,7 @@ function inlineNodes(
           arguments: current.arguments || edge.arguments,
           sourceLocation: current.sourceLocation || edge.sourceLocation,
           callContext: mergedCallContext,
+          originalId: current.originalId || edge.id,
           isInlinedPath: true,
           pathVisited: nextPathVisited,
         });
@@ -359,6 +358,13 @@ export function collapseLinearChains(
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
+      const characterDialogue: Record<string, { lineCount: number; wordCount: number }> = {};
+      if (rootNode.characterDialogue) {
+        for (const [char, stats] of Object.entries(rootNode.characterDialogue)) {
+          characterDialogue[char] = { ...stats };
+        }
+      }
+
       for (let i = 1; i < path.length; i++) {
         const node = nodeMap.get(path[i])!;
         dialogueCount += node.dialogueCount;
@@ -369,6 +375,15 @@ export function collapseLinearChains(
         audioAssetCues.push(...(node.audioAssetCues || []));
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
+        if (node.characterDialogue) {
+          for (const [char, stats] of Object.entries(node.characterDialogue)) {
+            if (!characterDialogue[char]) {
+              characterDialogue[char] = { lineCount: 0, wordCount: 0 };
+            }
+            characterDialogue[char].lineCount += stats.lineCount;
+            characterDialogue[char].wordCount += stats.wordCount;
+          }
+        }
         if (node.isShadowed) isShadowed = true;
         if (i === path.length - 1) {
           isTerminalOutcome = node.isTerminalOutcome;
@@ -399,6 +414,9 @@ export function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
+        characterDialogue: Object.keys(characterDialogue).length > 0
+          ? characterDialogue
+          : undefined,
         collapsedLocations: collapsedLocations.length > 0
           ? collapsedLocations
           : rootNode.collapsedLocations,
@@ -445,6 +463,13 @@ export function collapseLinearChains(
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
+      const characterDialogue: Record<string, { lineCount: number; wordCount: number }> = {};
+      if (rootNode.characterDialogue) {
+        for (const [char, stats] of Object.entries(rootNode.characterDialogue)) {
+          characterDialogue[char] = { ...stats };
+        }
+      }
+
       for (let i = 1; i < path.length; i++) {
         const node = nodeMap.get(path[i])!;
         dialogueCount += node.dialogueCount;
@@ -455,6 +480,15 @@ export function collapseLinearChains(
         audioAssetCues.push(...(node.audioAssetCues || []));
         collapsedLabels.push(node.label);
         collapsedLabels.push(...(node.collapsedLabels || []));
+        if (node.characterDialogue) {
+          for (const [char, stats] of Object.entries(node.characterDialogue)) {
+            if (!characterDialogue[char]) {
+              characterDialogue[char] = { lineCount: 0, wordCount: 0 };
+            }
+            characterDialogue[char].lineCount += stats.lineCount;
+            characterDialogue[char].wordCount += stats.wordCount;
+          }
+        }
         if (node.isShadowed) isShadowed = true;
         if (i === path.length - 1) {
           isTerminalOutcome = node.isTerminalOutcome;
@@ -485,6 +519,9 @@ export function collapseLinearChains(
         dialogueLineNums,
         audioAssetCues,
         collapsedLabels,
+        characterDialogue: Object.keys(characterDialogue).length > 0
+          ? characterDialogue
+          : undefined,
         collapsedLocations: collapsedLocations.length > 0
           ? collapsedLocations
           : rootNode.collapsedLocations,

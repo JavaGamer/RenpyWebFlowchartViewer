@@ -15,16 +15,16 @@ import type { UploadedFile } from "./uploadTypes.ts";
 export function resolveGithubUrl(urlStr: string): string {
   const url = urlStr.trim();
   const githubRepoRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/?$/;
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)\/?$/;
   const repoMatch = url.match(githubRepoRegex);
   if (repoMatch) {
     const owner = repoMatch[2];
-    const repo = repoMatch[3];
+    const repo = repoMatch[3].replace(/\.git$/i, "");
     return `https://github.com/${owner}/${repo}/archive/refs/heads/main.zip`;
   }
 
   const githubFileRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_.]+)\/(?:blob|raw)\/([^/]+)\/(.+)$/;
+    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)\/(?:blob|raw)\/([^/]+)\/(.+)$/;
   const fileMatch = url.match(githubFileRegex);
   if (fileMatch) {
     const owner = fileMatch[2];
@@ -67,13 +67,17 @@ export async function fetchFilesFromUrl(
   }
 
   const contentType = response.headers.get("Content-Type") || "";
-  const urlLower = resolvedUrl.toLowerCase();
-  const isZip = urlLower.endsWith(".zip") || contentType.includes("zip") ||
-    contentType.includes("octet-stream");
+  const urlPath = resolvedUrl.split("?")[0]!.split("#")[0]!;
+  const urlLower = urlPath.toLowerCase();
+  const isRpy = urlLower.endsWith(".rpy");
+  const isZip = !isRpy && (
+    urlLower.endsWith(".zip") || contentType.includes("zip") ||
+    contentType.includes("octet-stream")
+  );
 
   if (isZip) {
     const buffer = await response.arrayBuffer();
-    const parts = resolvedUrl.split("/");
+    const parts = urlPath.split("/");
     const name = parts[parts.length - 1] || "archive.zip";
     const zipVirtualFile: UploadedFile = {
       name,
@@ -85,7 +89,7 @@ export async function fetchFilesFromUrl(
   } else {
     // Treat as raw script
     const textContent = await response.text();
-    const parts = resolvedUrl.split("/");
+    const parts = urlPath.split("/");
     const name = parts[parts.length - 1] || "script.rpy";
     if (!name.toLowerCase().endsWith(".rpy")) {
       throw new Error(
@@ -96,7 +100,7 @@ export async function fetchFilesFromUrl(
     return [
       {
         name,
-        size: textContent.length,
+        size: new TextEncoder().encode(textContent).byteLength,
         text: () => Promise.resolve(textContent),
       },
     ];

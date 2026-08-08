@@ -48,15 +48,26 @@ class BoundedMap<K, V> extends Map<K, V> {
   }
 }
 
+function preprocessConditionExpression(expression: string): string {
+  return expression.replace(
+    /(["'])(?:(?=(\\?))\2[\s\S])*?\1|\bis\s+not\b|\bis\b/gi,
+    (match, quote) => {
+      if (quote) return match;
+      const lower = match.toLowerCase();
+      if (lower === "is not") return "!=";
+      if (lower === "is") return "==";
+      return match;
+    },
+  );
+}
+
 const flagRefsCache = new BoundedMap<string, string[]>(200);
 
 export function extractConditionFlagRefs(
   expression: string | undefined,
 ): string[] {
   if (!expression || expression.trim().length === 0) return [];
-  const preprocessed = expression
-    .replace(/\bis\s+not\b/gi, "!=")
-    .replace(/\bis\b/gi, "==");
+  const preprocessed = preprocessConditionExpression(expression);
   try {
     let refs = flagRefsCache.get(preprocessed);
     if (!refs) {
@@ -119,18 +130,27 @@ function evaluateInstructions(
       }
     } else if (inst.type === "IOP1") {
       const val = stack.pop();
-      if (!val) throw new Error("Stack underflow");
-      stack.push(
-        val === "unknown"
-          ? "unknown"
-          : (val === "true" || val === "1")
-          ? "false"
-          : "true",
-      );
+      if (val === undefined) throw new Error("Stack underflow");
+      const op = typeof inst.value === "string" ? inst.value : "";
+      if (op === "-" || op === "+") {
+        if (val === "unknown") {
+          stack.push("unknown");
+        } else {
+          const num = Number(val);
+          stack.push(isNaN(num) ? "unknown" : String(op === "-" ? -num : +num));
+        }
+      } else {
+        const isFalsy =
+          val === "false" || val === "0" || val === "none" || val === "null" ||
+          val === "";
+        stack.push(
+          val === "unknown" ? "unknown" : isFalsy ? "true" : "false",
+        );
+      }
     } else if (inst.type === "IOP2") {
       const right = stack.pop();
       const left = stack.pop();
-      if (!left || !right) throw new Error("Stack underflow");
+      if (left === undefined || right === undefined) throw new Error("Stack underflow");
 
       const op = typeof inst.value === "string" ? inst.value : "";
       if (op === "and" || op === "&&") {
@@ -186,7 +206,11 @@ function evaluateInstructions(
 
   const finalVal = stack.pop() ?? "unknown";
   if (finalVal === "true" || finalVal === "false") return finalVal;
-  return "unknown";
+  if (finalVal === "unknown") return "unknown";
+  const num = Number(finalVal);
+  if (!isNaN(num)) return num !== 0 ? "true" : "false";
+  if (finalVal === "none" || finalVal === "null" || finalVal === "") return "false";
+  return "true";
 }
 
 const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);
@@ -196,9 +220,7 @@ export function evaluateConditionExpression(
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return "unknown";
-  const preprocessed = expression
-    .replace(/\bis\s+not\b/gi, "!=")
-    .replace(/\bis\b/gi, "==");
+  const preprocessed = preprocessConditionExpression(expression);
   try {
     let tokens = parsedExpressionCache.get(preprocessed);
     if (!tokens) {

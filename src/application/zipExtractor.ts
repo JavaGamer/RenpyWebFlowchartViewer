@@ -25,7 +25,7 @@ export async function extractRpyFilesFromZip(
     unzip(
       zipData,
       {
-        filter: (file) => file.name.toLowerCase().endsWith(".rpy"),
+        filter: (file) => file.name.replace(/\\/g, "/").toLowerCase().endsWith(".rpy"),
       },
       (err, unzipped) => {
         if (err) {
@@ -35,12 +35,13 @@ export async function extractRpyFilesFromZip(
 
         const files: UploadedFile[] = Object.entries(unzipped).map(
           ([path, data]) => {
-            const parts = path.split("/");
-            const name = parts[parts.length - 1];
+            const normalizedPath = path.replace(/\\/g, "/");
+            const parts = normalizedPath.split("/");
+            const name = parts[parts.length - 1] || normalizedPath;
             return {
               name,
               size: data.length,
-              webkitRelativePath: path,
+              webkitRelativePath: normalizedPath,
               text: () => Promise.resolve(strFromU8(data)),
               arrayBuffer: () =>
                 Promise.resolve(

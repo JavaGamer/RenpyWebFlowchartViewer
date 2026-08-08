@@ -12,7 +12,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import {
   exportToHtmlBundle,
   exportToMermaid,
-  exportToStoryboard,
+  exportToStoryboardWithHydration,
 } from "../application/index.ts";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -213,7 +213,7 @@ export default function FlowchartViewer({
   }, [flowNodes, flowEdges]);
 
   const onExportStoryboard = useCallback(async () => {
-    const mdStr = exportToStoryboard(flowNodes);
+    const mdStr = await exportToStoryboardWithHydration(flowNodes);
     const blob = new Blob([mdStr], { type: "text/plain" });
     const { saveAs } = await import("file-saver");
     saveAs(blob, "renpy-storyboard.md");

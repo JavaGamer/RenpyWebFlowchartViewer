@@ -87,9 +87,15 @@ export function resolveGraphIntegrity(
           : edge.timeout.durationSeconds
       }`
       : "normal";
+    const conditionKey = edge.condition
+      ? `:cond:${edge.condition.branchKind}:${edge.condition.expression ?? ""}`
+      : "";
+    const callContextKey = edge.callContext
+      ? `:callCtx:${edge.callContext.callContextId}`
+      : "";
     const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${
       edge.label ?? ""
-    }|${timeoutKey}`;
+    }|${timeoutKey}${conditionKey}${callContextKey}`;
     if (seenEdgeKeys.has(semanticKey)) continue;
     seenEdgeKeys.add(semanticKey);
     edges.push({

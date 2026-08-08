@@ -29,9 +29,8 @@ export function UploadProgress({
   onDragOver,
 }: UploadProgressProps) {
   return (
-    <label
-      htmlFor="folder-input"
-      aria-label="Upload Ren'Py project folder"
+    <div
+      aria-label="Upload Ren'Py project folder progress"
       onDrop={onDrop}
       onDragOver={onDragOver}
       className={cn(
@@ -218,6 +217,6 @@ export function UploadProgress({
           </div>
         )}
       </div>
-    </label>
+    </div>
   );
 }

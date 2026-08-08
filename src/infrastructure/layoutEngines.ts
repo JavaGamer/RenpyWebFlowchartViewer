@@ -106,12 +106,15 @@ function applyProgressiveDagreLayout(
   dagre.layout(g);
 
   // Position nodes
+  const overflowIndexMap = new Map(
+    overflowNodes.map((node, idx) => [node.id, idx]),
+  );
+
   const nodes: CanvasNode[] = normalizedNodes.map((n) => {
     let x = 0;
     let y = 0;
 
-    const isPrimary = primaryNodeIds.has(n.id);
-    if (isPrimary) {
+    if (primaryNodeIds.has(n.id)) {
       const dagreNode = g.node(n.id);
       if (dagreNode) {
         x = dagreNode.x - NODE_WIDTH / 2;
@@ -123,9 +126,7 @@ function applyProgressiveDagreLayout(
         x = prevPos.x;
         y = prevPos.y;
       } else {
-        const overflowIndex = overflowNodes.findIndex((node) =>
-          node.id === n.id
-        );
+        const overflowIndex = overflowIndexMap.get(n.id) ?? 0;
         const row = Math.floor(
           overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS,
         );

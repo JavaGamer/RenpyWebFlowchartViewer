@@ -132,7 +132,7 @@ export function computeTextStats(
 ): { wordCount: number; pauseDuration: number } {
   // Extract explicit pause durations: {w=N} or {p=N}
   let pauseDuration = 0;
-  const pausePattern = /\{[wp]=([0-9]+(?:\.[0-9]*)?)\}/g;
+  const pausePattern = /\{[wp]=([0-9]+(?:\.[0-9]*)?|\.[0-9]+)\}/g;
   let match: RegExpExecArray | null;
   while ((match = pausePattern.exec(text)) !== null) {
     pauseDuration += parseFloat(match[1]!);

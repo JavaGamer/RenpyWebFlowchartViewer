@@ -46,7 +46,7 @@ export function UploadDropzone({
           or click to{" "}
           <span
             className={cn(
-              "font-semibold underline cursor-pointer px-1 transition-colors duration-205",
+              "font-semibold underline cursor-pointer px-1 transition-colors duration-200",
               isDark
                 ? "text-violet-400 hover:text-violet-300"
                 : "text-violet-600 hover:text-violet-800",
@@ -57,9 +57,12 @@ export function UploadDropzone({
           or{" "}
           <button
             type="button"
-            onClick={openFilesPicker}
+            onClick={(e) => {
+              e.stopPropagation();
+              openFilesPicker();
+            }}
             className={cn(
-              "font-semibold underline focus:outline-none focus-visible:ring-2 rounded px-1 transition-colors duration-205",
+              "font-semibold underline focus:outline-none focus-visible:ring-2 rounded px-1 transition-colors duration-200",
               isDark
                 ? "text-violet-400 hover:text-violet-300 focus-visible:ring-violet-400"
                 : "text-violet-600 hover:text-violet-800 focus-visible:ring-violet-500",

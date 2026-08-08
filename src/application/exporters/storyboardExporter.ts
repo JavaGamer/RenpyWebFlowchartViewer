@@ -49,7 +49,10 @@ export async function exportToStoryboardWithHydration(
   if (unhydratedIds.length > 0) {
     const details = await extractNodeDetailsInWorker(unhydratedIds);
     useAppStore.getState().updateNodeDetails(details);
-    const updatedNodes = useAppStore.getState().flowNodes;
+    const updatedMap = new Map(
+      useAppStore.getState().flowNodes.map((n) => [n.id, n]),
+    );
+    const updatedNodes = nodes.map((n) => updatedMap.get(n.id) ?? n);
     return exportToStoryboard(updatedNodes);
   }
   return exportToStoryboard(nodes);

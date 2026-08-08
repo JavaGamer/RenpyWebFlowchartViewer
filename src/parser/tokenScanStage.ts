@@ -297,7 +297,7 @@ function getConditionalLogicalLine(
   processLine(logicalText);
   // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
   while (
-    (explicitContinuation || delimiterStack.length > 0) &&
+    (explicitContinuation || delimiterStack.length > 0 || activeQuote !== null) &&
     currentLine + 1 < document.lineCount
   ) {
     currentLine += 1;

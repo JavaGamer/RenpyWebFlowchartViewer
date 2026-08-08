@@ -231,9 +231,11 @@ export function useViewerLayout({
       setNodes(layoutNodes);
       setEdges(layoutEdges);
     });
-    nodePositionsRef.current = new Map(
-      layoutNodes.map((n) => [n.id, n.position]),
-    );
+    if (layoutNodes.length > 0) {
+      nodePositionsRef.current = new Map(
+        layoutNodes.map((n) => [n.id, n.position]),
+      );
+    }
     if (!isWorkerEnabled) {
       return;
     }

@@ -61,7 +61,7 @@ export function MockFlagsSettings({ discoveredFlags }: MockFlagsSettingsProps) {
           <label
             className={cn(
               "text-xs flex flex-col gap-1 font-medium",
-              isDark ? "text-slate-355" : "text-gray-700",
+              isDark ? "text-slate-300" : "text-gray-700",
             )}
           >
             Unreachable paths

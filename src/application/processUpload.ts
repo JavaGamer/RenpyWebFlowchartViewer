@@ -172,8 +172,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     actions.startReading(orderedRpyFiles.length);
 
     // Broadcast discovered files to the UI
-    const fileStatuses: UploadFileStatus[] = orderedRpyFiles.map((f) => ({
-      id: f.webkitRelativePath || f.name,
+    const getFileId = (f: UploadedFile, index: number) =>
+      f.webkitRelativePath || `${f.name}#${index}`;
+
+    const fileStatuses: UploadFileStatus[] = orderedRpyFiles.map((f, idx) => ({
+      id: getFileId(f, idx),
       name: f.name,
       size: f.size,
       relativePath: f.webkitRelativePath,
@@ -206,8 +209,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         const batch = orderedRpyFiles.slice(offset, offset + READ_BATCH_SIZE);
 
         const inputs = await Promise.all(
-          batch.map(async (f) => {
-            const id = f.webkitRelativePath || f.name;
+          batch.map(async (f, bIdx) => {
+            const fileIdx = offset + bIdx;
+            const id = getFileId(f, fileIdx);
             try {
               onFileStatusUpdate?.(id, "reading");
               let content: Uint8Array;
@@ -244,8 +248,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         if (!isActiveRun()) return;
 
         // Mark read files as parsing
-        batch.forEach((f) => {
-          const id = f.webkitRelativePath || f.name;
+        batch.forEach((f, bIdx) => {
+          const id = getFileId(f, offset + bIdx);
           onFileStatusUpdate?.(id, "parsing");
         });
 
@@ -309,8 +313,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 // Update individual progress for chunk files
                 for (let i = 0; i < chunkFiles.length; i++) {
                   const f = chunkFiles[i]!;
-                  const id = f.webkitRelativePath || f.name;
-                  if (id === progress.currentFile) {
+                  const id = getFileId(f, offset + parseOffset + i);
+                  const rawId = f.webkitRelativePath || f.name;
+                  if (rawId === progress.currentFile) {
                     onFileStatusUpdate?.(id, "parsing");
                   } else if (i < progress.doneFiles) {
                     onFileStatusUpdate?.(id, "done");
@@ -343,16 +348,16 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             }
 
             // Mark all files in this chunk as successfully completed
-            chunkFiles.forEach((f) => {
-              const id = f.webkitRelativePath || f.name;
+            chunkFiles.forEach((f, cIdx) => {
+              const id = getFileId(f, offset + parseOffset + cIdx);
               onFileStatusUpdate?.(id, "done");
             });
           }
         } catch (err: unknown) {
           if (!isActiveRun()) return;
           // Mark files currently in batch as error
-          batch.forEach((f) => {
-            const id = f.webkitRelativePath || f.name;
+          batch.forEach((f, bIdx) => {
+            const id = getFileId(f, offset + bIdx);
             onFileStatusUpdate?.(id, "error", String(err));
           });
           actions.fail(toParseErrorMessage(err));

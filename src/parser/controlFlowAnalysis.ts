@@ -25,8 +25,9 @@ function parseForLoopSequenceValues(
   if (rangeMatch) {
     const parts = rangeMatch[1]!.split(",").map((p) => parseInt(p.trim(), 10));
     if (parts.length === 1 && !isNaN(parts[0]!)) {
+      const limit = Math.min(parts[0]!, 1000);
       const values: number[] = [];
-      for (let i = 0; i < parts[0]!; i++) values.push(i);
+      for (let i = 0; i < limit; i++) values.push(i);
       return { varName: primaryVar, values };
     } else if (parts.length >= 2 && !isNaN(parts[0]!) && !isNaN(parts[1]!)) {
       const start = parts[0]!;
@@ -34,9 +35,13 @@ function parseForLoopSequenceValues(
       const step = parts.length >= 3 && !isNaN(parts[2]!) ? parts[2]! : 1;
       const values: number[] = [];
       if (step > 0) {
-        for (let i = start; i < stop; i += step) values.push(i);
+        for (let i = start; i < stop && values.length < 1000; i += step) {
+          values.push(i);
+        }
       } else if (step < 0) {
-        for (let i = start; i > stop; i += step) values.push(i);
+        for (let i = start; i > stop && values.length < 1000; i += step) {
+          values.push(i);
+        }
       }
       return { varName: primaryVar, values };
     }
