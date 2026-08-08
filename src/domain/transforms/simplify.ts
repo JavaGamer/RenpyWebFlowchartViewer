@@ -157,8 +157,10 @@ function inlineNodes(
       });
     }
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    let head = 0;
+    const MAX_INLINE_QUEUE = 1000;
+    while (head < queue.length && queue.length < MAX_INLINE_QUEUE) {
+      const current = queue[head++]!;
 
       const targetNode = nodesMap.get(current.nodeId);
       if (!targetNode || !H.has(current.nodeId)) {
@@ -166,7 +168,8 @@ function inlineNodes(
           id: current.isInlinedPath
             ? `${
               current.kind || "sequence"
-            }_${u.id}__${current.nodeId}__inlined_${current.originalId!}_${newEdges.length}`
+            }_${u.id}__${current.nodeId}__inlined_${current
+              .originalId!}_${newEdges.length}`
             : current.originalId!,
           source: u.id,
           target: current.nodeId,
@@ -358,9 +361,14 @@ export function collapseLinearChains(
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
-      const characterDialogue: Record<string, { lineCount: number; wordCount: number }> = {};
+      const characterDialogue: Record<
+        string,
+        { lineCount: number; wordCount: number }
+      > = {};
       if (rootNode.characterDialogue) {
-        for (const [char, stats] of Object.entries(rootNode.characterDialogue)) {
+        for (
+          const [char, stats] of Object.entries(rootNode.characterDialogue)
+        ) {
           characterDialogue[char] = { ...stats };
         }
       }
@@ -397,13 +405,14 @@ export function collapseLinearChains(
 
       const firstLoc = collapsedLocations[0];
       const lastLoc = collapsedLocations[collapsedLocations.length - 1];
-      const combinedSourceLocation = firstLoc && lastLoc
-        ? {
-          file: firstLoc.file,
-          start: firstLoc.start,
-          end: lastLoc.end,
-        }
-        : rootNode.sourceLocation;
+      const combinedSourceLocation =
+        (firstLoc && lastLoc && firstLoc.file === lastLoc.file)
+          ? {
+            file: firstLoc.file,
+            start: firstLoc.start,
+            end: lastLoc.end,
+          }
+          : rootNode.sourceLocation;
 
       mergedNodesMap.set(rootId, {
         ...rootNode,
@@ -463,9 +472,14 @@ export function collapseLinearChains(
       let isShadowed = rootNode.isShadowed;
       let isTerminalOutcome = rootNode.isTerminalOutcome;
 
-      const characterDialogue: Record<string, { lineCount: number; wordCount: number }> = {};
+      const characterDialogue: Record<
+        string,
+        { lineCount: number; wordCount: number }
+      > = {};
       if (rootNode.characterDialogue) {
-        for (const [char, stats] of Object.entries(rootNode.characterDialogue)) {
+        for (
+          const [char, stats] of Object.entries(rootNode.characterDialogue)
+        ) {
           characterDialogue[char] = { ...stats };
         }
       }

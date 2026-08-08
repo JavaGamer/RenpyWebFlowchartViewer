@@ -105,6 +105,16 @@ function applyProgressiveDagreLayout(
 
   dagre.layout(g);
 
+  let maxY = 0;
+  primaryNodes.forEach((node) => {
+    const dNode = g.node(node.id);
+    if (dNode) {
+      const bottom = dNode.y + getNodeHeight(node) / 2;
+      if (bottom > maxY) maxY = bottom;
+    }
+  });
+  const fallbackStartY = Math.max(800, maxY + 200);
+
   // Position nodes
   const overflowIndexMap = new Map(
     overflowNodes.map((node, idx) => [node.id, idx]),
@@ -132,7 +142,7 @@ function applyProgressiveDagreLayout(
         );
         const col = overflowIndex % PROGRESSIVE_FALLBACK_MAX_COLUMNS;
         x = col * (NODE_WIDTH + 40) + 40;
-        y = row * (150 + 40) + 800; // Place it well below the primary layout
+        y = row * (150 + 40) + fallbackStartY;
       }
     }
 

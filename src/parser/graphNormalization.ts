@@ -49,9 +49,15 @@ function stableSemanticEdgeId(edge: FlowEdge, kind: EdgeKind): string {
   const idKey = (kind === "call" || kind === "call_return")
     ? `|${edge.id}`
     : "";
+  const conditionKey = edge.condition
+    ? `|cond:${edge.condition.branchKind}:${edge.condition.expression ?? ""}`
+    : "";
+  const callCtxKey = edge.callContext
+    ? `|callCtx:${edge.callContext.callContextId}`
+    : "";
   return `${kind}|${edge.source}|${edge.target}|${
     edge.label ?? ""
-  }${idKey}|${timeoutKey}`;
+  }${idKey}|${timeoutKey}${conditionKey}${callCtxKey}`;
 }
 
 /**

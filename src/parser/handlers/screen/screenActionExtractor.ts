@@ -283,13 +283,13 @@ export function walkScreenActionExpression(
   }
   const construct = trimmed.slice(0, identifierEnd);
   const afterIdentifier = skipWhitespace(trimmed, identifierEnd);
-  if (trimmed[afterIdentifier] !== "(") return;
-
   const parsedArguments = readParenthesizedArgument(
     trimmed,
     afterIdentifier + 1,
   );
-  if (!parsedArguments || parsedArguments.endIndex !== trimmed.length) return;
+  if (!parsedArguments) return;
+  const remainder = trimmed.slice(parsedArguments.endIndex).trim();
+  if (remainder.length > 0 && !remainder.startsWith("#")) return;
 
   visitCall(construct, parsedArguments.argument);
 

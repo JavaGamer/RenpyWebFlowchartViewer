@@ -192,9 +192,11 @@ export const LabelNodeComponent = memo(
             }}
           >
             {sceneCues.length > 0 && (
-              <div
+              <button
+                type="button"
+                aria-label={sceneTooltip}
                 className={cn(
-                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-400",
                   isDark
                     ? "bg-blue-950/60 border-blue-800/80 text-blue-300"
                     : "bg-blue-50 border-blue-200 text-blue-700",
@@ -203,12 +205,14 @@ export const LabelNodeComponent = memo(
               >
                 <ImageIcon size={10} />
                 <span>{sceneCues.length}</span>
-              </div>
+              </button>
             )}
             {musicCues.length > 0 && (
-              <div
+              <button
+                type="button"
+                aria-label={musicTooltip}
                 className={cn(
-                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400",
                   isDark
                     ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-300"
                     : "bg-emerald-50 border-emerald-200 text-emerald-700",
@@ -217,12 +221,14 @@ export const LabelNodeComponent = memo(
               >
                 <MusicIcon size={10} />
                 <span>{musicCues.length}</span>
-              </div>
+              </button>
             )}
             {soundCues.length > 0 && (
-              <div
+              <button
+                type="button"
+                aria-label={soundTooltip}
                 className={cn(
-                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400",
                   isDark
                     ? "bg-amber-950/60 border-amber-900/80 text-amber-300"
                     : "bg-amber-50 border-amber-200 text-amber-700",
@@ -231,12 +237,14 @@ export const LabelNodeComponent = memo(
               >
                 <Volume2Icon size={10} />
                 <span>{soundCues.length}</span>
-              </div>
+              </button>
             )}
             {voiceCues.length > 0 && (
-              <div
+              <button
+                type="button"
+                aria-label={voiceTooltip}
                 className={cn(
-                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help",
+                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-400",
                   isDark
                     ? "bg-purple-950/60 border-purple-800/80 text-purple-300"
                     : "bg-purple-50 border-purple-200 text-purple-700",
@@ -245,7 +253,7 @@ export const LabelNodeComponent = memo(
               >
                 <MicIcon size={10} />
                 <span>{voiceCues.length}</span>
-              </div>
+              </button>
             )}
           </div>
         )}

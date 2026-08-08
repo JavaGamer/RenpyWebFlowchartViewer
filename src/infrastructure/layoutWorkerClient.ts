@@ -88,6 +88,13 @@ export function runLayoutInWorker(
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
   onError?: (error: Error) => void,
 ): () => void {
+  if (!isWorkerSupported()) {
+    if (onError) {
+      onError(new Error("Web Worker is not supported in this environment"));
+    }
+    return () => {};
+  }
+
   if (isWorkerRunning) {
     terminateLayoutWorker();
   }

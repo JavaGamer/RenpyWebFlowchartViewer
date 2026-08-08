@@ -671,37 +671,45 @@ export function parseChunksInParallel({
           ? transfer(chunkFiles, transfers)
           : chunkFiles;
 
-        getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFilesArg, {
-          fileCacheKeys: chunkCacheKeys,
-          captureDialogueLines,
-          deferDetails,
-          parserVariant,
-          screenActionRules,
-        })
-          .then((chunkResult) => {
-            signal?.removeEventListener("abort", onAbort);
-            if (cancelTimeout !== undefined) {
-              clearTimeout(cancelTimeout);
-            }
-            resetIdleTimeout(workerIdx);
-
-            if (signal?.aborted) {
-              reject(new DOMException("Parsing cancelled", "AbortError"));
-            } else {
-              resolve(chunkResult as InternalChunkResult);
-            }
+        try {
+          getWorkerApi(workerIdx).parseChunk(chunkRequestId, chunkFilesArg, {
+            fileCacheKeys: chunkCacheKeys,
+            captureDialogueLines,
+            deferDetails,
+            parserVariant,
+            screenActionRules,
           })
-          .catch((err) => {
-            signal?.removeEventListener("abort", onAbort);
-            if (cancelTimeout !== undefined) {
-              clearTimeout(cancelTimeout);
-            }
-            resetIdleTimeout(workerIdx);
+            .then((chunkResult) => {
+              signal?.removeEventListener("abort", onAbort);
+              if (cancelTimeout !== undefined) {
+                clearTimeout(cancelTimeout);
+              }
+              resetIdleTimeout(workerIdx);
 
-            if (!signal?.aborted) {
-              reject(err);
-            }
-          });
+              if (signal?.aborted) {
+                reject(new DOMException("Parsing cancelled", "AbortError"));
+              } else {
+                resolve(chunkResult as InternalChunkResult);
+              }
+            })
+            .catch((err) => {
+              signal?.removeEventListener("abort", onAbort);
+              if (cancelTimeout !== undefined) {
+                clearTimeout(cancelTimeout);
+              }
+              resetIdleTimeout(workerIdx);
+
+              if (!signal?.aborted) {
+                reject(err);
+              }
+            });
+        } catch (err) {
+          signal?.removeEventListener("abort", onAbort);
+          if (cancelTimeout !== undefined) {
+            clearTimeout(cancelTimeout);
+          }
+          reject(err);
+        }
       });
     });
 
@@ -761,7 +769,9 @@ export function parseChunksInParallel({
             remapped = true;
           }
           if (edge.callContext) {
-            const siteRemapped = idRemapForChunk.get(edge.callContext.callSiteId);
+            const siteRemapped = idRemapForChunk.get(
+              edge.callContext.callSiteId,
+            );
             const returnRemapped = idRemapForChunk.get(
               edge.callContext.returnTargetId,
             );
@@ -769,7 +779,8 @@ export function parseChunksInParallel({
               edge.callContext = {
                 ...edge.callContext,
                 callSiteId: siteRemapped ?? edge.callContext.callSiteId,
-                returnTargetId: returnRemapped ?? edge.callContext.returnTargetId,
+                returnTargetId: returnRemapped ??
+                  edge.callContext.returnTargetId,
               };
             }
           }

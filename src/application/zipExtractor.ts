@@ -25,7 +25,8 @@ export async function extractRpyFilesFromZip(
     unzip(
       zipData,
       {
-        filter: (file) => file.name.replace(/\\/g, "/").toLowerCase().endsWith(".rpy"),
+        filter: (file) =>
+          file.name.replace(/\\/g, "/").toLowerCase().endsWith(".rpy"),
       },
       (err, unzipped) => {
         if (err) {

@@ -51,12 +51,15 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
-  // Ensure all file content is decoded to string for the parsing pipeline
-  for (const file of files) {
+  const normalizedFiles = files.map((file) => {
     if (file.content instanceof Uint8Array) {
-      file.content = new TextDecoder("utf-8").decode(file.content);
+      return {
+        ...file,
+        content: new TextDecoder("utf-8").decode(file.content),
+      };
     }
-  }
+    return file;
+  });
 
   const perf = createPerfTracker("parser");
   perf.mark("total");
@@ -64,7 +67,7 @@ export async function parseRenpyFiles(
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
   }
-  const orderedFiles = [...files].sort(compareFiles);
+  const orderedFiles = [...normalizedFiles].sort(compareFiles);
 
   perf.mark("pre-parse");
   preParseInitialization(orderedFiles, state);

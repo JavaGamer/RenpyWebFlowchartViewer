@@ -140,8 +140,11 @@ function evaluateInstructions(
           stack.push(isNaN(num) ? "unknown" : String(op === "-" ? -num : +num));
         }
       } else {
-        const isFalsy =
-          val === "false" || val === "0" || val === "none" || val === "null" ||
+        const numVal = Number(val);
+        const isFalsy = val === "false" ||
+          (!isNaN(numVal) && numVal === 0) ||
+          val === "none" ||
+          val === "null" ||
           val === "";
         stack.push(
           val === "unknown" ? "unknown" : isFalsy ? "true" : "false",
@@ -150,7 +153,9 @@ function evaluateInstructions(
     } else if (inst.type === "IOP2") {
       const right = stack.pop();
       const left = stack.pop();
-      if (left === undefined || right === undefined) throw new Error("Stack underflow");
+      if (left === undefined || right === undefined) {
+        throw new Error("Stack underflow");
+      }
 
       const op = typeof inst.value === "string" ? inst.value : "";
       if (op === "and" || op === "&&") {
@@ -173,10 +178,10 @@ function evaluateInstructions(
         if (left === "unknown" || right === "unknown") {
           stack.push("unknown");
         } else {
-          const numL = Number(left);
-          const numR = Number(right);
-          const equal = (!isNaN(numL) && !isNaN(numR))
-            ? numL === numR
+          const isNumericStr = (s: string) =>
+            s.trim() !== "" && !isNaN(Number(s));
+          const equal = (isNumericStr(left) && isNumericStr(right))
+            ? Number(left) === Number(right)
             : left === right;
           const res = op === "==" ? equal : !equal;
           stack.push(res ? "true" : "false");
@@ -209,7 +214,9 @@ function evaluateInstructions(
   if (finalVal === "unknown") return "unknown";
   const num = Number(finalVal);
   if (!isNaN(num)) return num !== 0 ? "true" : "false";
-  if (finalVal === "none" || finalVal === "null" || finalVal === "") return "false";
+  if (finalVal === "none" || finalVal === "null" || finalVal === "") {
+    return "false";
+  }
   return "true";
 }
 

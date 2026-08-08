@@ -917,7 +917,9 @@ export function handleToken(
       const isCustomStatement = /^(gameover|title|timedchoice)\b/i.test(
         trimmedLine,
       );
-      if (isCustomStatement) {
+      const isAudioOrSceneCue = /^(play|queue|sound|music|voice|scene|stop)\b/i
+        .test(trimmedLine);
+      if (isCustomStatement || isAudioOrSceneCue) {
         return;
       }
       scanState.currentLabelHasContentSinceSceneBoundary = true;

@@ -59,7 +59,10 @@ export function Modal({
                     </div>
                     <div className="flex items-center gap-2">
                       {headerAction}
-                      <Dialog.Close className="rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200">
+                      <Dialog.Close
+                        aria-label="Close modal"
+                        className="rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200"
+                      >
                         <X size={16} />
                       </Dialog.Close>
                     </div>
@@ -77,6 +80,7 @@ export function Modal({
               <div
                 className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in"
                 aria-hidden="true"
+                onClick={() => onOpenChange(false)}
               />
               <Dialog.Content
                 className={cn(
@@ -109,7 +113,10 @@ export function Modal({
                   </div>
                   <div className="flex items-center gap-2">
                     {headerAction}
-                    <Dialog.Close className="rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200">
+                    <Dialog.Close
+                      aria-label="Close modal"
+                      className="rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200"
+                    >
                       <X size={16} />
                     </Dialog.Close>
                   </div>

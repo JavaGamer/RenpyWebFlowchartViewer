@@ -12,8 +12,8 @@ interface UploadProgressProps {
   progressPercent: number;
   currentFile?: string;
   uploadedFiles: UploadFileStatus[];
-  onDrop: (e: React.DragEvent<HTMLLabelElement>) => void;
-  onDragOver: (e: React.DragEvent<HTMLLabelElement>) => void;
+  onDrop: (e: React.DragEvent<HTMLElement>) => void;
+  onDragOver: (e: React.DragEvent<HTMLElement>) => void;
 }
 
 export function UploadProgress({

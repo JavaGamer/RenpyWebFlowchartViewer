@@ -116,12 +116,34 @@ export function extractParenthesizedArguments(
           content += lineText[i + 1]!;
           i++;
         }
+      } else if (inQuote.length === 3) {
+        if (
+          char === inQuote[0] &&
+          i + 2 < lineText.length &&
+          lineText[i + 1] === char &&
+          lineText[i + 2] === char
+        ) {
+          content += char + char;
+          i += 2;
+          inQuote = null;
+        }
       } else if (char === inQuote) {
         inQuote = null;
       }
       continue;
     }
 
+    if (
+      (char === '"' || char === "'") &&
+      i + 2 < lineText.length &&
+      lineText[i + 1] === char &&
+      lineText[i + 2] === char
+    ) {
+      inQuote = char.repeat(3);
+      content += inQuote;
+      i += 2;
+      continue;
+    }
     if (char === '"' || char === "'") {
       inQuote = char;
       content += char;

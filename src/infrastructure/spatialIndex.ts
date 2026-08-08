@@ -60,15 +60,23 @@ export class SpatialQuadtree {
     this.items.push(item);
 
     if (this.items.length > this.maxItems && this.depth < this.maxDepth) {
-      this.subdivide();
-      const oldItems = this.items;
-      this.items = [];
-      for (const existingItem of oldItems) {
-        const idx = this.getChildIndex(existingItem.bounds);
-        if (idx !== -1) {
-          this.children![idx]!.insert(existingItem);
-        } else {
-          this.items.push(existingItem);
+      const firstItem = this.items[0];
+      const allIdentical = firstItem && this.items.every(
+        (it) =>
+          it.bounds.minX === firstItem.bounds.minX &&
+          it.bounds.minY === firstItem.bounds.minY,
+      );
+      if (!allIdentical) {
+        this.subdivide();
+        const oldItems = this.items;
+        this.items = [];
+        for (const existingItem of oldItems) {
+          const idx = this.getChildIndex(existingItem.bounds);
+          if (idx !== -1) {
+            this.children![idx]!.insert(existingItem);
+          } else {
+            this.items.push(existingItem);
+          }
         }
       }
     }
@@ -151,8 +159,8 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
   for (const node of nodes) {
     const x = node.position.x;
     const y = node.position.y;
-    const width = node.measured?.width ?? node.width ?? 220;
-    const height = node.measured?.height ?? node.height ?? 120;
+    const width = node.measured?.width || node.width || 220;
+    const height = node.measured?.height || node.height || 120;
 
     const bounds: AABB = {
       minX: x,

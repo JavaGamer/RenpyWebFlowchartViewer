@@ -100,7 +100,8 @@ export function resolveGraphIntegrity(
     seenEdgeKeys.add(semanticKey);
     edges.push({
       ...edge,
-      id: edge.id || `${normalizedKind}_${edge.source}__${edge.target}`,
+      id: edge.id ||
+        `${normalizedKind}_${edge.source}__${edge.target}_${edges.length}`,
       kind: normalizedKind,
     });
   }

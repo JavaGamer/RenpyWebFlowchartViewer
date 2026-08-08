@@ -383,9 +383,12 @@ function mergePathStates(
     if (!newVars.has(k)) {
       newVars.set(k, v);
       changed = true;
-    } else if (newVars.get(k) !== v) {
-      newVars.delete(k);
-      changed = true;
+    } else {
+      const current = newVars.get(k);
+      if (current !== v && current !== "unknown") {
+        newVars.set(k, "unknown");
+        changed = true;
+      }
     }
   }
   const newPersist = new Map(existing.persistent);
@@ -393,9 +396,12 @@ function mergePathStates(
     if (!newPersist.has(k)) {
       newPersist.set(k, v);
       changed = true;
-    } else if (newPersist.get(k) !== v) {
-      newPersist.delete(k);
-      changed = true;
+    } else {
+      const current = newPersist.get(k);
+      if (current !== v && current !== "unknown") {
+        newPersist.set(k, "unknown");
+        changed = true;
+      }
     }
   }
   return {

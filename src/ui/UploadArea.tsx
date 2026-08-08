@@ -187,9 +187,9 @@ export default function UploadArea({
     input.click();
   }, []);
 
-  const openFilesPicker = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const openFilesPicker = useCallback((e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     const input = filesInputRef.current;
     if (!input) return;
     input.value = "";
@@ -197,7 +197,7 @@ export default function UploadArea({
   }, []);
 
   const onDrop = useCallback(
-    (e: React.DragEvent<HTMLLabelElement>) => {
+    (e: React.DragEvent<HTMLElement>) => {
       e.preventDefault();
       e.stopPropagation();
       if (phase === "reading" || phase === "parsing") return;
@@ -218,7 +218,7 @@ export default function UploadArea({
     [processFiles, phase],
   );
 
-  const onDragOver = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+  const onDragOver = useCallback((e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
   }, []);
 

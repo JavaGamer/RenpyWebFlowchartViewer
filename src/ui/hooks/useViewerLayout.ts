@@ -30,7 +30,6 @@ const globalRecord = globalThis as Record<string, unknown>;
 const isTestEnv = typeof globalRecord["process"] !== "undefined" &&
   (globalRecord["process"] as { env?: { NODE_ENV?: string } } | undefined)?.env
       ?.NODE_ENV === "test";
-const isWorkerSupported = areWorkersSupported();
 
 type PerfTracker = ReturnType<typeof createPerfTracker>;
 
@@ -79,7 +78,7 @@ export function useViewerLayout({
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(
     new Map(),
   );
-  const isWorkerEnabled = !isTestEnv && isWorkerSupported;
+  const isWorkerEnabled = !isTestEnv && areWorkersSupported();
   const shouldProgressiveLayout =
     flowNodes.length > PROGRESSIVE_LAYOUT_NODE_LIMIT;
   const [isCalculatingLayout, setIsCalculatingLayout] = useState(

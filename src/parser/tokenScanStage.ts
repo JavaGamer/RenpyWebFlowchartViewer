@@ -48,15 +48,59 @@ export interface FlatTokenLike {
   getValue: (document: TextDocument) => string;
 }
 
+const lineOffsetCache = new WeakMap<TextDocument, number[]>();
+
+function getLineOffsets(document: TextDocument): number[] {
+  let offsets = lineOffsetCache.get(document);
+  if (!offsets) {
+    offsets = [0];
+    const text = document.getText();
+    for (let i = 0; i < text.length; i++) {
+      if (text.charCodeAt(i) === 10) {
+        offsets.push(i + 1);
+      }
+    }
+    lineOffsetCache.set(document, offsets);
+  }
+  return offsets;
+}
+
+function fastOffsetAt(
+  document: TextDocument,
+  pos: { line: number; character: number },
+): number {
+  const offsets = getLineOffsets(document);
+  const lineStart = offsets[pos.line] ?? 0;
+  return lineStart + pos.character;
+}
+
+function fastPositionAt(
+  document: TextDocument,
+  offset: number,
+): { line: number; character: number } {
+  const offsets = getLineOffsets(document);
+  let low = 0;
+  let high = offsets.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (offsets[mid] === offset) return { line: mid, character: 0 };
+    if (offsets[mid] < offset) low = mid + 1;
+    else high = mid - 1;
+  }
+  const line = Math.max(0, low - 1);
+  return { line, character: offset - (offsets[line] ?? 0) };
+}
+
 export function getTokenSourceLocation(
   token: FlatTokenLike,
   document: TextDocument,
   file: string,
 ): SourceLocation {
-  const startOffset = token.startOffset ?? document.offsetAt(token.startPos);
+  const startOffset = token.startOffset ??
+    fastOffsetAt(document, token.startPos);
   const rawText = token.getValue(document);
   const endOffset = token.endOffset ?? (startOffset + rawText.length);
-  const endPos = token.endPos ?? document.positionAt(endOffset);
+  const endPos = token.endPos ?? fastPositionAt(document, endOffset);
   return {
     file,
     start: {
@@ -297,7 +341,8 @@ function getConditionalLogicalLine(
   processLine(logicalText);
   // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
   while (
-    (explicitContinuation || delimiterStack.length > 0 || activeQuote !== null) &&
+    (explicitContinuation || delimiterStack.length > 0 ||
+      activeQuote !== null) &&
     currentLine + 1 < document.lineCount
   ) {
     currentLine += 1;
@@ -631,6 +676,11 @@ export function extractNodeDetailsFromTokens(
 ): Record<string, NodeDetailsPayload> {
   const result: Record<string, NodeDetailsPayload> = {};
 
+  const cachedTokensByTokenized = new Map<
+    unknown,
+    { flatTokens: FlatTokenLike[]; docLines: string[] }
+  >();
+
   for (const node of nodes) {
     if (!node.sourceLocation) continue;
     const chapter = node.chapter || "";
@@ -648,16 +698,21 @@ export function extractNodeDetailsFromTokens(
     const dialogueLineNums: number[] = [];
     const audioAssetCues: AudioAssetCue[] = [];
 
-    const flatTokens: FlatTokenLike[] = [];
-    collectFlatTokens(tokenTree.root, [], flatTokens, document);
-    flatTokens.sort((a, b) => {
-      if (a.startPos.line !== b.startPos.line) {
-        return a.startPos.line - b.startPos.line;
-      }
-      return a.startPos.character - b.startPos.character;
-    });
-
-    const docLines = document.getText().split(/\r?\n/);
+    let cached = cachedTokensByTokenized.get(tokenized);
+    if (!cached) {
+      const flatTokens: FlatTokenLike[] = [];
+      collectFlatTokens(tokenTree.root, [], flatTokens, document);
+      flatTokens.sort((a, b) => {
+        if (a.startPos.line !== b.startPos.line) {
+          return a.startPos.line - b.startPos.line;
+        }
+        return a.startPos.character - b.startPos.character;
+      });
+      const docLines = document.getText().split(/\r?\n/);
+      cached = { flatTokens, docLines };
+      cachedTokensByTokenized.set(tokenized, cached);
+    }
+    const { flatTokens, docLines } = cached;
     const lineTextCache = new Map<number, string>();
 
     for (const token of flatTokens) {

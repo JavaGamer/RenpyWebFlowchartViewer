@@ -94,7 +94,9 @@ export const createFilterSlice: StateCreator<
       }
     });
     if (nodesToFetch.length > 0) {
-      useViewerStore.getState().fetchNodeDetails(nodesToFetch);
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch).catch(
+        () => {},
+      );
     }
   },
 
@@ -112,7 +114,9 @@ export const createFilterSlice: StateCreator<
       }
     });
     if (nodesToFetch.length > 0) {
-      useViewerStore.getState().fetchNodeDetails(nodesToFetch);
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch).catch(
+        () => {},
+      );
     }
   },
 
@@ -133,7 +137,9 @@ export const createFilterSlice: StateCreator<
       }
     });
     if (nodesToFetch.length > 0) {
-      useViewerStore.getState().fetchNodeDetails(nodesToFetch);
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch).catch(
+        () => {},
+      );
     }
   },
 

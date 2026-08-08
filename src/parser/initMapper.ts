@@ -635,8 +635,9 @@ function processAssignment(
 
   const cleanExpr = rhsExpression.trim();
   if (/Character\s*\(/i.test(cleanExpr)) {
+    const wasAdded = !state.globalCharacters.has(variableName);
     state.globalCharacters.add(variableName);
-    return true;
+    return wasAdded;
   }
 
   const literalVal = extractLiteralTarget(cleanExpr);

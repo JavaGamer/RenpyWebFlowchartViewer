@@ -4,9 +4,9 @@ import { cn } from "../utils/cn.ts";
 
 interface UploadDropzoneProps {
   isDark: boolean;
-  openFilesPicker: (e: React.MouseEvent) => void;
-  onDrop: (e: React.DragEvent<HTMLLabelElement>) => void;
-  onDragOver: (e: React.DragEvent<HTMLLabelElement>) => void;
+  openFilesPicker: (e?: React.MouseEvent) => void;
+  onDrop: (e: React.DragEvent<HTMLElement>) => void;
+  onDragOver: (e: React.DragEvent<HTMLElement>) => void;
 }
 
 export function UploadDropzone({
@@ -46,7 +46,7 @@ export function UploadDropzone({
           or click to{" "}
           <span
             className={cn(
-              "font-semibold underline cursor-pointer px-1 transition-colors duration-200",
+              "font-semibold underline cursor-pointer px-1 transition-colors duration-200 focus-within:ring-2 rounded",
               isDark
                 ? "text-violet-400 hover:text-violet-300"
                 : "text-violet-600 hover:text-violet-800",

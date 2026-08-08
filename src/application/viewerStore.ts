@@ -12,6 +12,9 @@
 
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { enableMapSet } from "immer";
+
+enableMapSet();
 import { createJSONStorage, persist } from "zustand/middleware";
 import { temporal } from "zundo";
 import { z } from "zod";

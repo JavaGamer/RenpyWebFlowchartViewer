@@ -179,6 +179,7 @@ export function useCanvasInteraction({
         event.preventDefault();
         const selected =
           activeDialogueSearchResults[resolvedActiveDialogueResultIndex];
+        if (!selected) return;
         setActiveDialogueResultIndex(resolvedActiveDialogueResultIndex);
         onSelectDialogueSearchResult(selected);
       }
