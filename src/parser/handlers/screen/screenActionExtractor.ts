@@ -67,8 +67,8 @@ export function readScreenActionExpression(
   };
 }
 
-export function allowsActionExtractionOnLine(keyword: string): boolean {
-  return keyword.toLowerCase() !== "default";
+export function allowsActionExtractionOnLine(keyword: string | null): boolean {
+  return keyword ? keyword.toLowerCase() !== "default" : true;
 }
 
 export function parseTimerDurationFromLine(

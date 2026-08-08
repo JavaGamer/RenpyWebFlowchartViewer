@@ -298,9 +298,7 @@ function analyzeCallReturnMismatches(
         (e) =>
           e.kind === "sequence" ||
           e.kind === "jump" ||
-          (e.kind === "call" &&
-            (state.hasReturnInLabel.has(e.target) ||
-              state.hasReliableReturnInLabel.has(e.target))),
+          e.kind === "call_return",
       );
       for (const edge of outgoingEdges) {
         if (!visited.has(edge.target)) {

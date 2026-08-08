@@ -102,18 +102,13 @@ export function FlowchartCanvas({
     setActiveDialogueResultIndex,
     setShowMediaCuesInDialogue,
     toggleShowAllInspectorLines,
-    resetSession,
   } = useViewerStore(
     useShallow((s) => ({
       setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
       setShowMediaCuesInDialogue: s.setShowMediaCuesInDialogue,
       toggleShowAllInspectorLines: s.toggleShowAllInspectorLines,
-      resetSession: s.resetSession,
     })),
   );
-
-  // Reset session state when this component unmounts (e.g. on new import).
-  useEffect(() => () => resetSession(), [resetSession]);
 
   // -- Identity-preserving refs for visible node/edge caches -----------------
   const previousVisibleNodesByIdRef = useRef<Map<string, CanvasNode>>(

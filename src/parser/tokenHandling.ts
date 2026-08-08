@@ -259,7 +259,10 @@ export function handleToken(
         durationSeconds,
       };
       emitJumpEdge(state, scanState, target, context, false, timeout);
-    } else if (/^gameover\b/i.test(trimmed)) {
+    } else if (
+      /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
+        .test(trimmed)
+    ) {
       scanState.lastProcessedCustomLineNum = lineNum;
       scanState.labelHasExplicitExit = true;
     } else if (/^(?:\$\s*)?break\b/i.test(trimmed)) {

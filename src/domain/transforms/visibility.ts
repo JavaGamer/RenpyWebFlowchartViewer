@@ -71,15 +71,16 @@ export function buildVisibleNodes(params: {
       : false;
     const labelCollapsed = collapsedLabelChildren.has(n.id);
     const matchesSearch = query.length === 0 ||
-      dialogueCountMatch ||
       (searchMatchNodeIds
-        ? searchMatchNodeIds.has(n.id)
-        : nodeData.label.toLowerCase().includes(query)) ||
-      (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
-      (includeDialogueLineSearch &&
-        (nodeData.dialogueLines ?? []).some((line) =>
-          line.toLowerCase().includes(query)
-        ));
+        ? (searchMatchNodeIds.has(n.id) ||
+          (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false))
+        : (nodeData.label.toLowerCase().includes(query) ||
+          dialogueCountMatch ||
+          (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
+          (includeDialogueLineSearch &&
+            (nodeData.dialogueLines ?? []).some((line) =>
+              line.toLowerCase().includes(query)
+            ))));
     const matchesDialogue = nodeData.dialogueCount >= minDialogue;
     const hidden = Boolean(
       chapterCollapsed ||
@@ -159,6 +160,7 @@ export function buildVisibleEdges(params: {
   showCallReturns: boolean;
   visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
   visibleNodeIds: Set<string>;
+  nonHiddenNodeIds?: Set<string>;
   edgeColor: string;
   decisionColor?: string;
   labelColor?: string;
@@ -175,6 +177,7 @@ export function buildVisibleEdges(params: {
     showCallReturns,
     visibleEdgeKinds,
     visibleNodeIds,
+    nonHiddenNodeIds,
     edgeColor,
     decisionColor,
     labelColor,
@@ -197,7 +200,16 @@ export function buildVisibleEdges(params: {
     if (
       conditionVisibilityMode === "hide" && conditionState === "unreachable"
     ) continue;
-    if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) {
+    const sourceNonHidden = nonHiddenNodeIds
+      ? nonHiddenNodeIds.has(edge.source)
+      : visibleNodeIds.has(edge.source);
+    const targetNonHidden = nonHiddenNodeIds
+      ? nonHiddenNodeIds.has(edge.target)
+      : visibleNodeIds.has(edge.target);
+    if (!sourceNonHidden || !targetNonHidden) continue;
+    const sourceSpatiallyVisible = visibleNodeIds.has(edge.source);
+    const targetSpatiallyVisible = visibleNodeIds.has(edge.target);
+    if (!sourceSpatiallyVisible && !targetSpatiallyVisible) {
       continue;
     }
     const edgeLabel = largeGraphMode && kind === "sequence"

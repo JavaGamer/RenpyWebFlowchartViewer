@@ -18,6 +18,7 @@ import {
   readFileAsArrayBuffer,
 } from "../infrastructure/index.ts";
 
+import { useViewerStore } from "./viewerStore.ts";
 import { validateRpyUpload } from "./uploadValidation.ts";
 import type { AppActions, DialogueSearchMode } from "./appStore.ts";
 import {
@@ -376,6 +377,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       nodeCount: parsedNodes.length,
       edgeCount: parsedEdges.length,
     });
+    useViewerStore.getState().resetSession();
     actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
   };
 }

@@ -339,12 +339,16 @@ function getConditionalLogicalLine(
   };
 
   processLine(logicalText);
-  // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation
+  // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation (capped at 50 lines)
+  const MAX_CONTINUATION_LINES = 50;
+  let scannedCount = 0;
   while (
     (explicitContinuation || delimiterStack.length > 0 ||
       activeQuote !== null) &&
-    currentLine + 1 < document.lineCount
+    currentLine + 1 < document.lineCount &&
+    scannedCount < MAX_CONTINUATION_LINES
   ) {
+    scannedCount += 1;
     currentLine += 1;
     const nextLine = getLineText(
       document,

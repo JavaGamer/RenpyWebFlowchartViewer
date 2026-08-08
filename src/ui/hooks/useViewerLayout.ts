@@ -23,7 +23,6 @@ import {
   applyDagreLayout,
   areWorkersSupported,
   runLayoutInWorker,
-  terminateLayoutWorker,
 } from "../../infrastructure/index.ts";
 
 const globalRecord = globalThis as Record<string, unknown>;
@@ -42,19 +41,6 @@ interface UseViewerLayoutParams {
   perf: PerfTracker;
   onRelayoutComplete?: () => void;
 }
-
-const areSimplifyOptionsEqual = (
-  a: GraphSimplificationOptions | undefined,
-  b: GraphSimplificationOptions | undefined,
-): boolean => {
-  if (!a || !b) return false;
-  return a.collapseLinearChains === b.collapseLinearChains &&
-    a.inlineUtilities === b.inlineUtilities &&
-    a.inlineDetours === b.inlineDetours &&
-    a.inlineStateToggles === b.inlineStateToggles &&
-    a.inlineEmptyLabels === b.inlineEmptyLabels &&
-    a.inlineDialogueThreshold === b.inlineDialogueThreshold;
-};
 
 export function useViewerLayout({
   flowNodes,
@@ -84,30 +70,6 @@ export function useViewerLayout({
   const [isCalculatingLayout, setIsCalculatingLayout] = useState(
     isWorkerEnabled,
   );
-
-  // Sync state with props changes during render phase to avoid effect layout shifts
-  const [prevFlowNodes, setPrevFlowNodes] = useState(flowNodes);
-  const [prevFlowEdges, setPrevFlowEdges] = useState(flowEdges);
-  const [prevDirection, setPrevDirection] = useState(layoutDirection);
-  const [prevDensity, setPrevDensity] = useState(layoutDensity);
-  const [prevSimplifyOptions, setPrevSimplifyOptions] = useState(
-    simplifyOptions,
-  );
-
-  if (
-    flowNodes !== prevFlowNodes ||
-    flowEdges !== prevFlowEdges ||
-    layoutDirection !== prevDirection ||
-    layoutDensity !== prevDensity ||
-    !areSimplifyOptionsEqual(simplifyOptions, prevSimplifyOptions)
-  ) {
-    setPrevFlowNodes(flowNodes);
-    setPrevFlowEdges(flowEdges);
-    setPrevDirection(layoutDirection);
-    setPrevDensity(layoutDensity);
-    setPrevSimplifyOptions(simplifyOptions);
-    setIsCalculatingLayout(isWorkerEnabled);
-  }
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
     if (isWorkerEnabled) {
@@ -281,12 +243,6 @@ export function useViewerLayout({
     isWorkerEnabled,
     simplifyOptions,
   ]);
-
-  useEffect(() => {
-    return () => {
-      terminateLayoutWorker();
-    };
-  }, []);
 
   return {
     nodes,

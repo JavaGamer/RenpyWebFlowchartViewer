@@ -179,7 +179,7 @@ function evaluateInstructions(
           stack.push("unknown");
         } else {
           const isNumericStr = (s: string) =>
-            s.trim() !== "" && !isNaN(Number(s));
+            /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(s.trim());
           const equal = (isNumericStr(left) && isNumericStr(right))
             ? Number(left) === Number(right)
             : left === right;

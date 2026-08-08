@@ -301,9 +301,6 @@ export function preParseInitialization(
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
-      const indent = /^[ \t]*/.exec(line)?.[0].length ?? 0;
-      if (indent > 0) continue;
-
       const labelMatch =
         /^label\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*:/i.exec(trimmed);
       if (labelMatch) {
@@ -414,17 +411,22 @@ export function preParseInitialization(
         continue;
       }
 
-      const initPythonMatch = /^init\s+python\s*:(.*)$/i.exec(trimmed);
+      const initPythonMatch = /^init(?:\s+([+-]?\d+))?\s+python\s*:(.*)$/i.exec(
+        trimmed,
+      );
       if (initPythonMatch) {
+        const explicitOffset = initPythonMatch[1]
+          ? parseInt(initPythonMatch[1], 10)
+          : 0;
         const { body, endLineIndex } = getLogicalBodyAndEndLine(
           lines,
           idx,
-          initPythonMatch[1],
+          initPythonMatch[2],
         );
         items.push({
           type: "python_block",
           kind: "python",
-          priority: currentOffset,
+          priority: currentOffset + explicitOffset,
           filePath,
           lineIndex: idx,
           body,
@@ -433,17 +435,18 @@ export function preParseInitialization(
         continue;
       }
 
-      const initMatch = /^init\s*:(.*)$/i.exec(trimmed);
+      const initMatch = /^init(?:\s+([+-]?\d+))?\s*:(.*)$/i.exec(trimmed);
       if (initMatch) {
+        const explicitOffset = initMatch[1] ? parseInt(initMatch[1], 10) : 0;
         const { body, endLineIndex } = getLogicalBodyAndEndLine(
           lines,
           idx,
-          initMatch[1],
+          initMatch[2],
         );
         items.push({
           type: "init_block",
           kind: "python",
-          priority: currentOffset,
+          priority: currentOffset + explicitOffset,
           filePath,
           lineIndex: idx,
           body,
@@ -483,9 +486,10 @@ export function preParseInitialization(
       }
 
       // 5. Detect top-level dollar sign assignment ($ var = val)
-      const dollarMatch = /^\$\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$/.exec(
-        trimmed,
-      );
+      const dollarMatch =
+        /^\$\s*([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=\s*(.*)$/.exec(
+          trimmed,
+        );
       if (dollarMatch) {
         const variableName = dollarMatch[1].trim();
         const isPersist = variableName.startsWith("persistent.");
@@ -813,7 +817,7 @@ function processInitBlockText(
 
     // Nested define/default
     const defineMatch =
-      /^(define|default)(?:\s+(-?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i
+      /^(define|default)(?:\s+([+-]?\d+))?\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(.*)$/i
         .exec(trimmed);
     if (defineMatch) {
       const kind = defineMatch[1].toLowerCase() as "define" | "default";
@@ -842,8 +846,9 @@ function processInitBlockText(
     }
 
     // Nested dollar assignment ($ var = val)
-    const dollarMatch = /^[ \t]*\$\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$/
-      .exec(trimmed);
+    const dollarMatch =
+      /^[ \t]*\$\s*([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=\s*(.*)$/
+        .exec(trimmed);
     if (dollarMatch) {
       const varName = dollarMatch[1].trim();
       const isPersist = varName.startsWith("persistent.");

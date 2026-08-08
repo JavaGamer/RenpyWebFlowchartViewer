@@ -285,6 +285,11 @@ export function useGraphVisibility({
     [spatiallyFilteredNodes],
   );
 
+  const nonHiddenNodeIds = useMemo(
+    () => new Set(visibleNodes.filter((n) => !n.hidden).map((n) => n.id)),
+    [visibleNodes],
+  );
+
   const visibleEdges = useMemo(
     () =>
       buildVisibleEdges({
@@ -292,6 +297,7 @@ export function useGraphVisibility({
         showCallReturns,
         visibleEdgeKinds,
         visibleNodeIds,
+        nonHiddenNodeIds,
         edgeColor: THEMES[theme].edge,
         decisionColor: THEMES[theme].decisionBorder,
         labelColor: THEMES[theme].labelBorder,
@@ -315,6 +321,7 @@ export function useGraphVisibility({
       theme,
       visibleEdgeKinds,
       visibleNodeIds,
+      nonHiddenNodeIds,
     ],
   );
 

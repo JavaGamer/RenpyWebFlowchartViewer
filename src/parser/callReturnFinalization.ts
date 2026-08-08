@@ -1,6 +1,24 @@
 import type { ParseGraphState } from "./pipelineTypes.ts";
 import { addEdge } from "./graphMutations.ts";
 
+function labelOrScenesHaveReturn(
+  state: ParseGraphState,
+  callTargetId: string,
+): boolean {
+  if (state.hasReliableReturnInLabel.has(callTargetId)) {
+    return true;
+  }
+  const baseName = callTargetId.includes("__scene_")
+    ? callTargetId.split("__scene_")[0]
+    : callTargetId;
+  for (const labelId of state.hasReliableReturnInLabel) {
+    if (labelId === baseName || labelId.startsWith(`${baseName}__scene_`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function materializeCallReturnEdges(state: ParseGraphState): void {
   for (const item of state.pendingCallReturns) {
     const {
@@ -10,7 +28,7 @@ export function materializeCallReturnEdges(state: ParseGraphState): void {
       callContextId,
       arguments: callArgs,
     } = item;
-    const hasExplicitReturn = state.hasReliableReturnInLabel.has(callTargetId);
+    const hasExplicitReturn = labelOrScenesHaveReturn(state, callTargetId);
     if (!hasExplicitReturn) {
       continue;
     }
