@@ -220,6 +220,8 @@ function evaluateInstructions(
   return "true";
 }
 
+import { evaluatePythonAstExpression } from "./pythonAstEvaluator.ts";
+
 const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);
 
 export function evaluateConditionExpression(
@@ -227,6 +229,25 @@ export function evaluateConditionExpression(
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return "unknown";
+
+  // Build Python environment from flags
+  const env: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(flags)) {
+    if (v === "true") env[k] = true;
+    else if (v === "false") env[k] = false;
+    else if (v !== "unknown") env[k] = v;
+  }
+
+  const astRes = evaluatePythonAstExpression(expression, env);
+  if (astRes.isStaticallyEvaluated) {
+    if (typeof astRes.value === "boolean") {
+      return astRes.value ? "true" : "false";
+    }
+    if (astRes.value === null || astRes.value === undefined) {
+      return "false";
+    }
+  }
+
   const preprocessed = preprocessConditionExpression(expression);
   try {
     let tokens = parsedExpressionCache.get(preprocessed);

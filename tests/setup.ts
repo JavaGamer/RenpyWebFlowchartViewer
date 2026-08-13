@@ -73,18 +73,11 @@ if (typeof EventTarget !== "undefined" && EventTarget.prototype) {
   patchDispatch(EventTarget.prototype);
 }
 if (typeof globalThis !== "undefined") {
-  patchDispatch(
-    globalThis as unknown as {
-      dispatchEvent: typeof EventTarget.prototype.dispatchEvent;
-    },
-  );
-}
-if (typeof window !== "undefined") {
-  if (window.EventTarget && window.EventTarget.prototype) {
-    patchDispatch(window.EventTarget.prototype);
+  if (globalThis.EventTarget && globalThis.EventTarget.prototype) {
+    patchDispatch(globalThis.EventTarget.prototype);
   }
   patchDispatch(
-    window as unknown as {
+    globalThis as unknown as {
       dispatchEvent: typeof EventTarget.prototype.dispatchEvent;
     },
   );

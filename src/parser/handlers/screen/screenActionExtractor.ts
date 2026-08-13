@@ -208,7 +208,7 @@ export function extractStaticTargetsFromArgumentList(
     firstArgument,
     true,
     state,
-  );
+  ).filter((t) => t.trim() !== "");
   if (targets.length > 0) return targets;
 
   const preferredKeywordNames = new Set(["label", "target"]);

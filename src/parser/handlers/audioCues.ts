@@ -96,3 +96,25 @@ export function extractVoiceCue(lineText: string): string | null {
   const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
   return stripQuotes(asset);
 }
+
+export function extractShowAsset(lineText: string): string | null {
+  const match = lineText.match(/^\s*show\s+(.+)$/);
+  if (!match) return null;
+  const content = stripComment(match[1]);
+  const paramMatch = content.match(
+    /^(.*?)\s*\b(?:with|at|behind|onlayer|zorder|as)\b/i,
+  );
+  let asset = paramMatch ? paramMatch[1].trim() : content.trim();
+  if (asset.endsWith(":")) {
+    asset = asset.slice(0, -1).trim();
+  }
+  return stripQuotes(asset);
+}
+
+import { extractAtlVisualAssets } from "./atlParser.ts";
+
+export function extractAtlAssetsFromBlock(
+  blockText: string,
+): Array<{ asset: string; lineNum?: number; raw: string }> {
+  return extractAtlVisualAssets(blockText);
+}

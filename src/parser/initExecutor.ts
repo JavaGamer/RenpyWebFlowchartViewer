@@ -152,6 +152,8 @@ export function processAssignment(
   return valueChanged;
 }
 
+import { parsePythonBlock } from "./handlers/python/pythonAstParser.ts";
+
 export function processPythonBlockText(
   state: ParseGraphState,
   body: string,
@@ -159,43 +161,22 @@ export function processPythonBlockText(
   filePath: string = "",
   blockLineIndex: number = 0,
 ): boolean {
-  const lines = body.split(/\r?\n/);
-  let idx = 0;
   let blockChanged = false;
-  while (idx < lines.length) {
-    const line = lines[idx];
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) {
-      idx += 1;
-      continue;
-    }
+  const parsed = parsePythonBlock(body);
 
-    // Try to match an assignment: var = val
-    const match = /^[ \t]*([A-Za-z_][A-Za-z0-9_.]*)(?:\s*:[^=]+)?\s*=(?!=)(.*)$/
-      .exec(line);
-    if (match) {
-      const varName = match[1].trim();
-      const initialRHS = match[2];
-      const { body: expression, endLineIndex } = getLogicalExpressionAndEndLine(
-        lines,
-        idx,
-        initialRHS,
-      );
-      const changed = processAssignment(
-        state,
-        varName,
-        stripInlineComment(expression),
-        "python",
-        varName.startsWith("persistent."),
-        priority,
-        filePath,
-        blockLineIndex + idx,
-      );
-      if (changed) blockChanged = true;
-      idx = endLineIndex + 1;
-      continue;
-    }
-    idx += 1;
+  for (const assign of parsed.assignments) {
+    if (!assign.variable || !assign.valueExpression) continue;
+    const changed = processAssignment(
+      state,
+      assign.variable,
+      stripInlineComment(assign.valueExpression),
+      "python",
+      assign.variable.startsWith("persistent."),
+      priority,
+      filePath,
+      blockLineIndex,
+    );
+    if (changed) blockChanged = true;
   }
   return blockChanged;
 }

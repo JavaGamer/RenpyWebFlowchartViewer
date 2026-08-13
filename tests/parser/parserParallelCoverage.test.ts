@@ -75,7 +75,9 @@ async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
       _fragments: unknown[],
       state: Record<string, unknown>,
     ) => {
-      return state ?? { nodes: [], edges: [] };
+      if (!state.nodes) state.nodes = [];
+      if (!state.edges) state.edges = [];
+      return state;
     },
   }));
 

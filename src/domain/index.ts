@@ -48,6 +48,22 @@ export {
 } from "./transforms/index.ts";
 
 export {
+  evaluatePythonAstExpression,
+  extractDictLiteral,
+  extractListLiteral,
+  extractNodeText,
+  extractStringLiteral,
+  parsePythonBlock,
+  unquoteString,
+} from "./pythonAstEvaluator.ts";
+export type {
+  PythonAssignment,
+  PythonAstEvaluationResult,
+  PythonDirectCall,
+  PythonParsedBlock,
+} from "./pythonAstEvaluator.ts";
+
+export {
   buildMockFlagsFromVariableState,
   evaluateConditionExpression,
   extractConditionFlagRefs,

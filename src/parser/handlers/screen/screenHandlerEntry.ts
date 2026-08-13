@@ -210,6 +210,7 @@ export function processDirectRenpyBlockCalls(
     }
 
     for (const target of targets) {
+      if (!target.trim()) continue;
       if (event.callType === "jump") {
         emitJumpEdge(state, scanState, target, context, false);
       } else {

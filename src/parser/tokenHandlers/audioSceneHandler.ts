@@ -8,10 +8,11 @@ import {
   extractPlayCue,
   extractQueueCue,
   extractSceneAsset,
+  extractShowAsset,
   extractStopCue,
   extractVoiceCue,
 } from "../handlers/audioCues.ts";
-import type { SourceLocation } from "../../domain/index.ts";
+import { extractAtlVisualAssets } from "../handlers/atlParser.ts";
 
 export function handleSceneToken(
   state: ParseGraphState,
@@ -24,6 +25,7 @@ export function handleSceneToken(
   deferDetails?: boolean,
   sceneSplitDialogueThreshold?: number,
   sourceLocation?: SourceLocation,
+  blockText?: string,
 ): void {
   splitCurrentLabelOnSceneBoundary(
     state,
@@ -46,6 +48,59 @@ export function handleSceneToken(
           lineNum,
           sourceLocation,
         });
+      }
+      if (blockText) {
+        const atlAssets = extractAtlVisualAssets(blockText);
+        for (const atl of atlAssets) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: "scene",
+            asset: atl.asset,
+            raw: atl.raw,
+            lineNum: atl.lineNum ? lineNum + atl.lineNum - 1 : lineNum,
+            sourceLocation,
+          });
+        }
+      }
+    }
+  }
+}
+
+export function handleShowToken(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  lineText: string,
+  lineNum: number,
+  deferDetails?: boolean,
+  sourceLocation?: SourceLocation,
+  blockText?: string,
+): void {
+  if (scanState.currentLabelId && !deferDetails) {
+    const ownerNode = state.nodeMap.get(scanState.currentLabelId);
+    if (ownerNode) {
+      const showAsset = extractShowAsset(lineText);
+      if (showAsset) {
+        if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+        ownerNode.audioAssetCues.push({
+          type: "scene",
+          asset: showAsset,
+          raw: lineText.trim(),
+          lineNum,
+          sourceLocation,
+        });
+      }
+      if (blockText) {
+        const atlAssets = extractAtlVisualAssets(blockText);
+        for (const atl of atlAssets) {
+          if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
+          ownerNode.audioAssetCues.push({
+            type: "scene",
+            asset: atl.asset,
+            raw: atl.raw,
+            lineNum: atl.lineNum ? lineNum + atl.lineNum - 1 : lineNum,
+            sourceLocation,
+          });
+        }
       }
     }
   }

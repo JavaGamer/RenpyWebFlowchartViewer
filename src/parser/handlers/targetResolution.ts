@@ -360,6 +360,8 @@ export function resolveStaticTargetExpression(
   return null;
 }
 
+import { resolveDynamicTargetWithDataflow } from "../dataflowAnalysis.ts";
+
 export function resolveExpressionTargets(
   scanState: ParseScanState,
   expression: string,
@@ -367,12 +369,27 @@ export function resolveExpressionTargets(
   state?: ParseGraphState,
 ): string[] {
   const trimmed = expression.trim();
+  if (!trimmed) return [];
   const isExpr = isPythonExpression || scanState.waitForJumpExpressionTarget;
 
   if (isExpr) {
     const literal = extractLiteralTarget(trimmed);
     if (literal) {
       return [literal];
+    }
+
+    const ruleTargets = resolvePatternMatches(trimmed, scanState, state);
+    if (ruleTargets.length > 0) {
+      return ruleTargets;
+    }
+
+    const dataflowTargets = resolveDynamicTargetWithDataflow(
+      trimmed,
+      scanState,
+      state,
+    );
+    if (dataflowTargets.length > 0) {
+      return dataflowTargets;
     }
 
     const identifier = extractIdentifierTarget(trimmed);
@@ -433,11 +450,6 @@ export function resolveExpressionTargets(
           }
         }
       }
-    }
-
-    const ruleTargets = resolvePatternMatches(trimmed, scanState, state);
-    if (ruleTargets.length > 0) {
-      return ruleTargets;
     }
 
     return [];
