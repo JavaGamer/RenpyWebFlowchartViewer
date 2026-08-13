@@ -159,7 +159,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     if (!isActiveRun()) return;
 
-    const { rpyFiles, errorMessage } = validateRpyUpload(consolidatedFiles);
+    const { rpyFiles, mediaFiles, errorMessage } = validateRpyUpload(
+      consolidatedFiles,
+    );
     if (errorMessage) {
       const err = new UploadValidationError(errorMessage);
       actions.fail(err.message);
@@ -288,6 +290,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
             const result = await parseService.parse({
               files: parseChunk,
+              projectMediaFiles: mediaFiles,
               appendToActiveGraph: true,
               resetActiveGraph: offset === 0 && parseOffset === 0,
               isFinalChunk: isLastChunk,

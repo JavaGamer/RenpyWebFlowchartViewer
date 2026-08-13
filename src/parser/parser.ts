@@ -50,7 +50,46 @@ export async function parseRenpyFiles(
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
   }
-  const orderedFiles = [...normalizedFiles].sort(compareFiles);
+
+  const mediaFileExtensions = new Set([
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".avif",
+    ".gif",
+    ".svg",
+    ".ogg",
+    ".opus",
+    ".mp3",
+    ".wav",
+    ".flac",
+    ".webm",
+    ".mp4",
+  ]);
+
+  const scriptFiles: typeof normalizedFiles = [];
+  const discoveredMediaFiles: string[] = [];
+
+  for (const file of normalizedFiles) {
+    const rawPath = file.relativePath ?? file.name;
+    const lower = rawPath.toLowerCase();
+    const dotIdx = lower.lastIndexOf(".");
+    const ext = dotIdx !== -1 ? lower.slice(dotIdx) : "";
+    if (mediaFileExtensions.has(ext)) {
+      discoveredMediaFiles.push(rawPath);
+    } else {
+      scriptFiles.push(file);
+    }
+  }
+
+  if (options.projectMediaFiles) {
+    state.projectMediaFiles = options.projectMediaFiles;
+  } else if (discoveredMediaFiles.length > 0) {
+    state.projectMediaFiles = discoveredMediaFiles;
+  }
+
+  const orderedFiles = [...scriptFiles].sort(compareFiles);
 
   perf.mark("pre-parse");
   preParseInitialization(orderedFiles, state);

@@ -14,19 +14,9 @@ export function parentMenuStackLength(menuDepth: number): number {
  * Returns null if the depth is out of bounds or invalid.
  */
 export function menuAtDepth(
-  menuStack: {
-    id: string;
-    optionText: string | null;
-    options?: Array<{ text: string; hasExit: boolean }>;
-    sourceLocation?: SourceLocation;
-  }[],
+  menuStack: ParseScanState["menuStack"],
   depth: number,
-): {
-  id: string;
-  optionText: string | null;
-  options?: Array<{ text: string; hasExit: boolean }>;
-  sourceLocation?: SourceLocation;
-} | null {
+): ParseScanState["menuStack"][number] | null {
   return depth > 0 ? (menuStack[depth - 1] ?? null) : null;
 }
 

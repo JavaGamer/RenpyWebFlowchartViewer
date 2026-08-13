@@ -1,16 +1,23 @@
 import { proxy, releaseProxy, type Remote, transfer, wrap } from "comlink";
 import MiniSearch from "minisearch";
-import { compareFiles, type FlowNode } from "../domain/index.ts";
+import {
+  compareFiles,
+  type FlowAsset,
+  type FlowNode,
+} from "../domain/index.ts";
 import {
   createGraphState,
   extractNodeDetailsFromTokens,
   finalizeRoles,
+  type InitVariableDescriptor,
   type ParseInputFile,
   preParseInitialization,
   processTokenizedFile,
   type TextDocument,
   tokenizeOneFile,
   type TokenTree,
+  type VariableMutation,
+  type VariableValue,
 } from "../parser/index.ts";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
@@ -286,6 +293,9 @@ async function parseRenpyFilesFallback(
   }
 
   const currentFallback = getActiveFallbackState(resetActiveGraph);
+  if (request.projectMediaFiles) {
+    currentFallback.graphState.projectMediaFiles = request.projectMediaFiles;
+  }
 
   // Sort files deterministically
   files.sort(compareFiles);
@@ -382,6 +392,7 @@ export function parseRenpyFilesInWorker(
       deferDetails,
       parserVariant,
       screenActionRules,
+      projectMediaFiles: request.projectMediaFiles,
       signal,
       appendToActiveGraph,
       resetActiveGraph,
@@ -454,6 +465,7 @@ export function parseRenpyFilesInWorker(
             deferDetails,
             parserVariant,
             screenActionRules,
+            projectMediaFiles: request.projectMediaFiles,
             appendToActiveGraph,
             resetActiveGraph,
             isFinalChunk,
@@ -571,6 +583,7 @@ export interface ParseChunkRequest {
   deferDetails?: boolean;
   parserVariant?: ParseWorkerClientRequest["parserVariant"];
   screenActionRules?: ParseWorkerClientRequest["screenActionRules"];
+  projectMediaFiles?: ParseWorkerClientRequest["projectMediaFiles"];
   signal?: AbortSignal;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
@@ -601,6 +614,7 @@ interface InternalChunkResult extends ParseChunkResult {
   globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
   globalLabelVariableListTargets?: Array<[string, string[]]>;
   nodeMutations?: Array<[string, VariableMutation[]]>;
+  imageDefinitions?: Array<[string, string]>;
   assets?: FlowAsset[];
 }
 
@@ -610,6 +624,7 @@ export function parseChunksInParallel({
   deferDetails,
   parserVariant,
   screenActionRules,
+  projectMediaFiles,
   signal,
   appendToActiveGraph,
   resetActiveGraph,
@@ -720,6 +735,9 @@ export function parseChunksInParallel({
                   : undefined,
               globalScreens: Array.from(prePassStateGraph.globalScreens),
               globalCharacters: Array.from(prePassStateGraph.globalCharacters),
+              imageDefinitions: prePassStateGraph.imageDefinitions
+                ? Array.from(prePassStateGraph.imageDefinitions.entries())
+                : undefined,
             },
           })
             .then((chunkResult) => {
@@ -1094,7 +1112,10 @@ export function parseChunksInParallel({
       }
       const mergedGlobalLabelVariableDictTargets = Array.from(
         mergedGlobalLabelVariableDictTargetsMap.entries(),
-      ).map(([k, v]) => [k, Array.from(v.entries())]);
+      ).map(([k, v]): [string, Array<[string, string]>] => [
+        k,
+        Array.from(v.entries()),
+      ]);
 
       const mergedGlobalLabelVariableListTargetsMap = new Map<
         string,
@@ -1120,6 +1141,23 @@ export function parseChunksInParallel({
       }
       const mergedGlobalLabelVariableListTargets = Array.from(
         mergedGlobalLabelVariableListTargetsMap.entries(),
+      );
+
+      const mergedImageDefinitionsMap = new Map<string, string>();
+      if (prePassStateGraph.imageDefinitions) {
+        for (const [k, v] of prePassStateGraph.imageDefinitions.entries()) {
+          mergedImageDefinitionsMap.set(k, v);
+        }
+      }
+      for (const r of results) {
+        if (r.imageDefinitions) {
+          for (const [k, v] of r.imageDefinitions) {
+            mergedImageDefinitionsMap.set(k, v);
+          }
+        }
+      }
+      const mergedImageDefinitions = Array.from(
+        mergedImageDefinitionsMap.entries(),
       );
 
       const mergedAssets = results.flatMap((r) => r.assets ?? []);
@@ -1165,7 +1203,9 @@ export function parseChunksInParallel({
           globalLabelVariableDictTargets: mergedGlobalLabelVariableDictTargets,
           globalLabelVariableListTargets: mergedGlobalLabelVariableListTargets,
           nodeMutations: mergedNodeMutations,
+          imageDefinitions: mergedImageDefinitions,
           assets: mergedAssets,
+          projectMediaFiles,
           appendToActiveGraph,
           resetActiveGraph,
           isFinalChunk,

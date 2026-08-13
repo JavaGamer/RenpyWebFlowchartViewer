@@ -1,4 +1,9 @@
-import type { AudioAssetCue, FlowEdge, FlowNode } from "../domain/index.ts";
+import type {
+  AudioAssetCue,
+  FlowEdge,
+  FlowNode,
+  SourceLocation,
+} from "../domain/index.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { ParseInputFile, PendingCallReturn } from "./pipelineTypes.ts";
 
@@ -25,6 +30,10 @@ export interface ParseWorkerClientRequest {
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  projectMediaFiles?:
+    | Array<{ relativePath: string; fileName: string }>
+    | Set<string>
+    | string[];
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -53,6 +62,10 @@ export interface ParseRequestMessage {
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  projectMediaFiles?:
+    | Array<{ relativePath: string; fileName: string }>
+    | Set<string>
+    | string[];
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -128,6 +141,10 @@ export interface ParseChunkRequestMessage {
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  projectMediaFiles?:
+    | Array<{ relativePath: string; fileName: string }>
+    | Set<string>
+    | string[];
 }
 
 export interface FinalizeRequestMessage {
@@ -188,7 +205,8 @@ export interface ParseDiagnosticPayload {
     | "dynamic_target"
     | "normalization"
     | "unresolved_target"
-    | "shadowed_label";
+    | "shadowed_label"
+    | "missing_asset";
   severity: "warning" | "error";
   message: string;
   location?: {
@@ -198,6 +216,7 @@ export interface ParseDiagnosticPayload {
     edgeId?: string;
     sourceId?: string;
     targetId?: string;
+    sourceLocation?: SourceLocation;
   };
   context?: {
     category?:
@@ -212,7 +231,12 @@ export interface ParseDiagnosticPayload {
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return";
+      | "uncalled_return"
+      | "dead_branch"
+      | "dead_menu_option"
+      | "missing_asset"
+      | "dangling_stack"
+      | "call_cycle_deadlock";
     detail?: string;
   };
   recoveryAction?: string;
@@ -255,7 +279,12 @@ export interface NormalizationParseDiagnosticPayload
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return";
+      | "uncalled_return"
+      | "dead_branch"
+      | "dead_menu_option"
+      | "missing_asset"
+      | "dangling_stack"
+      | "call_cycle_deadlock";
     detail?: string;
   };
 }
@@ -265,11 +294,17 @@ export interface ShadowedLabelParseDiagnosticPayload
   code: "shadowed_label";
 }
 
+export interface MissingAssetParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "missing_asset";
+}
+
 export type StrictParseDiagnosticPayload =
   | DynamicTargetParseDiagnosticPayload
   | UnresolvedTargetParseDiagnosticPayload
   | NormalizationParseDiagnosticPayload
-  | ShadowedLabelParseDiagnosticPayload;
+  | ShadowedLabelParseDiagnosticPayload
+  | MissingAssetParseDiagnosticPayload;
 
 export interface ErrorResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;

@@ -86,15 +86,22 @@ function parseArgumentValue(
   return trimmed;
 }
 
+import { verifyAssetIntegrity } from "./assetIntegrity.ts";
+
 /**
  * Runs control-flow analysis on the finalized graph state.
  * Detects:
  * 1. Unreachable labels (orphans).
  * 2. Dialogue-less tight infinite cycles.
- * 3. Call-return mismatches.
- * 4. Path-aware variable state propagation and static condition evaluation.
+ * 3. Call-return mismatches and dangling stack subroutine fallthroughs.
+ * 4. Recursive call stack deadlocks.
+ * 5. Path-aware variable state propagation and static condition evaluation (dead branches).
+ * 6. Asset integrity verification against project media files.
  */
-export function runControlFlowAnalysis(state: ParseGraphState): void {
+export function runControlFlowAnalysis(
+  state: ParseGraphState,
+  projectMediaFiles?: ParseGraphState["projectMediaFiles"],
+): void {
   const outgoingMap = new Map<string, FlowEdge[]>();
   for (const edge of state.edges) {
     let list = outgoingMap.get(edge.source);
@@ -107,8 +114,10 @@ export function runControlFlowAnalysis(state: ParseGraphState): void {
 
   analyzeReachability(state, outgoingMap);
   analyzeTightCycles(state, outgoingMap);
+  analyzeCallCycles(state, outgoingMap);
   analyzeCallReturnMismatches(state, outgoingMap);
   propagateVariableMutationsAndEvaluateConditions(state, outgoingMap);
+  verifyAssetIntegrity(state, projectMediaFiles);
 }
 
 function analyzeReachability(
@@ -280,6 +289,106 @@ function analyzeTightCycles(
   }
 }
 
+/**
+ * Detects recursive call cycles that lack base-case returns or interactive barriers.
+ */
+function analyzeCallCycles(
+  state: ParseGraphState,
+  outgoingMap: Map<string, FlowEdge[]>,
+): void {
+  const color = new Map<string, number>(); // 0: unvisited, 1: visiting, 2: visited
+  const stack: Array<{ nodeId: string; edgeIndex: number }> = [];
+  const pathNodes: string[] = [];
+
+  for (const node of state.nodes) {
+    if ((color.get(node.id) ?? 0) !== 0) continue;
+
+    color.set(node.id, 1);
+    pathNodes.push(node.id);
+    stack.push({ nodeId: node.id, edgeIndex: 0 });
+
+    while (stack.length > 0) {
+      const top = stack[stack.length - 1]!;
+      const outgoing = (outgoingMap.get(top.nodeId) ?? []).filter(
+        (e) => e.kind === "call",
+      );
+
+      if (top.edgeIndex < outgoing.length) {
+        const edge = outgoing[top.edgeIndex]!;
+        top.edgeIndex += 1;
+        const targetId = edge.target;
+        const targetColor = color.get(targetId) ?? 0;
+
+        if (targetColor === 1) {
+          // Cycle detected!
+          const cycleStartIndex = pathNodes.indexOf(targetId);
+          if (cycleStartIndex !== -1) {
+            const cycle = pathNodes.slice(cycleStartIndex);
+            let hasExitOrReturn = false;
+            for (const id of cycle) {
+              if (
+                state.hasReliableReturnInLabel.has(id) ||
+                state.hasReturnInLabel.has(id)
+              ) {
+                hasExitOrReturn = true;
+                break;
+              }
+              const edgesFromNode = outgoingMap.get(id) ?? [];
+              const hasNonCallFlow = edgesFromNode.some(
+                (e) =>
+                  (e.kind === "jump" || e.kind === "sequence") &&
+                  e.target !== id,
+              );
+              if (hasNonCallFlow) {
+                hasExitOrReturn = true;
+                break;
+              }
+            }
+
+            if (!hasExitOrReturn) {
+              const cycleLabels = cycle
+                .map((id) => state.nodeMap.get(id)?.label ?? id)
+                .join(" -> ");
+              const cycleKey = [...cycle].sort().join("|");
+              const targetNode = state.nodeMap.get(targetId);
+              addParseDiagnostic(
+                state,
+                {
+                  code: "normalization",
+                  severity: "warning",
+                  location: {
+                    sourceId: targetId,
+                    sourceLocation: targetNode?.sourceLocation,
+                  },
+                  context: {
+                    category: "call_cycle_deadlock",
+                    detail: cycleLabels,
+                  },
+                  message:
+                    `Recursive call stack deadlock detected: ${cycleLabels} -> ${
+                      targetNode?.label ?? targetId
+                    } with no base-case return path.`,
+                  recoveryAction:
+                    "Ensure recursive subroutine calls have a conditional base case that reaches a return statement.",
+                },
+                `call_cycle_deadlock|${cycleKey}`,
+              );
+            }
+          }
+        } else if (targetColor === 0) {
+          color.set(targetId, 1);
+          pathNodes.push(targetId);
+          stack.push({ nodeId: targetId, edgeIndex: 0 });
+        }
+      } else {
+        color.set(top.nodeId, 2);
+        pathNodes.pop();
+        stack.pop();
+      }
+    }
+  }
+}
+
 function analyzeCallReturnMismatches(
   state: ParseGraphState,
   outgoingMap: Map<string, FlowEdge[]>,
@@ -308,6 +417,22 @@ function analyzeCallReturnMismatches(
       }
     }
     return false;
+  }
+
+  function getBaseLabelId(id: string): string {
+    return id.split("__scene_")[0]!;
+  }
+
+  const calledBaseLabels = new Set<string>();
+  for (const c of state.calledLabels) {
+    calledBaseLabels.add(getBaseLabelId(c));
+  }
+
+  const allCalledConstituentNodes = new Set<string>();
+  for (const node of state.nodes) {
+    if (calledBaseLabels.has(getBaseLabelId(node.id))) {
+      allCalledConstituentNodes.add(node.id);
+    }
   }
 
   for (const calledId of state.calledLabels) {
@@ -340,8 +465,51 @@ function analyzeCallReturnMismatches(
     }
   }
 
+  // Check for dangling stack across all constituent nodes of called subroutines
+  for (const nodeId of allCalledConstituentNodes) {
+    const outgoing = outgoingMap.get(nodeId) ?? [];
+    for (const edge of outgoing) {
+      if (
+        edge.kind === "sequence" &&
+        edge.label === "next" &&
+        state.allLabelIds.has(edge.target) &&
+        getBaseLabelId(edge.target) !== getBaseLabelId(nodeId)
+      ) {
+        const node = state.nodeMap.get(nodeId);
+        const targetNode = state.nodeMap.get(edge.target);
+        const displayLabel = node?.label ?? nodeId;
+        addParseDiagnostic(
+          state,
+          {
+            code: "normalization",
+            severity: "warning",
+            location: {
+              chapter: node?.chapter,
+              construct: "label",
+              sourceId: nodeId,
+              targetId: edge.target,
+              edgeId: edge.id,
+              sourceLocation: edge.sourceLocation ?? node?.sourceLocation,
+            },
+            context: {
+              category: "dangling_stack",
+              detail: displayLabel,
+            },
+            message: `Called label "${displayLabel}" falls through into "${
+              targetNode?.label ?? edge.target
+            }" without returning, leaving a dangling call stack frame.`,
+            recoveryAction:
+              "Add an explicit return statement before the label boundary or jump explicitly.",
+          },
+          `dangling_stack|${nodeId}|${edge.target}`,
+        );
+      }
+    }
+  }
+
   for (const labelId of state.hasReturnInLabel) {
-    if (!state.calledLabels.has(labelId) && labelId !== "start") {
+    const baseId = getBaseLabelId(labelId);
+    if (!calledBaseLabels.has(baseId) && baseId !== "start") {
       const node = state.nodeMap.get(labelId);
       if (node && node.role === "story") {
         addParseDiagnostic(
@@ -496,6 +664,42 @@ function propagateVariableMutationsAndEvaluateConditions(
         );
         if (res === "false") {
           edge.conditionIsStaticallyFalse = true;
+          const sourceNode = state.nodeMap.get(currId);
+          const isMenu = sourceNode?.type === "MENU" || Boolean(edge.label);
+          const targetNode = state.nodeMap.get(edge.target);
+          const construct = isMenu ? "menu_option" : "condition";
+          const optName = edge.label ? ` "${edge.label}"` : "";
+          const exprStr = edge.condition.expression;
+          addParseDiagnostic(
+            state,
+            {
+              code: "normalization",
+              severity: "warning",
+              location: {
+                chapter: sourceNode?.chapter,
+                construct,
+                sourceId: currId,
+                targetId: edge.target,
+                edgeId: edge.id,
+                targetExpression: exprStr,
+                sourceLocation: edge.sourceLocation ??
+                  sourceNode?.sourceLocation,
+              },
+              context: {
+                category: isMenu ? "dead_menu_option" : "dead_branch",
+                detail: edge.label || exprStr,
+              },
+              message: isMenu
+                ? `Menu option${optName} has a statically false condition (${exprStr}) and cannot be chosen.`
+                : `Condition "${exprStr}" evaluates to statically false; branch to "${
+                  targetNode?.label ?? edge.target
+                }" is unreachable.`,
+              recoveryAction: isMenu
+                ? "Remove the unreachable menu option or update variable initializations/conditions."
+                : "Verify condition expression or update variable assignments.",
+            },
+            `dead_branch|${edge.id}|${currId}|${edge.target}|${exprStr}`,
+          );
           continue; // Do not propagate along statically false branch
         }
       }

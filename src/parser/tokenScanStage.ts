@@ -19,6 +19,7 @@ import {
   extractPlayCue,
   extractQueueCue,
   extractSceneAsset,
+  extractShowAsset,
   extractStopCue,
   extractVoiceCue,
 } from "./handlers/audioCues.ts";
@@ -50,6 +51,7 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   ...PARSER_TOKENS.menuKeywordTypes,
   PARSER_TOKENS.kwLabel,
   PARSER_TOKENS.kwScene,
+  PARSER_TOKENS.kwShow,
   PARSER_TOKENS.entityFunctionName,
   PARSER_TOKENS.entityIdentifier,
   PARSER_TOKENS.kwJump,
@@ -446,6 +448,17 @@ export function extractNodeDetailsFromTokens(
           audioAssetCues.push({
             type: "scene",
             asset: sceneAsset,
+            raw: lineText.trim(),
+            lineNum,
+            sourceLocation: getTokenSourceLocation(token, document, chapter),
+          });
+        }
+      } else if (type === PARSER_TOKENS.kwShow) {
+        const showAsset = extractShowAsset(lineText);
+        if (showAsset) {
+          audioAssetCues.push({
+            type: "show",
+            asset: showAsset,
             raw: lineText.trim(),
             lineNum,
             sourceLocation: getTokenSourceLocation(token, document, chapter),

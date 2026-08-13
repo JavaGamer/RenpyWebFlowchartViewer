@@ -72,7 +72,9 @@ export function resolveCallContext(
       references: decisionContext.references,
       decisionNodeId: decisionContext.decisionNodeId,
     }
-    : undefined;
+    : (isInOption && menu?.activeOptionCondition
+      ? menu.activeOptionCondition
+      : undefined);
   return {
     isInOption,
     source,

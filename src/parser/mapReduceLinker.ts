@@ -45,6 +45,7 @@ export interface FileGraphFragment {
   globalLabelVariableLiteralTargets?: Array<[string, string]>;
   globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
   globalLabelVariableListTargets?: Array<[string, string[]]>;
+  imageDefinitions?: Array<[string, string]>;
   assets?: FlowAsset[];
 }
 
@@ -99,6 +100,9 @@ export function createFileGraphFragment(
     globalLabelVariableListTargets: Array.from(
       state.globalLabelVariableListTargets.entries(),
     ),
+    imageDefinitions: state.imageDefinitions
+      ? Array.from(state.imageDefinitions.entries())
+      : undefined,
     assets: state.assets,
   };
 }
@@ -134,6 +138,9 @@ export async function parseFileToFragment(
     }
     if (prePassState.initVariables) {
       state.initVariables = new Map(prePassState.initVariables);
+    }
+    if (prePassState.imageDefinitions) {
+      state.imageDefinitions = new Map(prePassState.imageDefinitions);
     }
     if (prePassState.globalPersistentVariables) {
       state.globalPersistentVariables = new Map(
@@ -176,11 +183,11 @@ export async function parseFileToFragment(
 }
 
 function formatEdgePrefix(
-  kind: string,
+  kind: string | undefined,
   source: string,
   target: string,
 ): string {
-  const k = kind === "sequence" ? "seq" : kind;
+  const k = !kind || kind === "sequence" ? "seq" : kind;
   return `${k}_${source}__${target}`;
 }
 
@@ -192,6 +199,9 @@ export function linkGraphFragments(
   const state = targetState ?? createGraphState();
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
+  }
+  if (options.projectMediaFiles && !state.projectMediaFiles) {
+    state.projectMediaFiles = options.projectMediaFiles;
   }
 
   // Sort fragments deterministically by fileIndex then filePath (using deterministic string comparison)
@@ -530,6 +540,12 @@ export function linkGraphFragments(
           k,
           Array.from(new Set([...existingList, ...list])),
         );
+      }
+    }
+    if (fragment.imageDefinitions) {
+      if (!state.imageDefinitions) state.imageDefinitions = new Map();
+      for (const [k, v] of fragment.imageDefinitions) {
+        state.imageDefinitions.set(k, v);
       }
     }
   }

@@ -48,6 +48,56 @@ export function extractSceneAsset(lineText: string): string | null {
   return stripQuotes(asset);
 }
 
+function splitAudioClause(
+  text: string,
+  keywords: string[] = [
+    "fadein",
+    "fadeout",
+    "loop",
+    "noloop",
+    "volume",
+    "if",
+    "sustain",
+  ],
+): string {
+  let inDoubleQuotes = false;
+  let inSingleQuotes = false;
+  let inAngleBracket = false;
+  let bracketDepth = 0;
+
+  const keywordPattern = new RegExp(`^(?:${keywords.join("|")})\\b`, "i");
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+    } else if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+    } else if (char === "<" && !inDoubleQuotes && !inSingleQuotes) {
+      inAngleBracket = true;
+    } else if (char === ">" && inAngleBracket) {
+      inAngleBracket = false;
+    } else if (char === "[" && !inDoubleQuotes && !inSingleQuotes) {
+      bracketDepth++;
+    } else if (
+      char === "]" && bracketDepth > 0 && !inDoubleQuotes && !inSingleQuotes
+    ) {
+      bracketDepth--;
+    } else if (
+      !inDoubleQuotes && !inSingleQuotes && !inAngleBracket &&
+      bracketDepth === 0
+    ) {
+      if (i === 0 || /\s/.test(text[i - 1]!)) {
+        const remaining = text.slice(i);
+        if (keywordPattern.test(remaining)) {
+          return text.slice(0, i).trim();
+        }
+      }
+    }
+  }
+  return text.trim();
+}
+
 export function extractPlayCue(
   lineText: string,
 ): { channel: string; asset: string } | null {
@@ -55,10 +105,14 @@ export function extractPlayCue(
   if (!match) return null;
   const channel = match[1].trim();
   const rest = stripComment(match[2]);
-  const paramMatch = rest.match(
-    /^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i,
-  );
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  const asset = splitAudioClause(rest, [
+    "fadein",
+    "fadeout",
+    "loop",
+    "noloop",
+    "volume",
+    "if",
+  ]);
   return { channel, asset: stripQuotes(asset) };
 }
 
@@ -69,8 +123,7 @@ export function extractStopCue(
   if (!match) return null;
   const channel = match[1].trim();
   const rest = stripComment(match[2] ?? "");
-  const paramMatch = rest.match(/^(.*?)\s*\b(?:fadeout|if)\b/i);
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  const asset = splitAudioClause(rest, ["fadeout", "if"]);
   return { channel, asset: stripQuotes(asset) || undefined };
 }
 
@@ -81,10 +134,14 @@ export function extractQueueCue(
   if (!match) return null;
   const channel = match[1].trim();
   const rest = stripComment(match[2]);
-  const paramMatch = rest.match(
-    /^(.*?)\s*\b(?:fadein|fadeout|loop|noloop|volume|if)\b/i,
-  );
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  const asset = splitAudioClause(rest, [
+    "fadein",
+    "fadeout",
+    "loop",
+    "noloop",
+    "volume",
+    "if",
+  ]);
   return { channel, asset: stripQuotes(asset) };
 }
 
@@ -92,8 +149,7 @@ export function extractVoiceCue(lineText: string): string | null {
   const match = lineText.match(/^\s*voice\s+(.+)$/);
   if (!match) return null;
   const rest = stripComment(match[1]);
-  const paramMatch = rest.match(/^(.*?)\s*\b(?:sustain|volume|if)\b/i);
-  const asset = paramMatch ? paramMatch[1].trim() : rest.trim();
+  const asset = splitAudioClause(rest, ["sustain", "volume", "if"]);
   return stripQuotes(asset);
 }
 
@@ -117,4 +173,15 @@ export function extractAtlAssetsFromBlock(
   blockText: string,
 ): Array<{ asset: string; lineNum?: number; raw: string }> {
   return extractAtlVisualAssets(blockText);
+}
+
+export function extractImageAsset(
+  lineText: string,
+): { name: string; target: string } | null {
+  const match = lineText.match(/^\s*image\s+([^=:]+)(?:=\s*(.+)|:.*)?$/);
+  if (!match) return null;
+  const name = match[1]!.trim();
+  const rawTarget = match[2] ? stripComment(match[2]).trim() : "";
+  const target = stripQuotes(rawTarget);
+  return { name, target };
 }

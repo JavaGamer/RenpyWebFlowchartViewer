@@ -8,11 +8,29 @@ import {
 import { assertInvariant } from "../pipelineInvariants.ts";
 import { menuHasFallthrough } from "../handlers/menuHandler.ts";
 import { menuAtDepth, parentMenuStackLength } from "../scanTransitions.ts";
-import type { SourceLocation } from "../../domain/index.ts";
+import {
+  extractConditionFlagRefs,
+  type SourceLocation,
+} from "../../domain/index.ts";
 
 function edgeIdWithOption(baseId: string, optionText: string | null): string {
   if (!optionText) return baseId;
   return `${baseId}_${optionText}`;
+}
+
+export function extractMenuOptionCondition(lineText: string): string | null {
+  const trimmed = lineText.trim();
+  const match =
+    /^[\s]*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')(?:\s+(?:[A-Za-z0-9_]+|"[^"]*"|'[^']*'))*?\s+if\s+(.+?)\s*:?$/i
+      .exec(trimmed);
+  if (match && match[1]) {
+    let cond = match[1].trim();
+    if (cond.endsWith(":")) {
+      cond = cond.slice(0, -1).trim();
+    }
+    return cond;
+  }
+  return null;
 }
 
 export function handleMenuStatementToken(
@@ -64,6 +82,14 @@ export function handleMenuStatementToken(
     ? parentMenu.id
     : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
   if (source) {
+    const condition = decisionContext
+      ? {
+        branchKind: decisionContext.branchKind,
+        expression: decisionContext.expression ?? undefined,
+        references: decisionContext.references,
+        decisionNodeId: decisionContext.decisionNodeId,
+      }
+      : parentMenu?.activeOptionCondition;
     addEdge(state, {
       id: edgeIdWithOption(
         `seq_${source}__${newMenuId}`,
@@ -73,14 +99,7 @@ export function handleMenuStatementToken(
       target: newMenuId,
       kind: "sequence",
       label: parentMenu?.optionText ?? undefined,
-      condition: decisionContext
-        ? {
-          branchKind: decisionContext.branchKind,
-          expression: decisionContext.expression ?? undefined,
-          references: decisionContext.references,
-          decisionNodeId: decisionContext.decisionNodeId,
-        }
-        : undefined,
+      condition,
       sourceLocation,
     });
     addOutgoing(state, source, "sequence");
@@ -90,6 +109,7 @@ export function handleMenuStatementToken(
   scanState.menuStack.push({
     id: newMenuId,
     optionText: null,
+    activeOptionCondition: undefined,
     options: [],
     sourceLocation: sourceLocation ? { ...sourceLocation } : undefined,
   });
@@ -117,6 +137,7 @@ export function handleMenuOptionToken(
   scanState: ParseScanState,
   optionValue: string,
   menuDepth: number,
+  lineText?: string,
 ): void {
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   if (menu) {
@@ -124,6 +145,19 @@ export function handleMenuOptionToken(
     if (!menu.options) {
       menu.options = [];
     }
-    menu.options.push({ text: optionValue, hasExit: false });
+    const condExpr = lineText ? extractMenuOptionCondition(lineText) : null;
+    if (condExpr) {
+      const references = extractConditionFlagRefs(condExpr);
+      const condition = {
+        branchKind: "if" as const,
+        expression: condExpr,
+        references,
+      };
+      menu.activeOptionCondition = condition;
+      menu.options.push({ text: optionValue, hasExit: false, condition });
+    } else {
+      menu.activeOptionCondition = undefined;
+      menu.options.push({ text: optionValue, hasExit: false });
+    }
   }
 }

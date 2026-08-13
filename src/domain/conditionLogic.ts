@@ -243,8 +243,17 @@ export function evaluateConditionExpression(
     if (typeof astRes.value === "boolean") {
       return astRes.value ? "true" : "false";
     }
-    if (astRes.value === null || astRes.value === undefined) {
-      return "false";
+    const trimmed = expression.trim();
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed) && trimmed in env) {
+      if (typeof astRes.value === "number") {
+        return astRes.value !== 0 ? "true" : "false";
+      }
+      if (typeof astRes.value === "string") {
+        return astRes.value.length > 0 ? "true" : "false";
+      }
+      if (astRes.value === null || astRes.value === undefined) {
+        return "false";
+      }
     }
   }
 

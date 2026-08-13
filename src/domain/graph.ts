@@ -58,12 +58,15 @@ export interface SourceLocation {
 }
 
 export interface AudioAssetCue {
-  type: "play" | "stop" | "queue" | "voice" | "scene";
+  type: "play" | "stop" | "queue" | "voice" | "scene" | "show" | "image";
   channel?: string;
   asset: string;
   raw: string;
   lineNum?: number;
   sourceLocation?: SourceLocation;
+  resolvedPath?: string;
+  isMissing?: boolean;
+  isColor?: boolean;
 }
 
 export interface FlowAsset {

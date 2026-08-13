@@ -3,6 +3,7 @@ import type {
   ParseScanState,
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
+import type { SourceLocation } from "../../domain/index.ts";
 import { splitCurrentLabelOnSceneBoundary } from "../handlers/labelHandler.ts";
 import {
   extractPlayCue,
@@ -82,7 +83,7 @@ export function handleShowToken(
       if (showAsset) {
         if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
         ownerNode.audioAssetCues.push({
-          type: "scene",
+          type: "show",
           asset: showAsset,
           raw: lineText.trim(),
           lineNum,
@@ -94,7 +95,7 @@ export function handleShowToken(
         for (const atl of atlAssets) {
           if (!ownerNode.audioAssetCues) ownerNode.audioAssetCues = [];
           ownerNode.audioAssetCues.push({
-            type: "scene",
+            type: "show",
             asset: atl.asset,
             raw: atl.raw,
             lineNum: atl.lineNum ? lineNum + atl.lineNum - 1 : lineNum,

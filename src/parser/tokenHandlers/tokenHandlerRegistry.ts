@@ -18,6 +18,7 @@ import {
   handlePlayToken,
   handleQueueToken,
   handleSceneToken,
+  handleShowToken,
   handleStopToken,
   handleVoiceToken,
 } from "./audioSceneHandler.ts";
@@ -89,6 +90,21 @@ if (PARSER_TOKENS.kwScene !== undefined) {
       input.lineNum,
       input.deferDetails,
       input.sceneSplitDialogueThreshold,
+      input.sourceLocation,
+    );
+    return true;
+  });
+}
+
+// Handler for Show token
+if (PARSER_TOKENS.kwShow !== undefined) {
+  directHandlerMap.set(PARSER_TOKENS.kwShow, (state, scanState, input) => {
+    handleShowToken(
+      state,
+      scanState,
+      input.lineText,
+      input.lineNum,
+      input.deferDetails,
       input.sourceLocation,
     );
     return true;
@@ -297,7 +313,12 @@ function dispatchMenuTokens(
     meta.hasMenuOption &&
     meta.hasMenuBlock
   ) {
-    handleMenuOptionToken(scanState, input.val(), input.menuDepth);
+    handleMenuOptionToken(
+      scanState,
+      input.val(),
+      input.menuDepth,
+      input.lineText,
+    );
     return true;
   }
   return false;

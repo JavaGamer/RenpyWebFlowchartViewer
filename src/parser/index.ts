@@ -20,7 +20,14 @@ export {
   linkGraphFragments,
   parseFileToFragment,
 } from "./mapReduceLinker.ts";
+export {
+  buildProjectMediaIndex,
+  resolveAssetReference,
+  verifyAssetIntegrity,
+} from "./assetIntegrity.ts";
 export type {
+  InitVariableDescriptor,
+  MissingAssetParseDiagnostic,
   ParseDiagnostic,
   ParseGraphState,
   ParseInputFile,
@@ -30,5 +37,7 @@ export type {
   PendingCallReturn,
   TextDocument,
   TokenTree,
+  VariableMutation,
+  VariableValue,
 } from "./pipelineTypes.ts";
 export * from "./workerProtocol.ts";

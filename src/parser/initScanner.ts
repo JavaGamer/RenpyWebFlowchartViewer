@@ -499,6 +499,23 @@ export function scanInitItemsFromFiles(
         });
       }
 
+      // 7. Detect image definitions
+      const imageMatch =
+        /^image(?:\s+([+-]?\d+))?\s+([^=:]+)(?:=\s*(.+)|:.*)?$/i.exec(trimmed);
+      if (
+        imageMatch && !trimmed.startsWith("init") &&
+        !trimmed.startsWith("define") && !trimmed.startsWith("default") &&
+        !trimmed.startsWith("screen")
+      ) {
+        const imageName = imageMatch[2]!.trim();
+        const rawTarget = imageMatch[3] ? imageMatch[3].trim() : "";
+        if (!state.imageDefinitions) state.imageDefinitions = new Map();
+        state.imageDefinitions.set(
+          imageName,
+          rawTarget.replace(/^["']|["']$/g, ""),
+        );
+      }
+
       idx += 1;
     }
   }

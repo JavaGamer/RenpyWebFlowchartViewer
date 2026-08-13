@@ -1,6 +1,7 @@
 import type {
   CallArgument,
   ConditionBranchKind as DomainConditionBranchKind,
+  ConditionMetadata,
   EdgeKind,
   FlowAsset,
   FlowEdge,
@@ -75,7 +76,12 @@ export interface ParseDiagnosticContext {
     | "unreachable_label"
     | "infinite_loop"
     | "missing_return"
-    | "uncalled_return";
+    | "uncalled_return"
+    | "dead_branch"
+    | "dead_menu_option"
+    | "missing_asset"
+    | "dangling_stack"
+    | "call_cycle_deadlock";
   detail?: string;
 }
 
@@ -112,7 +118,12 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | "unreachable_label"
       | "infinite_loop"
       | "missing_return"
-      | "uncalled_return";
+      | "uncalled_return"
+      | "dead_branch"
+      | "dead_menu_option"
+      | "missing_asset"
+      | "dangling_stack"
+      | "call_cycle_deadlock";
     detail?: string;
   };
 }
@@ -130,11 +141,17 @@ export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
   };
 }
 
+export interface MissingAssetParseDiagnostic extends ParseDiagnosticBase {
+  code: "missing_asset";
+  location?: ParseDiagnosticLocation;
+}
+
 export type ParseDiagnostic =
   | DynamicTargetParseDiagnostic
   | NormalizationParseDiagnostic
   | UnresolvedTargetParseDiagnostic
-  | ShadowedLabelParseDiagnostic;
+  | ShadowedLabelParseDiagnostic
+  | MissingAssetParseDiagnostic;
 
 export type VariableValue = string | boolean | number | null;
 
@@ -186,7 +203,12 @@ export interface ParseScanState extends ResolveTargetScanState {
   menuStack: Array<{
     id: string;
     optionText: string | null;
-    options?: Array<{ text: string; hasExit: boolean }>;
+    activeOptionCondition?: ConditionMetadata;
+    options?: Array<{
+      text: string;
+      hasExit: boolean;
+      condition?: ConditionMetadata;
+    }>;
     sourceLocation?: SourceLocation;
   }>;
   pendingMenuFallthroughIds: string[];
@@ -232,12 +254,17 @@ export interface ParseGraphState {
   globalLabelVariableListTargets: Map<string, string[]>;
   globalPersistentVariables?: Map<string, VariableValue>;
   initVariables?: Map<string, InitVariableDescriptor>;
+  imageDefinitions?: Map<string, string>;
   nodeMutations?: Map<string, VariableMutation[]>;
   globalScreens: Set<string>;
   globalCharacters: Set<string>;
   diagnostics: ParseDiagnostic[];
   diagnosticIds: Set<string>;
   assets?: FlowAsset[];
+  projectMediaFiles?:
+    | Array<{ relativePath: string; fileName: string }>
+    | Set<string>
+    | string[];
   dynamicJumpRules?: DynamicJumpRule[];
 }
 
@@ -276,6 +303,10 @@ export interface ParseOptions {
   screenActionRules?: ScreenActionRule[];
   dynamicJumpRules?: DynamicJumpRule[];
   sceneSplitDialogueThreshold?: number;
+  projectMediaFiles?:
+    | Array<{ relativePath: string; fileName: string }>
+    | Set<string>
+    | string[];
   signal?: AbortSignal;
 }
 

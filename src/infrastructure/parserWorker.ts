@@ -5,6 +5,7 @@ import {
   extractNodeDetailsFromTokens,
   type FileGraphFragment,
   finalizeRoles,
+  type InitVariableDescriptor,
   type NodeDetailsPayload,
   type ParseDiagnostic,
   type ParseGraphState,
@@ -14,6 +15,8 @@ import {
   processTokenizedFile,
   type TokenizedFile,
   tokenizeOneFile,
+  type VariableMutation,
+  type VariableValue,
 } from "../parser/index.ts";
 import MiniSearch from "minisearch";
 import type { TextDocument } from "vscode-languageserver-textdocument";
@@ -25,7 +28,12 @@ import {
 } from "../config/searchConfig.ts";
 import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
-import { compareFiles, type FlowEdge, type FlowNode } from "../domain/index.ts";
+import {
+  compareFiles,
+  type FlowAsset,
+  type FlowEdge,
+  type FlowNode,
+} from "../domain/index.ts";
 import type {
   DialogueSearchResult,
   ParseDiagnosticPayload,
@@ -228,6 +236,7 @@ export interface InternalChunkResult {
   globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
   globalLabelVariableListTargets?: Array<[string, string[]]>;
   nodeMutations?: Array<[string, VariableMutation[]]>;
+  imageDefinitions?: Array<[string, string]>;
   assets?: FlowAsset[];
 }
 
@@ -244,6 +253,10 @@ export const parserApi = {
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
+      projectMediaFiles?:
+        | Array<{ relativePath: string; fileName: string }>
+        | Set<string>
+        | string[];
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
@@ -375,6 +388,10 @@ export const parserApi = {
             }
           }
         }
+        if (options.projectMediaFiles) {
+          session.accumulatedState.projectMediaFiles =
+            options.projectMediaFiles;
+        }
         if (isFinalChunk) {
           finalizeRoles(session.accumulatedState);
           buildDialogueSearchIndex(session, session.accumulatedState.nodes);
@@ -395,6 +412,7 @@ export const parserApi = {
           deferDetails: options.deferDetails,
           parserVariant: options.parserVariant,
           screenActionRules: options.screenActionRules,
+          projectMediaFiles: options.projectMediaFiles,
           onProgress: ({ doneFiles, totalFiles, currentFile }) => {
             if (cancelledRequests.has(requestId)) {
               throw new Error("Parsing cancelled");
@@ -434,6 +452,10 @@ export const parserApi = {
         }
         if (result.assets) {
           session.accumulatedState.assets = [...result.assets];
+        }
+        if (options.projectMediaFiles) {
+          session.accumulatedState.projectMediaFiles =
+            options.projectMediaFiles;
         }
         if (result.diagnostics) {
           session.accumulatedState.diagnostics = [...result.diagnostics];
@@ -484,6 +506,7 @@ export const parserApi = {
         globalPersistentVariables?: Array<[string, VariableValue]>;
         globalScreens?: string[];
         globalCharacters?: string[];
+        imageDefinitions?: Array<[string, string]>;
       };
     },
   ): Promise<InternalChunkResult> {
@@ -549,6 +572,14 @@ export const parserApi = {
         if (options.prePassState.globalCharacters) {
           for (const c of options.prePassState.globalCharacters) {
             chunkState.globalCharacters.add(c);
+          }
+        }
+        if (options.prePassState.imageDefinitions) {
+          if (!chunkState.imageDefinitions) {
+            chunkState.imageDefinitions = new Map();
+          }
+          for (const [k, v] of options.prePassState.imageDefinitions) {
+            chunkState.imageDefinitions.set(k, v);
           }
         }
       }
@@ -618,6 +649,9 @@ export const parserApi = {
         ),
         nodeMutations: chunkState.nodeMutations
           ? Array.from(chunkState.nodeMutations.entries())
+          : undefined,
+        imageDefinitions: chunkState.imageDefinitions
+          ? Array.from(chunkState.imageDefinitions.entries())
           : undefined,
         assets: chunkState.assets,
       };
@@ -771,7 +805,12 @@ export const parserApi = {
       globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
       globalLabelVariableListTargets?: Array<[string, string[]]>;
       nodeMutations?: Array<[string, VariableMutation[]]>;
+      imageDefinitions?: Array<[string, string]>;
       assets?: FlowAsset[];
+      projectMediaFiles?:
+        | Array<{ relativePath: string; fileName: string }>
+        | Set<string>
+        | string[];
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
@@ -972,6 +1011,18 @@ export const parserApi = {
           }
           session.accumulatedState.assets.push(...options.assets);
         }
+        if (options.imageDefinitions) {
+          if (!session.accumulatedState.imageDefinitions) {
+            session.accumulatedState.imageDefinitions = new Map();
+          }
+          for (const [k, v] of options.imageDefinitions) {
+            session.accumulatedState.imageDefinitions.set(k, v);
+          }
+        }
+        if (options.projectMediaFiles) {
+          session.accumulatedState.projectMediaFiles =
+            options.projectMediaFiles;
+        }
 
         if (isFinalChunk) {
           finalizeRoles(session.accumulatedState);
@@ -1099,6 +1150,12 @@ export const parserApi = {
         }
         if (options.assets) {
           state.assets = [...options.assets];
+        }
+        if (options.imageDefinitions) {
+          state.imageDefinitions = new Map(options.imageDefinitions);
+        }
+        if (options.projectMediaFiles) {
+          state.projectMediaFiles = options.projectMediaFiles;
         }
 
         session.accumulatedState = state;

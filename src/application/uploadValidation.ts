@@ -5,8 +5,26 @@ import {
 } from "../config/uploadLimits.ts";
 import type { UploadedFile } from "./uploadTypes.ts";
 
+const MEDIA_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".avif",
+  ".gif",
+  ".svg",
+  ".ogg",
+  ".opus",
+  ".mp3",
+  ".wav",
+  ".flac",
+  ".webm",
+  ".mp4",
+]);
+
 export interface UploadValidationResult {
   rpyFiles: UploadedFile[];
+  mediaFiles?: Array<{ relativePath: string; fileName: string; size?: number }>;
   errorMessage: string | null;
 }
 
@@ -18,26 +36,53 @@ export function validateRpyUpload(
   }
 
   const rpyFiles: UploadedFile[] = [];
+  const mediaFiles: Array<
+    { relativePath: string; fileName: string; size?: number }
+  > = [];
+
+  const checkFile = (
+    f: { name: string; size?: number; webkitRelativePath?: string },
+  ) => {
+    const lower = f.name.toLowerCase();
+    const dotIdx = lower.lastIndexOf(".");
+    const ext = dotIdx !== -1 ? lower.slice(dotIdx) : "";
+    if (MEDIA_EXTENSIONS.has(ext)) {
+      mediaFiles.push({
+        relativePath: f.webkitRelativePath
+          ? f.webkitRelativePath.replace(/\\/g, "/")
+          : f.name,
+        fileName: f.name,
+        size: f.size,
+      });
+    }
+  };
+
   if (Array.isArray(files)) {
     for (const file of files) {
       if (file.name.toLowerCase().endsWith(".rpy")) {
         rpyFiles.push(file);
+      } else {
+        checkFile(file);
       }
     }
   } else {
     const fileList = files as FileList;
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList.item(i);
-      if (file && file.name.toLowerCase().endsWith(".rpy")) {
-        rpyFiles.push({
-          name: file.name,
-          size: file.size,
-          webkitRelativePath: file.webkitRelativePath
-            ? file.webkitRelativePath.replace(/\\/g, "/")
-            : undefined,
-          text: () => file.text(),
-          file,
-        });
+      if (file) {
+        if (file.name.toLowerCase().endsWith(".rpy")) {
+          rpyFiles.push({
+            name: file.name,
+            size: file.size,
+            webkitRelativePath: file.webkitRelativePath
+              ? file.webkitRelativePath.replace(/\\/g, "/")
+              : undefined,
+            text: () => file.text(),
+            file,
+          });
+        } else {
+          checkFile(file);
+        }
       }
     }
   }
@@ -77,5 +122,5 @@ export function validateRpyUpload(
     };
   }
 
-  return { rpyFiles, errorMessage: null };
+  return { rpyFiles, mediaFiles, errorMessage: null };
 }

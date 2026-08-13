@@ -34,6 +34,7 @@ export function createGraphState(): ParseGraphState {
     globalLabelVariableListTargets: new Map<string, string[]>(),
     globalScreens: new Set<string>(),
     globalCharacters: new Set<string>(),
+    imageDefinitions: new Map<string, string>(),
     diagnostics: [],
     diagnosticIds: new Set<string>(),
     dynamicJumpRules: [],

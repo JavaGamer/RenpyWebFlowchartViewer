@@ -537,7 +537,6 @@ export function evaluatePythonAstExpression(
 
       // Handle BinaryExpression
       if (nodeKind === "BinaryExpression") {
-        let op = extractNodeText(trimmed, node);
         let leftNode: SyntaxNode | null = null;
         let rightNode: SyntaxNode | null = null;
 
@@ -559,7 +558,7 @@ export function evaluatePythonAstExpression(
         }
 
         if (leftNode && rightNode) {
-          op = trimmed.slice(leftNode.to, rightNode.from).trim();
+          const op = trimmed.slice(leftNode.to, rightNode.from).trim();
 
           const lRes = evalNode(leftNode);
           const rRes = evalNode(rightNode);
