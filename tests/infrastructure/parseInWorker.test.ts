@@ -625,7 +625,11 @@ describe("parseRenpyFilesInWorker", () => {
 
     const promise = parseRenpyFilesInWorker({
       files: Array.from({ length: 20 }, (_, idx) => ({
-        name: idx === 0 ? "a.rpy" : idx === 10 ? "b.rpy" : `file${idx}.rpy`,
+        name: idx === 0
+          ? "a_chunk1.rpy"
+          : idx === 10
+          ? "z_chunk2.rpy"
+          : `file_${idx.toString().padStart(2, "0")}.rpy`,
         content: `label label${idx}:`,
       })),
       maxParallelFiles: 2,
@@ -638,8 +642,8 @@ describe("parseRenpyFilesInWorker", () => {
       (m as { type: string }).type === "parse_chunk"
     );
     expect(parseChunks.length).toBe(2);
-    expect(parseChunks[0]!.files[0]!.name).toBe("a.rpy");
-    expect(parseChunks[1]!.files[0]!.name).toBe("b.rpy");
+    expect(parseChunks[0]!.files[0]!.name).toBe("a_chunk1.rpy");
+    expect(parseChunks[1]!.files[0]!.name).toBe("file_11.rpy");
 
     emitWorkerMessage({
       protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,

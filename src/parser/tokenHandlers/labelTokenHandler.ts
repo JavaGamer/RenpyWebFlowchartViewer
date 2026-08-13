@@ -1,0 +1,166 @@
+import type { ParseGraphState, ParseScanState } from "../pipelineTypes.ts";
+import {
+  addEdge,
+  addIncoming,
+  addNode,
+  addOutgoing,
+} from "../graphMutations.ts";
+import { addParseDiagnostic } from "../diagnostics.ts";
+import { menuHasFallthrough } from "../handlers/menuHandler.ts";
+import { parseLabelParameters } from "../handlers/jumpCallHandler.ts";
+import type { SourceLocation } from "../../domain/index.ts";
+
+export function handleKwLabelToken(
+  scanState: ParseScanState,
+  sourceLocation?: SourceLocation,
+): void {
+  scanState.waitForLabelName = true;
+  scanState.currentLabelStartLoc = sourceLocation ?? null;
+  scanState.pendingMenuFallthroughIds = [];
+  for (const openMenu of scanState.menuStack) {
+    if (menuHasFallthrough(openMenu)) {
+      scanState.pendingMenuFallthroughIds.push(openMenu.id);
+    }
+  }
+  scanState.menuStack.length = 0;
+  scanState.conditionalIndentStack.length = 0;
+  scanState.conditionalDecisionStack.length = 0;
+  scanState.pendingConditionalHeader = null;
+  scanState.waitForJumpTarget = false;
+  scanState.waitForJumpExpressionTarget = false;
+  scanState.waitForCallTarget = false;
+  scanState.waitForMenuNameForId = null;
+}
+
+export function handleLabelNameToken(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  declaredLabelName: string,
+  chapter: string,
+  lineIndent: number,
+  lineText: string,
+  sourceLocation?: SourceLocation,
+): void {
+  let newLabelId = state.labelsByChapter.get(chapter)?.get(declaredLabelName);
+  let definitionCount: number;
+  let canonicalLabelId: string;
+
+  if (newLabelId) {
+    definitionCount = state.labelDefinitionCountByName.get(declaredLabelName) ??
+      1;
+    canonicalLabelId = state.canonicalLabelIdByName.get(declaredLabelName) ??
+      declaredLabelName;
+  } else {
+    definitionCount =
+      (state.labelDefinitionCountByName.get(declaredLabelName) ?? 0) + 1;
+    state.labelDefinitionCountByName.set(declaredLabelName, definitionCount);
+    canonicalLabelId = state.canonicalLabelIdByName.get(declaredLabelName) ??
+      declaredLabelName;
+    state.canonicalLabelIdByName.set(declaredLabelName, canonicalLabelId);
+    newLabelId = definitionCount === 1
+      ? canonicalLabelId
+      : `${canonicalLabelId}__shadow_${definitionCount}`;
+    let chapterLabels = state.labelsByChapter.get(chapter);
+    if (!chapterLabels) {
+      chapterLabels = new Map();
+      state.labelsByChapter.set(chapter, chapterLabels);
+    }
+    chapterLabels.set(declaredLabelName, newLabelId);
+  }
+
+  if (
+    scanState.currentLabelId !== null &&
+    !scanState.labelHasExplicitExit &&
+    scanState.menuStack.length === 0
+  ) {
+    addEdge(state, {
+      id: `seq_${scanState.currentLabelId}__${newLabelId}`,
+      source: scanState.currentLabelId,
+      target: newLabelId,
+      kind: "sequence",
+      label: "next",
+      sourceLocation,
+    });
+    addOutgoing(state, scanState.currentLabelId, "sequence");
+    addIncoming(state, newLabelId, "sequence");
+  }
+
+  scanState.currentLabelId = newLabelId;
+  scanState.currentLabelBaseId = newLabelId;
+  scanState.currentLabelDeclaredName = declaredLabelName;
+  scanState.currentLabelSceneIndex = 1;
+  scanState.currentLabelHasSplit = false;
+  scanState.currentLabelHasContentSinceSceneBoundary = false;
+  scanState.currentLabelIndent = lineIndent;
+  scanState.currentSceneDialogueCount = 0;
+  scanState.labelVariableLiteralTargets.clear();
+  scanState.labelVariableDictTargets.clear();
+  scanState.labelVariableListTargets.clear();
+
+  for (const menuId of scanState.pendingMenuFallthroughIds) {
+    addEdge(state, {
+      id: `seq_${menuId}__${newLabelId}`,
+      source: menuId,
+      target: newLabelId,
+      kind: "sequence",
+      label: "next",
+      sourceLocation,
+    });
+    addOutgoing(state, menuId, "sequence");
+    addIncoming(state, newLabelId, "sequence");
+  }
+  scanState.pendingMenuFallthroughIds = [];
+  state.allLabelIds.add(newLabelId);
+  scanState.labelHasExplicitExit = false;
+  scanState.waitForLabelName = false;
+
+  const labelSourceLocation = scanState.currentLabelStartLoc && sourceLocation
+    ? {
+      file: sourceLocation.file,
+      start: scanState.currentLabelStartLoc.start,
+      end: sourceLocation.end,
+    }
+    : sourceLocation;
+
+  const parameters = parseLabelParameters(lineText);
+
+  addNode(state, {
+    id: newLabelId,
+    type: "LABEL",
+    label: declaredLabelName,
+    dialogueCount: 0,
+    chapter,
+    isShadowed: definitionCount > 1,
+    shadowOfId: definitionCount > 1 ? canonicalLabelId : undefined,
+    sourceLocation: labelSourceLocation,
+    parameters,
+  });
+
+  if (definitionCount > 1 && canonicalLabelId) {
+    const diagnosticId =
+      `shadowed_label|${chapter}|${declaredLabelName}|${newLabelId}|${canonicalLabelId}`;
+    addParseDiagnostic(
+      state,
+      {
+        code: "shadowed_label",
+        severity: "warning",
+        location: {
+          chapter,
+          construct: "label",
+          sourceId: newLabelId,
+          targetId: canonicalLabelId,
+          sourceLocation: labelSourceLocation,
+        },
+        context: {
+          category: "shadowed_label",
+          detail: declaredLabelName,
+        },
+        message:
+          `Label "${declaredLabelName}" is a duplicate definition and is shadowed by canonical label "${canonicalLabelId}".`,
+        recoveryAction:
+          "Rename duplicate labels or keep one canonical definition.",
+      },
+      diagnosticId,
+    );
+  }
+}

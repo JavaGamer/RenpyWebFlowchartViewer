@@ -66,7 +66,7 @@ export {
   UploadValidationError,
 } from "./errors.ts";
 
-export { compareDeterministicStrings } from "./sortUtils.ts";
+export { compareDeterministicStrings, compareFiles } from "./sortUtils.ts";
 
 export { createPerfTracker } from "./perf.ts";
 export type { PerfEvent, PerfTrackerOptions } from "./perf.ts";

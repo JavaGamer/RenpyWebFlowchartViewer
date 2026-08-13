@@ -1,7 +1,9 @@
 import { expose } from "comlink";
 import {
+  createFileGraphFragment,
   createGraphState,
   extractNodeDetailsFromTokens,
+  type FileGraphFragment,
   finalizeRoles,
   type NodeDetailsPayload,
   type ParseDiagnostic,
@@ -23,7 +25,7 @@ import {
 } from "../config/searchConfig.ts";
 import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
-import type { FlowEdge, FlowNode } from "../domain/index.ts";
+import { compareFiles, type FlowEdge, type FlowNode } from "../domain/index.ts";
 import type {
   DialogueSearchResult,
   ParseDiagnosticPayload,
@@ -212,10 +214,21 @@ export interface InternalChunkResult {
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
   pendingCallReturns: PendingCallReturn[];
+  hasReturnInLabel?: string[];
   hasReliableReturnInLabel: string[];
+  calledLabels?: string[];
+  calledFromMenuOptionTargets?: string[];
   globalScreens: string[];
+  globalCharacters?: string[];
   labelDefinitionCount: Array<[string, number]>;
   canonicalLabelIds: Array<[string, string]>;
+  initVariables?: Array<[string, InitVariableDescriptor]>;
+  globalPersistentVariables?: Array<[string, VariableValue]>;
+  globalLabelVariableLiteralTargets?: Array<[string, string]>;
+  globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
+  globalLabelVariableListTargets?: Array<[string, string[]]>;
+  nodeMutations?: Array<[string, VariableMutation[]]>;
+  assets?: FlowAsset[];
 }
 
 export const parserApi = {
@@ -250,6 +263,9 @@ export const parserApi = {
     let pendingProgress: ProgressPayload | null = null;
 
     // Decode files if they are in Uint8Array format
+    // Sort files deterministically
+    files.sort(compareFiles);
+
     for (const file of files) {
       if (file.content instanceof Uint8Array) {
         file.content = new TextDecoder("utf-8").decode(file.content);
@@ -406,6 +422,22 @@ export const parserApi = {
         session.accumulatedState = createGraphState();
         session.accumulatedState.nodes = result.nodes;
         session.accumulatedState.edges = result.edges;
+        if (result.initVariables) {
+          session.accumulatedState.initVariables = new Map(
+            result.initVariables,
+          );
+        }
+        if (result.nodeMutations) {
+          session.accumulatedState.nodeMutations = new Map(
+            result.nodeMutations,
+          );
+        }
+        if (result.assets) {
+          session.accumulatedState.assets = [...result.assets];
+        }
+        if (result.diagnostics) {
+          session.accumulatedState.diagnostics = [...result.diagnostics];
+        }
         for (const n of result.nodes) {
           session.accumulatedState.nodeMap.set(n.id, n);
         }
@@ -436,11 +468,23 @@ export const parserApi = {
     requestId: number,
     files: ParseInputFile[],
     options: {
+      tokenizedCache?: Map<string, TokenizedCacheEntry>;
       fileCacheKeys?: string[];
       captureDialogueLines?: boolean;
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
+      prePassState?: {
+        globalLabelVariableLiteralTargets?: Array<[string, string]>;
+        globalLabelVariableDictTargets?: Array<
+          [string, Array<[string, string]>]
+        >;
+        globalLabelVariableListTargets?: Array<[string, string[]]>;
+        initVariables?: Array<[string, InitVariableDescriptor]>;
+        globalPersistentVariables?: Array<[string, VariableValue]>;
+        globalScreens?: string[];
+        globalCharacters?: string[];
+      };
     },
   ): Promise<InternalChunkResult> {
     // Decode files if they are in Uint8Array format
@@ -451,6 +495,63 @@ export const parserApi = {
     }
     try {
       const chunkState = createGraphState();
+      if (options.prePassState) {
+        if (options.prePassState.globalLabelVariableLiteralTargets) {
+          for (
+            const [k, v] of options.prePassState
+              .globalLabelVariableLiteralTargets
+          ) {
+            chunkState.globalLabelVariableLiteralTargets.set(k, v);
+          }
+        }
+        if (options.prePassState.globalLabelVariableDictTargets) {
+          for (
+            const [k, entries] of options.prePassState
+              .globalLabelVariableDictTargets
+          ) {
+            chunkState.globalLabelVariableDictTargets.set(
+              k,
+              new Map(entries),
+            );
+          }
+        }
+        if (options.prePassState.globalLabelVariableListTargets) {
+          for (
+            const [k, list] of options.prePassState
+              .globalLabelVariableListTargets
+          ) {
+            chunkState.globalLabelVariableListTargets.set(k, [...list]);
+          }
+        }
+        if (options.prePassState.initVariables) {
+          if (!chunkState.initVariables) chunkState.initVariables = new Map();
+          for (
+            const [vName, desc] of options.prePassState.initVariables
+          ) {
+            chunkState.initVariables.set(vName, desc);
+          }
+        }
+        if (options.prePassState.globalPersistentVariables) {
+          if (!chunkState.globalPersistentVariables) {
+            chunkState.globalPersistentVariables = new Map();
+          }
+          for (
+            const [k, v] of options.prePassState.globalPersistentVariables
+          ) {
+            chunkState.globalPersistentVariables.set(k, v);
+          }
+        }
+        if (options.prePassState.globalScreens) {
+          for (const s of options.prePassState.globalScreens) {
+            chunkState.globalScreens.add(s);
+          }
+        }
+        if (options.prePassState.globalCharacters) {
+          for (const c of options.prePassState.globalCharacters) {
+            chunkState.globalCharacters.add(c);
+          }
+        }
+      }
       for (let idx = 0; idx < files.length; idx += 1) {
         if (cancelledRequests.has(requestId)) {
           throw new Error("Chunk parsing cancelled");
@@ -461,7 +562,10 @@ export const parserApi = {
         }
         const tokenized = await tokenizeOneFile(
           files[idx],
-          { tokenizedCache, fileCacheKeys: options.fileCacheKeys },
+          {
+            tokenizedCache: options.tokenizedCache ?? tokenizedCache,
+            fileCacheKeys: options.fileCacheKeys,
+          },
           idx,
         );
         processTokenizedFile(chunkState, tokenized, {
@@ -481,17 +585,84 @@ export const parserApi = {
           ? (chunkState.diagnostics as ParseDiagnosticPayload[])
           : undefined,
         pendingCallReturns: chunkState.pendingCallReturns,
+        hasReturnInLabel: Array.from(chunkState.hasReturnInLabel),
         hasReliableReturnInLabel: Array.from(
           chunkState.hasReliableReturnInLabel,
         ),
+        calledLabels: Array.from(chunkState.calledLabels),
+        calledFromMenuOptionTargets: Array.from(
+          chunkState.calledFromMenuOptionTargets,
+        ),
         globalScreens: Array.from(chunkState.globalScreens),
+        globalCharacters: Array.from(chunkState.globalCharacters),
         labelDefinitionCount: Array.from(
           chunkState.labelDefinitionCountByName.entries(),
         ),
         canonicalLabelIds: Array.from(
           chunkState.canonicalLabelIdByName.entries(),
         ),
+        initVariables: chunkState.initVariables
+          ? Array.from(chunkState.initVariables.entries())
+          : undefined,
+        globalPersistentVariables: chunkState.globalPersistentVariables
+          ? Array.from(chunkState.globalPersistentVariables.entries())
+          : undefined,
+        globalLabelVariableLiteralTargets: Array.from(
+          chunkState.globalLabelVariableLiteralTargets.entries(),
+        ),
+        globalLabelVariableDictTargets: Array.from(
+          chunkState.globalLabelVariableDictTargets.entries(),
+        ).map(([k, v]) => [k, Array.from(v.entries())]),
+        globalLabelVariableListTargets: Array.from(
+          chunkState.globalLabelVariableListTargets.entries(),
+        ),
+        nodeMutations: chunkState.nodeMutations
+          ? Array.from(chunkState.nodeMutations.entries())
+          : undefined,
+        assets: chunkState.assets,
       };
+    } finally {
+      cancelledRequests.delete(requestId);
+    }
+  },
+
+  async parseFileFragment(
+    requestId: number,
+    file: ParseInputFile,
+    options: {
+      fileCacheKey?: string;
+      captureDialogueLines?: boolean;
+      deferDetails?: boolean;
+      parserVariant?: ParserVariant;
+      screenActionRules?: ScreenActionRule[];
+    },
+    fileIndex: number = 0,
+  ): Promise<FileGraphFragment> {
+    if (file.content instanceof Uint8Array) {
+      file.content = new TextDecoder("utf-8").decode(file.content);
+    }
+    try {
+      if (cancelledRequests.has(requestId)) {
+        throw new Error("File fragment parsing cancelled");
+      }
+      const tokenized = await tokenizeOneFile(
+        file,
+        {
+          tokenizedCache,
+          fileCacheKeys: options.fileCacheKey
+            ? [options.fileCacheKey]
+            : undefined,
+        },
+        fileIndex,
+      );
+      const state = createGraphState();
+      processTokenizedFile(state, tokenized, {
+        captureDialogueLines: options.captureDialogueLines !== false,
+        deferDetails: options.deferDetails,
+        parserVariant: options.parserVariant,
+        screenActionRules: options.screenActionRules,
+      });
+      return createFileGraphFragment(state, file, fileIndex);
     } finally {
       cancelledRequests.delete(requestId);
     }
@@ -586,10 +757,21 @@ export const parserApi = {
       edges: FlowEdge[];
       diagnostics?: ParseDiagnosticPayload[];
       pendingCallReturns: PendingCallReturn[];
+      hasReturnInLabel?: string[];
       hasReliableReturnInLabel: string[];
+      calledLabels?: string[];
+      calledFromMenuOptionTargets?: string[];
       globalScreens: string[];
+      globalCharacters?: string[];
       labelDefinitionCount: Array<[string, number]>;
       canonicalLabelIds: Array<[string, string]>;
+      initVariables?: Array<[string, InitVariableDescriptor]>;
+      globalPersistentVariables?: Array<[string, VariableValue]>;
+      globalLabelVariableLiteralTargets?: Array<[string, string]>;
+      globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
+      globalLabelVariableListTargets?: Array<[string, string[]]>;
+      nodeMutations?: Array<[string, VariableMutation[]]>;
+      assets?: FlowAsset[];
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
@@ -632,9 +814,28 @@ export const parserApi = {
           session.dialogueSearchMiniSearch = null;
         }
 
+        if (!session.accumulatedState.labelsByChapter) {
+          session.accumulatedState.labelsByChapter = new Map();
+        }
         for (const node of options.nodes) {
           session.accumulatedState.nodes.push(node);
           session.accumulatedState.nodeMap.set(node.id, node);
+          if (node.type === "LABEL" && node.chapter) {
+            let chapterMap = session.accumulatedState.labelsByChapter.get(
+              node.chapter,
+            );
+            if (!chapterMap) {
+              chapterMap = new Map();
+              session.accumulatedState.labelsByChapter.set(
+                node.chapter,
+                chapterMap,
+              );
+            }
+            const rawLabel = node.label || node.id.split("__shadow_")[0]!;
+            if (!chapterMap.has(rawLabel)) {
+              chapterMap.set(rawLabel, node.id);
+            }
+          }
         }
         for (const edge of options.edges) {
           session.accumulatedState.edges.push(edge);
@@ -648,11 +849,31 @@ export const parserApi = {
         session.accumulatedState.pendingCallReturns.push(
           ...(options.pendingCallReturns as PendingCallReturn[]),
         );
+        if (options.hasReturnInLabel) {
+          for (const label of options.hasReturnInLabel) {
+            session.accumulatedState.hasReturnInLabel.add(label);
+          }
+        }
         for (const label of options.hasReliableReturnInLabel) {
           session.accumulatedState.hasReliableReturnInLabel.add(label);
         }
+        if (options.calledLabels) {
+          for (const label of options.calledLabels) {
+            session.accumulatedState.calledLabels.add(label);
+          }
+        }
+        if (options.calledFromMenuOptionTargets) {
+          for (const label of options.calledFromMenuOptionTargets) {
+            session.accumulatedState.calledFromMenuOptionTargets.add(label);
+          }
+        }
         for (const screen of options.globalScreens) {
           session.accumulatedState.globalScreens.add(screen);
+        }
+        if (options.globalCharacters) {
+          for (const c of options.globalCharacters) {
+            session.accumulatedState.globalCharacters.add(c);
+          }
         }
         for (const [name, count] of options.labelDefinitionCount) {
           session.accumulatedState.labelDefinitionCountByName.set(
@@ -664,6 +885,92 @@ export const parserApi = {
         }
         for (const [name, id] of options.canonicalLabelIds) {
           session.accumulatedState.canonicalLabelIdByName.set(name, id);
+        }
+
+        if (options.nodeMutations) {
+          if (!session.accumulatedState.nodeMutations) {
+            session.accumulatedState.nodeMutations = new Map();
+          }
+          for (const [nId, muts] of options.nodeMutations) {
+            const existing = session.accumulatedState.nodeMutations.get(nId) ??
+              [];
+            session.accumulatedState.nodeMutations.set(nId, [
+              ...existing,
+              ...muts,
+            ]);
+          }
+        }
+        if (options.initVariables) {
+          if (!session.accumulatedState.initVariables) {
+            session.accumulatedState.initVariables = new Map();
+          }
+          for (const [vName, desc] of options.initVariables) {
+            const existing = session.accumulatedState.initVariables.get(vName);
+            let shouldOverwrite: boolean;
+            if (!existing) {
+              shouldOverwrite = true;
+            } else if (existing.kind === "define" && desc.kind === "default") {
+              shouldOverwrite = false;
+            } else if (desc.kind === "define" && existing.kind === "default") {
+              shouldOverwrite = true;
+            } else if (desc.kind === "default" && existing.kind === "default") {
+              shouldOverwrite = desc.priority > existing.priority;
+            } else {
+              shouldOverwrite = desc.priority >= existing.priority;
+            }
+            if (shouldOverwrite) {
+              session.accumulatedState.initVariables.set(vName, desc);
+            }
+          }
+        }
+        if (options.globalPersistentVariables) {
+          if (!session.accumulatedState.globalPersistentVariables) {
+            session.accumulatedState.globalPersistentVariables = new Map();
+          }
+          for (const [k, v] of options.globalPersistentVariables) {
+            session.accumulatedState.globalPersistentVariables.set(k, v);
+          }
+        }
+        if (options.globalLabelVariableLiteralTargets) {
+          for (const [k, v] of options.globalLabelVariableLiteralTargets) {
+            session.accumulatedState.globalLabelVariableLiteralTargets.set(
+              k,
+              v,
+            );
+          }
+        }
+        if (options.globalLabelVariableDictTargets) {
+          for (const [k, entries] of options.globalLabelVariableDictTargets) {
+            let existingDict = session.accumulatedState
+              .globalLabelVariableDictTargets.get(k);
+            if (!existingDict) {
+              existingDict = new Map();
+              session.accumulatedState.globalLabelVariableDictTargets.set(
+                k,
+                existingDict,
+              );
+            }
+            for (const [entryK, entryV] of entries) {
+              existingDict.set(entryK, entryV);
+            }
+          }
+        }
+        if (options.globalLabelVariableListTargets) {
+          for (const [k, list] of options.globalLabelVariableListTargets) {
+            const existingList =
+              session.accumulatedState.globalLabelVariableListTargets.get(k) ??
+                [];
+            session.accumulatedState.globalLabelVariableListTargets.set(
+              k,
+              Array.from(new Set([...existingList, ...list])),
+            );
+          }
+        }
+        if (options.assets) {
+          if (!session.accumulatedState.assets) {
+            session.accumulatedState.assets = [];
+          }
+          session.accumulatedState.assets.push(...options.assets);
         }
 
         if (isFinalChunk) {
@@ -686,21 +993,114 @@ export const parserApi = {
         const state = createGraphState();
         state.nodes = options.nodes;
         state.edges = options.edges;
-        for (const n of options.nodes) state.nodeMap.set(n.id, n);
+        state.labelsByChapter = new Map();
+        for (const n of options.nodes) {
+          state.nodeMap.set(n.id, n);
+          if (n.type === "LABEL" && n.chapter) {
+            let chapterMap = state.labelsByChapter.get(n.chapter);
+            if (!chapterMap) {
+              chapterMap = new Map();
+              state.labelsByChapter.set(n.chapter, chapterMap);
+            }
+            const rawLabel = n.label || n.id.split("__shadow_")[0]!;
+            if (!chapterMap.has(rawLabel)) {
+              chapterMap.set(rawLabel, n.id);
+            }
+          }
+        }
         for (const e of options.edges) state.edgeMap.set(e.id, e);
         state.diagnostics = options.diagnostics
           ? (options.diagnostics as ParseDiagnostic[])
           : [];
         state.pendingCallReturns = options
           .pendingCallReturns as PendingCallReturn[];
+        if (options.hasReturnInLabel) {
+          state.hasReturnInLabel = new Set(options.hasReturnInLabel);
+        }
         state.hasReliableReturnInLabel = new Set(
           options.hasReliableReturnInLabel,
         );
+        if (options.calledLabels) {
+          state.calledLabels = new Set(options.calledLabels);
+        }
+        if (options.calledFromMenuOptionTargets) {
+          state.calledFromMenuOptionTargets = new Set(
+            options.calledFromMenuOptionTargets,
+          );
+        }
         state.globalScreens = new Set(options.globalScreens);
+        if (options.globalCharacters) {
+          state.globalCharacters = new Set(options.globalCharacters);
+        }
         state.labelDefinitionCountByName = new Map(
           options.labelDefinitionCount,
         );
         state.canonicalLabelIdByName = new Map(options.canonicalLabelIds);
+
+        if (options.nodeMutations) {
+          state.nodeMutations = new Map();
+          for (const [nId, muts] of options.nodeMutations) {
+            const existing = state.nodeMutations.get(nId) ?? [];
+            state.nodeMutations.set(nId, [...existing, ...muts]);
+          }
+        }
+        if (options.initVariables) {
+          state.initVariables = new Map();
+          for (const [vName, desc] of options.initVariables) {
+            const existing = state.initVariables.get(vName);
+            let shouldOverwrite: boolean;
+            if (!existing) {
+              shouldOverwrite = true;
+            } else if (existing.kind === "define" && desc.kind === "default") {
+              shouldOverwrite = false;
+            } else if (desc.kind === "define" && existing.kind === "default") {
+              shouldOverwrite = true;
+            } else if (desc.kind === "default" && existing.kind === "default") {
+              shouldOverwrite = desc.priority > existing.priority;
+            } else {
+              shouldOverwrite = desc.priority >= existing.priority;
+            }
+            if (shouldOverwrite) {
+              state.initVariables.set(vName, desc);
+            }
+          }
+        }
+        if (options.globalPersistentVariables) {
+          state.globalPersistentVariables = new Map(
+            options.globalPersistentVariables,
+          );
+        }
+        if (options.globalLabelVariableLiteralTargets) {
+          for (const [k, v] of options.globalLabelVariableLiteralTargets) {
+            state.globalLabelVariableLiteralTargets.set(k, v);
+          }
+        }
+        if (options.globalLabelVariableDictTargets) {
+          for (const [k, entries] of options.globalLabelVariableDictTargets) {
+            let existingDict = state.globalLabelVariableDictTargets.get(k);
+            if (!existingDict) {
+              existingDict = new Map();
+              state.globalLabelVariableDictTargets.set(k, existingDict);
+            }
+            for (const [entryK, entryV] of entries) {
+              existingDict.set(entryK, entryV);
+            }
+          }
+        }
+        if (options.globalLabelVariableListTargets) {
+          for (const [k, list] of options.globalLabelVariableListTargets) {
+            const existingList = state.globalLabelVariableListTargets.get(k) ??
+              [];
+            state.globalLabelVariableListTargets.set(
+              k,
+              Array.from(new Set([...existingList, ...list])),
+            );
+          }
+        }
+        if (options.assets) {
+          state.assets = [...options.assets];
+        }
+
         session.accumulatedState = state;
 
         finalizeRoles(state);

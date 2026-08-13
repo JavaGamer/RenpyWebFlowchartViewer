@@ -1,11 +1,12 @@
 import { proxy, releaseProxy, type Remote, transfer, wrap } from "comlink";
 import MiniSearch from "minisearch";
-import type { FlowNode } from "../domain/index.ts";
+import { compareFiles, type FlowNode } from "../domain/index.ts";
 import {
   createGraphState,
   extractNodeDetailsFromTokens,
   finalizeRoles,
   type ParseInputFile,
+  preParseInitialization,
   processTokenizedFile,
   type TextDocument,
   tokenizeOneFile,
@@ -285,6 +286,9 @@ async function parseRenpyFilesFallback(
   }
 
   const currentFallback = getActiveFallbackState(resetActiveGraph);
+
+  // Sort files deterministically
+  files.sort(compareFiles);
 
   // Convert any Uint8Array contents to strings
   for (const file of files) {
@@ -583,10 +587,21 @@ export interface ParseChunkResult {
 
 interface InternalChunkResult extends ParseChunkResult {
   pendingCallReturns: PendingCallReturn[];
+  hasReturnInLabel?: string[];
   hasReliableReturnInLabel: string[];
+  calledLabels?: string[];
+  calledFromMenuOptionTargets?: string[];
   globalScreens: string[];
+  globalCharacters?: string[];
   labelDefinitionCount: Array<[string, number]>;
   canonicalLabelIds: Array<[string, string]>;
+  initVariables?: Array<[string, InitVariableDescriptor]>;
+  globalPersistentVariables?: Array<[string, VariableValue]>;
+  globalLabelVariableLiteralTargets?: Array<[string, string]>;
+  globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
+  globalLabelVariableListTargets?: Array<[string, string[]]>;
+  nodeMutations?: Array<[string, VariableMutation[]]>;
+  assets?: FlowAsset[];
 }
 
 export function parseChunksInParallel({
@@ -607,6 +622,9 @@ export function parseChunksInParallel({
   if (signal?.aborted) {
     return Promise.reject(new DOMException("Parsing cancelled", "AbortError"));
   }
+
+  // Sort files deterministically
+  files.sort(compareFiles);
 
   for (const file of files) {
     if (file.content instanceof Uint8Array) {
@@ -633,6 +651,9 @@ export function parseChunksInParallel({
     if (signal?.aborted) {
       throw new DOMException("Parsing cancelled", "AbortError");
     }
+
+    const prePassStateGraph = createGraphState();
+    preParseInitialization(files, prePassStateGraph);
 
     const chunkPromises = chunks.map((chunkFiles, chunkIdx) => {
       const workerIdx = useWorkerIndices[chunkIdx % workerCount]!;
@@ -678,6 +699,28 @@ export function parseChunksInParallel({
             deferDetails,
             parserVariant,
             screenActionRules,
+            prePassState: {
+              globalLabelVariableLiteralTargets: Array.from(
+                prePassStateGraph.globalLabelVariableLiteralTargets.entries(),
+              ),
+              globalLabelVariableDictTargets: Array.from(
+                prePassStateGraph.globalLabelVariableDictTargets.entries(),
+              ).map(([k, v]) => [k, Array.from(v.entries())]),
+              globalLabelVariableListTargets: Array.from(
+                prePassStateGraph.globalLabelVariableListTargets.entries(),
+              ),
+              initVariables: prePassStateGraph.initVariables
+                ? Array.from(prePassStateGraph.initVariables.entries())
+                : undefined,
+              globalPersistentVariables:
+                prePassStateGraph.globalPersistentVariables
+                  ? Array.from(
+                    prePassStateGraph.globalPersistentVariables.entries(),
+                  )
+                  : undefined,
+              globalScreens: Array.from(prePassStateGraph.globalScreens),
+              globalCharacters: Array.from(prePassStateGraph.globalCharacters),
+            },
           })
             .then((chunkResult) => {
               signal?.removeEventListener("abort", onAbort);
@@ -719,54 +762,126 @@ export function parseChunksInParallel({
       }
 
       const seenLabelCounts = new Map<string, number>();
+      const seenMenuCounts = new Map<string, number>();
+      const seenDecisionCounts = new Map<string, number>();
       const chunkRemapMaps: Map<string, string>[] = [];
+      const chunkEdgeRemapMaps: Map<string, string>[] = [];
       const mergedNodes: ParseWorkerClientResult["nodes"] = [];
       const mergedEdges: ParseWorkerClientResult["edges"] = [];
 
       const canonicalLabelNames = new Set<string>();
       for (const r of results) {
-        if (r.canonicalLabelIds) {
-          for (const [name] of r.canonicalLabelIds) {
-            canonicalLabelNames.add(name);
-          }
+        for (const [name] of r.canonicalLabelIds) {
+          canonicalLabelNames.add(name);
         }
       }
 
       for (const r of results) {
         const idRemapForChunk = new Map<string, string>();
 
+        // First pass over chunk nodes: main labels, menus, decisions
         for (const node of r.nodes) {
-          if (
-            node.type === "LABEL" || node.type === "MENU" ||
-            node.type === "DECISION"
-          ) {
-            const rawLabel = node.label || node.id;
-            const currentCount = (seenLabelCounts.get(rawLabel) ?? 0) + 1;
-            seenLabelCounts.set(rawLabel, currentCount);
+          if (node.type === "LABEL") {
+            const isSceneSplit = node.id.includes("__scene_");
+            if (!isSceneSplit) {
+              const rawLabel = node.label || node.id.split("__shadow_")[0]!;
+              const currentCount = (seenLabelCounts.get(rawLabel) ?? 0) + 1;
+              seenLabelCounts.set(rawLabel, currentCount);
 
+              const expectedId = currentCount === 1
+                ? rawLabel
+                : `${rawLabel}__shadow_${currentCount}`;
+
+              if (node.id !== expectedId) {
+                idRemapForChunk.set(node.id, expectedId);
+                node.id = expectedId;
+              }
+
+              if (currentCount > 1) {
+                node.isShadowed = true;
+                node.shadowOfId = rawLabel;
+              }
+            }
+          } else if (node.type === "MENU") {
+            const rawId = node.id.split("__dup_")[0]!;
+            const currentCount = (seenMenuCounts.get(rawId) ?? 0) + 1;
+            seenMenuCounts.set(rawId, currentCount);
             const expectedId = currentCount === 1
-              ? rawLabel
-              : `${rawLabel}__dup_${currentCount}`;
+              ? rawId
+              : `${rawId}__dup_${currentCount}`;
             if (node.id !== expectedId) {
               idRemapForChunk.set(node.id, expectedId);
               node.id = expectedId;
             }
+          } else if (node.type === "DECISION") {
+            const rawId = node.id.split("__dup_")[0]!;
+            const currentCount = (seenDecisionCounts.get(rawId) ?? 0) + 1;
+            seenDecisionCounts.set(rawId, currentCount);
+            const expectedId = currentCount === 1
+              ? rawId
+              : `${rawId}__dup_${currentCount}`;
+            if (node.id !== expectedId) {
+              idRemapForChunk.set(node.id, expectedId);
+              node.id = expectedId;
+            }
+            if (node.condition) {
+              node.condition = {
+                ...node.condition,
+                decisionNodeId: node.id,
+              };
+            }
+          }
+        }
+
+        // Second pass over chunk nodes: scene splits
+        for (const node of r.nodes) {
+          if (node.id.includes("__scene_")) {
+            const sceneMatch = /^(.*?)__scene_(\d+)$/.exec(node.id);
+            if (sceneMatch) {
+              const parentId = sceneMatch[1]!;
+              const sceneIndex = sceneMatch[2]!;
+              if (idRemapForChunk.has(parentId)) {
+                const remappedParentId = idRemapForChunk.get(parentId)!;
+                const newSceneId = `${remappedParentId}__scene_${sceneIndex}`;
+                idRemapForChunk.set(node.id, newSceneId);
+                node.id = newSceneId;
+              }
+            }
+          }
+        }
+
+        // Third pass over chunk nodes: update parentLabelId if parent label was remapped, then add node
+        for (const node of r.nodes) {
+          if (node.parentLabelId && idRemapForChunk.has(node.parentLabelId)) {
+            node.parentLabelId = idRemapForChunk.get(node.parentLabelId)!;
           }
           mergedNodes.push(node);
         }
 
+        const edgeIdRemapForChunk = new Map<string, string>();
         for (const edge of r.edges) {
+          const oldEdgeId = edge.id;
+          const oldSource = edge.source;
+          const oldTarget = edge.target;
           let remapped = false;
           if (idRemapForChunk.has(edge.source)) {
             edge.source = idRemapForChunk.get(edge.source)!;
             remapped = true;
           }
-          if (
-            idRemapForChunk.has(edge.target) &&
-            !canonicalLabelNames.has(edge.target)
-          ) {
+          if (idRemapForChunk.has(edge.target)) {
             edge.target = idRemapForChunk.get(edge.target)!;
             remapped = true;
+          }
+          if (edge.condition && edge.condition.decisionNodeId) {
+            const decisionRemapped = idRemapForChunk.get(
+              edge.condition.decisionNodeId,
+            );
+            if (decisionRemapped) {
+              edge.condition = {
+                ...edge.condition,
+                decisionNodeId: decisionRemapped,
+              };
+            }
           }
           if (edge.callContext) {
             const siteRemapped = idRemapForChunk.get(
@@ -785,19 +900,41 @@ export function parseChunksInParallel({
             }
           }
           if (remapped) {
-            edge.id = `${edge.kind}_${edge.source}__${edge.target}`;
+            const oldPrefix = `${
+              edge.kind === "sequence" ? "seq" : edge.kind
+            }_${oldSource}__${oldTarget}`;
+            const newPrefix = `${
+              edge.kind === "sequence" ? "seq" : edge.kind
+            }_${edge.source}__${edge.target}`;
+            if (edge.id.startsWith(oldPrefix)) {
+              edge.id = newPrefix + edge.id.slice(oldPrefix.length);
+            } else {
+              edge.id = newPrefix;
+            }
+            if (edge.callContext) {
+              edge.callContext = {
+                ...edge.callContext,
+                callEdgeId: edge.id,
+              };
+            }
+            edgeIdRemapForChunk.set(oldEdgeId, edge.id);
           }
           mergedEdges.push(edge);
         }
         chunkRemapMaps.push(idRemapForChunk);
+        chunkEdgeRemapMaps.push(edgeIdRemapForChunk);
       }
       const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
       const mergedPendingCallReturns: PendingCallReturn[] = [];
       const mergedHasReliableReturnInLabelSet = new Set<string>();
+      const mergedHasReturnInLabelSet = new Set<string>();
+      const mergedCalledLabelsSet = new Set<string>();
+      const mergedCalledFromMenuOptionTargetsSet = new Set<string>();
 
       for (let chunkIdx = 0; chunkIdx < results.length; chunkIdx += 1) {
         const r = results[chunkIdx]!;
         const remap = chunkRemapMaps[chunkIdx]!;
+        const edgeRemap = chunkEdgeRemapMaps[chunkIdx]!;
 
         if (r.pendingCallReturns) {
           for (const pcr of r.pendingCallReturns) {
@@ -809,12 +946,22 @@ export function parseChunksInParallel({
             const callContextId = pcr.callContextId
               ? (remap.get(pcr.callContextId) ?? pcr.callContextId)
               : pcr.callContextId;
+            const callEdgeId = edgeRemap.get(pcr.callEdgeId) ??
+              (remap.get(pcr.callEdgeId) ?? pcr.callEdgeId);
             mergedPendingCallReturns.push({
               ...pcr,
               callTargetId,
               returnTargetId,
               callContextId,
+              callEdgeId,
             });
+          }
+        }
+
+        if (r.hasReturnInLabel) {
+          for (const label of r.hasReturnInLabel) {
+            const remapped = remap.get(label) ?? label;
+            mergedHasReturnInLabelSet.add(remapped);
           }
         }
 
@@ -824,7 +971,29 @@ export function parseChunksInParallel({
             mergedHasReliableReturnInLabelSet.add(remapped);
           }
         }
+
+        if (r.calledLabels) {
+          for (const label of r.calledLabels) {
+            const remapped = remap.get(label) ?? label;
+            mergedCalledLabelsSet.add(remapped);
+          }
+        }
+
+        if (r.calledFromMenuOptionTargets) {
+          for (const label of r.calledFromMenuOptionTargets) {
+            const remapped = remap.get(label) ?? label;
+            mergedCalledFromMenuOptionTargetsSet.add(remapped);
+          }
+        }
       }
+      const mergedHasReturnInLabel = Array.from(mergedHasReturnInLabelSet);
+      const mergedCalledLabels = Array.from(mergedCalledLabelsSet);
+      const mergedCalledFromMenuOptionTargets = Array.from(
+        mergedCalledFromMenuOptionTargetsSet,
+      );
+      const mergedGlobalCharacters = Array.from(
+        new Set(results.flatMap((r) => r.globalCharacters ?? [])),
+      );
       const mergedHasReliableReturnInLabel = Array.from(
         mergedHasReliableReturnInLabelSet,
       );
@@ -853,6 +1022,108 @@ export function parseChunksInParallel({
       }
       const mergedCanonicalLabelIds = Array.from(canonicalMap.entries());
 
+      const mergedNodeMutationsMap = new Map<string, VariableMutation[]>();
+      for (let chunkIdx = 0; chunkIdx < results.length; chunkIdx += 1) {
+        const r = results[chunkIdx]!;
+        const remap = chunkRemapMaps[chunkIdx]!;
+        if (r.nodeMutations) {
+          for (const [nodeId, mutations] of r.nodeMutations) {
+            const finalNodeId = remap.get(nodeId) ?? nodeId;
+            const remappedMutations = mutations.map((m) => ({
+              ...m,
+              nodeId: remap.get(m.nodeId) ?? m.nodeId,
+            }));
+            const existing = mergedNodeMutationsMap.get(finalNodeId) ?? [];
+            mergedNodeMutationsMap.set(finalNodeId, [
+              ...existing,
+              ...remappedMutations,
+            ]);
+          }
+        }
+      }
+      const mergedNodeMutations = Array.from(mergedNodeMutationsMap.entries());
+      const mergedInitVariables = results.flatMap((r) => r.initVariables ?? []);
+      const mergedGlobalPersistentVariables = results.flatMap(
+        (r) => r.globalPersistentVariables ?? [],
+      );
+
+      const mergedGlobalLabelVariableLiteralTargetsMap = new Map<
+        string,
+        string
+      >();
+      for (
+        const [k, v] of prePassStateGraph.globalLabelVariableLiteralTargets
+          .entries()
+      ) {
+        mergedGlobalLabelVariableLiteralTargetsMap.set(k, v);
+      }
+      for (const r of results) {
+        if (r.globalLabelVariableLiteralTargets) {
+          for (const [k, v] of r.globalLabelVariableLiteralTargets) {
+            mergedGlobalLabelVariableLiteralTargetsMap.set(k, v);
+          }
+        }
+      }
+      const mergedGlobalLabelVariableLiteralTargets = Array.from(
+        mergedGlobalLabelVariableLiteralTargetsMap.entries(),
+      );
+
+      const mergedGlobalLabelVariableDictTargetsMap = new Map<
+        string,
+        Map<string, string>
+      >();
+      for (
+        const [k, v] of prePassStateGraph.globalLabelVariableDictTargets
+          .entries()
+      ) {
+        mergedGlobalLabelVariableDictTargetsMap.set(k, new Map(v));
+      }
+      for (const r of results) {
+        if (r.globalLabelVariableDictTargets) {
+          for (const [k, entries] of r.globalLabelVariableDictTargets) {
+            let existingDict = mergedGlobalLabelVariableDictTargetsMap.get(k);
+            if (!existingDict) {
+              existingDict = new Map();
+              mergedGlobalLabelVariableDictTargetsMap.set(k, existingDict);
+            }
+            for (const [entryK, entryV] of entries) {
+              existingDict.set(entryK, entryV);
+            }
+          }
+        }
+      }
+      const mergedGlobalLabelVariableDictTargets = Array.from(
+        mergedGlobalLabelVariableDictTargetsMap.entries(),
+      ).map(([k, v]) => [k, Array.from(v.entries())]);
+
+      const mergedGlobalLabelVariableListTargetsMap = new Map<
+        string,
+        string[]
+      >();
+      for (
+        const [k, v] of prePassStateGraph.globalLabelVariableListTargets
+          .entries()
+      ) {
+        mergedGlobalLabelVariableListTargetsMap.set(k, [...v]);
+      }
+      for (const r of results) {
+        if (r.globalLabelVariableListTargets) {
+          for (const [k, list] of r.globalLabelVariableListTargets) {
+            const existingList =
+              mergedGlobalLabelVariableListTargetsMap.get(k) ?? [];
+            mergedGlobalLabelVariableListTargetsMap.set(
+              k,
+              Array.from(new Set([...existingList, ...list])),
+            );
+          }
+        }
+      }
+      const mergedGlobalLabelVariableListTargets = Array.from(
+        mergedGlobalLabelVariableListTargetsMap.entries(),
+      );
+
+      const mergedAssets = results.flatMap((r) => r.assets ?? []);
+
       const finalizeRequestId = ++requestCounter;
 
       return new Promise<ParseChunkResult>((resolve, reject) => {
@@ -879,10 +1150,22 @@ export function parseChunksInParallel({
           edges: mergedEdges,
           diagnostics: mergedDiagnostics,
           pendingCallReturns: mergedPendingCallReturns,
+          hasReturnInLabel: mergedHasReturnInLabel,
           hasReliableReturnInLabel: mergedHasReliableReturnInLabel,
+          calledLabels: mergedCalledLabels,
+          calledFromMenuOptionTargets: mergedCalledFromMenuOptionTargets,
           globalScreens: mergedGlobalScreens,
+          globalCharacters: mergedGlobalCharacters,
           labelDefinitionCount: mergedLabelDefinitionCount,
           canonicalLabelIds: mergedCanonicalLabelIds,
+          initVariables: mergedInitVariables,
+          globalPersistentVariables: mergedGlobalPersistentVariables,
+          globalLabelVariableLiteralTargets:
+            mergedGlobalLabelVariableLiteralTargets,
+          globalLabelVariableDictTargets: mergedGlobalLabelVariableDictTargets,
+          globalLabelVariableListTargets: mergedGlobalLabelVariableListTargets,
+          nodeMutations: mergedNodeMutations,
+          assets: mergedAssets,
           appendToActiveGraph,
           resetActiveGraph,
           isFinalChunk,

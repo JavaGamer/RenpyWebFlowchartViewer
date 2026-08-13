@@ -5,16 +5,10 @@
  */
 
 import pLimit from "p-limit";
-import { compareDeterministicStrings } from "../domain/index.ts";
+import { compareFiles, createPerfTracker } from "../domain/index.ts";
 import { createGraphState } from "./pipelineState.ts";
-import {
-  parseOneFile,
-  processTokenizedFile,
-  tokenizeOneFile,
-} from "./filePipeline.ts";
-import { finalizeRoles } from "./roleFinalization.ts";
 import { preParseInitialization } from "./initMapper.ts";
-import { createPerfTracker } from "../domain/index.ts";
+import { linkGraphFragments, parseFileToFragment } from "./mapReduceLinker.ts";
 import type {
   ParseInputFile,
   ParseOptions,
@@ -34,17 +28,6 @@ function getMaxParallelFiles(
   const normalized = Math.floor(requested);
   if (normalized <= 1) return 1;
   return Math.max(1, Math.min(normalized, fileCount));
-}
-
-function normalizeFileIdentity(value: string): string {
-  return value.replace(/\\/g, "/");
-}
-
-function compareFiles(a: ParseInputFile, b: ParseInputFile): number {
-  const aIdentity = normalizeFileIdentity(a.relativePath ?? a.name);
-  const bIdentity = normalizeFileIdentity(b.relativePath ?? b.name);
-  return compareDeterministicStrings(aIdentity, bIdentity) ||
-    compareDeterministicStrings(a.name, b.name);
 }
 
 export async function parseRenpyFiles(
@@ -82,85 +65,40 @@ export async function parseRenpyFiles(
 
   let lastYieldTime = performance.now();
 
-  if (maxParallelFiles === 1) {
-    for (let idx = 0; idx < orderedFiles.length; idx += 1) {
-      if (options.signal?.aborted) {
-        throw new DOMException("Parsing cancelled", "AbortError");
-      }
-      if (performance.now() - lastYieldTime > 16) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        lastYieldTime = performance.now();
-      }
-      const file = orderedFiles[idx];
-      perf.mark(`file:${idx}`);
-      await parseOneFile(state, file, options, idx);
-      perf.measure(`file:${idx}`, "parse_file_ms", { file: file.name });
-      options.onProgress?.({
-        doneFiles: idx + 1,
-        totalFiles: orderedFiles.length,
-        currentFile: file.relativePath ?? file.name,
-      });
-    }
-  } else {
-    const limit = pLimit(maxParallelFiles);
-    const tokenizedFiles = await Promise.all(
-      orderedFiles.map((file, idx) =>
-        limit(async () => {
-          if (options.signal?.aborted) {
-            throw new DOMException("Parsing cancelled", "AbortError");
-          }
-          if (performance.now() - lastYieldTime > 16) {
-            await new Promise<void>((resolve) => setTimeout(resolve, 0));
-            lastYieldTime = performance.now();
-          }
-          perf.mark(`file:${idx}:tokenize`);
-          const tokenized = await tokenizeOneFile(file, options, idx);
-          perf.measure(`file:${idx}:tokenize`, "parse_file_tokenize_ms", {
-            file: file.name,
-          });
-          return tokenized;
-        })
-      ),
-    );
+  // Pass 1: Parallel Map (Tokenize + Line Token Scan per isolated file)
+  const limit = pLimit(maxParallelFiles);
+  let completedCount = 0;
+  const fragments = await Promise.all(
+    orderedFiles.map((file, idx) =>
+      limit(async () => {
+        if (options.signal?.aborted) {
+          throw new DOMException("Parsing cancelled", "AbortError");
+        }
+        if (performance.now() - lastYieldTime > 16) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          lastYieldTime = performance.now();
+        }
+        perf.mark(`file:${idx}:map`);
+        const fragment = await parseFileToFragment(file, options, state, idx);
+        perf.measure(`file:${idx}:map`, "parse_file_map_ms", {
+          file: file.name,
+        });
 
-    for (let idx = 0; idx < orderedFiles.length; idx += 1) {
-      if (options.signal?.aborted) {
-        throw new DOMException("Parsing cancelled", "AbortError");
-      }
-      if (performance.now() - lastYieldTime > 16) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        lastYieldTime = performance.now();
-      }
-      const tokenized = tokenizedFiles[idx];
-      if (!tokenized) {
-        throw new Error(
-          `Failed to tokenize file at index ${idx} (${
-            orderedFiles[idx]?.name ?? "unknown"
-          })`,
-        );
-      }
-      const file = orderedFiles[idx];
-      perf.mark(`file:${idx}:scan`);
-      processTokenizedFile(state, tokenized, {
-        captureDialogueLines: options.captureDialogueLines,
-        deferDetails: options.deferDetails,
-        parserVariant: options.parserVariant,
-        screenActionRules: options.screenActionRules,
-        sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
-      });
-      perf.measure(`file:${idx}:scan`, "parse_file_scan_ms", {
-        file: file.name,
-      });
-      options.onProgress?.({
-        doneFiles: idx + 1,
-        totalFiles: orderedFiles.length,
-        currentFile: file.relativePath ?? file.name,
-      });
-    }
-  }
+        completedCount += 1;
+        options.onProgress?.({
+          doneFiles: completedCount,
+          totalFiles: orderedFiles.length,
+          currentFile: file.relativePath ?? file.name,
+        });
 
+        return fragment;
+      })
+    ),
+  );
+
+  // Pass 2: Fast Linker (Merge symbol tables, graph fragments, & finalize roles)
   perf.mark("finalize");
-  finalizeRoles(state);
+  linkGraphFragments(fragments, state, options);
   perf.measure("finalize", "finalize_roles_ms", { nodes: state.nodes.length });
   perf.measure("total", "parse_total_ms", {
     files: orderedFiles.length,

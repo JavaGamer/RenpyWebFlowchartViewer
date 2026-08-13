@@ -11,8 +11,15 @@ export {
   type TokenizedFile,
   tokenizeOneFile,
 } from "./filePipeline.ts";
+export { preParseInitialization } from "./initMapper.ts";
 export { finalizeRoles } from "./roleFinalization.ts";
 export { extractNodeDetailsFromTokens } from "./tokenScanStage.ts";
+export {
+  createFileGraphFragment,
+  type FileGraphFragment,
+  linkGraphFragments,
+  parseFileToFragment,
+} from "./mapReduceLinker.ts";
 export type {
   ParseDiagnostic,
   ParseGraphState,

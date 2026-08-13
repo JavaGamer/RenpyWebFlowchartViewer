@@ -63,16 +63,11 @@ export function remapMapKey<T>(
   map.set(toId, value);
 }
 
-/**
- * Re-maps all incoming references, outgoing connections, and label definition indices
- * from an old label ID to a new label ID. Used when a label is split into scenes.
- */
-export function remapLabelIdReferences(
+function remapNodeAndStateCollections(
   state: ParseGraphState,
   fromId: string,
   toId: string,
 ): void {
-  if (fromId === toId) return;
   const node = state.nodeMap.get(fromId);
   if (node) {
     node.id = toId;
@@ -110,7 +105,13 @@ export function remapLabelIdReferences(
     const existing = state.nodeMutations.get(toId) ?? [];
     state.nodeMutations.set(toId, [...existing, ...muts]);
   }
+}
 
+function remapLabelEdgesAndContexts(
+  state: ParseGraphState,
+  fromId: string,
+  toId: string,
+): void {
   for (const pendingCallReturn of state.pendingCallReturns) {
     if (pendingCallReturn.returnTargetId === fromId) {
       pendingCallReturn.returnTargetId = toId;
@@ -136,16 +137,14 @@ export function remapLabelIdReferences(
       stateNode.parentLabelId = toId;
     }
   }
-  for (
-    const [labelName, canonicalLabelId] of state.canonicalLabelIdByName
-      .entries()
-  ) {
-    if (canonicalLabelId === fromId) {
-      state.canonicalLabelIdByName.set(labelName, toId);
-    }
-  }
+}
 
-  // Update state.graph incrementally
+function remapGraphTopology(
+  state: ParseGraphState,
+  fromId: string,
+  toId: string,
+): void {
+  const node = state.nodeMap.get(toId);
   if (state.graph.hasNode(fromId)) {
     const edges = state.graph.edges(fromId);
     const edgeDataMap = new Map<
@@ -204,6 +203,21 @@ export function remapLabelIdReferences(
       state.pendingGraphEdgeIds.delete(edgeId);
     }
   }
+}
+
+/**
+ * Re-maps all incoming references, outgoing connections, and label definition indices
+ * from an old label ID to a new label ID. Used when a label is split into scenes.
+ */
+export function remapLabelIdReferences(
+  state: ParseGraphState,
+  fromId: string,
+  toId: string,
+): void {
+  if (fromId === toId) return;
+  remapNodeAndStateCollections(state, fromId, toId);
+  remapLabelEdgesAndContexts(state, fromId, toId);
+  remapGraphTopology(state, fromId, toId);
 }
 
 export function connectSceneSplitFromSource(

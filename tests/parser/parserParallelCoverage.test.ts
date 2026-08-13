@@ -19,6 +19,11 @@ async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
       nodes: [],
       edges: [],
       diagnostics: [],
+      canonicalLabelIdByName: new Map(),
+      labelDefinitionCountByName: new Map(),
+      labelsByChapter: new Map(),
+      globalScreens: new Set(),
+      globalCharacters: new Set(),
     }),
   }));
 
@@ -27,6 +32,52 @@ async function loadParserWithMocks(filePipelineMocks: FilePipelineMocks) {
     "../../src/parser/roleFinalization",
     () => ({ finalizeRoles: vi.fn() }),
   );
+  vi.doMock("../../src/parser/mapReduceLinker", () => ({
+    parseFileToFragment: async (
+      file: { name: string },
+      options: Record<string, unknown>,
+      state: Record<string, unknown>,
+      idx: number,
+    ) => {
+      const tokenized = await filePipelineMocks.tokenizeOneFile(
+        file,
+        options,
+        idx,
+      );
+      if (!tokenized) {
+        throw new Error(
+          `Failed to tokenize file at index ${idx} (${
+            file?.name ?? "unknown"
+          })`,
+        );
+      }
+      filePipelineMocks.processTokenizedFile(state, tokenized, options);
+      return {
+        filePath: file.name,
+        chapter: file.name.replace(/\.rpy$/, ""),
+        fileIndex: idx,
+        nodes: [],
+        edges: [],
+        diagnostics: [],
+        pendingCallReturns: [],
+        hasReturnInLabel: [],
+        hasReliableReturnInLabel: [],
+        calledLabels: [],
+        calledFromMenuOptionTargets: [],
+        nodeMutations: [],
+        labelDefinitionCount: [],
+        canonicalLabelIds: [],
+        globalScreens: [],
+        globalCharacters: [],
+      };
+    },
+    linkGraphFragments: (
+      _fragments: unknown[],
+      state: Record<string, unknown>,
+    ) => {
+      return state ?? { nodes: [], edges: [] };
+    },
+  }));
 
   return await import("../../src/parser/parser");
 }
@@ -37,13 +88,15 @@ describe("parseRenpyFiles coverage gaps", () => {
     vi.clearAllMocks();
   });
 
-  it("falls back to sequential parsing when maxParallelFiles is non-finite", async () => {
+  it("falls back to single concurrency when maxParallelFiles is non-finite", async () => {
     const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
     const tokenizeOneFile = vi.fn(() =>
       Promise.resolve({
         file: { name: "a.rpy" },
-        tokenState: {},
+        chapter: "a",
+        document: { getText: () => "label a:\n return\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
 
@@ -59,18 +112,24 @@ describe("parseRenpyFiles coverage gaps", () => {
       }),
     ).resolves.toEqual({ nodes: [], edges: [] });
 
-    expect(parseOneFile).toHaveBeenCalledTimes(1);
-    expect(tokenizeOneFile).not.toHaveBeenCalled();
-    expect(processTokenizedFile).not.toHaveBeenCalled();
+    expect(tokenizeOneFile).toHaveBeenCalledTimes(1);
+    expect(processTokenizedFile).toHaveBeenCalledTimes(1);
   });
 
-  it("throws when a tokenized file is missing after parallel tokenization", async () => {
+  it("throws when tokenization fails for a file in Map pass", async () => {
     const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
     const tokenizeOneFile = vi
       .fn()
-      .mockResolvedValueOnce({ file: { name: "a.rpy" }, tokenState: {} })
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({
+        file: { name: "a.rpy" },
+        chapter: "a",
+        document: { getText: () => "label a:\n return\n" },
+        tokenTree: { root: { children: [] } },
+      })
+      .mockRejectedValueOnce(
+        new Error("Failed to tokenize file at index 1 (b.rpy)"),
+      );
 
     const { parseRenpyFiles } = await loadParserWithMocks({
       parseOneFile,
@@ -87,19 +146,17 @@ describe("parseRenpyFiles coverage gaps", () => {
         { maxParallelFiles: 2 },
       ),
     ).rejects.toThrow("Failed to tokenize file at index 1 (b.rpy)");
-
-    expect(parseOneFile).not.toHaveBeenCalled();
-    expect(tokenizeOneFile).toHaveBeenCalledTimes(2);
-    expect(processTokenizedFile).toHaveBeenCalledTimes(1);
   });
 
-  it("uses sequential path when maxParallelFiles is exactly 1", async () => {
+  it("uses single concurrency when maxParallelFiles is exactly 1", async () => {
     const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
     const tokenizeOneFile = vi.fn(() =>
       Promise.resolve({
         file: { name: "a.rpy" },
-        tokenState: {},
+        chapter: "a",
+        document: { getText: () => "label a:\n return\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
 
@@ -115,17 +172,19 @@ describe("parseRenpyFiles coverage gaps", () => {
       }),
     ).resolves.toEqual({ nodes: [], edges: [] });
 
-    expect(parseOneFile).toHaveBeenCalledTimes(1);
-    expect(tokenizeOneFile).not.toHaveBeenCalled();
+    expect(tokenizeOneFile).toHaveBeenCalledTimes(1);
+    expect(processTokenizedFile).toHaveBeenCalledTimes(1);
   });
 
-  it("uses sequential path when maxParallelFiles is 0 (treated as <= 1)", async () => {
+  it("uses single concurrency when maxParallelFiles is 0 (treated as <= 1)", async () => {
     const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
     const tokenizeOneFile = vi.fn(() =>
       Promise.resolve({
         file: { name: "a.rpy" },
-        tokenState: {},
+        chapter: "a",
+        document: { getText: () => "label a:\n return\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
 
@@ -141,19 +200,19 @@ describe("parseRenpyFiles coverage gaps", () => {
       }),
     ).resolves.toEqual({ nodes: [], edges: [] });
 
-    expect(parseOneFile).toHaveBeenCalledTimes(1);
-    expect(tokenizeOneFile).not.toHaveBeenCalled();
+    expect(tokenizeOneFile).toHaveBeenCalledTimes(1);
+    expect(processTokenizedFile).toHaveBeenCalledTimes(1);
   });
 
   it("returns empty result when files array is empty, even with high maxParallelFiles", async () => {
-    // Regression: getMaxParallelFiles() used to return 0 for empty input,
-    // causing pLimit(0) to throw. It must now clamp to at least 1.
     const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
     const tokenizeOneFile = vi.fn(() =>
       Promise.resolve({
         file: { name: "a.rpy" },
-        tokenState: {},
+        chapter: "a",
+        document: { getText: () => "label a:\n return\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
 
@@ -167,17 +226,19 @@ describe("parseRenpyFiles coverage gaps", () => {
       parseRenpyFiles([], { maxParallelFiles: 8 }),
     ).resolves.toEqual({ nodes: [], edges: [] });
 
-    expect(parseOneFile).not.toHaveBeenCalled();
     expect(tokenizeOneFile).not.toHaveBeenCalled();
+    expect(processTokenizedFile).not.toHaveBeenCalled();
   });
 
   it("falls back to file name comparison when normalized relative paths are identical", async () => {
     const parseOneFile = vi.fn(() => Promise.resolve(undefined));
     const processTokenizedFile = vi.fn();
-    const tokenizeOneFile = vi.fn(() =>
+    const tokenizeOneFile = vi.fn((file: { name: string }) =>
       Promise.resolve({
-        file: { name: "a.rpy" },
-        tokenState: {},
+        file,
+        chapter: file.name,
+        document: { getText: () => "label a:\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
 
@@ -205,8 +266,12 @@ describe("parseRenpyFiles coverage gaps", () => {
       ),
     ).resolves.toEqual({ nodes: [], edges: [] });
 
-    expect(parseOneFile).toHaveBeenCalledTimes(2);
-    expect(parseOneFile.mock.calls.map(([, file]) => file.name)).toEqual([
+    expect(tokenizeOneFile).toHaveBeenCalledTimes(2);
+    expect(
+      tokenizeOneFile.mock.calls.map(([file]) =>
+        (file as { name: string }).name
+      ),
+    ).toEqual([
       "a.rpy",
       "b.rpy",
     ]);
@@ -218,7 +283,9 @@ describe("parseRenpyFiles coverage gaps", () => {
     const tokenizeOneFile = vi.fn(() =>
       Promise.resolve({
         file: { name: "a.rpy" },
-        tokenState: {},
+        chapter: "a",
+        document: { getText: () => "label a:\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
     const progressFiles: string[] = [];
@@ -247,7 +314,9 @@ describe("parseRenpyFiles coverage gaps", () => {
     const tokenizeOneFile = vi.fn((file: { name: string }) =>
       Promise.resolve({
         file,
-        tokenState: {},
+        chapter: file.name,
+        document: { getText: () => "label a:\n" },
+        tokenTree: { root: { children: [] } },
       })
     );
     const progressFiles: string[] = [];
@@ -274,7 +343,6 @@ describe("parseRenpyFiles coverage gaps", () => {
     ).resolves.toEqual({ nodes: [], edges: [] });
 
     expect(progressFiles).toEqual(["a.rpy", "b.rpy"]);
-    expect(parseOneFile).not.toHaveBeenCalled();
     expect(tokenizeOneFile).toHaveBeenCalledTimes(2);
     expect(processTokenizedFile).toHaveBeenCalledTimes(2);
   });

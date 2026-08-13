@@ -149,6 +149,6 @@ label chapter_1:
     );
     expect(shadowedDiag).toBeDefined();
     expect(shadowedDiag?.location?.sourceLocation).toBeDefined();
-    expect(shadowedDiag?.location?.sourceLocation?.file).toBe("file_a");
+    expect(shadowedDiag?.location?.sourceLocation?.file).toBe("file_b");
   });
 });

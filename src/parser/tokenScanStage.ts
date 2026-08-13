@@ -3,11 +3,7 @@ import type {
   TokenTree,
   TreeNode,
 } from "@renpy/ast/out/tokenizer/token-definitions";
-import type {
-  AudioAssetCue,
-  FlowNode,
-  SourceLocation,
-} from "../domain/index.ts";
+import type { AudioAssetCue, FlowNode } from "../domain/index.ts";
 import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
 import { maybeUpdateConditionalState } from "./scanTransitions.ts";
@@ -26,95 +22,25 @@ import {
   extractStopCue,
   extractVoiceCue,
 } from "./handlers/audioCues.ts";
+import {
+  type FlatTokenLike,
+  getLineIndent,
+  getLineText,
+  getTokenSourceLocation,
+} from "./tokenLocationUtils.ts";
+import { getConditionalLogicalLine } from "./conditionalLineUtils.ts";
 
-/**
- * Represents a flattened token-like structure extracted from the AST tree.
- * Used during parsing to process token information uniformly.
- */
-export interface FlatTokenLike {
-  /** The type of token (corresponds to PARSER_TOKENS numbers) */
-  type: number;
-  /** Meta token IDs representing scope details (e.g. within menu, python, etc.) */
-  metaTokens: Iterable<number>;
-  /** Start position of the token in the text document */
-  startPos: { line: number; character: number };
-  /** Optional character offset of the token from the beginning of the file */
-  startOffset?: number;
-  /** End position of the token in the text document */
-  endPos?: { line: number; character: number };
-  /** End character offset of the token */
-  endOffset?: number;
-  /** Callback function to retrieve the raw string value of the token from the document */
-  getValue: (document: TextDocument) => string;
-}
-
-const lineOffsetCache = new WeakMap<TextDocument, number[]>();
-
-function getLineOffsets(document: TextDocument): number[] {
-  let offsets = lineOffsetCache.get(document);
-  if (!offsets) {
-    offsets = [0];
-    const text = document.getText();
-    for (let i = 0; i < text.length; i++) {
-      if (text.charCodeAt(i) === 10) {
-        offsets.push(i + 1);
-      }
-    }
-    lineOffsetCache.set(document, offsets);
-  }
-  return offsets;
-}
-
-function fastOffsetAt(
-  document: TextDocument,
-  pos: { line: number; character: number },
-): number {
-  const offsets = getLineOffsets(document);
-  const lineStart = offsets[pos.line] ?? 0;
-  return lineStart + pos.character;
-}
-
-function fastPositionAt(
-  document: TextDocument,
-  offset: number,
-): { line: number; character: number } {
-  const offsets = getLineOffsets(document);
-  let low = 0;
-  let high = offsets.length - 1;
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (offsets[mid] === offset) return { line: mid, character: 0 };
-    if (offsets[mid] < offset) low = mid + 1;
-    else high = mid - 1;
-  }
-  const line = Math.max(0, low - 1);
-  return { line, character: offset - (offsets[line] ?? 0) };
-}
-
-export function getTokenSourceLocation(
-  token: FlatTokenLike,
-  document: TextDocument,
-  file: string,
-): SourceLocation {
-  const startOffset = token.startOffset ??
-    fastOffsetAt(document, token.startPos);
-  const rawText = token.getValue(document);
-  const endOffset = token.endOffset ?? (startOffset + rawText.length);
-  const endPos = token.endPos ?? fastPositionAt(document, endOffset);
-  return {
-    file,
-    start: {
-      line: token.startPos.line,
-      character: token.startPos.character,
-      offset: startOffset,
-    },
-    end: {
-      line: endPos.line,
-      character: endPos.character,
-      offset: endOffset,
-    },
-  };
-}
+export type { FlatTokenLike };
+export {
+  computeLineIndent,
+  fastOffsetAt,
+  fastPositionAt,
+  getLineIndent,
+  getLineOffsets,
+  getLineText,
+  getTokenSourceLocation,
+} from "./tokenLocationUtils.ts";
+export { getConditionalLogicalLine } from "./conditionalLineUtils.ts";
 
 /**
  * A set of token type identifiers that the parser is interested in tracking.
@@ -145,228 +71,6 @@ const RELEVANT_TOKEN_TYPES = new Set<number>([
   PARSER_TOKENS.metaFunctionCall,
   9999, // Allow processing unrecognized/invalid statement starts (e.g. timedchoice)
 ].filter((t): t is number => typeof t === "number"));
-
-/**
- * Computes and caches the indent of a specific line in the TextDocument.
- * Indent is measured in terms of character length of leading space and tab characters.
- *
- * @param document The text document being parsed.
- * @param lineNumber The 0-indexed line number.
- * @param cache Map containing cached line indent results.
- * @returns The length of the leading whitespace characters on the line.
- */
-
-/**
- * Computes the leading whitespace indentation level of a line string,
- * treating tab characters as 8-space (or tabStop) alignment boundaries.
- */
-export function computeLineIndent(line: string, tabStop = 8): number {
-  let indent = 0;
-  for (let i = 0; i < line.length; i++) {
-    const char = line.charCodeAt(i);
-    if (char === 32) {
-      indent += 1;
-    } else if (char === 9) {
-      indent += tabStop - (indent % tabStop);
-    } else {
-      break;
-    }
-  }
-  return indent;
-}
-
-/**
- * Computes and caches the indent of a specific line in the TextDocument.
- * Indent is measured using tab-stop alignment (8 spaces per tab).
- *
- * @param document The text document being parsed.
- * @param lineNumber The 0-indexed line number.
- * @param cache Map containing cached line indent results.
- * @returns The leading whitespace column index on the line.
- */
-function getLineIndent(
-  document: TextDocument,
-  lineNumber: number,
-  cache: Map<number, number>,
-  docLines?: readonly string[],
-): number {
-  const cached = cache.get(lineNumber);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const line = docLines ? (docLines[lineNumber] ?? "") : document.getText({
-    start: { line: lineNumber, character: 0 },
-    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
-  });
-  const indent = computeLineIndent(line);
-  cache.set(lineNumber, indent);
-  return indent;
-}
-
-/**
- * Retrieves and caches the raw text content of a line in the TextDocument.
- *
- * @param document The text document being parsed.
- * @param lineNumber The 0-indexed line number.
- * @param cache Map containing cached line texts.
- * @returns The full string content of the line.
- */
-function getLineText(
-  document: TextDocument,
-  lineNumber: number,
-  cache: Map<number, string>,
-  docLines?: readonly string[],
-): string {
-  const cached = cache.get(lineNumber);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const line = docLines ? (docLines[lineNumber] ?? "") : document.getText({
-    start: { line: lineNumber, character: 0 },
-    end: { line: lineNumber, character: Number.MAX_SAFE_INTEGER },
-  });
-  cache.set(lineNumber, line);
-  return line;
-}
-
-/**
- * Reconstructs a multiline logical python line for conditionals (if, elif, etc.).
- * Ren'Py/Python allow conditional expressions to span multiple lines using backslashes
- * or unclosed parenthesis/brackets/braces. This function tracks quotes, comments,
- * and brackets to join consecutive lines into a single logical expression.
- *
- * @param document The text document being parsed.
- * @param lineNumber The 0-indexed start line of the conditional.
- * @param lineTextCache A cache map of raw line content.
- * @param logicalLineCache A cache map of parsed logical lines.
- * @returns The complete multiline conditional statement text.
- */
-function getConditionalLogicalLine(
-  document: TextDocument,
-  lineNumber: number,
-  lineTextCache: Map<number, string>,
-  logicalLineCache: Map<number, string>,
-  docLines?: readonly string[],
-): string {
-  const cached = logicalLineCache.get(lineNumber);
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  let logicalText = getLineText(document, lineNumber, lineTextCache, docLines);
-  let currentLine = lineNumber;
-  let maxLine = lineNumber;
-  const delimiterStack: Array<")" | "]" | "}"> = [];
-  let activeQuote: '"' | "'" | null = null;
-  let tripleQuoted = false;
-  let inComment = false;
-  let explicitContinuation = false;
-
-  // Process a line character by character to maintain quote/delimiter state
-  const processLine = (lineText: string) => {
-    let lastSignificantCharOutsideComment: string | null = null;
-    for (let i = 0; i < lineText.length; i += 1) {
-      const char = lineText[i] ?? "";
-      if (inComment) {
-        continue;
-      }
-
-      if (activeQuote) {
-        if (char === "\\") {
-          if (i + 1 < lineText.length) {
-            i += 1; // Skip escaped character
-          }
-          continue;
-        }
-        if (tripleQuoted) {
-          if (
-            char === activeQuote && lineText[i + 1] === activeQuote &&
-            lineText[i + 2] === activeQuote
-          ) {
-            i += 2;
-            activeQuote = null;
-            tripleQuoted = false;
-          }
-          continue;
-        }
-        if (char === activeQuote) {
-          activeQuote = null;
-        }
-        continue;
-      }
-
-      if (char === "#") {
-        inComment = true;
-        continue;
-      }
-      if (
-        (char === '"' || char === "'") && lineText[i + 1] === char &&
-        lineText[i + 2] === char
-      ) {
-        activeQuote = char;
-        tripleQuoted = true;
-        i += 2;
-        continue;
-      }
-      if (char === '"' || char === "'") {
-        activeQuote = char;
-        tripleQuoted = false;
-        continue;
-      }
-
-      if (char === "(") {
-        delimiterStack.push(")");
-      } else if (char === "[") {
-        delimiterStack.push("]");
-      } else if (char === "{") {
-        delimiterStack.push("}");
-      } else if (char === ")" || char === "]" || char === "}") {
-        if (char === delimiterStack[delimiterStack.length - 1]) {
-          delimiterStack.pop();
-        }
-      }
-
-      if (
-        !(char === " " || char === "\t" || char === "\n" || char === "\r" ||
-          char === "\f" || char === "\v")
-      ) {
-        lastSignificantCharOutsideComment = char;
-      }
-    }
-    // Check if the line ends with an explicit backslash continuation character
-    explicitContinuation = lastSignificantCharOutsideComment === "\\";
-    inComment = false;
-  };
-
-  processLine(logicalText);
-  // Continue joining lines while inside unclosed parentheses/quotes or explicit continuation (capped at 50 lines)
-  const MAX_CONTINUATION_LINES = 50;
-  let scannedCount = 0;
-  while (
-    (explicitContinuation || delimiterStack.length > 0 ||
-      activeQuote !== null) &&
-    currentLine + 1 < document.lineCount &&
-    scannedCount < MAX_CONTINUATION_LINES
-  ) {
-    scannedCount += 1;
-    currentLine += 1;
-    const nextLine = getLineText(
-      document,
-      currentLine,
-      lineTextCache,
-      docLines,
-    );
-    logicalText += `\n${nextLine}`;
-    processLine(nextLine);
-    maxLine = currentLine;
-  }
-
-  // Populate logical line cache for all lines spanned by this logical statement
-  for (let i = lineNumber; i <= maxLine; i += 1) {
-    logicalLineCache.set(i, logicalText);
-  }
-  return logicalText;
-}
 
 /**
  * Pre-processes and dispatches a single flat token to token handling logic.
@@ -474,7 +178,6 @@ function normalizeLiteralString(raw: string): string {
   if (start >= len) return raw;
 
   const quoteChar = raw[start]!;
-  // Detect triple-quote
   const isTriple = start + 2 < len && raw[start + 1] === quoteChar &&
     raw[start + 2] === quoteChar;
   const quoteLen = isTriple ? 3 : 1;
@@ -488,20 +191,6 @@ function normalizeLiteralString(raw: string): string {
   return raw.slice(contentStart, len - quoteLen);
 }
 
-/**
- * Traverses a hierarchical AST TokenTree, flattens, sorts, and processes
- * all tokens sequentially to build the flowchart graph state.
- *
- * @param state The global multi-file parser graph assembler.
- * @param scanState The file-local state tracks scope, indentations, and block hierarchies.
- * @param tokenTree The raw AST token tree parsed from a single Ren'Py script file.
- * @param document VS Code languageserver document wrapper of the script file.
- * @param chapter Inferred chapter/filename string for grouping and naming labels.
- * @param captureDialogueLines Whether to index dialogue strings in node data.
- * @param parserVariant Parser rules presets ('renpy' or 'st').
- * @param screenActionRules Optional user custom rules mappings for screen actions.
- * @param sceneSplitDialogueThreshold Dialogue line threshold for automatic scene divisions.
- */
 function collectFlatTokens(
   node: TreeNode,
   metaStack: number[],
@@ -574,10 +263,6 @@ export function processTokenTreeStream(
   );
 }
 
-/**
- * Processes a sequence of already flattened tokens sequentially.
- * Useful when working with flattened/pre-processed token logs or arrays.
- */
 export function processFlatTokens(
   state: ParseGraphState,
   scanState: ParseScanState,
