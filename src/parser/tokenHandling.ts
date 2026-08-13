@@ -1,3 +1,11 @@
+import {
+  BREAK_REGEX,
+  CONTINUE_REGEX,
+  PAUSE_TAG_REGEX,
+  TEXT_TAG_STRIP_REGEX,
+  TIMED_CHOICE_REGEX,
+} from "./utils/lineUtils.ts";
+import { handleCallScreenStatement } from "./handlers/screenFlowHandler.ts";
 import { isMenuKeywordTokenType, PARSER_TOKENS } from "./parserTokens.ts";
 import {
   extractPlayCue,
@@ -132,14 +140,15 @@ export function computeTextStats(
 ): { wordCount: number; pauseDuration: number } {
   // Extract explicit pause durations: {w=N} or {p=N}
   let pauseDuration = 0;
-  const pausePattern = /\{[wp]=([0-9]+(?:\.[0-9]*)?|\.[0-9]+)\}/g;
+  PAUSE_TAG_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = pausePattern.exec(text)) !== null) {
+  while ((match = PAUSE_TAG_REGEX.exec(text)) !== null) {
     pauseDuration += parseFloat(match[1]!);
   }
 
   // Strip all Ren'Py text tags to count words (including alpha tags, wait, etc.)
-  const stripped = text.replace(/\{[^}]*\}/g, "");
+  TEXT_TAG_STRIP_REGEX.lastIndex = 0;
+  const stripped = text.replace(TEXT_TAG_STRIP_REGEX, "");
   const wordCount = stripped.trim() === ""
     ? 0
     : stripped.trim().split(/\s+/).length;
@@ -245,48 +254,59 @@ export function handleToken(
     lineNum !== scanState.lastProcessedCustomLineNum
   ) {
     const trimmed = lineText.trim();
-    const timedChoiceMatch =
-      /^timedchoice\s+([0-9]+(?:\.[0-9]+)?|\.[0-9]+)\s+([a-zA-Z0-9_]+)/i.exec(
-        trimmed,
+    const callScreenMatch = /^call\s+screen\s+([A-Za-z0-9_]+)/i.exec(trimmed);
+    if (callScreenMatch) {
+      scanState.lastProcessedCustomLineNum = lineNum;
+      handleCallScreenStatement(
+        state,
+        scanState,
+        callScreenMatch[1]!,
+        chapter,
+        lineNum,
+        sourceLocation,
       );
-    if (timedChoiceMatch) {
-      scanState.lastProcessedCustomLineNum = lineNum;
-      const durationSeconds = parseFloat(timedChoiceMatch[1]);
-      const target = timedChoiceMatch[2];
-      const context = resolveCallContext(scanState, meta, menuDepth);
-      const timeout = {
-        isTimeout: true as const,
-        durationSeconds,
-      };
-      emitJumpEdge(state, scanState, target, context, false, timeout);
-    } else if (
-      /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
-        .test(trimmed)
-    ) {
-      scanState.lastProcessedCustomLineNum = lineNum;
-      scanState.labelHasExplicitExit = true;
-    } else if (/^(?:\$\s*)?break\b/i.test(trimmed)) {
-      scanState.lastProcessedCustomLineNum = lineNum;
-      scanState.labelHasExplicitExit = true;
-    } else if (/^(?:\$\s*)?continue\b/i.test(trimmed)) {
-      scanState.lastProcessedCustomLineNum = lineNum;
-      const loopContext = [...scanState.conditionalDecisionStack]
-        .reverse()
-        .find((c) => c.branchKind === "while" || c.branchKind === "for");
-      if (loopContext && scanState.currentLabelId) {
-        addEdge(state, {
-          id:
-            `seq_${scanState.currentLabelId}__${loopContext.decisionNodeId}_continue`,
-          source: scanState.currentLabelId,
-          target: loopContext.decisionNodeId,
-          kind: "sequence",
-          label: "continue",
-          sourceLocation,
-        });
-        addOutgoing(state, scanState.currentLabelId, "sequence");
-        addIncoming(state, loopContext.decisionNodeId, "sequence");
+    } else {
+      TIMED_CHOICE_REGEX.lastIndex = 0;
+      const timedChoiceMatch = TIMED_CHOICE_REGEX.exec(trimmed);
+      if (timedChoiceMatch) {
+        scanState.lastProcessedCustomLineNum = lineNum;
+        const durationSeconds = parseFloat(timedChoiceMatch[1]!);
+        const target = timedChoiceMatch[2]!;
+        const context = resolveCallContext(scanState, meta, menuDepth);
+        const timeout = {
+          isTimeout: true as const,
+          durationSeconds,
+        };
+        emitJumpEdge(state, scanState, target, context, false, timeout);
+      } else if (
+        /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
+          .test(trimmed)
+      ) {
+        scanState.lastProcessedCustomLineNum = lineNum;
+        scanState.labelHasExplicitExit = true;
+      } else if (BREAK_REGEX.test(trimmed)) {
+        scanState.lastProcessedCustomLineNum = lineNum;
+        scanState.labelHasExplicitExit = true;
+      } else if (CONTINUE_REGEX.test(trimmed)) {
+        scanState.lastProcessedCustomLineNum = lineNum;
+        const loopContext = [...scanState.conditionalDecisionStack]
+          .reverse()
+          .find((c) => c.branchKind === "while" || c.branchKind === "for");
+        if (loopContext && scanState.currentLabelId) {
+          addEdge(state, {
+            id:
+              `seq_${scanState.currentLabelId}__${loopContext.decisionNodeId}_continue`,
+            source: scanState.currentLabelId,
+            target: loopContext.decisionNodeId,
+            kind: "sequence",
+            label: "continue",
+            sourceLocation,
+          });
+          addOutgoing(state, scanState.currentLabelId, "sequence");
+          addIncoming(state, loopContext.decisionNodeId, "sequence");
+        }
+        scanState.labelHasExplicitExit = true;
       }
-      scanState.labelHasExplicitExit = true;
     }
   }
 

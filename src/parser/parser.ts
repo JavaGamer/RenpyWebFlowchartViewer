@@ -80,13 +80,16 @@ export async function parseRenpyFiles(
     orderedFiles.length,
   );
 
+  let lastYieldTime = performance.now();
+
   if (maxParallelFiles === 1) {
     for (let idx = 0; idx < orderedFiles.length; idx += 1) {
       if (options.signal?.aborted) {
         throw new DOMException("Parsing cancelled", "AbortError");
       }
-      if (idx > 0 && idx % 25 === 0) {
+      if (performance.now() - lastYieldTime > 16) {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        lastYieldTime = performance.now();
       }
       const file = orderedFiles[idx];
       perf.mark(`file:${idx}`);
@@ -106,8 +109,9 @@ export async function parseRenpyFiles(
           if (options.signal?.aborted) {
             throw new DOMException("Parsing cancelled", "AbortError");
           }
-          if (idx > 0 && idx % 25 === 0) {
+          if (performance.now() - lastYieldTime > 16) {
             await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            lastYieldTime = performance.now();
           }
           perf.mark(`file:${idx}:tokenize`);
           const tokenized = await tokenizeOneFile(file, options, idx);
@@ -123,8 +127,9 @@ export async function parseRenpyFiles(
       if (options.signal?.aborted) {
         throw new DOMException("Parsing cancelled", "AbortError");
       }
-      if (idx > 0 && idx % 25 === 0) {
+      if (performance.now() - lastYieldTime > 16) {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        lastYieldTime = performance.now();
       }
       const tokenized = tokenizedFiles[idx];
       if (!tokenized) {

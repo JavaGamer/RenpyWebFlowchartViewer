@@ -18,7 +18,21 @@ async function renpyParse(content: string) {
     ++_docVersion,
     content,
   );
-  return { document, nodes: await Tokenizer.tokenizeDocument(document) };
+  try {
+    return { document, nodes: await Tokenizer.tokenizeDocument(document) };
+  } catch {
+    return {
+      document,
+      nodes: {
+        root: {
+          type: 0,
+          children: [],
+          startPos: { line: 0, character: 0 },
+          endPos: { line: 0, character: 0 },
+        },
+      } as unknown as TokenTree,
+    };
+  }
 }
 
 export interface TokenizedFile {

@@ -1,4 +1,9 @@
-export type NodeType = "LABEL" | "MENU" | "DECISION";
+export type NodeType =
+  | "LABEL"
+  | "MENU"
+  | "DECISION"
+  | "SCREEN_CALL"
+  | "SYNTAX_ERROR";
 export type NodeRole =
   | "story"
   | "detour"
@@ -7,7 +12,8 @@ export type NodeRole =
   | "menu"
   | "decision"
   | "while_loop"
-  | "for_loop";
+  | "for_loop"
+  | "screen_call";
 export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
 export type ConditionBranchKind = "if" | "elif" | "else" | "while" | "for";
 
