@@ -12,7 +12,7 @@ import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
-export type { EdgeKind, TextDocument, TokenTree };
+export type { EdgeKind, FlowEdge, FlowNode, TextDocument, TokenTree };
 export type ConditionalBranchKind = DomainConditionBranchKind;
 
 export interface PendingCallReturn {

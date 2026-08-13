@@ -1,0 +1,17 @@
+{
+  "name": "Ren'Py Web Flowchart Viewer",
+  "short_name": "RenpyViewer",
+  "description": "Visualize script structure, search dialogue, and export flowcharts locally in your browser.",
+  "start_url": "/RenpyWebFlowchartViewer/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4c1d95",
+  "icons": [
+    {
+      "src": "/RenpyWebFlowchartViewer/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# Ren'Py Web Flowchart Viewer
+
+> A client-side web application for parsing, visualizing, searching, and exporting flowcharts from Ren'Py visual novel script directories (.rpy files).
+
+## Overview
+
+Ren'Py Web Flowchart Viewer runs entirely in the browser using JavaScript/TypeScript, React Flow, and ELK layout engine workers. All `.rpy` script parsing is performed locally via the browser FileReader API with zero server data upload.
+
+## Key Features
+
+- **Local Parser**: Parses Ren'Py labels, jumps, calls, menus, conditionals, and dialogue nodes client-side.
+- **Interactive Canvas**: Powered by `@xyflow/react` and `elkjs` layout calculation.
+- **Search & Diagnostics**: Full-text dialogue search and syntax diagnostic warnings.
+- **Export Options**: Export flowcharts to PNG, SVG, and structured JSON.
+- **Privacy & Security**: Operates completely offline/locally without transmitting user code to third-party endpoints.
+
+## Repository & Links
+
+- Canonical Site: https://javagamer.github.io/RenpyWebFlowchartViewer/
+- Source Code: https://github.com/JavaGamer/RenpyWebFlowchartViewer

@@ -1,4 +1,10 @@
-import type { CallContext, EdgeKind, FlowEdge, FlowNode } from "./graph.ts";
+import type {
+  CallContext,
+  EdgeKind,
+  FlowEdge,
+  FlowNode,
+  NodeType,
+} from "./graph.ts";
 import type { CSSProperties } from "react";
 import type { EdgeMarker, Position } from "@xyflow/react";
 
@@ -10,7 +16,7 @@ export interface NodeData extends Record<string, unknown> {
   dialogueLines?: string[];
   dialogueLineNums?: number[];
   audioAssetCues?: FlowNode["audioAssetCues"];
-  nodeType: "LABEL" | "MENU" | "DECISION";
+  nodeType: NodeType;
   chapter?: string;
   parentLabelId?: string;
   role?: FlowNode["role"];
