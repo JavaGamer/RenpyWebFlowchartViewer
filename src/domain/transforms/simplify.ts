@@ -327,7 +327,72 @@ export function collapseLinearChains(
 
   const collapsedInto = new Map<string, string>();
   const mergedNodesMap = new Map<string, FlowNode>();
+  function combineSourceLocations(
+    locations: SourceLocation[],
+    fallback?: SourceLocation,
+  ): SourceLocation | undefined {
+    if (locations.length === 0) return fallback;
+    const file = locations[0]!.file;
+    const sameFileLocs = locations.filter((l) => l.file === file);
+    if (sameFileLocs.length === 0) return fallback;
+
+    let minLine = Infinity;
+    let minCol = Infinity;
+    let minOffset: number | undefined = Infinity;
+    let maxLine = -Infinity;
+    let maxCol = -Infinity;
+    let maxOffset: number | undefined = -Infinity;
+
+    for (const l of sameFileLocs) {
+      if (
+        l.start.line < minLine ||
+        (l.start.line === minLine && l.start.character < minCol)
+      ) {
+        minLine = l.start.line;
+        minCol = l.start.character;
+      }
+      if (
+        l.start.offset !== undefined &&
+        (minOffset === undefined || l.start.offset < minOffset)
+      ) {
+        minOffset = l.start.offset;
+      }
+      if (
+        l.end.line > maxLine ||
+        (l.end.line === maxLine && l.end.character > maxCol)
+      ) {
+        maxLine = l.end.line;
+        maxCol = l.end.character;
+      }
+      if (
+        l.end.offset !== undefined &&
+        (maxOffset === undefined || l.end.offset > maxOffset)
+      ) {
+        maxOffset = l.end.offset;
+      }
+    }
+
+    return {
+      file,
+      start: {
+        line: minLine,
+        character: minCol !== Infinity ? minCol : 0,
+        offset: minOffset !== Infinity && minOffset !== undefined
+          ? minOffset
+          : 0,
+      },
+      end: {
+        line: maxLine,
+        character: maxCol !== -Infinity ? maxCol : 0,
+        offset: maxOffset !== -Infinity && maxOffset !== undefined
+          ? maxOffset
+          : 0,
+      },
+    };
+  }
+
   const visited = new Set<string>();
+  const cycleRoots = new Set<string>();
 
   // 1. Traverse starting from roots (nodes with outgoing collapsible, but no incoming collapsible)
   const roots = [...hasOutgoingCollapsible].filter((id) =>
@@ -343,6 +408,10 @@ export function collapseLinearChains(
     while (collapsibleEdges.has(currentId)) {
       const edge = collapsibleEdges.get(currentId)!;
       const nextId = edge.target;
+      if (nextId === rootId) {
+        cycleRoots.add(rootId);
+        break;
+      }
       if (visited.has(nextId)) break; // cycle safety
       visited.add(nextId);
       path.push(nextId);
@@ -403,16 +472,10 @@ export function collapseLinearChains(
         .map((id) => nodeMap.get(id)?.sourceLocation)
         .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
 
-      const firstLoc = collapsedLocations[0];
-      const lastLoc = collapsedLocations[collapsedLocations.length - 1];
-      const combinedSourceLocation =
-        (firstLoc && lastLoc && firstLoc.file === lastLoc.file)
-          ? {
-            file: firstLoc.file,
-            start: firstLoc.start,
-            end: lastLoc.end,
-          }
-          : rootNode.sourceLocation;
+      const combinedSourceLocation = combineSourceLocations(
+        collapsedLocations,
+        rootNode.sourceLocation,
+      );
 
       mergedNodesMap.set(rootId, {
         ...rootNode,
@@ -435,8 +498,6 @@ export function collapseLinearChains(
       });
     }
   }
-
-  const cycleRoots = new Set<string>();
 
   // 2. Traverse remaining nodes with outgoing collapsible (handles cycles)
   for (const startId of hasOutgoingCollapsible) {
@@ -514,15 +575,10 @@ export function collapseLinearChains(
         .map((id) => nodeMap.get(id)?.sourceLocation)
         .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
 
-      const firstLoc = collapsedLocations[0];
-      const lastLoc = collapsedLocations[collapsedLocations.length - 1];
-      const combinedSourceLocation = firstLoc && lastLoc
-        ? {
-          file: firstLoc.file,
-          start: firstLoc.start,
-          end: lastLoc.end,
-        }
-        : rootNode.sourceLocation;
+      const combinedSourceLocation = combineSourceLocations(
+        collapsedLocations,
+        rootNode.sourceLocation,
+      );
 
       mergedNodesMap.set(rootId, {
         ...rootNode,

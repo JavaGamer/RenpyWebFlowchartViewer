@@ -261,10 +261,9 @@ export function processDirectScreenActionCalls(
         const valExpr = extractNestedExpressionValue(args[1]);
 
         let isPersistent = false;
-        let varName = rawVar;
+        const varName = rawVar;
         if (varName.startsWith("persistent.")) {
           isPersistent = true;
-          varName = varName.substring("persistent.".length);
         }
 
         const resolvedVal = resolveStaticTargetExpression(
@@ -341,10 +340,9 @@ export function processDirectScreenActionCalls(
           : "False";
 
         let isPersistent = false;
-        let varName = rawVar;
+        const varName = rawVar;
         if (varName.startsWith("persistent.")) {
           isPersistent = true;
-          varName = varName.substring("persistent.".length);
         }
 
         const targetMap = isPersistent

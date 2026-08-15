@@ -53,6 +53,18 @@ export async function fetchFilesFromUrl(
 
   try {
     response = await fetch(resolvedUrl);
+    if (
+      response.status === 404 && resolvedUrl.endsWith("/refs/heads/main.zip")
+    ) {
+      const masterUrl = resolvedUrl.replace(
+        "/refs/heads/main.zip",
+        "/refs/heads/master.zip",
+      );
+      const masterRes = await fetch(masterUrl);
+      if (masterRes.ok) {
+        response = masterRes;
+      }
+    }
   } catch {
     throw new Error(
       `Network request failed. This is likely due to a CORS policy restriction on the target host. ` +
@@ -83,7 +95,10 @@ export async function fetchFilesFromUrl(
       name,
       size: buffer.byteLength,
       text: () => Promise.resolve(""),
-      file: new File([buffer], name, { type: "application/zip" }),
+      arrayBuffer: () => Promise.resolve(buffer),
+      file: typeof File !== "undefined"
+        ? new File([buffer], name, { type: "application/zip" })
+        : undefined,
     };
     return extractRpyFilesFromZip(zipVirtualFile);
   } else {
@@ -97,11 +112,13 @@ export async function fetchFilesFromUrl(
           `Detected Content-Type: "${contentType}".`,
       );
     }
+    const encoded = new TextEncoder().encode(textContent);
     return [
       {
         name,
-        size: new TextEncoder().encode(textContent).byteLength,
+        size: encoded.byteLength,
         text: () => Promise.resolve(textContent),
+        arrayBuffer: () => Promise.resolve(encoded.buffer as ArrayBuffer),
       },
     ];
   }

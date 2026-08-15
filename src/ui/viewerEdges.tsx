@@ -55,6 +55,7 @@ export const LabeledEdge = memo(function LabeledEdge({
                 ? "bg-white border-2 border-black text-black font-semibold"
                 : "bg-white border-gray-200 text-gray-600",
             )}
+            title={data.label}
           >
             {data.label}
           </div>

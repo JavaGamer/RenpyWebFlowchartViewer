@@ -41,7 +41,9 @@ export const LabelNodeComponent = memo(
     const showPacingHeatmap = useViewerStore((s) => s.showPacingHeatmap);
 
     const cues = data.audioAssetCues ?? [];
-    const sceneCues = cues.filter((c) => c.type === "scene");
+    const sceneCues = cues.filter((c) =>
+      c.type === "scene" || c.type === "show" || c.type === "image"
+    );
     const playMusicCues = cues.filter((c) =>
       c.type === "play" && c.channel === "music"
     );

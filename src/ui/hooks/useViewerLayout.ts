@@ -201,6 +201,10 @@ export function useViewerLayout({
       return;
     }
 
+    const timer = setTimeout(() => {
+      setIsCalculatingLayout(true);
+    }, 0);
+
     const cancelLayout = runLayoutInWorker(
       flowNodes,
       flowEdges,
@@ -228,7 +232,9 @@ export function useViewerLayout({
     );
 
     return () => {
+      clearTimeout(timer);
       cancelLayout();
+      setIsCalculatingLayout(false);
     };
   }, [
     flowEdges,

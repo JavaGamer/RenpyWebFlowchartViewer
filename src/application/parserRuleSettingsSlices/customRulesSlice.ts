@@ -57,7 +57,9 @@ export const createCustomRulesSlice: StateCreator<
 
   updateCustomRule: (idx, patch) =>
     set((draft) => {
-      const rule = draft.customRulesByVariant[draft.selectedVariant][idx];
+      const variantRules = draft.customRulesByVariant[draft.selectedVariant];
+      if (!variantRules) return;
+      const rule = variantRules[idx];
       if (!rule) return;
       if (patch.actionName !== undefined) {
         rule.actionName = patch.actionName;

@@ -90,8 +90,7 @@ export function LayoutSettings({
             : "bg-gray-50/50 border-gray-100",
         )}
       >
-        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-        <label
+        <div
           className={cn(
             "text-xs flex flex-col gap-1 font-medium",
             isDark ? "text-slate-300" : "text-gray-700",
@@ -113,9 +112,8 @@ export function LayoutSettings({
             isDark={isDark}
             aria-label="Auto layout direction"
           />
-        </label>
-        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-        <label
+        </div>
+        <div
           className={cn(
             "text-xs flex flex-col gap-1 font-medium",
             isDark ? "text-slate-300" : "text-gray-700",
@@ -137,9 +135,8 @@ export function LayoutSettings({
             isDark={isDark}
             aria-label="Layout density"
           />
-        </label>
-        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-        <label
+        </div>
+        <div
           className={cn(
             "text-xs flex flex-col gap-1 font-medium",
             isDark ? "text-slate-300" : "text-gray-700",
@@ -161,15 +158,14 @@ export function LayoutSettings({
             isDark={isDark}
             aria-label="Color theme"
           />
-        </label>
-        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-        <label
+        </div>
+        <div
           className={cn(
             "text-xs flex flex-col gap-1 font-medium col-span-3",
             isDark ? "text-slate-300" : "text-gray-700",
           )}
         >
-          Focus label
+          <span>Focus label</span>
           <div className="flex gap-2">
             <Select
               value={focusNodeId}
@@ -195,7 +191,7 @@ export function LayoutSettings({
               Center
             </Button>
           </div>
-        </label>
+        </div>
         <div className="col-span-3 flex justify-between items-center pt-1">
           <Button
             onClick={onRelayout}

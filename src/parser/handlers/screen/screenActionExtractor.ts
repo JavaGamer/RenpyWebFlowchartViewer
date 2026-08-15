@@ -256,11 +256,13 @@ export function walkScreenActionExpression(
   if (!trimmed) return;
 
   const balancedRoot = readScreenActionExpression(trimmed, 0);
-  if (!balancedRoot || balancedRoot.endIndex !== trimmed.length) return;
+  if (!balancedRoot) return;
+  const rootRemainder = trimmed.slice(balancedRoot.endIndex).trim();
+  if (rootRemainder.length > 0 && !rootRemainder.startsWith("#")) return;
 
   const opener = trimmed[0];
   if (opener === "[" || opener === "(" || opener === "{") {
-    const inner = trimmed.slice(1, -1);
+    const inner = trimmed.slice(1, balancedRoot.endIndex - 1);
     for (const item of splitTopLevelArguments(inner)) {
       if (opener === "{") {
         const colonIndex = findTopLevelDelimiterIndex(item, ":");

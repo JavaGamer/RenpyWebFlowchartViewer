@@ -156,7 +156,8 @@ export function SearchControls({
             type="number"
             min={0}
             value={minDialogue}
-            onChange={(e) => setMinDialogue(Number(e.target.value) || 0)}
+            onChange={(e) =>
+              setMinDialogue(Math.max(0, Number(e.target.value) || 0))}
             aria-label="Minimum dialogue lines"
             className={cn(
               "w-16",

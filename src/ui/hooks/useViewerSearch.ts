@@ -264,11 +264,11 @@ export function useViewerSearch({
   }, [hasActiveQuery, nodeMiniSearch, trimmedSearch]);
 
   const searchMatchNodeIds = useMemo(() => {
-    if (!nodeSearchMatchIds) return null;
-    const combined = new Set(nodeSearchMatchIds);
+    if (!hasActiveQuery) return null;
+    const combined = new Set<string>(nodeSearchMatchIds ?? []);
     dialogueMatchNodeIds.forEach((nodeId) => combined.add(nodeId));
     return combined;
-  }, [dialogueMatchNodeIds, nodeSearchMatchIds]);
+  }, [dialogueMatchNodeIds, hasActiveQuery, nodeSearchMatchIds]);
 
   return {
     effectiveSearch,

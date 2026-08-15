@@ -586,10 +586,29 @@ function propagateVariableMutationsAndEvaluateConditions(
   if (!entryId) return;
 
   const initialVars = new Map<string, VariableValue>();
+  const initialPersist = new Map<string, VariableValue>();
+  if (state.initVariables) {
+    for (const [k, v] of state.initVariables.entries()) {
+      const val = typeof v.value === "string" ||
+          typeof v.value === "boolean" ||
+          typeof v.value === "number" ||
+          v.value === null
+        ? v.value
+        : null;
+      if (v.isPersistent) {
+        if (!initialPersist.has(k)) {
+          initialPersist.set(k, val);
+        }
+      } else {
+        if (!initialVars.has(k)) {
+          initialVars.set(k, val);
+        }
+      }
+    }
+  }
   for (const [k, v] of state.globalLabelVariableLiteralTargets.entries()) {
     initialVars.set(k, v);
   }
-  const initialPersist = new Map<string, VariableValue>();
   if (state.globalPersistentVariables) {
     for (const [k, v] of state.globalPersistentVariables.entries()) {
       initialPersist.set(k, v);

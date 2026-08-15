@@ -59,14 +59,16 @@ export function getNodeHeight(
 export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
   const nodeData = node.data as NodeData;
   const nodeHeight = node.measured?.height ??
-    (node.type === "labelNode"
-      ? getLabelHeight({
-        isShadowed: nodeData.isShadowed,
-        isTerminalOutcome: nodeData.isTerminalOutcome,
-      })
-      : node.type === "menuNode"
-      ? NODE_HEIGHT_MENU
-      : NODE_HEIGHT_DECISION);
+    getNodeHeight({
+      type: node.type === "labelNode"
+        ? "LABEL"
+        : node.type === "menuNode"
+        ? "MENU"
+        : "DECISION",
+      isShadowed: nodeData.isShadowed,
+      isTerminalOutcome: nodeData.isTerminalOutcome,
+      audioAssetCues: nodeData.audioAssetCues,
+    });
   return {
     x: node.position.x + NODE_WIDTH / 2,
     y: node.position.y + nodeHeight / 2,

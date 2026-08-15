@@ -157,6 +157,9 @@ export function handleReturnKeywordToken(
         lastOpt.hasExit = true;
       }
     }
+    if (scanState.currentLabelId !== null) {
+      state.hasReturnInLabel.add(scanState.currentLabelId);
+    }
   } else {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     const isReliableReturn = scanState.conditionalIndentStack.length === 0;

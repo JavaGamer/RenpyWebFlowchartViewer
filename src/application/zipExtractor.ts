@@ -6,17 +6,22 @@
 
 import type { UploadedFile } from "./uploadTypes.ts";
 
+const MAX_TOTAL_EXTRACTED_BYTES = 200 * 1024 * 1024;
+
 export async function extractRpyFilesFromZip(
   zipFile: UploadedFile,
 ): Promise<UploadedFile[]> {
-  const nativeFile = zipFile.file;
-  if (!nativeFile) {
+  const buffer = zipFile.file
+    ? await zipFile.file.arrayBuffer()
+    : zipFile.arrayBuffer
+    ? await zipFile.arrayBuffer()
+    : null;
+  if (!buffer) {
     throw new Error(
       `Cannot decompress ZIP "${zipFile.name}": underlying File object is missing.`,
     );
   }
 
-  const buffer = await nativeFile.arrayBuffer();
   const zipData = new Uint8Array(buffer);
 
   const { unzip, strFromU8 } = await import("fflate");
@@ -34,26 +39,42 @@ export async function extractRpyFilesFromZip(
           return;
         }
 
-        const files: UploadedFile[] = Object.entries(unzipped).map(
-          ([path, data]) => {
-            const normalizedPath = path.replace(/\\/g, "/");
-            const parts = normalizedPath.split("/");
-            const name = parts[parts.length - 1] || normalizedPath;
-            return {
-              name,
-              size: data.length,
-              webkitRelativePath: normalizedPath,
-              text: () => Promise.resolve(strFromU8(data)),
-              arrayBuffer: () =>
-                Promise.resolve(
-                  data.buffer.slice(
-                    data.byteOffset,
-                    data.byteOffset + data.byteLength,
-                  ),
+        let totalSize = 0;
+        const files: UploadedFile[] = [];
+
+        for (const [path, data] of Object.entries(unzipped)) {
+          totalSize += data.length;
+          if (totalSize > MAX_TOTAL_EXTRACTED_BYTES) {
+            reject(
+              new Error(
+                "Decompressed ZIP exceeds maximum permitted size (200MB).",
+              ),
+            );
+            return;
+          }
+
+          const cleanPath = path
+            .replace(/\\/g, "/")
+            .split("/")
+            .filter((part) => part !== "" && part !== "." && part !== "..")
+            .join("/");
+          const parts = cleanPath.split("/");
+          const name = parts[parts.length - 1] || cleanPath;
+
+          files.push({
+            name,
+            size: data.length,
+            webkitRelativePath: cleanPath,
+            text: () => Promise.resolve(strFromU8(data)),
+            arrayBuffer: () =>
+              Promise.resolve(
+                data.buffer.slice(
+                  data.byteOffset,
+                  data.byteOffset + data.byteLength,
                 ),
-            };
-          },
-        );
+              ),
+          });
+        }
         resolve(files);
       },
     );

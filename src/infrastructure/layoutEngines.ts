@@ -100,20 +100,27 @@ function applyProgressiveDagreLayout(
   });
 
   primaryEdges.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
+    if (edge.source !== edge.target) {
+      g.setEdge(edge.source, edge.target);
+    }
   });
 
   dagre.layout(g);
 
   let maxY = 0;
+  let maxX = 0;
   primaryNodes.forEach((node) => {
     const dNode = g.node(node.id);
     if (dNode) {
       const bottom = dNode.y + getNodeHeight(node) / 2;
       if (bottom > maxY) maxY = bottom;
+      const right = dNode.x + NODE_WIDTH / 2;
+      if (right > maxX) maxX = right;
     }
   });
+  const isLR = direction === "LR";
   const fallbackStartY = Math.max(800, maxY + 200);
+  const fallbackStartX = Math.max(800, maxX + 200);
 
   // Position nodes
   const overflowIndexMap = new Map(
@@ -137,12 +144,21 @@ function applyProgressiveDagreLayout(
         y = prevPos.y;
       } else {
         const overflowIndex = overflowIndexMap.get(n.id) ?? 0;
-        const row = Math.floor(
-          overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS,
-        );
-        const col = overflowIndex % PROGRESSIVE_FALLBACK_MAX_COLUMNS;
-        x = col * (NODE_WIDTH + 40) + 40;
-        y = row * (150 + 40) + fallbackStartY;
+        if (isLR) {
+          const col = Math.floor(
+            overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS,
+          );
+          const row = overflowIndex % PROGRESSIVE_FALLBACK_MAX_COLUMNS;
+          x = col * (NODE_WIDTH + 40) + fallbackStartX;
+          y = row * (150 + 40) + 40;
+        } else {
+          const row = Math.floor(
+            overflowIndex / PROGRESSIVE_FALLBACK_MAX_COLUMNS,
+          );
+          const col = overflowIndex % PROGRESSIVE_FALLBACK_MAX_COLUMNS;
+          x = col * (NODE_WIDTH + 40) + 40;
+          y = row * (150 + 40) + fallbackStartY;
+        }
       }
     }
 
@@ -180,10 +196,8 @@ function applyProgressiveDagreLayout(
     };
   });
 
-  const positionById = new Map(nodes.map((n) => [n.id, n.position]));
-
   const edges: CanvasEdge[] = normalizedEdges
-    .filter((e) => positionById.has(e.source) && positionById.has(e.target))
+    .filter((e) => g.hasNode(e.source) && g.hasNode(e.target))
     .map((e) => ({
       id: e.id,
       source: e.source,
@@ -191,11 +205,12 @@ function applyProgressiveDagreLayout(
       type: "labeled",
       data: {
         label: e.label ?? "",
+        conditionState: "reachable",
         kind: e.kind,
         condition: e.condition,
         timeout: e.timeout,
+        callContext: e.callContext,
       },
-      markerEnd: { type: "arrowclosed" as const },
       style: { stroke: edgeColor, strokeWidth: 1.5 },
     }));
 
@@ -264,7 +279,11 @@ export function applyDagreLayout(
   });
 
   normalizedEdges.forEach((edge) => {
-    if (g.hasNode(edge.source) && g.hasNode(edge.target)) {
+    if (
+      edge.source !== edge.target &&
+      g.hasNode(edge.source) &&
+      g.hasNode(edge.target)
+    ) {
       g.setEdge(edge.source, edge.target);
     }
   });
@@ -279,10 +298,7 @@ export function applyDagreLayout(
     if (dagreNode) {
       x = dagreNode.x - NODE_WIDTH / 2;
       y = dagreNode.y - getNodeHeight(n) / 2;
-    }
-
-    // Preserve node positions from previous render if available to minimize movement
-    if (prevMap) {
+    } else if (prevMap) {
       const prevPos = prevMap.get(n.id);
       if (prevPos) {
         x = prevPos.x;

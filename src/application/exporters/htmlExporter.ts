@@ -1,4 +1,14 @@
+function escapeHtmlAttr(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function exportToHtmlBundle(svgDataUrl: string): string {
+  const safeSrc = escapeHtmlAttr(svgDataUrl);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,7 +26,7 @@ export function exportToHtmlBundle(svgDataUrl: string): string {
 </head>
 <body>
   <div id="container">
-    <img id="diagram" src="${svgDataUrl}" alt="Flowchart Diagram" />
+    <img id="diagram" src="${safeSrc}" alt="Flowchart Diagram" />
   </div>
   <div id="controls">
     <button id="zoomIn">Zoom In</button>

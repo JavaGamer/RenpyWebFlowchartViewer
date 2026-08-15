@@ -350,6 +350,12 @@ export function normalizeGraphState(state: ParseGraphState): void {
     state.hasReturnInLabel,
     state.nodeIds,
   );
+  if (state.hasReliableReturnInLabel) {
+    state.hasReliableReturnInLabel = rebuildReturnTrackingSet(
+      state.hasReliableReturnInLabel,
+      state.nodeIds,
+    );
+  }
 
   for (const edge of normalizedEdges) {
     const edgeKind = edge.kind ?? "sequence";
@@ -394,9 +400,12 @@ export function normalizeGraphState(state: ParseGraphState): void {
   for (const node of normalizedNodes) {
     if (node.audioAssetCues) {
       for (const cue of node.audioAssetCues) {
-        const assetType: "image" | "scene" | "audio" = cue.type === "scene"
-          ? "scene"
-          : "audio";
+        const assetType: "image" | "scene" | "audio" =
+          cue.type === "show" || cue.type === "image"
+            ? "image"
+            : cue.type === "scene"
+            ? "scene"
+            : "audio";
         const key = `${assetType}:${cue.asset}`;
         const existing = assetMap.get(key);
         if (existing) {

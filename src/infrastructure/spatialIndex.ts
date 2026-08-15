@@ -1,4 +1,5 @@
 import type { CanvasNode } from "../domain/index.ts";
+import { getNodeHeight } from "../domain/index.ts";
 
 export interface AABB {
   minX: number;
@@ -60,77 +61,65 @@ export class SpatialQuadtree {
     this.items.push(item);
 
     if (this.items.length > this.maxItems && this.depth < this.maxDepth) {
-      const firstItem = this.items[0];
-      const allIdentical = firstItem && this.items.every(
-        (it) =>
-          it.bounds.minX === firstItem.bounds.minX &&
-          it.bounds.minY === firstItem.bounds.minY,
-      );
-      if (!allIdentical) {
-        this.subdivide();
-        const oldItems = this.items;
-        this.items = [];
-        for (const existingItem of oldItems) {
-          const idx = this.getChildIndex(existingItem.bounds);
-          if (idx !== -1) {
-            this.children![idx]!.insert(existingItem);
-          } else {
-            this.items.push(existingItem);
-          }
+      this.subdivide();
+      const remainingItems: SpatialItem[] = [];
+      for (const it of this.items) {
+        const idx = this.getChildIndex(it.bounds);
+        if (idx !== -1) {
+          this.children![idx]!.insert(it);
+        } else {
+          remainingItems.push(it);
         }
       }
+      this.items = remainingItems;
     }
-  }
-
-  public queryRange(
-    range: AABB,
-    resultSet: Set<string> = new Set(),
-  ): Set<string> {
-    if (!this.intersects(this.bounds, range)) {
-      return resultSet;
-    }
-
-    for (const item of this.items) {
-      if (this.intersects(item.bounds, range)) {
-        resultSet.add(item.id);
-      }
-    }
-
-    if (this.children) {
-      for (const child of this.children) {
-        child.queryRange(range, resultSet);
-      }
-    }
-
-    return resultSet;
   }
 
   private subdivide(): void {
-    const { minX, minY, maxX, maxY } = this.bounds;
-    const midX = (minX + maxX) / 2;
-    const midY = (minY + maxY) / 2;
+    const midX = (this.bounds.minX + this.bounds.maxX) / 2;
+    const midY = (this.bounds.minY + this.bounds.maxY) / 2;
 
     this.children = [
       new SpatialQuadtree(
-        { minX, minY, maxX: midX, maxY: midY },
+        {
+          minX: this.bounds.minX,
+          minY: this.bounds.minY,
+          maxX: midX,
+          maxY: midY,
+        },
         this.maxItems,
         this.maxDepth,
         this.depth + 1,
       ),
       new SpatialQuadtree(
-        { minX: midX, minY, maxX, maxY: midY },
+        {
+          minX: midX,
+          minY: this.bounds.minY,
+          maxX: this.bounds.maxX,
+          maxY: midY,
+        },
         this.maxItems,
         this.maxDepth,
         this.depth + 1,
       ),
       new SpatialQuadtree(
-        { minX, minY: midY, maxX: midX, maxY },
+        {
+          minX: this.bounds.minX,
+          minY: midY,
+          maxX: midX,
+          maxY: this.bounds.maxY,
+        },
         this.maxItems,
         this.maxDepth,
         this.depth + 1,
       ),
       new SpatialQuadtree(
-        { minX: midX, minY: midY, maxX, maxY },
+        {
+          minX: midX,
+          minY: midY,
+          maxX: this.bounds.maxX,
+          maxY: this.bounds.maxY,
+        },
         this.maxItems,
         this.maxDepth,
         this.depth + 1,
@@ -146,6 +135,30 @@ export class SpatialQuadtree {
       a.maxY >= b.minY
     );
   }
+
+  public query(range: AABB, result: Set<string> = new Set()): Set<string> {
+    if (!this.intersects(this.bounds, range)) {
+      return result;
+    }
+
+    for (const item of this.items) {
+      if (this.intersects(item.bounds, range)) {
+        result.add(item.id);
+      }
+    }
+
+    if (this.children) {
+      for (const child of this.children) {
+        child.query(range, result);
+      }
+    }
+
+    return result;
+  }
+
+  public queryRange(range: AABB, result: Set<string> = new Set()): Set<string> {
+    return this.query(range, result);
+  }
 }
 
 export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
@@ -160,7 +173,24 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
     const x = node.position.x;
     const y = node.position.y;
     const width = node.measured?.width || node.width || 220;
-    const height = node.measured?.height || node.height || 120;
+    const nodeData = node.data as {
+      isShadowed?: boolean;
+      isTerminalOutcome?: boolean;
+      audioAssetCues?: unknown[];
+    } | undefined;
+    const height = node.measured?.height || node.height ||
+      getNodeHeight({
+        type: node.type === "labelNode"
+          ? "LABEL"
+          : node.type === "menuNode"
+          ? "MENU"
+          : "DECISION",
+        isShadowed: nodeData?.isShadowed,
+        isTerminalOutcome: nodeData?.isTerminalOutcome,
+        audioAssetCues: nodeData?.audioAssetCues as
+          | import("../domain/index.ts").AudioAssetCue[]
+          | undefined,
+      });
 
     const bounds: AABB = {
       minX: x,

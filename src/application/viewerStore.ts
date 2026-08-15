@@ -52,12 +52,20 @@ export type {
 
 const defaultPersistedState: ViewerPersistedState = { ...defaultThemeState };
 
-const defaultSessionState: ViewerSessionState = {
-  ...defaultFilterState,
-  ...defaultSearchState,
-  ...defaultSelectionState,
-  ...defaultSimulationState,
-};
+function createFreshSessionState(): ViewerSessionState {
+  return {
+    ...defaultFilterState,
+    collapsedChapters: {},
+    collapsedParentLabels: {},
+    ...defaultSearchState,
+    selectedSearchNodeKinds: { LABEL: true, MENU: true, DECISION: true },
+    ...defaultSelectionState,
+    ...defaultSimulationState,
+    mockFlags: createEmptyMockFlags(),
+    loadingNodeDetailIds: new Set<string>(),
+    hydratedNodeDetailIds: new Set<string>(),
+  };
+}
 
 // ─── Persist merge/validation helpers ────────────────────────────────────────
 
@@ -248,10 +256,7 @@ export const useViewerStore = create<ViewerStore>()(
         // ── Reset ─────────────────────────────────────────────────────────────
         resetSession: () =>
           set((draft) => {
-            Object.assign(draft, defaultSessionState);
-            draft.loadingNodeDetailIds = new Set<string>();
-            draft.hydratedNodeDetailIds = new Set<string>();
-            draft.mockFlags = createEmptyMockFlags();
+            Object.assign(draft, createFreshSessionState());
           }),
       })),
       {

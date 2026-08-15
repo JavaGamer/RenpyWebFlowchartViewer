@@ -458,7 +458,9 @@ export function linkGraphFragments(
         chapterMap = new Map();
         state.labelsByChapter.set(fragment.chapter, chapterMap);
       }
-      chapterMap.set(name, finalId);
+      if (!chapterMap.has(name)) {
+        chapterMap.set(name, finalId);
+      }
     }
 
     // Node mutations

@@ -19,7 +19,24 @@ function edgeIdWithOption(baseId: string, optionText: string | null): string {
 }
 
 export function extractMenuOptionCondition(lineText: string): string | null {
-  const trimmed = lineText.trim();
+  let cleanLine = lineText;
+  let inQuote: string | null = null;
+  for (let i = 0; i < lineText.length; i++) {
+    const ch = lineText[i];
+    if (inQuote) {
+      if (ch === "\\" && i + 1 < lineText.length) {
+        i++;
+      } else if (ch === inQuote) {
+        inQuote = null;
+      }
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === "#") {
+      cleanLine = lineText.slice(0, i);
+      break;
+    }
+  }
+  const trimmed = cleanLine.trim();
   const match =
     /^[\s]*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')(?:\s+(?:[A-Za-z0-9_]+|"[^"]*"|'[^']*'))*?\s+if\s+(.+?)\s*:?$/i
       .exec(trimmed);

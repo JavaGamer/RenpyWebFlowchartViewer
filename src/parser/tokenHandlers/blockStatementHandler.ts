@@ -21,9 +21,10 @@ export function parseAndRecordVariableMutation(
   const targetNodeId = scanState.currentLabelId;
   if (!targetNodeId) return;
 
-  const assignMatch = /^([A-Za-z_][A-Za-z0-9_.]*)\s*(\+=|-=|=)\s*(.*)$/.exec(
-    statement.trim(),
-  );
+  const assignMatch =
+    /^([A-Za-z_][A-Za-z0-9_.]*)\s*(?<![<>=!])(\+=|-=|=)(?![=])\s*(.*)$/.exec(
+      statement.trim(),
+    );
   if (!assignMatch) return;
 
   const varName = assignMatch[1]!.trim();

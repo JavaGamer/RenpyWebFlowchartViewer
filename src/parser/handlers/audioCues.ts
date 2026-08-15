@@ -69,6 +69,12 @@ function splitAudioClause(
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
+    if (
+      char === "\\" && (inDoubleQuotes || inSingleQuotes) && i + 1 < text.length
+    ) {
+      i++;
+      continue;
+    }
     if (char === '"' && !inSingleQuotes) {
       inDoubleQuotes = !inDoubleQuotes;
     } else if (char === "'" && !inDoubleQuotes) {

@@ -16,16 +16,16 @@ export function UploadDropzone({
   onDragOver,
 }: UploadDropzoneProps) {
   return (
-    <label
-      htmlFor="folder-input"
-      aria-label="Upload Ren'Py project folder"
+    <div
+      role="region"
+      aria-label="Upload Ren'Py project folder or files"
       onDrop={onDrop}
       onDragOver={onDragOver}
       className={cn(
         "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none",
         isDark
-          ? "border-violet-800 bg-slate-900 cursor-pointer hover:bg-violet-950/20 hover:border-violet-700"
-          : "border-violet-300 bg-white cursor-pointer hover:bg-violet-50/50 hover:border-violet-400",
+          ? "border-violet-800 bg-slate-900 hover:bg-violet-950/20 hover:border-violet-700"
+          : "border-violet-300 bg-white hover:bg-violet-50/50 hover:border-violet-400",
       )}
     >
       <Upload
@@ -44,7 +44,9 @@ export function UploadDropzone({
         </p>
         <p className="text-sm text-gray-400 mt-2">
           or click to{" "}
-          <span
+          <label
+            htmlFor="folder-input"
+            aria-label="Upload Ren'Py project folder"
             className={cn(
               "font-semibold underline cursor-pointer px-1 transition-colors duration-200 focus-within:ring-2 rounded",
               isDark
@@ -53,7 +55,7 @@ export function UploadDropzone({
             )}
           >
             select a folder
-          </span>{" "}
+          </label>{" "}
           or{" "}
           <button
             type="button"
@@ -62,7 +64,7 @@ export function UploadDropzone({
               openFilesPicker();
             }}
             className={cn(
-              "font-semibold underline focus:outline-none focus-visible:ring-2 rounded px-1 transition-colors duration-200",
+              "font-semibold underline cursor-pointer focus:outline-none focus-visible:ring-2 rounded px-1 transition-colors duration-200",
               isDark
                 ? "text-violet-400 hover:text-violet-300 focus-visible:ring-violet-400"
                 : "text-violet-600 hover:text-violet-800 focus-visible:ring-violet-500",
@@ -80,6 +82,6 @@ export function UploadDropzone({
       >
         All processing is local — your files never leave your device
       </span>
-    </label>
+    </div>
   );
 }

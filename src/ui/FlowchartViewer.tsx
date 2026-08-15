@@ -94,15 +94,6 @@ export default function FlowchartViewer({
   >(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const resetSession = useViewerStore((s) => s.resetSession);
-  const prevFlowNodesRef = useRef(flowNodes);
-  useEffect(() => {
-    if (prevFlowNodesRef.current !== flowNodes) {
-      prevFlowNodesRef.current = flowNodes;
-      resetSession();
-    }
-  }, [flowNodes, resetSession]);
-
   // Registry ref: inner component writes current onSearchInputKeyDown here;
   // outer provides a stable wrapper that calls it.
   const canvasCallbacksRef = useRef<CanvasCallbacksRegistry>({

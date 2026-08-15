@@ -54,7 +54,13 @@ function isOpNode(name: string): boolean {
     name === "or" ||
     name === "is" ||
     name === "in" ||
-    name === "not"
+    name === "not" ||
+    name === "&" ||
+    name === "|" ||
+    name === "^" ||
+    name === "<<" ||
+    name === ">>" ||
+    name === "~"
   );
 }
 
@@ -206,7 +212,7 @@ function getNonSeparatorChildren(node: SyntaxNode): SyntaxNode[] {
  * (including multi-variable tuple/list unpacking and chained assignments) and direct renpy.jump/call calls.
  */
 export function parsePythonBlock(rawCode: string): PythonParsedBlock {
-  const code = rawCode.replace(/^\s*\$\s*/gm, "");
+  const code = rawCode.replace(/^(\s*)\$\s*/gm, "$1");
   const tree = parser.parse(code);
   const assignments: PythonAssignment[] = [];
   const directCalls: PythonDirectCall[] = [];
@@ -437,6 +443,32 @@ export function evaluatePythonAstExpression(
         return { value: undefined, ok: false };
       }
 
+      // Handle MemberExpression (e.g. persistent.flag, stats.hp)
+      if (nodeKind === "MemberExpression") {
+        const fullText = extractNodeText(trimmed, node);
+        if (Object.prototype.hasOwnProperty.call(environment, fullText)) {
+          const envVal = environment[fullText];
+          if (typeof envVal === "string") stringCandidates.push(envVal);
+          return { value: envVal, ok: true };
+        }
+        const objChild = node.firstChild;
+        const propChild = node.lastChild;
+        if (objChild && propChild && objChild !== propChild) {
+          const objRes = evalNode(objChild);
+          const propName = extractNodeText(trimmed, propChild);
+          if (
+            objRes.ok &&
+            typeof objRes.value === "object" &&
+            objRes.value !== null
+          ) {
+            const val = (objRes.value as Record<string, unknown>)[propName];
+            if (typeof val === "string") stringCandidates.push(val);
+            return { value: val, ok: true };
+          }
+        }
+        return { value: undefined, ok: false };
+      }
+
       // Handle Ternary: ConditionalExpression (consequence if test else alternative)
       if (nodeKind === "ConditionalExpression") {
         let consequenceNode: SyntaxNode | null = null;
@@ -529,6 +561,9 @@ export function evaluatePythonAstExpression(
             if (typeof argVal === "string" || Array.isArray(argVal)) {
               return { value: argVal.length, ok: true };
             }
+            if (argVal instanceof Set || argVal instanceof Map) {
+              return { value: argVal.size, ok: true };
+            }
           }
 
           return { value: undefined, ok: false };
@@ -578,13 +613,27 @@ export function evaluatePythonAstExpression(
             const rv = rRes.value as number | string | boolean;
 
             if (op === "+") {
-              return { value: (lv as number) + (rv as number), ok: true };
+              if (typeof lv === "string" || typeof rv === "string") {
+                return { value: String(lv) + String(rv), ok: true };
+              }
+              const num = (lv as number) + (rv as number);
+              return { value: num, ok: !isNaN(num) };
             }
             if (op === "-") {
-              return { value: (lv as number) - (rv as number), ok: true };
+              const num = (lv as number) - (rv as number);
+              return { value: num, ok: !isNaN(num) };
             }
             if (op === "*") {
-              return { value: (lv as number) * (rv as number), ok: true };
+              if (
+                typeof lv === "string" &&
+                typeof rv === "number" &&
+                Number.isInteger(rv) &&
+                rv >= 0
+              ) {
+                return { value: lv.repeat(Math.min(rv, 1000)), ok: true };
+              }
+              const num = (lv as number) * (rv as number);
+              return { value: num, ok: !isNaN(num) };
             }
             if (op === "/") {
               return {
@@ -624,6 +673,61 @@ export function evaluatePythonAstExpression(
             if (op === ">=") return { value: lv >= rv, ok: true };
             if (op === "is") return { value: lv === rv, ok: true };
             if (op === "is not") return { value: lv !== rv, ok: true };
+            if (op === "in" || op === "not in") {
+              let contained = false;
+              if (Array.isArray(rv)) {
+                contained = rv.includes(lv);
+              } else if (typeof rv === "string") {
+                contained = rv.includes(String(lv));
+              } else if (typeof rv === "object" && rv !== null) {
+                const obj = rv as
+                  | Set<unknown>
+                  | Map<unknown, unknown>
+                  | Record<string, unknown>;
+                if (obj instanceof Set) {
+                  contained = obj.has(lv);
+                } else if (obj instanceof Map) {
+                  contained = obj.has(String(lv));
+                } else {
+                  contained = Object.prototype.hasOwnProperty.call(
+                    obj,
+                    String(lv),
+                  );
+                }
+              }
+              const val = op === "in" ? contained : !contained;
+              return { value: val, ok: true };
+            }
+            if (op === "&") {
+              return {
+                value: (lv as number) & (rv as number),
+                ok: true,
+              };
+            }
+            if (op === "|") {
+              return {
+                value: (lv as number) | (rv as number),
+                ok: true,
+              };
+            }
+            if (op === "^") {
+              return {
+                value: (lv as number) ^ (rv as number),
+                ok: true,
+              };
+            }
+            if (op === "<<") {
+              return {
+                value: (lv as number) << (rv as number),
+                ok: true,
+              };
+            }
+            if (op === ">>") {
+              return {
+                value: (lv as number) >> (rv as number),
+                ok: true,
+              };
+            }
           }
         }
       }
@@ -644,6 +748,9 @@ export function evaluatePythonAstExpression(
             }
             if (opText.startsWith("+")) {
               return { value: +(res.value as number), ok: true };
+            }
+            if (opText.startsWith("~")) {
+              return { value: ~(res.value as number), ok: true };
             }
           }
         }

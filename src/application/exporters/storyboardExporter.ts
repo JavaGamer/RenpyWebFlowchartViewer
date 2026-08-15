@@ -37,6 +37,7 @@ export function exportToStoryboard(nodes: FlowNode[]): string {
 
 import { extractNodeDetailsInWorker } from "../../infrastructure/index.ts";
 import { useAppStore } from "../appStore.ts";
+import { useViewerStore } from "../viewerStore.ts";
 
 export async function exportToStoryboardWithHydration(
   nodes: FlowNode[],
@@ -49,6 +50,12 @@ export async function exportToStoryboardWithHydration(
   if (unhydratedIds.length > 0) {
     const details = await extractNodeDetailsInWorker(unhydratedIds);
     useAppStore.getState().updateNodeDetails(details);
+    const viewerState = useViewerStore.getState();
+    if (viewerState.hydratedNodeDetailIds) {
+      for (const id of Object.keys(details)) {
+        viewerState.hydratedNodeDetailIds.add(id);
+      }
+    }
     const updatedMap = new Map(
       useAppStore.getState().flowNodes.map((n) => [n.id, n]),
     );

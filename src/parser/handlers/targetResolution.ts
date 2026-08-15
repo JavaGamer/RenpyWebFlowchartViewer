@@ -209,6 +209,13 @@ export function parseListLiteral(
       }
       return null;
     }
+    const numMatch = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(
+      content.slice(i),
+    );
+    if (numMatch) {
+      i += numMatch[0].length;
+      return numMatch[0];
+    }
     const match = /^[A-Za-z_][A-Za-z0-9_.]*/.exec(content.slice(i));
     if (match) {
       i += match[0].length;
@@ -261,15 +268,21 @@ export function extractLiteralTarget(expression: string): string | null {
   let result = "";
 
   while (i < rest.length) {
-    if (
-      rest.startsWith(quote, i) &&
-      (i === 0 || rest[i - 1] !== "\\" || (i >= 2 && rest[i - 2] === "\\"))
-    ) {
-      const remainder = rest.substring(i + quote.length).trim();
-      if (remainder.length === 0) {
-        return result.trim() || null;
+    if (rest.startsWith(quote, i)) {
+      let backslashCount = 0;
+      let bi = i - 1;
+      while (bi >= 0 && rest[bi] === "\\") {
+        backslashCount++;
+        bi--;
       }
-      return null;
+      const isEscaped = backslashCount % 2 === 1;
+      if (!isEscaped) {
+        const remainder = rest.substring(i + quote.length).trim();
+        if (remainder.length === 0) {
+          return result.trim() || null;
+        }
+        return null;
+      }
     }
 
     const char = rest[i]!;
