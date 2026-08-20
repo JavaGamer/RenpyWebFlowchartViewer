@@ -30,7 +30,7 @@
     "immer": "^11.1.15",
     "lucide-react": "^1.25.0",
     "p-limit": "^7.3.0",
-    "react": "19.2.7",
+    "react": "19.2.8",
     "react-dom": "19.2.7",
     "react-error-boundary": "^6.1.2",
     "tailwind-merge": "^3.6.0",
