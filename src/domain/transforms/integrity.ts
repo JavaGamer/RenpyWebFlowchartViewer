@@ -93,9 +93,12 @@ export function resolveGraphIntegrity(
     const callContextKey = edge.callContext
       ? `:callCtx:${edge.callContext.callContextId}`
       : "";
+    const argsKey = edge.arguments && edge.arguments.length > 0
+      ? `:args:${JSON.stringify(edge.arguments)}`
+      : "";
     const semanticKey = `${normalizedKind}|${edge.source}|${edge.target}|${
       edge.label ?? ""
-    }|${timeoutKey}${conditionKey}${callContextKey}`;
+    }|${timeoutKey}${conditionKey}${callContextKey}${argsKey}`;
     if (seenEdgeKeys.has(semanticKey)) continue;
     seenEdgeKeys.add(semanticKey);
     edges.push({

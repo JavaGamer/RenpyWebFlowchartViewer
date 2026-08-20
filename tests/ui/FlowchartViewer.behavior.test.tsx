@@ -17,163 +17,26 @@ import * as ReactFlowLib from "@xyflow/react";
 import type { ParseService } from "../../src/application/parseService";
 import { useViewerStore } from "../../src/application/viewerStore";
 
-vi.mock("@xyflow/react", () => {
-  const flowApi: {
-    zoomTo: ReturnType<typeof vi.fn>;
-    fitView: ReturnType<typeof vi.fn>;
-    setCenter: ReturnType<typeof vi.fn>;
-    shouldThrow: boolean;
-  } = {
-    zoomTo: vi.fn(),
-    fitView: vi.fn(),
-    setCenter: vi.fn(),
-    shouldThrow: false,
-  };
-
-  const ReactFlow = ({
-    nodes,
-    edges,
-    nodeTypes,
-    edgeTypes,
-    onInit,
-    onNodeClick,
-    children,
-  }: {
-    nodes: Array<{
-      id: string;
-      type?: string;
-      position: { x: number; y: number };
-      data?: { label?: string; dialogueCount?: number };
-    }>;
-    edges: Array<{
-      id: string;
-      source: string;
-      target: string;
-      data?: { label?: string };
-      style?: Record<string, unknown>;
-    }>;
-    nodeTypes?: Record<string, React.ComponentType<unknown>>;
-    edgeTypes?: Record<string, React.ComponentType<unknown>>;
-    onInit?: (instance: unknown) => void;
-    onNodeClick?: (event: unknown, node: { id: string }) => void;
-    children?: React.ReactNode;
-  }) => {
-    if (flowApi.shouldThrow) throw new Error("canvas render error");
-    React.useEffect(() => {
-      onInit?.(flowApi);
-    }, [onInit]);
-    return (
-      <div data-testid="react-flow">
-        {nodes.map((n) => {
-          const NodeComp = n.type && nodeTypes ? nodeTypes[n.type] : null;
-          return NodeComp
-            ? (
-              <button
-                key={n.id}
-                type="button"
-                aria-label={`node-${n.id}`}
-                onClick={() => onNodeClick?.({}, { id: n.id })}
-              >
-                <NodeComp
-                  id={n.id}
-                  data={n.data}
-                  selected={false}
-                  dragging={false}
-                  isConnectable
-                  xPos={n.position.x}
-                  yPos={n.position.y}
-                  zIndex={0}
-                  type={n.type}
-                />
-              </button>
-            )
-            : null;
-        })}
-        {edges.map((e) => {
-          const EdgeComp = edgeTypes?.labeled;
-          return EdgeComp
-            ? (
-              <EdgeComp
-                key={e.id}
-                id={e.id}
-                sourceX={0}
-                sourceY={0}
-                targetX={10}
-                targetY={10}
-                sourcePosition="bottom"
-                targetPosition="top"
-                markerEnd="arrow"
-                style={e.style}
-                data={e.data}
-              />
-            )
-            : null;
-        })}
-        {children}
-      </div>
-    );
-  };
-
-  const Background = () => null;
-  const Controls = () => null;
-  const MiniMap = ({
-    nodeColor,
-  }: {
-    nodeColor?: (node: { type?: string }) => string;
-  }) => (
-    <div data-testid="mini-map-colors">
-      {[nodeColor?.({ type: "labelNode" }), nodeColor?.({ type: "menuNode" })]
-        .filter((v): v is string => Boolean(v))
-        .join(",")}
-    </div>
-  );
-  const Handle = () => null;
-  const BaseEdge = ({ id, path }: { id: string; path: string }) => (
-    <div data-testid={`base-edge-${id}`}>{path}</div>
-  );
-  const EdgeLabelRenderer = ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="edge-label">{children}</div>
-  );
-  const getBezierPath = vi.fn(() =>
-    ["M 1 1", 10, 20] as [string, number, number]
-  );
-  const Position = {
-    Top: "top",
-    Bottom: "bottom",
-    Left: "left",
-    Right: "right",
-  };
-  const MarkerType = { ArrowClosed: "arrowclosed" };
-  const useNodesState = (initial: unknown[]) => {
-    const [nodes, setNodes] = React.useState(initial);
-    return [nodes, setNodes, vi.fn()] as const;
-  };
-  const useEdgesState = (initial: unknown[]) => {
-    const [edges, setEdges] = React.useState(initial);
-    return [edges, setEdges, vi.fn()] as const;
-  };
-
-  return {
-    ReactFlow,
-    Background,
-    Controls,
-    MiniMap,
-    Handle,
-    BaseEdge,
-    EdgeLabelRenderer,
-    getBezierPath,
-    Position,
-    MarkerType,
-    useNodesState,
-    useEdgesState,
-    __test: { flowApi },
-  };
-});
-
 describe("FlowchartViewer behavior coverage", () => {
   beforeEach(() => {
     globalThis.localStorage.clear();
     useViewerStore.setState(useViewerStore.getInitialState());
+    const testApi = (ReactFlowLib as unknown as {
+      __test?: {
+        flowApi?: {
+          zoomTo: unknown;
+          fitView: unknown;
+          setCenter: unknown;
+          shouldThrow: boolean;
+        };
+      };
+    }).__test?.flowApi;
+    if (testApi) {
+      testApi.zoomTo = vi.fn();
+      testApi.fitView = vi.fn();
+      testApi.setCenter = vi.fn();
+      testApi.shouldThrow = false;
+    }
   });
 
   afterEach(() => {

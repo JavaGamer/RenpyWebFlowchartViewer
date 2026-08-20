@@ -254,10 +254,20 @@ export const useViewerStore = create<ViewerStore>()(
         ...createSimulationSlice(set, get, api),
 
         // ── Reset ─────────────────────────────────────────────────────────────
-        resetSession: () =>
+        resetSession: () => {
           set((draft) => {
             Object.assign(draft, createFreshSessionState());
-          }),
+          });
+          try {
+            (
+              useViewerStore as unknown as {
+                temporal?: { getState: () => { clear: () => void } };
+              }
+            ).temporal?.getState()?.clear();
+          } catch {
+            // No-op if temporal is not initialized
+          }
+        },
       })),
       {
         partialize: (state) => ({

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type EnumShape = Record<string, number> & Record<number, string>;
 
@@ -39,14 +39,6 @@ const characterEnum = makeEnum([
   ["NewLine", 42],
 ]);
 
-vi.mock("@renpy/ast/out/tokenizer/renpy-tokens", () => ({
-  CharacterTokenType: characterEnum,
-  EntityTokenType: entityEnum,
-  KeywordTokenType: keywordEnum,
-  LiteralTokenType: literalEnum,
-  MetaTokenType: metaEnum,
-}));
-
 const modulePath = "../../src/parser/parserTokens";
 
 describe("parserTokens runtime guards", () => {
@@ -64,6 +56,28 @@ describe("parserTokens runtime guards", () => {
     keywordEnum[6] = "Menu";
     keywordEnum.Def = 5;
     keywordEnum[5] = "Def";
+
+    vi.doMock("@renpy/ast/out/tokenizer/renpy-tokens", () => ({
+      CharacterTokenType: characterEnum,
+      EntityTokenType: entityEnum,
+      KeywordTokenType: keywordEnum,
+      LiteralTokenType: literalEnum,
+      MetaTokenType: metaEnum,
+    }));
+
+    vi.doMock("@renpy/ast/out/tokenizer/renpy-tokens.js", () => ({
+      CharacterTokenType: characterEnum,
+      EntityTokenType: entityEnum,
+      KeywordTokenType: keywordEnum,
+      LiteralTokenType: literalEnum,
+      MetaTokenType: metaEnum,
+    }));
+  });
+
+  afterAll(() => {
+    vi.doUnmock("@renpy/ast/out/tokenizer/renpy-tokens");
+    vi.doUnmock("@renpy/ast/out/tokenizer/renpy-tokens.js");
+    vi.resetModules();
   });
 
   it("builds parser token map with expected values", async () => {

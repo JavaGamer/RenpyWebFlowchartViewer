@@ -4,7 +4,7 @@ import {
   KeywordTokenType,
   LiteralTokenType,
   MetaTokenType,
-} from "@renpy/ast/out/tokenizer/renpy-tokens";
+} from "@renpy/ast/out/tokenizer/renpy-tokens.js";
 
 export interface ParserTokenMap {
   kwLabel: number;

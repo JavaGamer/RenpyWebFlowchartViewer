@@ -1,5 +1,9 @@
 import { Parser } from "expr-eval-fork";
-import { evaluatePythonAstExpression } from "./pythonAstEvaluator.ts";
+import {
+  evaluatePythonAstExpression,
+  isPythonTruthy,
+} from "./pythonAstEvaluator.ts";
+import { parser as pythonParser } from "@lezer/python";
 
 export type MockFlagValue = "true" | "false" | "unknown";
 export type ConditionEvaluationResult = "true" | "false" | "unknown";
@@ -56,9 +60,9 @@ class BoundedMap<K, V> extends Map<K, V> {
 
 function preprocessConditionExpression(expression: string): string {
   return expression.replace(
-    /(["'])(?:(?=(\\?))\2[\s\S])*?\1|(?<!\.)\bis\s+not\b|(?<!\.)\bis\b/gi,
-    (match, quote) => {
-      if (quote) return match;
+    /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\.)\bis\s+not\b|(?<!\.)\bis\b/gi,
+    (match) => {
+      if (match.startsWith('"') || match.startsWith("'")) return match;
       const lower = match.toLowerCase();
       if (lower === "is not") return "!=";
       if (lower === "is") return "==";
@@ -73,11 +77,10 @@ export function extractConditionFlagRefs(
   expression: string | undefined,
 ): string[] {
   if (!expression || expression.trim().length === 0) return [];
-  const preprocessed = preprocessConditionExpression(expression);
+  const trimmed = expression.trim();
   try {
-    let refs = flagRefsCache.get(preprocessed);
+    let refs = flagRefsCache.get(trimmed);
     if (!refs) {
-      const vars = parser.parse(preprocessed).variables();
       const KEYWORDS = new Set([
         "true",
         "false",
@@ -86,11 +89,50 @@ export function extractConditionFlagRefs(
         "and",
         "or",
         "not",
+        "is",
+        "in",
+        "len",
+        "str",
+        "int",
+        "bool",
+        "if",
+        "else",
+        "for",
+        "while",
+        "return",
+        "pass",
       ]);
-      refs = vars
-        .filter((v) => !KEYWORDS.has(v.toLowerCase()))
-        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-      flagRefsCache.set(preprocessed, refs);
+      const foundVars = new Set<string>();
+
+      try {
+        const tree = pythonParser.parse(trimmed);
+        tree.iterate({
+          enter(nodeRef) {
+            const node = nodeRef.node;
+            if (node.name === "VariableName") {
+              const name = trimmed.slice(node.from, node.to);
+              if (!KEYWORDS.has(name.toLowerCase())) {
+                foundVars.add(name);
+              }
+            } else if (node.name === "MemberExpression") {
+              const fullText = trimmed.slice(node.from, node.to);
+              if (!KEYWORDS.has(fullText.toLowerCase())) {
+                foundVars.add(fullText);
+              }
+            }
+          },
+        });
+      } catch {
+        // Fallback to expr-eval if Lezer fails
+        const preprocessed = preprocessConditionExpression(trimmed);
+        const vars = parser.parse(preprocessed).variables();
+        vars.forEach((v) => {
+          if (!KEYWORDS.has(v.toLowerCase())) foundVars.add(v);
+        });
+      }
+
+      refs = Array.from(foundVars).sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+      flagRefsCache.set(trimmed, refs);
     }
     return refs;
   } catch {
@@ -186,9 +228,15 @@ function evaluateInstructions(
         } else {
           const isNumericStr = (s: string) =>
             /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(s.trim());
-          const equal = (isNumericStr(left) && isNumericStr(right))
-            ? Number(left) === Number(right)
-            : left === right;
+          const normalizeForCompare = (s: string) => {
+            const low = s.trim().toLowerCase();
+            if (low === "true") return 1;
+            if (low === "false") return 0;
+            return isNumericStr(s) ? Number(s) : s;
+          };
+          const nL = normalizeForCompare(left);
+          const nR = normalizeForCompare(right);
+          const equal = nL === nR;
           const res = op === "==" ? equal : !equal;
           stack.push(res ? "true" : "false");
         }
@@ -255,35 +303,6 @@ export function evaluateAllConditionBranches(
     ifBranch: evaluateConditionBranch("if", conditionExpression, flags),
     elseBranch: evaluateConditionBranch("else", conditionExpression, flags),
   };
-}
-
-export function isExpressionAlwaysTrue(
-  expression: string | undefined,
-): boolean {
-  if (!expression || expression.trim().length === 0) return true;
-  const trimmed = expression.trim();
-  if (trimmed === "True" || trimmed === "true" || trimmed === "1") return true;
-  return false;
-}
-
-export function isExpressionAlwaysFalse(
-  expression: string | undefined,
-): boolean {
-  if (!expression || expression.trim().length === 0) return false;
-  const trimmed = expression.trim();
-  if (trimmed === "False" || trimmed === "false" || trimmed === "0") {
-    return true;
-  }
-  return false;
-}
-
-export function areAllFlagsKnown(
-  flags: Record<string, MockFlagValue>,
-): boolean {
-  for (const v of Object.values(flags)) {
-    if (v === "unknown") return false;
-  }
-  return true;
 }
 
 export function getEffectiveConditionState(
@@ -494,6 +513,43 @@ export function areAllFlagsKnownAndTrue(
   return true;
 }
 
+export function isExpressionAlwaysTrue(
+  expression: string | undefined,
+): boolean {
+  if (!expression || expression.trim().length === 0) return true;
+  const trimmed = expression.trim();
+  if (trimmed === "True" || trimmed === "true" || trimmed === "1") return true;
+  const astRes = evaluatePythonAstExpression(trimmed, {});
+  if (astRes.isStaticallyEvaluated) {
+    return isPythonTruthy(astRes.value);
+  }
+  return false;
+}
+
+export function isExpressionAlwaysFalse(
+  expression: string | undefined,
+): boolean {
+  if (!expression || expression.trim().length === 0) return false;
+  const trimmed = expression.trim();
+  if (trimmed === "False" || trimmed === "false" || trimmed === "0") {
+    return true;
+  }
+  const astRes = evaluatePythonAstExpression(trimmed, {});
+  if (astRes.isStaticallyEvaluated) {
+    return !isPythonTruthy(astRes.value);
+  }
+  return false;
+}
+
+export function areAllFlagsKnown(
+  flags: Record<string, MockFlagValue>,
+): boolean {
+  for (const v of Object.values(flags)) {
+    if (v === "unknown") return false;
+  }
+  return true;
+}
+
 const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);
 
 export function evaluateConditionExpression(
@@ -501,52 +557,6 @@ export function evaluateConditionExpression(
   flags: Record<string, MockFlagValue>,
 ): ConditionEvaluationResult {
   if (!expression || expression.trim().length === 0) return "unknown";
-
-  // Build Python environment from flags
-  const env: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(flags)) {
-    if (v === "true") env[k] = true;
-    else if (v === "false") env[k] = false;
-    else if (v !== "unknown") env[k] = v;
-  }
-
-  const astRes = evaluatePythonAstExpression(expression, env);
-  if (astRes.isStaticallyEvaluated) {
-    if (typeof astRes.value === "boolean") {
-      return astRes.value ? "true" : "false";
-    }
-    const trimmed = expression.trim();
-    if (
-      /^[A-Za-z_][A-Za-z0-9_.]*$/.test(trimmed) ||
-      /^len\s*\(.+\)$/.test(trimmed) ||
-      /^bool\s*\(.+\)$/.test(trimmed)
-    ) {
-      if (typeof astRes.value === "number") {
-        return astRes.value !== 0 ? "true" : "false";
-      }
-      if (typeof astRes.value === "string") {
-        return astRes.value.length > 0 ? "true" : "false";
-      }
-      if (astRes.value === null || astRes.value === undefined) {
-        return "false";
-      }
-      if (
-        Array.isArray(astRes.value) ||
-        typeof (astRes.value as { length?: number }).length === "number"
-      ) {
-        return ((astRes.value as { length: number }).length > 0)
-          ? "true"
-          : "false";
-      }
-      if (astRes.value instanceof Set || astRes.value instanceof Map) {
-        return (astRes.value.size > 0) ? "true" : "false";
-      }
-      if (typeof astRes.value === "object") {
-        return (Object.keys(astRes.value).length > 0) ? "true" : "false";
-      }
-      return astRes.value ? "true" : "false";
-    }
-  }
 
   const preprocessed = preprocessConditionExpression(expression);
   try {

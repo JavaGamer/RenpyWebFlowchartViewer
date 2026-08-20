@@ -30,6 +30,7 @@ export interface ParseWorkerClientRequest {
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  sceneSplitDialogueThreshold?: number;
   projectMediaFiles?:
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>
@@ -62,6 +63,7 @@ export interface ParseRequestMessage {
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  sceneSplitDialogueThreshold?: number;
   projectMediaFiles?:
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>
@@ -141,6 +143,7 @@ export interface ParseChunkRequestMessage {
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
   screenActionRules?: ScreenActionRule[];
+  sceneSplitDialogueThreshold?: number;
   projectMediaFiles?:
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>

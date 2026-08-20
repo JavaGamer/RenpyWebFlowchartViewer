@@ -71,8 +71,9 @@ export const createCustomRulesSlice: StateCreator<
 
   removeCustomRule: (idx) =>
     set((draft) => {
-      if (!draft.customRulesByVariant[draft.selectedVariant]) return;
-      draft.customRulesByVariant[draft.selectedVariant].splice(idx, 1);
+      const rules = draft.customRulesByVariant[draft.selectedVariant];
+      if (!rules || idx < 0 || idx >= rules.length) return;
+      rules.splice(idx, 1);
     }),
 
   resetSettings: () =>

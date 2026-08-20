@@ -38,29 +38,33 @@ export async function traverseFileSystemEntry(
     item: FileSystemEntry,
     currentPath: string,
   ): Promise<void> => {
-    if (item.isFile) {
-      const fileEntry = item as FileSystemFileEntry;
-      const file = await new Promise<File>((resolve, reject) => {
-        fileEntry.file(resolve, reject);
-      });
-      files.push({
-        name: file.name,
-        size: file.size,
-        webkitRelativePath: currentPath + file.name,
-        text: () => file.text(),
-        file,
-      });
-    } else if (item.isDirectory) {
-      const dirEntry = item as FileSystemDirectoryEntry;
-      const dirReader = dirEntry.createReader();
-      const entries = await readAllDirectoryEntries(dirReader);
+    try {
+      if (item.isFile) {
+        const fileEntry = item as FileSystemFileEntry;
+        const file = await new Promise<File>((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+        files.push({
+          name: file.name,
+          size: file.size,
+          webkitRelativePath: currentPath + file.name,
+          text: () => file.text(),
+          file,
+        });
+      } else if (item.isDirectory) {
+        const dirEntry = item as FileSystemDirectoryEntry;
+        const dirReader = dirEntry.createReader();
+        const entries = await readAllDirectoryEntries(dirReader);
 
-      const newPath = currentPath + item.name + "/";
-      const promises: Promise<void>[] = [];
-      for (const entry of entries) {
-        promises.push(traverse(entry, newPath));
+        const newPath = currentPath + item.name + "/";
+        const promises: Promise<void>[] = [];
+        for (const entry of entries) {
+          promises.push(traverse(entry, newPath));
+        }
+        await Promise.all(promises);
       }
-      await Promise.all(promises);
+    } catch {
+      // Gracefully skip unreadable files/folders
     }
   };
 

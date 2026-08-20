@@ -13,7 +13,17 @@ import type { LayoutWorkerApi } from "./layoutWorker.ts";
 let worker: Worker | null = null;
 
 function isWorkerSupported(): boolean {
-  return typeof globalThis.Worker !== "undefined";
+  if (typeof globalThis.Worker === "undefined") return false;
+  if (
+    typeof window !== "undefined" &&
+    window.location?.hostname === "localhost" &&
+    typeof (window as unknown as { __vitest_worker__?: unknown })
+        .__vitest_worker__ !== "undefined" &&
+    globalThis.Worker.name !== "MockWorker"
+  ) {
+    return false;
+  }
+  return true;
 }
 let apiProxy: Remote<LayoutWorkerApi> | null = null;
 let isWorkerRunning = false;

@@ -78,6 +78,14 @@ export const LabelNodeComponent = memo(
       }
     }
 
+    const layoutDirection = useViewerStore((s) => s.layoutDirection);
+    const targetPosition = layoutDirection === "LR"
+      ? Position.Left
+      : Position.Top;
+    const sourcePosition = layoutDirection === "LR"
+      ? Position.Right
+      : Position.Bottom;
+
     return (
       <div
         className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
@@ -90,7 +98,7 @@ export const LabelNodeComponent = memo(
           opacity: isOrphan ? 0.65 : (isShadowed ? 0.9 : 1),
         }}
       >
-        <Handle type="target" position={Position.Top} />
+        <Handle type="target" position={targetPosition} />
         <div className="flex items-center justify-between gap-2 mb-1">
           <div
             className="text-xs font-semibold uppercase tracking-widest"
@@ -259,7 +267,7 @@ export const LabelNodeComponent = memo(
             )}
           </div>
         )}
-        <Handle type="source" position={Position.Bottom} />
+        <Handle type="source" position={sourcePosition} />
       </div>
     );
   },
@@ -271,12 +279,19 @@ export const MenuNodeComponent = memo(
     const theme = getTheme(themeName);
     const searchInput = useViewerStore((s) => s.searchInput);
     const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
+    const layoutDirection = useViewerStore((s) => s.layoutDirection);
+    const targetPosition = layoutDirection === "LR"
+      ? Position.Left
+      : Position.Top;
+    const sourcePosition = layoutDirection === "LR"
+      ? Position.Right
+      : Position.Bottom;
     return (
       <div
         className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
         style={{ borderColor: theme.menuBorder, backgroundColor: theme.menuBg }}
       >
-        <Handle type="target" position={Position.Top} />
+        <Handle type="target" position={targetPosition} />
         <div
           className="text-xs font-semibold uppercase tracking-widest mb-1"
           style={{ color: theme.menuTitle }}
@@ -313,7 +328,7 @@ export const MenuNodeComponent = memo(
             })()}
           </div>
         )}
-        <Handle type="source" position={Position.Bottom} />
+        <Handle type="source" position={sourcePosition} />
       </div>
     );
   },
@@ -324,10 +339,17 @@ export const DecisionNodeComponent = memo(
     const themeName = useViewerStore((s) => s.theme);
     const theme = getTheme(themeName);
     const searchInput = useViewerStore((s) => s.searchInput);
+    const layoutDirection = useViewerStore((s) => s.layoutDirection);
+    const targetPosition = layoutDirection === "LR"
+      ? Position.Left
+      : Position.Top;
+    const sourcePosition = layoutDirection === "LR"
+      ? Position.Right
+      : Position.Bottom;
     const expression = data.conditionExpression ?? data.label;
     return (
       <div className="w-[220px] flex items-center justify-center relative py-2">
-        <Handle type="target" position={Position.Top} />
+        <Handle type="target" position={targetPosition} />
         <div
           className="w-[160px] h-[160px] rotate-45 border-2 shadow-md rounded-xl flex items-center justify-center"
           style={{
@@ -352,7 +374,7 @@ export const DecisionNodeComponent = memo(
             </div>
           </div>
         </div>
-        <Handle type="source" position={Position.Bottom} />
+        <Handle type="source" position={sourcePosition} />
       </div>
     );
   },

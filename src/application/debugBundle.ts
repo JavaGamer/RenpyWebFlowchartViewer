@@ -36,6 +36,7 @@ export interface BuildDebugBundleInput {
   };
   parseDiagnostics: ParseDiagnosticPayload[];
   privacy: DebugBundlePrivacyOptions;
+  telemetry?: Record<string, unknown>;
 }
 
 interface RedactedWarning {
@@ -236,6 +237,7 @@ function redactEdge(
       : {}),
     ...(redactedCondition ? { condition: redactedCondition } : {}),
     ...(edge.timeout ? { timeout: edge.timeout } : {}),
+    ...(edge.callContext ? { callContext: edge.callContext } : {}),
   };
 }
 
@@ -288,6 +290,7 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
       customScreenActionRules: input.parser.customScreenActionRules,
     },
     privacy: input.privacy,
+    ...(input.telemetry ? { telemetry: input.telemetry } : {}),
     graphSummary: {
       nodeCount: input.graph.flowNodes.length,
       edgeCount: input.graph.flowEdges.length,

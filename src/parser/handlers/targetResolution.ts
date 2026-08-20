@@ -3,6 +3,7 @@ import type {
   ParseScanState,
   ResolveTargetScanState,
 } from "../pipelineTypes.ts";
+import { resolveDynamicTargetWithDataflow } from "../dataflowAnalysis.ts";
 
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -50,7 +51,50 @@ export function parseDictLiteral(
     }
   }
 
-  function parseStringLiteralOrIdentifier(): string | null {
+  function parseDictKey(): string | null {
+    if (i >= content.length) return null;
+    const quoteChar = content[i];
+    if (quoteChar === '"' || quoteChar === "'") {
+      i++; // consume quote
+      let str = "";
+      while (i < content.length) {
+        const char = content[i];
+        if (char === "\\") {
+          i++;
+          if (i < content.length) {
+            const nextChar = content[i];
+            if (nextChar === "n") str += "\n";
+            else if (nextChar === "t") str += "\t";
+            else if (nextChar === "r") str += "\r";
+            else str += nextChar;
+            i++;
+          }
+        } else if (char === quoteChar) {
+          i++; // consume closing quote
+          return str;
+        } else {
+          str += char;
+          i++;
+        }
+      }
+      return null;
+    }
+    const numMatch = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(
+      content.slice(i),
+    );
+    if (numMatch) {
+      i += numMatch[0].length;
+      return numMatch[0];
+    }
+    const match = /^[A-Za-z_][A-Za-z0-9_.]*/.exec(content.slice(i));
+    if (match) {
+      i += match[0].length;
+      return match[0];
+    }
+    return null;
+  }
+
+  function parseDictValue(): string | null {
     if (i >= content.length) return null;
     const quoteChar = content[i];
     if (quoteChar === '"' || quoteChar === "'") {
@@ -137,7 +181,7 @@ export function parseDictLiteral(
   while (i < content.length) {
     skipWhitespace();
     if (i >= content.length) break;
-    const key = parseStringLiteralOrIdentifier();
+    const key = parseDictKey();
     if (key === null) {
       skipValueExpression();
       if (i < content.length && content[i] === ",") i++;
@@ -149,7 +193,7 @@ export function parseDictLiteral(
     i++; // consume ':'
 
     skipWhitespace();
-    const val = parseStringLiteralOrIdentifier();
+    const val = parseDictValue();
     if (val !== null) {
       result.set(key, val);
     } else {
@@ -279,7 +323,8 @@ export function extractLiteralTarget(expression: string): string | null {
       if (!isEscaped) {
         const remainder = rest.substring(i + quote.length).trim();
         if (remainder.length === 0) {
-          return result.trim() || null;
+          const finalStr = result.trim();
+          return finalStr.length > 0 ? finalStr : null;
         }
         return null;
       }
@@ -373,8 +418,6 @@ export function resolveStaticTargetExpression(
   return null;
 }
 
-import { resolveDynamicTargetWithDataflow } from "../dataflowAnalysis.ts";
-
 export function resolveExpressionTargets(
   scanState: ParseScanState,
   expression: string,
@@ -429,7 +472,15 @@ export function resolveExpressionTargets(
       const keyExpr = dictMatch[2].trim();
       const localDict = scanState.labelVariableDictTargets.get(dictName);
       const globalDict = state?.globalLabelVariableDictTargets.get(dictName);
-      const dict = localDict || globalDict;
+      const initDict = state?.initVariables?.get(dictName)?.value;
+      const dict = localDict || globalDict ||
+        (initDict && typeof initDict === "object" && !Array.isArray(initDict)
+          ? initDict instanceof Map
+            ? (initDict as Map<string, string>)
+            : new Map(
+              Object.entries(initDict as unknown as Record<string, string>),
+            )
+          : undefined);
       if (dict) {
         const resolvedKey = resolveStaticTargetExpression(
           keyExpr,
@@ -445,7 +496,11 @@ export function resolveExpressionTargets(
       } else {
         const localList = scanState.labelVariableListTargets.get(dictName);
         const globalList = state?.globalLabelVariableListTargets.get(dictName);
-        const list = localList || globalList;
+        const initList = state?.initVariables?.get(dictName)?.value;
+        const list = localList || globalList ||
+          (Array.isArray(initList)
+            ? initList.filter((v): v is string => typeof v === "string")
+            : undefined);
         if (list) {
           const resolvedKey = resolveStaticTargetExpression(
             keyExpr,

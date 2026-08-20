@@ -25,10 +25,18 @@ import {
   runLayoutInWorker,
 } from "../../infrastructure/index.ts";
 
-const globalRecord = globalThis as Record<string, unknown>;
-const isTestEnv = typeof globalRecord["process"] !== "undefined" &&
-  (globalRecord["process"] as { env?: { NODE_ENV?: string } } | undefined)?.env
-      ?.NODE_ENV === "test";
+const globalProcess = (globalThis as unknown as {
+  process?: { env?: Record<string, string | undefined> };
+}).process;
+
+const isTestEnv = Boolean(
+  (globalProcess?.env?.NODE_ENV === "test" ||
+    globalProcess?.env?.VITEST === "true") ||
+    typeof (globalThis as unknown as { __vitest_worker__?: unknown })
+        .__vitest_worker__ !== "undefined" ||
+    typeof (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean })
+        .IS_REACT_ACT_ENVIRONMENT !== "undefined",
+);
 
 type PerfTracker = ReturnType<typeof createPerfTracker>;
 
@@ -227,6 +235,28 @@ export function useViewerLayout({
       },
       (error) => {
         console.error("Layout worker error:", error);
+        try {
+          const simplified = simplifyGraph(
+            flowNodes,
+            flowEdges,
+            simplifyOptions,
+          );
+          const fallback = applyDagreLayout(
+            simplified.nodes,
+            simplified.edges,
+            layoutDirection,
+            {
+              progressive: shouldProgressiveLayout,
+              layoutDensity,
+            },
+          );
+          startTransition(() => {
+            setNodes(fallback.nodes);
+            setEdges(fallback.edges);
+          });
+        } catch {
+          // Ignore secondary fallback error
+        }
         setIsCalculatingLayout(false);
       },
     );

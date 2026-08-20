@@ -137,6 +137,7 @@ export function handleConditionalHeader(
       branchKind: pending.kind,
       expression: pending.expression,
       references,
+      sourceLocation: pending.sourceLocation ?? existing.sourceLocation,
     };
   scanState.pendingConditionalHeader = null;
   return true;

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parsePythonBlock } from "../../src/parser/handlers/python/pythonAstParser.ts";
+import { parsePythonBlock } from "../../src/domain/pythonAstEvaluator.ts";
 import {
   extractLiteralTarget,
   parseDictLiteral,
-} from "../../src/parser/handlers/jumpCallHandler.ts";
+} from "../../src/parser/handlers/targetResolution.ts";
 
 describe("pythonAstParser adversarial review fixes", () => {
   it("extracts simple variable assignments", () => {

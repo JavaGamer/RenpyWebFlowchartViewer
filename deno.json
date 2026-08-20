@@ -4,9 +4,9 @@
     "build": "deno run -A npm:typescript/tsc -b && deno run -A npm:vite build",
     "lint": "deno run -A npm:eslint .",
     "preview": "deno run -A npm:vite preview",
-    "test": "deno run -A npm:vitest run --no-file-parallelism",
-    "test:coverage": "deno run -A npm:vitest run --coverage --no-file-parallelism",
-    "bench:perf": "deno run -A npm:vitest run -c vitest.perf.config.ts --no-file-parallelism",
+    "test": "deno run -A --v8-flags=--max-old-space-size=8192 npm:vitest run --no-file-parallelism",
+    "test:coverage": "deno run -A --v8-flags=--max-old-space-size=8192 npm:vitest run --coverage --no-file-parallelism",
+    "bench:perf": "deno run -A --v8-flags=--max-old-space-size=8192 npm:vitest run -c vitest.perf.config.ts --no-file-parallelism",
     "format": "deno fmt",
     "format:check": "deno fmt --check"
   },

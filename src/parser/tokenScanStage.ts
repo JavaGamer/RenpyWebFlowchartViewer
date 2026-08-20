@@ -2,7 +2,7 @@ import type { TextDocument } from "vscode-languageserver-textdocument";
 import type {
   TokenTree,
   TreeNode,
-} from "@renpy/ast/out/tokenizer/token-definitions";
+} from "@renpy/ast/out/tokenizer/token-definitions.js";
 import type { AudioAssetCue, FlowNode } from "../domain/index.ts";
 import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
@@ -193,7 +193,7 @@ function normalizeLiteralString(raw: string): string {
   return raw.slice(contentStart, len - quoteLen);
 }
 
-function collectFlatTokens(
+export function collectFlatTokens(
   node: TreeNode,
   metaStack: number[],
   tokens: Array<FlatTokenLike>,

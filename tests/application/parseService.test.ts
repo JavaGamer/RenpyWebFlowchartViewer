@@ -1,39 +1,63 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock(
-  "../../src/infrastructure/parserWorkerClient",
-  () => ({
-    parseRenpyFilesInWorker: vi.fn((request) =>
-      Promise.resolve({
-        nodes: [{
-          id: `node:${request.files.length}`,
-          type: "LABEL",
-          label: "n",
-          dialogueCount: 0,
-        }],
-        edges: [],
-      })
-    ),
-    searchDialogueLinesInWorker: vi.fn((request) =>
-      Promise.resolve([
-        {
-          nodeId: "n1",
-          nodeLabel: "node",
-          lineIndex: 0,
-          lineText: request.query,
-        },
-      ])
-    ),
-  }),
-);
+vi.mock("../../src/infrastructure/parserWorkerClient.ts", () => ({
+  parseRenpyFilesInWorker: vi.fn((request) =>
+    Promise.resolve({
+      nodes: [{
+        id: `node:${request.files.length}`,
+        type: "LABEL",
+        label: "n",
+        dialogueCount: 0,
+      }],
+      edges: [],
+    })
+  ),
+  searchDialogueLinesInWorker: vi.fn((request) =>
+    Promise.resolve([
+      {
+        nodeId: "n1",
+        nodeLabel: "node",
+        lineIndex: 0,
+        lineText: request.query,
+      },
+    ])
+  ),
+}));
+
+vi.mock("../../src/infrastructure/parserWorkerClient", () => ({
+  parseRenpyFilesInWorker: vi.fn((request) =>
+    Promise.resolve({
+      nodes: [{
+        id: `node:${request.files.length}`,
+        type: "LABEL",
+        label: "n",
+        dialogueCount: 0,
+      }],
+      edges: [],
+    })
+  ),
+  searchDialogueLinesInWorker: vi.fn((request) =>
+    Promise.resolve([
+      {
+        nodeId: "n1",
+        nodeLabel: "node",
+        lineIndex: 0,
+        lineText: request.query,
+      },
+    ])
+  ),
+}));
 
 describe("parseService", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
   it("delegates parse requests to parseRenpyFilesInWorker", async () => {
     const parseInWorker = await import(
-      "../../src/infrastructure/parserWorkerClient"
+      "../../src/infrastructure/parserWorkerClient.ts"
     );
     const { workerParseService } = await import(
-      "../../src/infrastructure"
+      "../../src/infrastructure/workerParseAdapter.ts"
     );
     const request = {
       files: [{ name: "a.rpy", content: "label a:" }],
@@ -51,10 +75,10 @@ describe("parseService", () => {
 
   it("delegates dialogue search requests to searchDialogueLinesInWorker", async () => {
     const parseInWorker = await import(
-      "../../src/infrastructure/parserWorkerClient"
+      "../../src/infrastructure/parserWorkerClient.ts"
     );
     const { workerParseService } = await import(
-      "../../src/infrastructure"
+      "../../src/infrastructure/workerParseAdapter.ts"
     );
     const request = {
       query: "needle",
@@ -75,5 +99,11 @@ describe("parseService", () => {
         lineText: "needle",
       },
     ]);
+  });
+
+  afterAll(() => {
+    vi.doUnmock("../../src/infrastructure/parserWorkerClient.ts");
+    vi.doUnmock("../../src/infrastructure/parserWorkerClient");
+    vi.resetModules();
   });
 });

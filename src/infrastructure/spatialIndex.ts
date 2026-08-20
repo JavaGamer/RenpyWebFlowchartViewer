@@ -214,7 +214,13 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
     maxY = 1000;
   }
 
-  const quadtree = new SpatialQuadtree({ minX, minY, maxX, maxY });
+  const padding = 100;
+  const quadtree = new SpatialQuadtree({
+    minX: minX - padding,
+    minY: minY - padding,
+    maxX: maxX === minX ? maxX + padding + 100 : maxX + padding,
+    maxY: maxY === minY ? maxY + padding + 100 : maxY + padding,
+  });
   for (const item of items) {
     quadtree.insert(item);
   }

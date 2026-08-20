@@ -77,7 +77,6 @@ export function handlePreTokenLineStatements(
         scanState.labelHasExplicitExit = true;
       } else if (BREAK_REGEX.test(trimmed)) {
         scanState.lastProcessedCustomLineNum = lineNum;
-        scanState.labelHasExplicitExit = true;
       } else if (CONTINUE_REGEX.test(trimmed)) {
         scanState.lastProcessedCustomLineNum = lineNum;
         const loopContext = [...scanState.conditionalDecisionStack]
@@ -96,7 +95,6 @@ export function handlePreTokenLineStatements(
           addOutgoing(state, scanState.currentLabelId, "sequence");
           addIncoming(state, loopContext.decisionNodeId, "sequence");
         }
-        scanState.labelHasExplicitExit = true;
       }
     }
   }

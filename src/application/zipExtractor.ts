@@ -8,6 +8,31 @@ import type { UploadedFile } from "./uploadTypes.ts";
 
 const MAX_TOTAL_EXTRACTED_BYTES = 200 * 1024 * 1024;
 
+const ACCEPTED_ZIP_EXTENSIONS = new Set([
+  ".rpy",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".avif",
+  ".gif",
+  ".svg",
+  ".ogg",
+  ".opus",
+  ".mp3",
+  ".wav",
+  ".flac",
+  ".webm",
+  ".mp4",
+]);
+
+function isAcceptedExtension(filename: string): boolean {
+  const lower = filename.replace(/\\/g, "/").toLowerCase();
+  const dotIdx = lower.lastIndexOf(".");
+  if (dotIdx === -1) return false;
+  return ACCEPTED_ZIP_EXTENSIONS.has(lower.slice(dotIdx));
+}
+
 export async function extractRpyFilesFromZip(
   zipFile: UploadedFile,
 ): Promise<UploadedFile[]> {
@@ -30,8 +55,7 @@ export async function extractRpyFilesFromZip(
     unzip(
       zipData,
       {
-        filter: (file) =>
-          file.name.replace(/\\/g, "/").toLowerCase().endsWith(".rpy"),
+        filter: (file) => isAcceptedExtension(file.name),
       },
       (err, unzipped) => {
         if (err) {

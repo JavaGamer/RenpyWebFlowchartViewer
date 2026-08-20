@@ -35,8 +35,11 @@ export function processAssignment(
 
   // Respect 'default' semantics: do not overwrite if already defined at same or higher priority
   const existingDesc = state.initVariables.get(variableName);
-  if (kind === "default" && existingDesc) {
-    if (existingDesc.priority >= priority) {
+  if (existingDesc) {
+    if (kind === "default" && existingDesc.priority >= priority) {
+      return false;
+    }
+    if (existingDesc.priority > priority) {
       return false;
     }
   }
@@ -64,6 +67,15 @@ export function processAssignment(
   const isPersist = isPersistent || variableName.startsWith("persistent.");
   if (!state.globalPersistentVariables) {
     state.globalPersistentVariables = new Map();
+  }
+  if (!state.globalLabelVariableLiteralTargets) {
+    state.globalLabelVariableLiteralTargets = new Map();
+  }
+  if (!state.globalLabelVariableDictTargets) {
+    state.globalLabelVariableDictTargets = new Map();
+  }
+  if (!state.globalLabelVariableListTargets) {
+    state.globalLabelVariableListTargets = new Map();
   }
   const targetMap = isPersist
     ? state.globalPersistentVariables
@@ -137,7 +149,10 @@ export function processAssignment(
   }
 
   // Record variable descriptor
-  const rawVal = targetMap.get(variableName) ?? parsedVal;
+  const listTargets = state.globalLabelVariableListTargets.get(variableName);
+  const dictTargets = state.globalLabelVariableDictTargets.get(variableName);
+  const rawVal = listTargets ??
+    (dictTargets ?? (targetMap.get(variableName) ?? parsedVal));
   state.initVariables.set(variableName, {
     name: variableName,
     rawExpression: cleanExpr,

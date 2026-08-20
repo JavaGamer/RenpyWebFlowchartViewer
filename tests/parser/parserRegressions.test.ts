@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseRenpyFiles } from "../../src/parser/parser";
-import { createGraphState } from "../../src/parser/pipelineState";
-import { preParseInitialization } from "../../src/parser/initMapper";
-import { computeLineIndent } from "../../src/parser/tokenScanStage";
-import { extractSceneAsset } from "../../src/parser/handlers/audioCues";
-import { PARSER_TOKENS } from "../../src/parser/parserTokens";
-import { buildConditionalVisibility, simplifyGraph } from "../../src/domain";
+import { parseRenpyFiles } from "../../src/parser/parser.ts";
+import { createGraphState } from "../../src/parser/pipelineState.ts";
+import { preParseInitialization } from "../../src/parser/initMapper.ts";
+import { computeLineIndent } from "../../src/parser/tokenScanStage.ts";
+import { extractSceneAsset } from "../../src/parser/handlers/audioCues.ts";
+import { PARSER_TOKENS } from "../../src/parser/parserTokens.ts";
+import {
+  buildConditionalVisibility,
+  type FlowEdge,
+  type FlowNode,
+  simplifyGraph,
+} from "../../src/domain/index.ts";
 
 function loadFixture(name: string): string {
   const fixturesDir = resolve(import.meta.dirname, "../fixtures");
@@ -514,22 +519,13 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "renpy-extra-args",
-            construct: "renpy.jump",
-          }),
-        }),
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "renpy-extra-args",
-            construct: "renpy.call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.location?.chapter === "renpy-extra-args" &&
+        (d.location?.construct === "renpy.jump" ||
+          d.location?.construct === "renpy.call")
+      ),
+    ).toBe(false);
   });
 
   it("extracts direct renpy.jump/renpy.call targets when target keyword is not first argument", async () => {
@@ -566,22 +562,13 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "renpy-keyword-order",
-            construct: "renpy.jump",
-          }),
-        }),
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "renpy-keyword-order",
-            construct: "renpy.call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.location?.chapter === "renpy-keyword-order" &&
+        (d.location?.construct === "renpy.jump" ||
+          d.location?.construct === "renpy.call")
+      ),
+    ).toBe(false);
   });
 
   it("extracts direct renpy api targets with explicit backslash multiline continuation and inline comments", async () => {
@@ -620,24 +607,14 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({
-            chapter: "renpy-multiline-backslash",
-            construct: "renpy.jump",
-          }),
-        }),
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({
-            chapter: "renpy-multiline-backslash",
-            construct: "renpy.call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.code === "dynamic_target" &&
+        d.location?.chapter === "renpy-multiline-backslash" &&
+        (d.location?.construct === "renpy.jump" ||
+          d.location?.construct === "renpy.call")
+      ),
+    ).toBe(false);
   });
 
   it("extracts direct renpy api targets with implicit grouping multiline continuation and inline comments", async () => {
@@ -680,24 +657,14 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({
-            chapter: "renpy-multiline-grouping",
-            construct: "renpy.jump",
-          }),
-        }),
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({
-            chapter: "renpy-multiline-grouping",
-            construct: "renpy.call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.code === "dynamic_target" &&
+        d.location?.chapter === "renpy-multiline-grouping" &&
+        (d.location?.construct === "renpy.jump" ||
+          d.location?.construct === "renpy.call")
+      ),
+    ).toBe(false);
   });
 
   it("extracts direct screen action targets with keyword and trailing arguments", async () => {
@@ -734,22 +701,13 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "screen-extra-args",
-            construct: "Jump",
-          }),
-        }),
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "screen-extra-args",
-            construct: "Call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.location?.chapter === "screen-extra-args" &&
+        (d.location?.construct === "Jump" ||
+          d.location?.construct === "Call")
+      ),
+    ).toBe(false);
   });
 
   it("extracts direct screen action targets when action uses assignment syntax", async () => {
@@ -943,24 +901,14 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({
-            chapter: "screen-action-multiline-comments",
-            construct: "Jump",
-          }),
-        }),
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({
-            chapter: "screen-action-multiline-comments",
-            construct: "Call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.code === "dynamic_target" &&
+        d.location?.chapter === "screen-action-multiline-comments" &&
+        (d.location?.construct === "Jump" ||
+          d.location?.construct === "Call")
+      ),
+    ).toBe(false);
   });
 
   it("applies custom screen action rules inside nested action structures", async () => {
@@ -1227,14 +1175,12 @@ describe("parseRenpyFiles", () => {
         edge.kind === "jump"
       ),
     ).toBeUndefined();
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({ construct: "renpy.jump" }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.code === "dynamic_target" &&
+        d.location?.construct === "renpy.jump"
+      ),
+    ).toBe(false);
   });
 
   it("resolves typed python assignments for jump expression and screen action calls", async () => {
@@ -1275,22 +1221,14 @@ describe("parseRenpyFiles", () => {
         }),
       ]),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({ construct: "jump expression" }),
-        }),
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({ construct: "Jump" }),
-        }),
-        expect.objectContaining({
-          code: "dynamic_target",
-          location: expect.objectContaining({ construct: "Call" }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.code === "dynamic_target" &&
+        (d.location?.construct === "jump expression" ||
+          d.location?.construct === "Jump" ||
+          d.location?.construct === "Call")
+      ),
+    ).toBe(false);
   });
 
   it("invalidates same-label python assignment bindings after a dynamic reassignment", async () => {
@@ -1400,34 +1338,15 @@ describe("parseRenpyFiles", () => {
     expect(result.edges.some((edge) => ignoredTargets.has(edge.target))).toBe(
       false,
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "ignored-direct-call-patterns",
-            construct: "renpy.jump",
-          }),
-        }),
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "ignored-direct-call-patterns",
-            construct: "renpy.call",
-          }),
-        }),
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "ignored-direct-call-patterns",
-            construct: "Jump",
-          }),
-        }),
-        expect.objectContaining({
-          location: expect.objectContaining({
-            chapter: "ignored-direct-call-patterns",
-            construct: "Call",
-          }),
-        }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) =>
+        d.location?.chapter === "ignored-direct-call-patterns" &&
+        (d.location?.construct === "renpy.jump" ||
+          d.location?.construct === "renpy.call" ||
+          d.location?.construct === "Jump" ||
+          d.location?.construct === "Call")
+      ),
+    ).toBe(false);
   });
 
   it("handles complex conditional nested menu and mixed call/jump flow", async () => {
@@ -2073,11 +1992,9 @@ describe("parseRenpyFiles", () => {
         kind: "jump",
       }),
     );
-    expect(result.diagnostics ?? []).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: "dynamic_target" }),
-      ]),
-    );
+    expect(
+      (result.diagnostics ?? []).some((d) => d.code === "dynamic_target"),
+    ).toBe(false);
   });
 
   it("resolves static and dynamic dictionary-based targets to single and multiple edges", async () => {

@@ -13,10 +13,8 @@ import {
   type FlowNode,
   UploadValidationError,
 } from "../domain/index.ts";
-import {
-  type ParseDiagnosticPayload,
-  readFileAsArrayBuffer,
-} from "../infrastructure/index.ts";
+import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
+import { readFileAsArrayBuffer } from "../infrastructure/index.ts";
 
 import { useViewerStore } from "./viewerStore.ts";
 import { validateRpyUpload } from "./uploadValidation.ts";

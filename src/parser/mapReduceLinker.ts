@@ -187,7 +187,11 @@ function formatEdgePrefix(
   source: string,
   target: string,
 ): string {
-  const k = !kind || kind === "sequence" ? "seq" : kind;
+  const k = !kind || kind === "sequence"
+    ? "seq"
+    : kind === "call_return"
+    ? "ret"
+    : kind;
   return `${k}_${source}__${target}`;
 }
 

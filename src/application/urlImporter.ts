@@ -12,29 +12,36 @@ import type { UploadedFile } from "./uploadTypes.ts";
  * Automatically converts a standard GitHub repository page URL into its main branch ZIP archive download link.
  * E.g., https://github.com/owner/repo -> https://github.com/owner/repo/archive/refs/heads/main.zip
  */
+/**
+ * Automatically converts a standard GitHub repository page URL into its main branch ZIP archive download link.
+ * E.g., https://github.com/owner/repo -> https://github.com/owner/repo/archive/refs/heads/main.zip
+ */
 export function resolveGithubUrl(urlStr: string): string {
-  const url = urlStr.trim();
-  const githubRepoRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)\/?$/;
-  const repoMatch = url.match(githubRepoRegex);
-  if (repoMatch) {
-    const owner = repoMatch[2];
-    const repo = repoMatch[3].replace(/\.git$/i, "");
-    return `https://github.com/${owner}/${repo}/archive/refs/heads/main.zip`;
+  const cleanUrl = urlStr.trim();
+  try {
+    const parsed = new URL(cleanUrl);
+    if (
+      parsed.hostname === "github.com" ||
+      parsed.hostname === "www.github.com"
+    ) {
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      if (parts.length === 2) {
+        const [owner, repo] = parts;
+        return `https://github.com/${owner}/${
+          repo.replace(/\.git$/i, "")
+        }/archive/refs/heads/main.zip`;
+      }
+      if (parts.length >= 4 && (parts[2] === "blob" || parts[2] === "raw")) {
+        const [owner, repo, , branch, ...filePath] = parts;
+        return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${
+          filePath.join("/")
+        }`;
+      }
+    }
+  } catch {
+    // Fall back to cleanUrl if URL parsing fails
   }
-
-  const githubFileRegex =
-    /^https?:\/\/(www\.)?github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)\/(?:blob|raw)\/([^/]+)\/(.+)$/;
-  const fileMatch = url.match(githubFileRegex);
-  if (fileMatch) {
-    const owner = fileMatch[2];
-    const repo = fileMatch[3];
-    const branch = fileMatch[4];
-    const path = fileMatch[5];
-    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
-  }
-
-  return url;
+  return cleanUrl;
 }
 
 /**
@@ -81,14 +88,30 @@ export async function fetchFilesFromUrl(
   const contentType = response.headers.get("Content-Type") || "";
   const urlPath = resolvedUrl.split("?")[0]!.split("#")[0]!;
   const urlLower = urlPath.toLowerCase();
-  const isRpy = urlLower.endsWith(".rpy");
-  const isZip = !isRpy && (
-    urlLower.endsWith(".zip") || contentType.includes("zip") ||
-    contentType.includes("octet-stream")
-  );
+
+  let buffer: ArrayBuffer;
+  let textContent: string | null = null;
+  if (typeof response.arrayBuffer === "function") {
+    buffer = await response.arrayBuffer();
+  } else if (typeof response.text === "function") {
+    textContent = await response.text();
+    const encoded = new TextEncoder().encode(textContent);
+    buffer = encoded.buffer.slice(
+      encoded.byteOffset,
+      encoded.byteOffset + encoded.byteLength,
+    ) as ArrayBuffer;
+  } else {
+    buffer = new ArrayBuffer(0);
+  }
+
+  const bytes = new Uint8Array(buffer);
+  const isZipMagic = bytes.length >= 4 &&
+    bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 &&
+    bytes[3] === 0x04;
+  const isZip = isZipMagic || urlLower.endsWith(".zip") ||
+    contentType.includes("zip");
 
   if (isZip) {
-    const buffer = await response.arrayBuffer();
     const parts = urlPath.split("/");
     const name = parts[parts.length - 1] || "archive.zip";
     const zipVirtualFile: UploadedFile = {
@@ -103,22 +126,28 @@ export async function fetchFilesFromUrl(
     return extractRpyFilesFromZip(zipVirtualFile);
   } else {
     // Treat as raw script
-    const textContent = await response.text();
+    const text = textContent ?? new TextDecoder("utf-8").decode(buffer);
     const parts = urlPath.split("/");
     const name = parts[parts.length - 1] || "script.rpy";
-    if (!name.toLowerCase().endsWith(".rpy")) {
+    if (!name.toLowerCase().endsWith(".rpy") && !text.includes("label ")) {
       throw new Error(
         `The fetched URL does not appear to be a .rpy script or a .zip archive. ` +
           `Detected Content-Type: "${contentType}".`,
       );
     }
-    const encoded = new TextEncoder().encode(textContent);
+    const encoded = new TextEncoder().encode(text);
     return [
       {
-        name,
+        name: name.toLowerCase().endsWith(".rpy") ? name : `${name}.rpy`,
         size: encoded.byteLength,
-        text: () => Promise.resolve(textContent),
-        arrayBuffer: () => Promise.resolve(encoded.buffer as ArrayBuffer),
+        text: () => Promise.resolve(text),
+        arrayBuffer: () =>
+          Promise.resolve(
+            encoded.buffer.slice(
+              encoded.byteOffset,
+              encoded.byteOffset + encoded.byteLength,
+            ) as ArrayBuffer,
+          ),
       },
     ];
   }

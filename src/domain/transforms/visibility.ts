@@ -120,6 +120,8 @@ export function buildVisibleNodes(params: {
         prevData.shadowOfId === nodeData.shadowOfId &&
         prevData.isTerminalOutcome === nodeData.isTerminalOutcome &&
         prevData.isOrphan === nodeData.isOrphan &&
+        prevData.isDetailsLoaded === nodeData.isDetailsLoaded &&
+        prevData.parameters === nodeData.parameters &&
         prevData.characterDialogue === nodeData.characterDialogue
       ) {
         return previous;

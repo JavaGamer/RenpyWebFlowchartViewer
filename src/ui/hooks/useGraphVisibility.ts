@@ -264,9 +264,9 @@ export function useGraphVisibility({
   const logicalVisibleNodes = visibleNodes;
 
   const spatialIndex = useMemo(() => {
-    if (!viewportBounds || nodes.length < 150) return null;
+    if (nodes.length < 150) return null;
     return createSpatialIndex(nodes);
-  }, [nodes, viewportBounds]);
+  }, [nodes]);
 
   const spatiallyFilteredNodes = useMemo(() => {
     if (!spatialIndex || !viewportBounds) return visibleNodes;

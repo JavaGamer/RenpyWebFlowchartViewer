@@ -278,7 +278,10 @@ export function scanInitItemsFromFiles(
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+      if (
+        trimmed.length === 0 || trimmed.startsWith("#") ||
+        getLineIndent(line) !== 0
+      ) continue;
       const labelMatch =
         /^label\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*:/i.exec(trimmed);
       if (labelMatch) {

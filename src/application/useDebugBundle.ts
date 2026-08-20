@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "./appStore.ts";
 import { useParserRuleSettingsStore } from "./parserRuleSettingsStore.ts";
 import { useViewerStore } from "./viewerStore.ts";
+import { useTelemetryStore } from "./telemetryStore.ts";
 import {
   buildDebugBundle,
   buildIssueDraftUrl,
@@ -98,6 +99,15 @@ export function useDebugBundle(): UseDebugBundleResult {
         },
         parseDiagnostics,
         privacy,
+        telemetry: {
+          readMs: useTelemetryStore.getState().readMs,
+          parseMs: useTelemetryStore.getState().parseMs,
+          layoutMs: useTelemetryStore.getState().layoutMs,
+          renderMs: useTelemetryStore.getState().renderMs,
+          nodesCount: useTelemetryStore.getState().nodesCount,
+          edgesCount: useTelemetryStore.getState().edgesCount,
+          fileCount: useTelemetryStore.getState().fileCount,
+        },
       });
       const { saveAs } = await import("file-saver");
       saveAs(toDebugBundleBlob(bundle), "renpy-flowchart-debug-bundle.json");

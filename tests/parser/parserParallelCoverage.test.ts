@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type FilePipelineMocks = {
   parseOneFile: ReturnType<typeof vi.fn>;
@@ -88,6 +88,15 @@ describe("parseRenpyFiles coverage gaps", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+  });
+
+  afterAll(() => {
+    vi.doUnmock("../../src/infrastructure");
+    vi.doUnmock("../../src/parser/pipelineState");
+    vi.doUnmock("../../src/parser/filePipeline");
+    vi.doUnmock("../../src/parser/roleFinalization");
+    vi.doUnmock("../../src/parser/mapReduceLinker");
+    vi.resetModules();
   });
 
   it("falls back to single concurrency when maxParallelFiles is non-finite", async () => {

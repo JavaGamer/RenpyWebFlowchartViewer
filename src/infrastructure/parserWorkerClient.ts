@@ -64,6 +64,15 @@ export function setWorkerSpawningFailedForTesting(failed: boolean): void {
 export function areWorkersSupported(): boolean {
   if (typeof globalThis.Worker === "undefined") return false;
   if (isWorkerSpawningFailed) return false;
+  if (
+    typeof window !== "undefined" &&
+    window.location?.hostname === "localhost" &&
+    typeof (window as unknown as { __vitest_worker__?: unknown })
+        .__vitest_worker__ !== "undefined" &&
+    globalThis.Worker.name !== "MockWorker"
+  ) {
+    return false;
+  }
   return true;
 }
 

@@ -1,6 +1,7 @@
 import type {
   CallArgument,
   CallContext,
+  ConditionBranchKind,
   ConditionMetadata,
   EdgeKind,
   FlowEdge,
@@ -232,11 +233,17 @@ function inlineNodes(
             ]),
           ).sort();
 
-          mergedCondition = {
-            branchKind: current.condition.branchKind === "if" ||
-                edge.condition.branchKind === "if"
+          const branchKind: ConditionBranchKind =
+            current.condition.branchKind === "if" ||
+              edge.condition.branchKind === "if"
               ? "if"
-              : "elif",
+              : current.condition.branchKind === "else" &&
+                  edge.condition.branchKind === "else"
+              ? "else"
+              : "elif";
+
+          mergedCondition = {
+            branchKind,
             expression: mergedExpression,
             references: mergedRefs,
             decisionNodeId: current.condition.decisionNodeId ||
@@ -462,9 +469,7 @@ export function collapseLinearChains(
           }
         }
         if (node.isShadowed) isShadowed = true;
-        if (i === path.length - 1) {
-          isTerminalOutcome = node.isTerminalOutcome;
-        }
+        if (node.isTerminalOutcome) isTerminalOutcome = true;
         collapsedInto.set(node.id, rootId);
       }
 
@@ -565,9 +570,7 @@ export function collapseLinearChains(
           }
         }
         if (node.isShadowed) isShadowed = true;
-        if (i === path.length - 1) {
-          isTerminalOutcome = node.isTerminalOutcome;
-        }
+        if (node.isTerminalOutcome) isTerminalOutcome = true;
         collapsedInto.set(node.id, rootId);
       }
 

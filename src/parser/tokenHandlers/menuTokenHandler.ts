@@ -36,16 +36,42 @@ export function extractMenuOptionCondition(lineText: string): string | null {
       break;
     }
   }
-  const trimmed = cleanLine.trim();
-  const match =
-    /^[\s]*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')(?:\s+(?:[A-Za-z0-9_]+|"[^"]*"|'[^']*'))*?\s+if\s+(.+?)\s*:?$/i
-      .exec(trimmed);
-  if (match && match[1]) {
-    let cond = match[1].trim();
-    if (cond.endsWith(":")) {
-      cond = cond.slice(0, -1).trim();
+  let trimmed = cleanLine.trim();
+  if (trimmed.endsWith(":")) {
+    trimmed = trimmed.slice(0, -1).trim();
+  }
+
+  // Scan outside quotes for ' if '
+  inQuote = null;
+  let lastIfIndex = -1;
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (inQuote) {
+      if (ch === "\\" && i + 1 < trimmed.length) {
+        i++;
+      } else if (ch === inQuote) {
+        inQuote = null;
+      }
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (
+      (ch === "i" || ch === "I") &&
+      i + 1 < trimmed.length &&
+      (trimmed[i + 1] === "f" || trimmed[i + 1] === "F")
+    ) {
+      const prevChar = i > 0 ? trimmed[i - 1] : " ";
+      const nextChar = i + 2 < trimmed.length ? trimmed[i + 2] : " ";
+      if (/\s/.test(prevChar) && /\s/.test(nextChar)) {
+        lastIfIndex = i;
+      }
     }
-    return cond;
+  }
+
+  if (lastIfIndex !== -1) {
+    const cond = trimmed.slice(lastIfIndex + 2).trim();
+    if (cond.length > 0) {
+      return cond;
+    }
   }
   return null;
 }

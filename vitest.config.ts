@@ -7,6 +7,11 @@ export default defineConfig({
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     exclude: ["tests/perf/**", "tests/e2e/**", "tests/smoke.vitest.test.ts"],
     setupFiles: ["./tests/setup.ts"],
+    pool: "threads",
+    isolate: false,
+    threads: {
+      singleThread: true,
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

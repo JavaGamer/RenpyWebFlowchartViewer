@@ -60,11 +60,15 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
   const nodeData = node.data as NodeData;
   const nodeHeight = node.measured?.height ??
     getNodeHeight({
-      type: node.type === "labelNode"
-        ? "LABEL"
-        : node.type === "menuNode"
+      type: node.type === "menuNode"
         ? "MENU"
-        : "DECISION",
+        : node.type === "decisionNode"
+        ? "DECISION"
+        : node.type === "screenCallNode"
+        ? "SCREEN_CALL"
+        : node.type === "syntaxErrorNode"
+        ? "SYNTAX_ERROR"
+        : "LABEL",
       isShadowed: nodeData.isShadowed,
       isTerminalOutcome: nodeData.isTerminalOutcome,
       audioAssetCues: nodeData.audioAssetCues,

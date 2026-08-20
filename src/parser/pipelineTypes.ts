@@ -9,7 +9,7 @@ import type {
   SourceLocation,
 } from "../domain/index.ts";
 import type { TextDocument } from "vscode-languageserver-textdocument";
-import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
+import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 

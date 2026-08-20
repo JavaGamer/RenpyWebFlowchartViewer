@@ -46,11 +46,16 @@ export function handleJumpTargetToken(
   menuDepth: number,
   sourceLocation?: SourceLocation,
 ): void {
-  const rawExpr = scanState.waitForJumpExpressionTarget && lineText
-    ? (lineText.includes("expression")
-      ? lineText.substring(lineText.indexOf("expression") + 10).trim()
-      : val())
-    : val();
+  let rawExpr = val();
+  if (scanState.waitForJumpExpressionTarget && lineText) {
+    const clean = lineText.split("#")[0]!.trim();
+    const match = /jump\s+expression\s+(.+?)(?:\s+from\b|$)/i.exec(clean);
+    rawExpr = match
+      ? match[1]!.trim()
+      : (clean.includes("expression")
+        ? clean.substring(clean.indexOf("expression") + 10).trim()
+        : val());
+  }
   const targetExpression = rawExpr;
   const targets = resolveExpressionTargets(
     scanState,
@@ -105,11 +110,18 @@ export function handleCallTargetToken(
   menuDepth: number,
   sourceLocation?: SourceLocation,
 ): void {
-  const rawExpr = scanState.waitForCallExpressionTarget && lineText
-    ? (lineText.includes("expression")
-      ? lineText.substring(lineText.indexOf("expression") + 10).trim()
-      : val())
-    : val();
+  let rawExpr = val();
+  if (scanState.waitForCallExpressionTarget && lineText) {
+    const clean = lineText.split("#")[0]!.trim();
+    const match = /call\s+expression\s+(.+?)(?:\s+pass\b|\s+from\b|$)/i.exec(
+      clean,
+    );
+    rawExpr = match
+      ? match[1]!.trim()
+      : (clean.includes("expression")
+        ? clean.substring(clean.indexOf("expression") + 10).trim()
+        : val());
+  }
   const targetExpression = rawExpr;
   const targets = resolveExpressionTargets(
     scanState,

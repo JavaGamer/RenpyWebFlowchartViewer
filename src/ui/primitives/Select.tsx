@@ -28,7 +28,12 @@ export function Select<T extends string | number = string>({
   return (
     <select
       value={value}
-      onChange={(e) => onChange(e.target.value as unknown as T)}
+      onChange={(e) =>
+        onChange(
+          (typeof value === "number"
+            ? Number(e.target.value)
+            : e.target.value) as unknown as T,
+        )}
       disabled={disabled}
       className={cn(
         CONTROL_INPUT_CLASS,

@@ -1,5 +1,5 @@
-import { Tokenizer } from "@renpy/ast/out/tokenizer/tokenizer";
-import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
+import { Tokenizer } from "@renpy/ast/out/tokenizer/tokenizer.js";
+import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import type { ParseGraphState } from "./pipelineTypes.ts";
 import { createScanState } from "./pipelineState.ts";

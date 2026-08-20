@@ -178,7 +178,7 @@ export function parseCallArguments(
 ): CallArgument[] | undefined {
   const argText = extractParenthesizedArguments(
     lineText,
-    /call\s+(?:expression\s+.*?\s+pass\s+|expression\s+.*?(?=\()|[A-Za-z_][A-Za-z0-9_]*\s+pass\s+|[A-Za-z_][A-Za-z0-9_]*\s*)/i,
+    /call\s+(?:expression\s+.*?\s+pass\s+|[A-Za-z_][A-Za-z0-9_]*\s+pass\s+|[A-Za-z_][A-Za-z0-9_]*\s*)/i,
   );
   if (!argText || !argText.trim()) return undefined;
   const rawArgs = splitBalancedArguments(argText);

@@ -27,6 +27,7 @@ export interface SelectionSliceState {
 
 export interface SelectionSliceActions {
   fetchNodeDetails: (nodeIds: string[]) => Promise<void>;
+  markNodesHydrated: (ids: string[]) => void;
   setFocusNodeId: (id: string) => void;
   setSelectedNodeId: (id: string) => void;
   setSelectedDialogueLineIndex: (index: number | null) => void;
@@ -103,6 +104,13 @@ export const createSelectionSlice: StateCreator<
       });
     }
   },
+
+  markNodesHydrated: (ids) =>
+    set((draft) => {
+      const nextHydrated = new Set(draft.hydratedNodeDetailIds);
+      ids.forEach((id) => nextHydrated.add(id));
+      draft.hydratedNodeDetailIds = nextHydrated;
+    }),
 
   setFocusNodeId: (id) =>
     set((draft) => {

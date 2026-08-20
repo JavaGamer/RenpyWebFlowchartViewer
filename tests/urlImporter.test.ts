@@ -9,6 +9,9 @@ import type { UploadedFile } from "../src/application/uploadTypes";
 vi.mock("../src/application/zipExtractor", () => ({
   extractRpyFilesFromZip: vi.fn(),
 }));
+vi.mock("../src/application/zipExtractor.ts", () => ({
+  extractRpyFilesFromZip: vi.fn(),
+}));
 
 describe("resolveGithubUrl", () => {
   it("resolves standard GitHub repo URL to main branch ZIP download", () => {
@@ -53,7 +56,7 @@ describe("resolveGithubUrl", () => {
 
 describe("fetchFilesFromUrl", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("fetches and returns a raw .rpy script file", async () => {

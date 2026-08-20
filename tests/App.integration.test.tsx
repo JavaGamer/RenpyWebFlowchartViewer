@@ -8,7 +8,15 @@
  * the tests remain fast and deterministic in jsdom.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   cleanup,
   createEvent,
@@ -34,66 +42,6 @@ import {
 import { useViewerStore } from "../src/application/viewerStore";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
-
-// React Flow requires a real browser canvas and ResizeObserver; mock it away.
-vi.mock("@xyflow/react", () => {
-  const ReactFlow = ({
-    nodes,
-    edges,
-    children,
-  }: {
-    nodes: Array<{ hidden?: boolean }>;
-    edges: unknown[];
-    children?: React.ReactNode;
-  }) => (
-    <div data-testid="react-flow">
-      <span data-testid="rf-node-count">
-        {nodes.filter((n) => !n.hidden).length}
-      </span>
-      <span data-testid="rf-edge-count">{edges.length}</span>
-      {children}
-    </div>
-  );
-  const Background = () => null;
-  const Controls = () => null;
-  const MiniMap = () => null;
-  const Handle = () => null;
-  const BaseEdge = () => null;
-  const EdgeLabelRenderer = ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  );
-  const getBezierPath = () => ["M 0 0", 0, 0] as [string, number, number];
-  const Position = {
-    Top: "top",
-    Bottom: "bottom",
-    Left: "left",
-    Right: "right",
-  };
-  const MarkerType = { ArrowClosed: "arrowclosed" };
-  const useNodesState = (initial: unknown[]) => {
-    const [nodes, setNodes] = React.useState(initial);
-    return [nodes, setNodes, vi.fn()] as const;
-  };
-  const useEdgesState = (initial: unknown[]) => {
-    const [edges, setEdges] = React.useState(initial);
-    return [edges, setEdges, vi.fn()] as const;
-  };
-
-  return {
-    ReactFlow,
-    Background,
-    Controls,
-    MiniMap,
-    Handle,
-    BaseEdge,
-    EdgeLabelRenderer,
-    getBezierPath,
-    Position,
-    MarkerType,
-    useNodesState,
-    useEdgesState,
-  };
-});
 
 vi.mock("../src/infrastructure/parserWorkerClient", () => {
   return {
@@ -1009,9 +957,9 @@ describe("App – upload → parse → render integration", () => {
     const parseSpy = vi.spyOn(infrastructure, "parseRenpyFilesInWorker");
     let aborted = false;
     parseSpy.mockImplementationOnce(
-      ({ signal }) =>
+      (request: { signal?: AbortSignal }) =>
         new Promise((_, reject) => {
-          signal?.addEventListener(
+          request?.signal?.addEventListener(
             "abort",
             () => {
               aborted = true;
@@ -1305,5 +1253,13 @@ describe("App – upload → parse → render integration", () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  afterAll(() => {
+    vi.doUnmock("../src/infrastructure/parserWorkerClient");
+    vi.doUnmock("../src/infrastructure/parserWorkerClient.ts");
+    vi.doUnmock("html-to-image");
+    vi.doUnmock("file-saver");
+    vi.resetModules();
   });
 });

@@ -666,6 +666,10 @@ function propagateVariableMutationsAndEvaluateConditions(
             ? raw
             : (!isNaN(Number(raw)) ? Number(raw) : 0);
           store.set(mut.variableName, prev - mut.value);
+        } else if (mut.operator === "toggle") {
+          const raw = store.get(mut.variableName);
+          const currentBool = raw === true || raw === "true" || raw === "True";
+          store.set(mut.variableName, !currentBool);
         }
       }
     }

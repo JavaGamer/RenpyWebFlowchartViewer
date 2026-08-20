@@ -75,6 +75,7 @@ export interface ViewerSessionState {
 
 export interface ViewerActions {
   fetchNodeDetails: (nodeIds: string[]) => Promise<void>;
+  markNodesHydrated: (ids: string[]) => void;
   // Persisted setters
   setTheme: (theme: ThemeName) => void;
   setLayoutDensity: (density: LayoutDensity) => void;

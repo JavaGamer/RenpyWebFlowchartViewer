@@ -94,6 +94,25 @@ export function resolveDynamicTargetWithDataflow(
       }
     }
   }
+  if (state?.initVariables) {
+    for (const [k, desc] of state.initVariables.entries()) {
+      if (typeof desc.value === "string" && !env.vars.has(k)) {
+        env.vars.set(k, new Set([desc.value]));
+      } else if (Array.isArray(desc.value) && !env.vars.has(k)) {
+        env.vars.set(
+          k,
+          new Set(desc.value.filter((x): x is string => typeof x === "string")),
+        );
+      }
+    }
+  }
+  if (state?.globalPersistentVariables) {
+    for (const [k, v] of state.globalPersistentVariables.entries()) {
+      if (typeof v === "string" && !env.vars.has(k)) {
+        env.vars.set(k, new Set([v]));
+      }
+    }
+  }
 
   // If block code is provided, parse python assignments in order
   if (blockCode) {
@@ -107,6 +126,11 @@ export function resolveDynamicTargetWithDataflow(
 
   // Evaluate target expression against tracked dataflow env
   const envSingleMap: Record<string, unknown> = {};
+  if (state?.initVariables) {
+    for (const [k, desc] of state.initVariables.entries()) {
+      envSingleMap[k] = desc.value;
+    }
+  }
   for (const [k, set] of env.vars.entries()) {
     if (set.size === 1) {
       envSingleMap[k] = Array.from(set)[0];

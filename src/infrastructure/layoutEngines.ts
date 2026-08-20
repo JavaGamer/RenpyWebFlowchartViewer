@@ -196,8 +196,9 @@ function applyProgressiveDagreLayout(
     };
   });
 
+  const positionById = new Map(nodes.map((n) => [n.id, n.position]));
   const edges: CanvasEdge[] = normalizedEdges
-    .filter((e) => g.hasNode(e.source) && g.hasNode(e.target))
+    .filter((e) => positionById.has(e.source) && positionById.has(e.target))
     .map((e) => ({
       id: e.id,
       source: e.source,
@@ -211,6 +212,7 @@ function applyProgressiveDagreLayout(
         timeout: e.timeout,
         callContext: e.callContext,
       },
+      markerEnd: { type: "arrowclosed" as const },
       style: { stroke: edgeColor, strokeWidth: 1.5 },
     }));
 
@@ -507,6 +509,11 @@ export async function applyElkLayout(
     };
   });
 
+  const edgeColor = options?.theme === "dark"
+    ? "#475569"
+    : options?.theme === "highContrast"
+    ? "#000000"
+    : "#cbd5e1";
   const edges: CanvasEdge[] = normalizedEdges
     .filter((e) => positionById.has(e.source) && positionById.has(e.target))
     .map((e) => ({
@@ -519,9 +526,10 @@ export async function applyElkLayout(
         kind: e.kind,
         condition: e.condition,
         timeout: e.timeout,
+        callContext: e.callContext,
       },
       markerEnd: { type: "arrowclosed" as const },
-      style: { stroke: "#6b7280", strokeWidth: 1.5 },
+      style: { stroke: edgeColor, strokeWidth: 1.5 },
     }));
 
   return { nodes, edges };

@@ -12,6 +12,7 @@ import {
   type ParseInputFile,
   parseRenpyFiles,
   type PendingCallReturn,
+  preParseInitialization,
   processTokenizedFile,
   type TokenizedFile,
   tokenizeOneFile,
@@ -20,7 +21,7 @@ import {
 } from "../parser/index.ts";
 import MiniSearch from "minisearch";
 import type { TextDocument } from "vscode-languageserver-textdocument";
-import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions";
+import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
 import pLimit from "p-limit";
 import {
   DIALOGUE_MINISEARCH_OPTIONS,
@@ -253,6 +254,7 @@ export const parserApi = {
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
+      sceneSplitDialogueThreshold?: number;
       projectMediaFiles?:
         | Array<{ relativePath: string; fileName: string }>
         | Set<string>
@@ -302,6 +304,11 @@ export const parserApi = {
           session.dialogueSearchDocs = [];
           session.dialogueSearchMiniSearch = null;
         }
+
+        preParseInitialization(
+          files,
+          session.accumulatedState,
+        );
 
         const hardwareConcurrency = typeof navigator !== "undefined"
           ? navigator.hardwareConcurrency
@@ -366,6 +373,7 @@ export const parserApi = {
             deferDetails: options.deferDetails,
             parserVariant: options.parserVariant,
             screenActionRules: options.screenActionRules,
+            sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
           });
 
           if (wantsProgress) {
@@ -496,6 +504,7 @@ export const parserApi = {
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
+      sceneSplitDialogueThreshold?: number;
       prePassState?: {
         globalLabelVariableLiteralTargets?: Array<[string, string]>;
         globalLabelVariableDictTargets?: Array<
@@ -604,6 +613,7 @@ export const parserApi = {
           deferDetails: options.deferDetails,
           parserVariant: options.parserVariant,
           screenActionRules: options.screenActionRules,
+          sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
         });
       }
       if (cancelledRequests.has(requestId)) {
@@ -669,6 +679,7 @@ export const parserApi = {
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
+      sceneSplitDialogueThreshold?: number;
     },
     fileIndex: number = 0,
   ): Promise<FileGraphFragment> {
@@ -695,6 +706,7 @@ export const parserApi = {
         deferDetails: options.deferDetails,
         parserVariant: options.parserVariant,
         screenActionRules: options.screenActionRules,
+        sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
       });
       return createFileGraphFragment(state, file, fileIndex);
     } finally {

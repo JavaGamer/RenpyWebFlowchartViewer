@@ -344,12 +344,21 @@ export default function FlowchartViewer({
         flowInstanceRef.current?.fitView({ padding: 0.2 });
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "z" &&
+        !event.shiftKey
+      ) {
         event.preventDefault();
         if (canUndo) undo();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {
+      if (
+        ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") ||
+        ((event.ctrlKey || event.metaKey) &&
+          event.shiftKey &&
+          event.key.toLowerCase() === "z")
+      ) {
         event.preventDefault();
         if (canRedo) redo();
       }

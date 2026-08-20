@@ -25,7 +25,10 @@ export function exportToStoryboard(nodes: FlowNode[]): string {
       if (node.dialogueLines && node.dialogueLines.length > 0) {
         lines.push("");
         for (const dl of node.dialogueLines) {
-          lines.push(`> ${dl}`);
+          const subLines = dl.split(/\r?\n/);
+          for (const subLine of subLines) {
+            lines.push(`> ${subLine}`);
+          }
         }
       }
       lines.push("");
@@ -50,12 +53,7 @@ export async function exportToStoryboardWithHydration(
   if (unhydratedIds.length > 0) {
     const details = await extractNodeDetailsInWorker(unhydratedIds);
     useAppStore.getState().updateNodeDetails(details);
-    const viewerState = useViewerStore.getState();
-    if (viewerState.hydratedNodeDetailIds) {
-      for (const id of Object.keys(details)) {
-        viewerState.hydratedNodeDetailIds.add(id);
-      }
-    }
+    useViewerStore.getState().markNodesHydrated(Object.keys(details));
     const updatedMap = new Map(
       useAppStore.getState().flowNodes.map((n) => [n.id, n]),
     );
