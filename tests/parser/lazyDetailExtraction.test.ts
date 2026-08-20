@@ -9,7 +9,9 @@ import type { ParseInputFile } from "../../src/parser/index.ts";
 const SAMPLE_RPY = `
 label start:
     scene bg classroom with dissolve
+    show eileen happy at center
     play music "bgm_daily.ogg" fadein 1.0
+    queue music "bgm_next.ogg" fadein 0.5
     "Teacher" "Welcome to school today, everyone."
     "Student" "Good morning, teacher!"
     stop music fadeout 1.0
@@ -74,10 +76,39 @@ test("extractNodeDetailsFromTokens hydrates deferred node details on demand", as
   expect(details[startNode.id]).toBeDefined();
   const startPayload = details[startNode.id]!;
   expect(startPayload.dialogueLines?.length).toBe(3);
-  expect(startPayload.audioAssetCues?.length).toBe(4); // scene, play music, stop music, voice
+  expect(startPayload.audioAssetCues?.length).toBe(6); // scene, show, play, queue, stop, voice
   expect(startPayload.dialogueLines![0]).toBe(
     "Welcome to school today, everyone.",
   );
+});
+
+test("extractNodeDetailsFromTokens ignores malformed audio/visual cue statements", async () => {
+  const file: ParseInputFile = {
+    name: "script.rpy",
+    content: `
+label start:
+    scene
+    show
+    play music
+    stop
+    queue music
+    voice
+    "Narrator" "Only dialogue should remain."
+`,
+  };
+
+  const parseResult = await parseRenpyFiles([file], { deferDetails: true });
+  const startNode = parseResult.nodes.find((n) =>
+    n.label === "start" || n.id === "start"
+  )!;
+  const tokenized = await tokenizeOneFile(file, { chapter: startNode.chapter });
+  const tokenizedMap = new Map([[startNode.chapter || "", tokenized]]);
+
+  const details = extractNodeDetailsFromTokens([startNode], tokenizedMap);
+  const startPayload = details[startNode.id]!;
+
+  expect(startPayload.dialogueLines?.length).toBe(1);
+  expect(startPayload.audioAssetCues ?? []).toHaveLength(0);
 });
 
 test("sub-100ms parse performance for synthetic large project", async () => {
