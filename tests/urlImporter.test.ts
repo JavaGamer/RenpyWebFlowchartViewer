@@ -3,12 +3,7 @@ import {
   fetchFilesFromUrl,
   resolveGithubUrl,
 } from "../src/application/urlImporter";
-import { extractRpyFilesFromZip } from "../src/application/zipExtractor.ts";
-import type { UploadedFile } from "../src/application/uploadTypes";
-
-vi.mock("../src/application/zipExtractor.ts", () => ({
-  extractRpyFilesFromZip: vi.fn(),
-}));
+import { strToU8, zipSync } from "fflate";
 
 describe("resolveGithubUrl", () => {
   it("resolves standard GitHub repo URL to main branch ZIP download", () => {
@@ -80,8 +75,14 @@ describe("fetchFilesFromUrl", () => {
     expect(await result[0]?.text()).toBe('label start:\n    "Hello world"');
   });
 
-  it("fetches a .zip archive and calls extractRpyFilesFromZip", async () => {
-    const mockBuffer = new ArrayBuffer(8);
+  it("fetches a .zip archive and extracts .rpy files", async () => {
+    const zipped = zipSync({
+      "nested/extracted.rpy": strToU8('label start:\n    "From zip"'),
+    });
+    const mockBuffer = zipped.buffer.slice(
+      zipped.byteOffset,
+      zipped.byteOffset + zipped.byteLength,
+    ) as ArrayBuffer;
     const mockResponse = {
       ok: true,
       headers: {
@@ -95,17 +96,12 @@ describe("fetchFilesFromUrl", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockResponse,
     );
-    const mockExtracted: UploadedFile[] = [{
-      name: "extracted.rpy",
-      size: 10,
-      text: () => Promise.resolve("extracted"),
-    }];
-    vi.mocked(extractRpyFilesFromZip).mockResolvedValue(mockExtracted);
 
     const result = await fetchFilesFromUrl("https://example.com/archive.zip");
     expect(fetchSpy).toHaveBeenCalledWith("https://example.com/archive.zip");
-    expect(extractRpyFilesFromZip).toHaveBeenCalled();
-    expect(result).toEqual(mockExtracted);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe("extracted.rpy");
+    expect(await result[0]?.text()).toContain("From zip");
   });
 
   it("throws a network/CORS error when fetch fails", async () => {
