@@ -3,12 +3,9 @@ import {
   fetchFilesFromUrl,
   resolveGithubUrl,
 } from "../src/application/urlImporter";
-import { extractRpyFilesFromZip } from "../src/application/zipExtractor";
+import { extractRpyFilesFromZip } from "../src/application/zipExtractor.ts";
 import type { UploadedFile } from "../src/application/uploadTypes";
 
-vi.mock("../src/application/zipExtractor", () => ({
-  extractRpyFilesFromZip: vi.fn(),
-}));
 vi.mock("../src/application/zipExtractor.ts", () => ({
   extractRpyFilesFromZip: vi.fn(),
 }));
