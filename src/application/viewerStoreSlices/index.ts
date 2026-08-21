@@ -46,3 +46,8 @@ export {
   type SimulationSliceState,
   UNSAFE_MOCK_FLAG_KEYS,
 } from "./simulationSlice.ts";
+
+export {
+  createAnalyticsSlice,
+  initialAnalyticsState,
+} from "./analyticsSlice.ts";

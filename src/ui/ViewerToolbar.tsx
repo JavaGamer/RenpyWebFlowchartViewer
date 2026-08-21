@@ -2,11 +2,14 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from "react";
-import { Redo, Undo } from "lucide-react";
+import { BarChart3, Redo, Undo } from "lucide-react";
 import { Tooltip } from "./primitives/index.ts";
 import * as RadixTooltip from "@radix-ui/react-tooltip";
-import type { DialogueSearchMode } from "../application/index.ts";
-import type { DebugBundlePrivacyOptions } from "../application/index.ts";
+import {
+  type DebugBundlePrivacyOptions,
+  type DialogueSearchMode,
+  useViewerStore,
+} from "../application/index.ts";
 import type { ThemeName } from "../domain/index.ts";
 import { THEMES } from "./viewerTheme.ts";
 import { SearchControls } from "./components/SearchControls.tsx";
@@ -247,6 +250,27 @@ export function ViewerToolbar({
               >
                 <Redo size={12} className="inline mr-1" aria-hidden="true" />
                 Redo
+              </button>
+            </Tooltip>
+            <Tooltip content="Narrative & Ending Analytics">
+              <button
+                type="button"
+                onClick={() =>
+                  useViewerStore.getState().setAnalyticsModalOpen(true)}
+                className={cn(
+                  CONTROL_BUTTON_CLASS,
+                  isDark
+                    ? "bg-violet-950/60 border-violet-800 text-violet-300 hover:bg-violet-900/80 focus-visible:ring-violet-400"
+                    : "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100 focus-visible:ring-violet-500",
+                )}
+                aria-label="Open Narrative & Ending Analytics modal"
+              >
+                <BarChart3
+                  size={12}
+                  className="inline mr-1"
+                  aria-hidden="true"
+                />
+                Analytics
               </button>
             </Tooltip>
           </div>

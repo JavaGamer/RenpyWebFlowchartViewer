@@ -1,6 +1,11 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
-import { expect } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach, expect } from "vitest";
 expect.extend(matchers);
+
+afterEach(() => {
+  cleanup();
+});
 
 // Ensure React's act() integration is enabled in the Vitest + jsdom environment.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

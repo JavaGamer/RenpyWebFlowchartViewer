@@ -48,6 +48,8 @@ export function buildVisibleNodes(params: {
   conditionHiddenNodeIds?: Set<string>;
   theme: ThemeName;
   previousById?: Map<string, CanvasNode>;
+  highlightedRouteNodeIds?: Set<string> | null;
+  stepOrderMap?: Record<string, number> | null;
 }): CanvasNode[] {
   const {
     nodes,
@@ -61,8 +63,14 @@ export function buildVisibleNodes(params: {
     conditionHiddenNodeIds,
     theme,
     previousById,
+    highlightedRouteNodeIds = null,
+    stepOrderMap = null,
   } = params;
   const query = search.trim().toLowerCase();
+  const hasRouteHighlight = Boolean(
+    highlightedRouteNodeIds && highlightedRouteNodeIds.size > 0,
+  );
+
   return nodes.map((n) => {
     const nodeData = n.data as NodeData;
     const dialogueCountMatch = String(nodeData.dialogueCount).includes(query);
@@ -89,6 +97,15 @@ export function buildVisibleNodes(params: {
         !matchesSearch ||
         !matchesDialogue,
     );
+
+    const isRouteHighlighted = hasRouteHighlight
+      ? Boolean(highlightedRouteNodeIds?.has(n.id))
+      : false;
+    const isRouteDimmed = hasRouteHighlight && !isRouteHighlighted;
+    const routeStepIndex = isRouteHighlighted && stepOrderMap
+      ? stepOrderMap[n.id]
+      : undefined;
+
     const previous = previousById?.get(n.id);
     if (previous) {
       const prevData = previous.data as NodeData;
@@ -122,14 +139,23 @@ export function buildVisibleNodes(params: {
         prevData.isOrphan === nodeData.isOrphan &&
         prevData.isDetailsLoaded === nodeData.isDetailsLoaded &&
         prevData.parameters === nodeData.parameters &&
-        prevData.characterDialogue === nodeData.characterDialogue
+        prevData.characterDialogue === nodeData.characterDialogue &&
+        prevData.isRouteHighlighted === isRouteHighlighted &&
+        prevData.isRouteDimmed === isRouteDimmed &&
+        prevData.routeStepIndex === routeStepIndex
       ) {
         return previous;
       }
     }
     return {
       ...n,
-      data: { ...nodeData, theme },
+      data: {
+        ...nodeData,
+        theme,
+        isRouteHighlighted,
+        isRouteDimmed,
+        routeStepIndex,
+      },
       hidden,
     };
   });
@@ -173,6 +199,7 @@ export function buildVisibleEdges(params: {
   edgeConditionStateById?: Map<string, ConditionReachability>;
   previousById?: Map<string, CanvasEdge>;
   selectedCallContextId?: string | null;
+  highlightedRouteEdgeIds?: Set<string> | null;
 }): CanvasEdge[] {
   const {
     edges,
@@ -190,9 +217,14 @@ export function buildVisibleEdges(params: {
     edgeConditionStateById,
     previousById,
     selectedCallContextId,
+    highlightedRouteEdgeIds = null,
   } = params;
   const visible: CanvasEdge[] = [];
   const isCallContextActive = Boolean(selectedCallContextId);
+  const hasRouteHighlight = Boolean(
+    highlightedRouteEdgeIds && highlightedRouteEdgeIds.size > 0,
+  );
+
   for (const edge of edges) {
     const edgeData = (edge.data as EdgeData | undefined) ?? { label: "" };
     const kind = normalizeEdgeKind(edgeData.kind);
@@ -218,6 +250,11 @@ export function buildVisibleEdges(params: {
       ? ""
       : (edgeData.label ?? "");
 
+    // Route highlighting matching
+    const isInHighlightedRoute = hasRouteHighlight
+      ? Boolean(highlightedRouteEdgeIds?.has(edge.id))
+      : false;
+
     // Call context matching
     const matchesCallContext = isCallContextActive &&
       (edgeData.callContext?.callContextId === selectedCallContextId ||
@@ -230,7 +267,10 @@ export function buildVisibleEdges(params: {
     let baseDash: string | undefined = undefined;
     let callContextOpacity: number | undefined = undefined;
 
-    if (matchesCallContext) {
+    if (isInHighlightedRoute) {
+      stroke = accentColor ?? "#8b5cf6";
+      strokeWidth = 3.5;
+    } else if (matchesCallContext) {
       stroke = accentColor ?? "#3b82f6";
       strokeWidth = 3.5;
       baseDash = "6 3";
@@ -258,7 +298,11 @@ export function buildVisibleEdges(params: {
         }
         : {};
 
-    const finalOpacity = callContextOpacity ?? unreachableStyle.opacity;
+    let finalOpacity = callContextOpacity ?? unreachableStyle.opacity;
+    if (hasRouteHighlight && !isInHighlightedRoute) {
+      finalOpacity = 0.15;
+      strokeWidth = 1.0;
+    }
 
     const finalStrokeDasharray = timeoutDash ||
       unreachableStyle.strokeDasharray || baseDash;

@@ -13,6 +13,7 @@ import {
   type CanvasNode,
   type FlowEdge,
   type FlowNode,
+  getNodeCenter,
   type NodeData,
 } from "../domain/index.ts";
 import {
@@ -27,6 +28,8 @@ import { edgeTypes, nodeTypes } from "./viewerReactFlowRegistry.ts";
 import { useViewerLayout } from "./hooks/useViewerLayout.ts";
 import { AdvancedControlsModal } from "./components/AdvancedControlsModal.tsx";
 import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
+import { ActiveRouteBanner } from "./components/ActiveRouteBanner.tsx";
+import { NarrativeAnalyticsModal } from "./components/NarrativeAnalyticsModal.tsx";
 import { cn } from "./utils/cn.ts";
 import { ViewerInspector } from "./viewerInspector.tsx";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
@@ -261,6 +264,14 @@ export function FlowchartCanvas({
 
   const selectedNodeData = selectedNode?.data as NodeData | undefined;
 
+  const onFocusNode = React.useCallback((nodeId: string) => {
+    const target = visibleNodes.find((n) => n.id === nodeId);
+    if (target) {
+      const { x, y } = getNodeCenter(target);
+      flowInstanceRef.current?.setCenter(x, y, { zoom: 1, duration: 400 });
+    }
+  }, [visibleNodes, flowInstanceRef]);
+
   return (
     <>
       <AdvancedControlsModal
@@ -280,6 +291,8 @@ export function FlowchartCanvas({
         chapterStats={chapterStats}
       />
 
+      <NarrativeAnalyticsModal onFocusNode={onFocusNode} />
+
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
         <div
           ref={flowRef}
@@ -288,6 +301,7 @@ export function FlowchartCanvas({
           data-theme={theme}
         >
           <CanvasOverlay isCalculatingLayout={isCalculatingLayout} />
+          <ActiveRouteBanner onFocusNode={onFocusNode} />
           <ReactFlow
             colorMode={theme === "dark" ? "dark" : "light"}
             nodes={visibleNodes}

@@ -29,6 +29,9 @@ export interface NodeData extends Record<string, unknown> {
   collapsedLabels?: string[];
   isOrphan?: boolean;
   characterDialogue?: FlowNode["characterDialogue"];
+  isRouteHighlighted?: boolean;
+  isRouteDimmed?: boolean;
+  routeStepIndex?: number;
 }
 
 export interface EdgeData extends Record<string, unknown> {

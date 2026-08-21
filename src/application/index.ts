@@ -52,6 +52,11 @@ export {
   type ThemeSliceActions,
   type ThemeSliceState,
 } from "./viewerStoreSlices/index.ts";
+export type {
+  AnalyticsSliceActions,
+  AnalyticsSliceState,
+  AnalyticsTab,
+} from "./viewerStoreTypes.ts";
 export {
   buildDebugBundle,
   type BuildDebugBundleInput,

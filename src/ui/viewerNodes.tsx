@@ -82,29 +82,53 @@ export const LabelNodeComponent = memo(
     const targetPosition = layoutDirection === "LR"
       ? Position.Left
       : Position.Top;
+    const isRouteHighlighted = data.isRouteHighlighted === true;
+    const isRouteDimmed = data.isRouteDimmed === true;
+    const routeStepIndex = data.routeStepIndex;
+
     const sourcePosition = layoutDirection === "LR"
       ? Position.Right
       : Position.Bottom;
 
     return (
       <div
-        className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
+        className={cn(
+          "px-4 py-3 rounded-xl border-2 shadow-md w-[220px] transition-all duration-200",
+          isRouteHighlighted &&
+            "ring-2 ring-violet-500 shadow-xl z-20 scale-[1.02]",
+        )}
         style={{
-          borderColor: isOrphan
+          borderColor: isRouteHighlighted
+            ? (isDark ? "#a78bfa" : "#7c3aed")
+            : isOrphan
             ? (isDark ? "#ef4444" : "#f87171")
             : theme.labelBorder,
           backgroundColor: customBg,
           borderStyle: isOrphan || isShadowed ? "dashed" : "solid",
-          opacity: isOrphan ? 0.65 : (isShadowed ? 0.9 : 1),
+          opacity: isRouteDimmed
+            ? 0.2
+            : isOrphan
+            ? 0.65
+            : (isShadowed ? 0.9 : 1),
         }}
       >
         <Handle type="target" position={targetPosition} />
         <div className="flex items-center justify-between gap-2 mb-1">
-          <div
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: theme.labelTitle }}
-          >
-            Label
+          <div className="flex items-center gap-1">
+            <div
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: theme.labelTitle }}
+            >
+              Label
+            </div>
+            {routeStepIndex !== undefined && (
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shadow-xs"
+                title={`Step ${routeStepIndex} in highlighted route`}
+              >
+                #{routeStepIndex}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {isOrphan && (
@@ -280,6 +304,11 @@ export const MenuNodeComponent = memo(
     const searchInput = useViewerStore((s) => s.searchInput);
     const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
     const layoutDirection = useViewerStore((s) => s.layoutDirection);
+    const isDark = themeName === "dark";
+    const isRouteHighlighted = data.isRouteHighlighted === true;
+    const isRouteDimmed = data.isRouteDimmed === true;
+    const routeStepIndex = data.routeStepIndex;
+
     const targetPosition = layoutDirection === "LR"
       ? Position.Left
       : Position.Top;
@@ -288,15 +317,35 @@ export const MenuNodeComponent = memo(
       : Position.Bottom;
     return (
       <div
-        className="px-4 py-3 rounded-xl border-2 shadow-md w-[220px]"
-        style={{ borderColor: theme.menuBorder, backgroundColor: theme.menuBg }}
+        className={cn(
+          "px-4 py-3 rounded-xl border-2 shadow-md w-[220px] transition-all duration-200",
+          isRouteHighlighted &&
+            "ring-2 ring-violet-500 shadow-xl z-20 scale-[1.02]",
+        )}
+        style={{
+          borderColor: isRouteHighlighted
+            ? (isDark ? "#a78bfa" : "#7c3aed")
+            : theme.menuBorder,
+          backgroundColor: theme.menuBg,
+          opacity: isRouteDimmed ? 0.2 : 1,
+        }}
       >
         <Handle type="target" position={targetPosition} />
-        <div
-          className="text-xs font-semibold uppercase tracking-widest mb-1"
-          style={{ color: theme.menuTitle }}
-        >
-          Menu
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div
+            className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: theme.menuTitle }}
+          >
+            Menu
+          </div>
+          {routeStepIndex !== undefined && (
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shadow-xs"
+              title={`Step ${routeStepIndex} in highlighted route`}
+            >
+              #{routeStepIndex}
+            </span>
+          )}
         </div>
         <div
           className="font-mono font-bold truncate text-sm"
@@ -340,6 +389,11 @@ export const DecisionNodeComponent = memo(
     const theme = getTheme(themeName);
     const searchInput = useViewerStore((s) => s.searchInput);
     const layoutDirection = useViewerStore((s) => s.layoutDirection);
+    const isDark = themeName === "dark";
+    const isRouteHighlighted = data.isRouteHighlighted === true;
+    const isRouteDimmed = data.isRouteDimmed === true;
+    const routeStepIndex = data.routeStepIndex;
+
     const targetPosition = layoutDirection === "LR"
       ? Position.Left
       : Position.Top;
@@ -348,21 +402,40 @@ export const DecisionNodeComponent = memo(
       : Position.Bottom;
     const expression = data.conditionExpression ?? data.label;
     return (
-      <div className="w-[220px] flex items-center justify-center relative py-2">
+      <div
+        className="w-[220px] flex items-center justify-center relative py-2 transition-all duration-200"
+        style={{ opacity: isRouteDimmed ? 0.2 : 1 }}
+      >
         <Handle type="target" position={targetPosition} />
         <div
-          className="w-[160px] h-[160px] rotate-45 border-2 shadow-md rounded-xl flex items-center justify-center"
+          className={cn(
+            "w-[160px] h-[160px] rotate-45 border-2 shadow-md rounded-xl flex items-center justify-center transition-all duration-200",
+            isRouteHighlighted &&
+              "ring-2 ring-violet-500 shadow-xl scale-[1.02]",
+          )}
           style={{
-            borderColor: theme.decisionBorder,
+            borderColor: isRouteHighlighted
+              ? (isDark ? "#a78bfa" : "#7c3aed")
+              : theme.decisionBorder,
             backgroundColor: theme.decisionBg,
           }}
         >
           <div className="-rotate-45 px-4 text-center">
-            <div
-              className="text-[10px] font-semibold uppercase tracking-widest mb-1"
-              style={{ color: theme.decisionTitle }}
-            >
-              Decision
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <div
+                className="text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: theme.decisionTitle }}
+              >
+                Decision
+              </div>
+              {routeStepIndex !== undefined && (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shadow-xs"
+                  title={`Step ${routeStepIndex} in highlighted route`}
+                >
+                  #{routeStepIndex}
+                </span>
+              )}
             </div>
             <div
               className="font-mono text-xs font-semibold break-words"

@@ -86,3 +86,28 @@ export { compareDeterministicStrings, compareFiles } from "./sortUtils.ts";
 
 export { createPerfTracker } from "./perf.ts";
 export type { PerfEvent, PerfTrackerOptions } from "./perf.ts";
+
+export type {
+  ChapterPacingStats,
+  CharacterPacingStats,
+  EndingSummary,
+  EndingType,
+  HighlightedRoute,
+  MonologueSection,
+  PointOfNoReturn,
+  ProjectNarrativeReport,
+  RouteChoiceStep,
+  StoryRoute,
+} from "./analytics.ts";
+
+export {
+  classifyEndingTypeHeuristic,
+  computeChapterPacing,
+  computeCharacterDistribution,
+  computeMonologueSections,
+  computeReverseReachability,
+  discoverTerminalEndings,
+  enumerateStoryRoutes,
+  generateProjectNarrativeReport,
+  identifyPointsOfNoReturn,
+} from "./analytics/index.ts";

@@ -127,12 +127,46 @@ export interface ViewerActions {
   ) => void;
   setSelectedCallContextId: (id: string | null) => void;
   clearCallContextHighlight: () => void;
-
   /** Resets all session state to defaults. Called on component unmount. */
   resetSession: () => void;
 }
 
-export type ViewerStore =
+import type {
+  EndingType,
+  HighlightedRoute,
+  ProjectNarrativeReport,
+} from "../domain/index.ts";
+
+export type AnalyticsTab =
+  | "overview"
+  | "endings"
+  | "routes"
+  | "pacing"
+  | "characters";
+
+export interface AnalyticsSliceState {
+  isAnalyticsModalOpen: boolean;
+  activeAnalyticsTab: AnalyticsTab;
+  highlightedRoute: HighlightedRoute | null;
+  customEndingTags: Record<string, EndingType>;
+  cachedAnalyticsReport: ProjectNarrativeReport | null;
+}
+
+export interface AnalyticsSliceActions {
+  setAnalyticsModalOpen: (open: boolean) => void;
+  setActiveAnalyticsTab: (tab: AnalyticsTab) => void;
+  setHighlightedRoute: (route: HighlightedRoute | null) => void;
+  clearHighlightedRoute: () => void;
+  setCustomEndingTag: (nodeId: string, endingType: EndingType) => void;
+  setCachedAnalyticsReport: (report: ProjectNarrativeReport | null) => void;
+}
+
+export type ViewerStoreState =
   & ViewerPersistedState
   & ViewerSessionState
-  & ViewerActions;
+  & AnalyticsSliceState;
+
+export type ViewerStore =
+  & ViewerStoreState
+  & ViewerActions
+  & AnalyticsSliceActions;

@@ -73,6 +73,7 @@ export function useGraphVisibility({
     selectedSearchChapter,
     selectedSearchNodeKinds,
     selectedCallContextId,
+    highlightedRoute,
   } = useViewerStore(
     useShallow((s) => ({
       searchInput: s.searchInput,
@@ -95,6 +96,7 @@ export function useGraphVisibility({
       selectedSearchChapter: s.selectedSearchChapter,
       selectedSearchNodeKinds: s.selectedSearchNodeKinds,
       selectedCallContextId: s.selectedCallContextId,
+      highlightedRoute: s.highlightedRoute,
     })),
   );
 
@@ -224,6 +226,19 @@ export function useGraphVisibility({
     selectedSearchNodeKinds,
   });
 
+  const highlightedRouteNodeIds = useMemo(
+    () => highlightedRoute ? new Set(highlightedRoute.nodeIds) : null,
+    [highlightedRoute],
+  );
+  const highlightedRouteEdgeIds = useMemo(
+    () => highlightedRoute ? new Set(highlightedRoute.edgeIds) : null,
+    [highlightedRoute],
+  );
+  const stepOrderMap = useMemo(
+    () => highlightedRoute?.stepOrderMap ?? null,
+    [highlightedRoute],
+  );
+
   // -- Visible nodes/edges ----------------------------------------------------
   const visibleNodes = useMemo(
     () =>
@@ -244,6 +259,8 @@ export function useGraphVisibility({
         theme,
         // eslint-disable-next-line react-hooks/refs
         previousById: previousVisibleNodesByIdRef.current,
+        highlightedRouteNodeIds,
+        stepOrderMap,
       }),
     [
       collapsedChapters,
@@ -253,10 +270,12 @@ export function useGraphVisibility({
       dialogueLineSearchEnabled,
       dialogueMatchNodeIds,
       effectiveSearch,
+      highlightedRouteNodeIds,
       minDialogue,
       nodes,
       previousVisibleNodesByIdRef,
       searchMatchNodeIds,
+      stepOrderMap,
       theme,
     ],
   );
@@ -309,19 +328,21 @@ export function useGraphVisibility({
         // eslint-disable-next-line react-hooks/refs
         previousById: previousVisibleEdgesByIdRef.current,
         selectedCallContextId,
+        highlightedRouteEdgeIds,
       }),
     [
       conditionalVisibility.edgeConditionStateById,
       conditionVisibilityMode,
       edges,
+      highlightedRouteEdgeIds,
       largeGraphMode,
+      nonHiddenNodeIds,
       previousVisibleEdgesByIdRef,
       selectedCallContextId,
       showCallReturns,
       theme,
       visibleEdgeKinds,
       visibleNodeIds,
-      nonHiddenNodeIds,
     ],
   );
 

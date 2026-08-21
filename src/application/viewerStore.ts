@@ -21,6 +21,7 @@ import { z } from "zod";
 import { STORAGE_KEYS } from "../config/storageKeys.ts";
 
 import {
+  createAnalyticsSlice,
   createEmptyMockFlags,
   createFilterSlice,
   createSearchSlice,
@@ -32,9 +33,11 @@ import {
   defaultSelectionState,
   defaultSimulationState,
   defaultThemeState,
+  initialAnalyticsState,
 } from "./viewerStoreSlices/index.ts";
 
 import type {
+  AnalyticsSliceState,
   ViewerActions,
   ViewerPersistedState,
   ViewerSessionState,
@@ -42,6 +45,7 @@ import type {
 } from "./viewerStoreTypes.ts";
 
 export type {
+  AnalyticsSliceState,
   ViewerActions,
   ViewerPersistedState,
   ViewerSessionState,
@@ -52,7 +56,7 @@ export type {
 
 const defaultPersistedState: ViewerPersistedState = { ...defaultThemeState };
 
-function createFreshSessionState(): ViewerSessionState {
+function createFreshSessionState(): ViewerSessionState & AnalyticsSliceState {
   return {
     ...defaultFilterState,
     collapsedChapters: {},
@@ -64,6 +68,9 @@ function createFreshSessionState(): ViewerSessionState {
     mockFlags: createEmptyMockFlags(),
     loadingNodeDetailIds: new Set<string>(),
     hydratedNodeDetailIds: new Set<string>(),
+    ...initialAnalyticsState,
+    customEndingTags: {},
+    cachedAnalyticsReport: null,
   };
 }
 
@@ -252,6 +259,7 @@ export const useViewerStore = create<ViewerStore>()(
         ...createSearchSlice(set, get, api),
         ...createSelectionSlice(set, get, api),
         ...createSimulationSlice(set, get, api),
+        ...createAnalyticsSlice(set, get, api),
 
         // ── Reset ─────────────────────────────────────────────────────────────
         resetSession: () => {

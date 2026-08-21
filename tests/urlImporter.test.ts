@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchFilesFromUrl,
   resolveGithubUrl,
-} from "../src/application/urlImporter";
-import { strToU8, zipSync } from "fflate";
+} from "../src/application/urlImporter.ts";
+import * as zipExtractorModule from "../src/application/zipExtractor.ts";
+import type { UploadedFile } from "../src/application/uploadTypes.ts";
+
 
 describe("resolveGithubUrl", () => {
   it("resolves standard GitHub repo URL to main branch ZIP download", () => {
@@ -96,12 +98,19 @@ describe("fetchFilesFromUrl", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockResponse,
     );
+    const mockExtracted: UploadedFile[] = [{
+      name: "extracted.rpy",
+      size: 10,
+      text: () => Promise.resolve("extracted"),
+    }];
+    const extractSpy = vi.spyOn(zipExtractorModule, "extractRpyFilesFromZip")
+      .mockResolvedValue(mockExtracted);
 
     const result = await fetchFilesFromUrl("https://example.com/archive.zip");
     expect(fetchSpy).toHaveBeenCalledWith("https://example.com/archive.zip");
-    expect(result).toHaveLength(1);
-    expect(result[0]?.name).toBe("extracted.rpy");
-    expect(await result[0]?.text()).toContain("From zip");
+    expect(extractSpy).toHaveBeenCalled();
+    expect(result).toEqual(mockExtracted);
+
   });
 
   it("throws a network/CORS error when fetch fails", async () => {
