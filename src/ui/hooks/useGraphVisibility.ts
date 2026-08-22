@@ -143,7 +143,10 @@ export function useGraphVisibility({
 
   const labels = useMemo(
     () =>
-      nodes.filter((n) => n.data.nodeType === "LABEL").map((n) => n.id).sort(),
+      nodes
+        .filter((n) => n.type !== "chapterNode" && n.data.nodeType === "LABEL")
+        .map((n) => n.id)
+        .sort(),
     [nodes],
   );
 
@@ -239,11 +242,67 @@ export function useGraphVisibility({
     [highlightedRoute],
   );
 
+  const enrichedNodes = useMemo(() => {
+    const chapterMatchCounts = new Map<string, number>();
+    const chapterActiveRoutes = new Set<string>();
+
+    if (searchMatchNodeIds || dialogueMatchNodeIds) {
+      for (const node of nodes) {
+        if (node.type === "chapterNode") continue;
+        const isMatch = (searchMatchNodeIds?.has(node.id) ?? false) ||
+          (dialogueMatchNodeIds?.has(node.id) ?? false);
+        if (isMatch && node.data.chapter) {
+          chapterMatchCounts.set(
+            node.data.chapter,
+            (chapterMatchCounts.get(node.data.chapter) ?? 0) + 1,
+          );
+        }
+      }
+    }
+
+    if (highlightedRouteNodeIds) {
+      for (const node of nodes) {
+        if (node.type === "chapterNode") continue;
+        if (highlightedRouteNodeIds.has(node.id) && node.data.chapter) {
+          chapterActiveRoutes.add(node.data.chapter);
+        }
+      }
+    }
+
+    return nodes.map((n) => {
+      if (n.type === "chapterNode") {
+        const chapter = (n.data.chapter as string | undefined) ||
+          (n.id.startsWith("chapter:") ? n.id.slice(8) : n.id);
+        const matchCount = chapterMatchCounts.get(chapter) ?? 0;
+        const containsRoute = chapterActiveRoutes.has(chapter);
+        if (
+          n.data.chapterSearchMatchCount !== matchCount ||
+          n.data.containsActiveRoute !== containsRoute
+        ) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              chapterSearchMatchCount: matchCount,
+              containsActiveRoute: containsRoute,
+            },
+          };
+        }
+      }
+      return n;
+    });
+  }, [
+    dialogueMatchNodeIds,
+    highlightedRouteNodeIds,
+    nodes,
+    searchMatchNodeIds,
+  ]);
+
   // -- Visible nodes/edges ----------------------------------------------------
   const visibleNodes = useMemo(
     () =>
       buildVisibleNodes({
-        nodes,
+        nodes: enrichedNodes,
         search: effectiveSearch,
         searchMatchNodeIds,
         includeDialogueLineSearch: false,
@@ -270,9 +329,9 @@ export function useGraphVisibility({
       dialogueLineSearchEnabled,
       dialogueMatchNodeIds,
       effectiveSearch,
+      enrichedNodes,
       highlightedRouteNodeIds,
       minDialogue,
-      nodes,
       previousVisibleNodesByIdRef,
       searchMatchNodeIds,
       stepOrderMap,

@@ -24,6 +24,8 @@ import {
   areWorkersSupported,
   runLayoutInWorker,
 } from "../../infrastructure/index.ts";
+import { useViewerStore } from "../../application/index.ts";
+import { useShallow } from "zustand/react/shallow";
 
 const globalProcess = (globalThis as unknown as {
   process?: { env?: Record<string, string | undefined> };
@@ -69,6 +71,13 @@ export function useViewerLayout({
   relayout: () => void;
   isCalculatingLayout: boolean;
 } {
+  const { enableCompoundContainers, collapsedChapters } = useViewerStore(
+    useShallow((s) => ({
+      enableCompoundContainers: s.enableCompoundContainers,
+      collapsedChapters: s.collapsedChapters,
+    })),
+  );
+
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(
     new Map(),
   );
@@ -94,6 +103,8 @@ export function useViewerLayout({
       {
         progressive,
         layoutDensity,
+        enableCompoundContainers,
+        collapsedChapters,
       },
     );
     perf.measure("layout", "layout_ms", {
@@ -112,6 +123,8 @@ export function useViewerLayout({
     layoutDensity,
     isWorkerEnabled,
     simplifyOptions,
+    enableCompoundContainers,
+    collapsedChapters,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
@@ -142,6 +155,8 @@ export function useViewerLayout({
           progressive: shouldProgressiveLayout,
           previousPositions: nodePositionsRef.current,
           layoutDensity,
+          enableCompoundContainers,
+          collapsedChapters,
         },
       );
       nodePositionsRef.current = new Map(
@@ -165,6 +180,8 @@ export function useViewerLayout({
         previousPositions: nodePositionsRef.current,
         layoutDensity,
         simplifyOptions,
+        enableCompoundContainers,
+        collapsedChapters,
       },
       (next) => {
         nodePositionsRef.current = new Map(
@@ -193,6 +210,8 @@ export function useViewerLayout({
     layoutDensity,
     isWorkerEnabled,
     simplifyOptions,
+    enableCompoundContainers,
+    collapsedChapters,
   ]);
 
   useEffect(() => {
@@ -222,6 +241,8 @@ export function useViewerLayout({
         previousPositions: nodePositionsRef.current,
         layoutDensity,
         simplifyOptions,
+        enableCompoundContainers,
+        collapsedChapters,
       },
       (refined) => {
         nodePositionsRef.current = new Map(
@@ -248,6 +269,8 @@ export function useViewerLayout({
             {
               progressive: shouldProgressiveLayout,
               layoutDensity,
+              enableCompoundContainers,
+              collapsedChapters,
             },
           );
           startTransition(() => {
@@ -278,6 +301,8 @@ export function useViewerLayout({
     layoutDensity,
     isWorkerEnabled,
     simplifyOptions,
+    enableCompoundContainers,
+    collapsedChapters,
   ]);
 
   return {

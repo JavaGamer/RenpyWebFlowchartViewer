@@ -1,4 +1,8 @@
 export {
+  CHAPTER_CONTAINER_PADDING,
+  CHAPTER_HEADER_HEIGHT,
+  CHAPTER_SUMMARY_HEIGHT,
+  CHAPTER_SUMMARY_WIDTH,
   getLabelHeight,
   getNodeCenter,
   getNodeHeight,
@@ -15,6 +19,17 @@ export {
   buildVisibleEdges,
   buildVisibleNodes,
 } from "./visibility.ts";
+
+export {
+  CHAPTER_NODE_PREFIX,
+  type ChapterAggregates,
+  computeChapterAggregates,
+  extractChapterName,
+  getChapterId,
+  groupNodesByChapter,
+  isChapterId,
+  redirectEdgesForCollapsedChapters,
+} from "./chapterGrouping.ts";
 
 export { collapseLinearChains, simplifyGraph } from "./simplify.ts";
 export type { GraphSimplificationOptions } from "./simplify.ts";

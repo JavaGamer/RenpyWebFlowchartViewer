@@ -4,8 +4,14 @@ import {
   EdgeLabelRenderer,
   type EdgeProps,
   getBezierPath,
+  Position,
 } from "@xyflow/react";
-import type { LabeledEdgeType } from "../domain/index.ts";
+import {
+  calculateBackEdgeSpline,
+  calculateSelfLoopArc,
+  detectBackEdge,
+  type LabeledEdgeType,
+} from "../domain/index.ts";
 import { useViewerStore } from "../application/index.ts";
 import { cn } from "./utils/cn.ts";
 
@@ -21,18 +27,79 @@ export const LabeledEdge = memo(function LabeledEdge({
   markerEnd,
   style,
 }: EdgeProps<LabeledEdgeType>) {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
-
   const theme = useViewerStore((s) => s.theme);
+  const layoutDirection = useViewerStore((s) => s.layoutDirection);
   const isDark = theme === "dark";
   const isHighContrast = theme === "highContrast";
+
+  let edgePath: string;
+  let labelX: number;
+  let labelY: number;
+
+  const isSelf = data?.isSelfLoop ||
+    (sourceX === targetX && sourceY === targetY);
+  const isBack = data?.isBackEdge ||
+    detectBackEdge(
+      { x: sourceX, y: sourceY },
+      { x: targetX, y: targetY },
+      layoutDirection,
+      isSelf,
+    );
+
+  const isCustomPathStale = data?.bendPoints &&
+    data.bendPoints.length >= 2 &&
+    (Math.hypot(
+          sourceX - data.bendPoints[0]!.x,
+          sourceY - data.bendPoints[0]!.y,
+        ) > 3 ||
+      Math.hypot(
+          targetX - data.bendPoints[data.bendPoints.length - 1]!.x,
+          targetY - data.bendPoints[data.bendPoints.length - 1]!.y,
+        ) > 3);
+
+  if (data?.svgPath && data?.labelPosition && !isCustomPathStale) {
+    edgePath = data.svgPath;
+    labelX = data.labelPosition.x;
+    labelY = data.labelPosition.y;
+  } else if (isSelf) {
+    const res = calculateSelfLoopArc({
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      direction: layoutDirection,
+      laneIndex: data?.laneIndex ?? 0,
+    });
+    edgePath = res.path;
+    labelX = res.labelX;
+    labelY = res.labelY;
+  } else if (isBack) {
+    const res = calculateBackEdgeSpline({
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      sourcePosition: sourcePosition ?? Position.Right,
+      targetPosition: targetPosition ?? Position.Right,
+      direction: layoutDirection,
+      laneIndex: data?.laneIndex ?? 0,
+    });
+    edgePath = res.path;
+    labelX = res.labelX;
+    labelY = res.labelY;
+  } else {
+    const [d, lx, ly] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+    });
+    edgePath = d;
+    labelX = lx;
+    labelY = ly;
+  }
 
   return (
     <>

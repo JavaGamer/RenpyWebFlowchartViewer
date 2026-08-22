@@ -4,6 +4,18 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linea
 "{
   "nodes": [
     {
+      "id": "chapter:graph",
+      "type": "chapterNode",
+      "label": "graph",
+      "nodeType": "LABEL",
+      "dialogueCount": 2,
+      "hidden": false,
+      "position": {
+        "x": -4,
+        "y": -17
+      }
+    },
+    {
       "id": "start",
       "type": "labelNode",
       "label": "start",
@@ -11,8 +23,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linea
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 20
+        "x": 59,
+        "y": 90
       }
     },
     {
@@ -23,8 +35,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linea
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 190
+        "x": 59,
+        "y": 260
       }
     }
   ],
@@ -43,6 +55,18 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
 "{
   "nodes": [
     {
+      "id": "chapter:graph",
+      "type": "chapterNode",
+      "label": "graph",
+      "nodeType": "LABEL",
+      "dialogueCount": 2,
+      "hidden": false,
+      "position": {
+        "x": -4,
+        "y": -17
+      }
+    },
+    {
       "id": "choice",
       "type": "labelNode",
       "label": "choice",
@@ -50,8 +74,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 20
+        "x": 69,
+        "y": 90
       }
     },
     {
@@ -62,8 +86,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 190
+        "x": 69,
+        "y": 260
       }
     },
     {
@@ -74,8 +98,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 93,
-        "y": 350
+        "x": 142,
+        "y": 420
       }
     },
     {
@@ -86,8 +110,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 520
+        "x": 69,
+        "y": 590
       }
     }
   ],
@@ -124,6 +148,18 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
 "{
   "nodes": [
     {
+      "id": "chapter:graph",
+      "type": "chapterNode",
+      "label": "graph",
+      "nodeType": "LABEL",
+      "dialogueCount": 0,
+      "hidden": false,
+      "position": {
+        "x": -4,
+        "y": -17
+      }
+    },
+    {
       "id": "loop_a",
       "type": "labelNode",
       "label": "loop_a",
@@ -131,8 +167,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 20
+        "x": 59,
+        "y": 90
       }
     },
     {
@@ -143,8 +179,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 20,
-        "y": 190
+        "x": 59,
+        "y": 260
       }
     }
   ],

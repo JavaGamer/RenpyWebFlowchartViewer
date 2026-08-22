@@ -52,6 +52,7 @@ export interface ViewerSessionState {
   searchInput: string;
   labelSubgraphSearchInput: string;
   minDialogue: number;
+  enableCompoundContainers: boolean;
   collapsedChapters: Record<string, boolean>;
   collapsedParentLabels: Record<string, boolean>;
   focusNodeId: string;
@@ -103,7 +104,9 @@ export interface ViewerActions {
   setSearchInput: (value: string) => void;
   setLabelSubgraphSearchInput: (value: string) => void;
   setMinDialogue: (value: number) => void;
+  setEnableCompoundContainers: (enable: boolean) => void;
   toggleChapter: (chapter: string) => void;
+  setAllChaptersCollapsed: (chapters: string[], collapsed: boolean) => void;
   toggleParentLabel: (label: string) => void;
   setAllParentLabelsCollapsed: (labels: string[], collapsed: boolean) => void;
   setFocusNodeId: (id: string) => void;

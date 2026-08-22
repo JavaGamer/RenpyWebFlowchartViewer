@@ -1,11 +1,18 @@
 import type {
   AudioAssetCue,
+  FlowAsset,
   FlowEdge,
   FlowNode,
   SourceLocation,
 } from "../domain/index.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
-import type { ParseInputFile, PendingCallReturn } from "./pipelineTypes.ts";
+import type {
+  InitVariableDescriptor,
+  ParseInputFile,
+  PendingCallReturn,
+  VariableMutation,
+  VariableValue,
+} from "./pipelineTypes.ts";
 
 export const PARSER_WORKER_PROTOCOL_VERSION = 4 as const;
 
@@ -35,6 +42,7 @@ export interface ParseWorkerClientRequest {
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>
     | string[];
+  maxCallStackDepth?: number;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -68,6 +76,7 @@ export interface ParseRequestMessage {
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>
     | string[];
+  maxCallStackDepth?: number;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -148,20 +157,47 @@ export interface ParseChunkRequestMessage {
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>
     | string[];
+  maxCallStackDepth?: number;
 }
 
 export interface FinalizeRequestMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;
   type: "finalize";
   requestId: number;
+  sessionId?: string;
+  files?: ParseInputFile[];
   nodes: FlowNode[];
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
   pendingCallReturns: PendingCallReturn[];
+  hasReturnInLabel?: string[];
   hasReliableReturnInLabel: string[];
+  calledLabels?: string[];
+  calledFromMenuOptionTargets?: string[];
   globalScreens: string[];
+  globalCharacters?: string[];
   labelDefinitionCount: Array<[string, number]>;
   canonicalLabelIds: Array<[string, string]>;
+  initVariables?: Array<[string, InitVariableDescriptor]>;
+  globalPersistentVariables?: Array<[string, VariableValue]>;
+  globalLabelVariableLiteralTargets?: Array<[string, string]>;
+  globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
+  globalLabelVariableListTargets?: Array<[string, string[]]>;
+  nodeMutations?: Array<[string, VariableMutation[]]>;
+  imageDefinitions?: Array<[string, string]>;
+  assets?: FlowAsset[];
+  projectMediaFiles?:
+    | Array<{ relativePath: string; fileName: string }>
+    | Set<string>
+    | string[];
+  maxCallStackDepth?: number;
+  allConditionalExpressions?: Array<{
+    expression: string;
+    branchKind: string;
+    chapter?: string;
+    sourceId?: string;
+    sourceLocation?: SourceLocation;
+  }>;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -239,7 +275,10 @@ export interface ParseDiagnosticPayload {
       | "dead_menu_option"
       | "missing_asset"
       | "dangling_stack"
-      | "call_cycle_deadlock";
+      | "call_cycle_deadlock"
+      | "unused_variable"
+      | "undeclared_variable"
+      | "excessive_call_depth";
     detail?: string;
   };
   recoveryAction?: string;
@@ -287,7 +326,10 @@ export interface NormalizationParseDiagnosticPayload
       | "dead_menu_option"
       | "missing_asset"
       | "dangling_stack"
-      | "call_cycle_deadlock";
+      | "call_cycle_deadlock"
+      | "unused_variable"
+      | "undeclared_variable"
+      | "excessive_call_depth";
     detail?: string;
   };
 }
@@ -333,10 +375,29 @@ export interface ChunkResultResponseMessage {
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
   pendingCallReturns?: PendingCallReturn[];
+  hasReturnInLabel?: string[];
   hasReliableReturnInLabel?: string[];
+  calledLabels?: string[];
+  calledFromMenuOptionTargets?: string[];
   globalScreens?: string[];
+  globalCharacters?: string[];
   labelDefinitionCount?: Array<[string, number]>;
   canonicalLabelIds?: Array<[string, string]>;
+  initVariables?: Array<[string, InitVariableDescriptor]>;
+  globalPersistentVariables?: Array<[string, VariableValue]>;
+  globalLabelVariableLiteralTargets?: Array<[string, string]>;
+  globalLabelVariableDictTargets?: Array<[string, Array<[string, string]>]>;
+  globalLabelVariableListTargets?: Array<[string, string[]]>;
+  nodeMutations?: Array<[string, VariableMutation[]]>;
+  imageDefinitions?: Array<[string, string]>;
+  assets?: FlowAsset[];
+  allConditionalExpressions?: Array<{
+    expression: string;
+    branchKind: string;
+    chapter?: string;
+    sourceId?: string;
+    sourceLocation?: SourceLocation;
+  }>;
   elapsedMs?: number;
 }
 

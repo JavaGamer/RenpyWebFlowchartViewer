@@ -13,6 +13,20 @@ export const NODE_HEIGHT_MENU = 80;
 // Keep this aligned with the rendered decision node height (diamond + vertical padding).
 /** Height for DECISION branching nodes (diamond shape plus vertical padding). */
 export const NODE_HEIGHT_DECISION = 176;
+/** Width for collapsed chapter summary nodes on the canvas. */
+export const CHAPTER_SUMMARY_WIDTH = 260;
+/** Height for collapsed chapter summary nodes on the canvas. */
+export const CHAPTER_SUMMARY_HEIGHT = 110;
+/** Padding inside expanded chapter container boxes. */
+export const CHAPTER_CONTAINER_PADDING = {
+  top: 50,
+  left: 24,
+  bottom: 24,
+  right: 24,
+};
+/** Header height for expanded chapter containers. */
+export const CHAPTER_HEADER_HEIGHT = 44;
+
 /**
  * Nodes below this count use the full Dagre layout.
  * Above it, `applyDagreLayout` switches to `applyProgressiveDagreLayout`
@@ -58,6 +72,21 @@ export function getNodeHeight(
  */
 export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
   const nodeData = node.data as NodeData;
+  if (node.type === "chapterNode") {
+    const w = node.measured?.width ??
+      (typeof node.style?.width === "number"
+        ? node.style.width
+        : node.width ?? CHAPTER_SUMMARY_WIDTH);
+    const h = node.measured?.height ??
+      (typeof node.style?.height === "number"
+        ? node.style.height
+        : node.height ?? CHAPTER_SUMMARY_HEIGHT);
+    return {
+      x: node.position.x + w / 2,
+      y: node.position.y + h / 2,
+    };
+  }
+  const nodeWidth = node.measured?.width ?? node.width ?? NODE_WIDTH;
   const nodeHeight = node.measured?.height ??
     getNodeHeight({
       type: node.type === "menuNode"
@@ -74,7 +103,7 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
       audioAssetCues: nodeData.audioAssetCues,
     });
   return {
-    x: node.position.x + NODE_WIDTH / 2,
+    x: node.position.x + nodeWidth / 2,
     y: node.position.y + nodeHeight / 2,
   };
 }

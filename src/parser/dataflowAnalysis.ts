@@ -142,9 +142,16 @@ export function resolveDynamicTargetWithDataflow(
 
   if (evalRes.isStaticallyEvaluated && typeof evalRes.value === "string") {
     results.add(evalRes.value);
-  }
-  for (const candidate of evalRes.stringCandidates) {
-    results.add(candidate);
+  } else {
+    for (const candidate of evalRes.stringCandidates) {
+      if (
+        state?.canonicalLabelIdByName?.has(candidate) ||
+        state?.allLabelIds?.has(candidate) ||
+        state?.nodeMap?.has(candidate)
+      ) {
+        results.add(candidate);
+      }
+    }
   }
 
   // Also check direct variable lookup in env

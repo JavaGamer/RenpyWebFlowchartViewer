@@ -317,10 +317,12 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
             if (c.name === "TupleExpression" || c.name === "ArrayExpression") {
               lhsVars.push(
                 ...getNonSeparatorChildren(c).filter((n) =>
-                  n.name === "VariableName"
+                  n.name === "VariableName" || n.name === "MemberExpression"
                 ),
               );
-            } else if (c.name === "VariableName") {
+            } else if (
+              c.name === "VariableName" || c.name === "MemberExpression"
+            ) {
               lhsVars.push(c);
             }
           }

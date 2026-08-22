@@ -749,7 +749,7 @@ describe("App – upload → parse → render integration", () => {
     await user.click(chapterToggle);
 
     await waitFor(() => {
-      expect(view.getByTestId("rf-node-count")).toHaveTextContent("0");
+      expect(view.getByTestId("rf-node-count")).toHaveTextContent("1");
     });
   });
 

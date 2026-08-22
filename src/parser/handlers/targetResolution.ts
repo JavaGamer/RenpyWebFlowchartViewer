@@ -545,30 +545,90 @@ export function resolvePatternMatches(
     }
   }
 
+  const cleanExpr = trimmed.replace(/^\s*\(\s*|\s*\)\s*$/g, "").trim();
+
   let prefix = "";
-  const prefixMatch =
-    /(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])?["']([^"'\n{]+)/
-      .exec(trimmed);
-  if (prefixMatch) {
-    prefix = prefixMatch[1];
+  let suffix = "";
+
+  // 1. Check for f-strings: f"prefix_{var}_suffix"
+  const fStringMatch = /^[fF]["']([^"'{]*)(?:\{[^}]+\})+(.*?)["']$/.exec(
+    cleanExpr,
+  );
+  if (fStringMatch) {
+    prefix = fStringMatch[1] ?? "";
+    suffix = fStringMatch[2] ?? "";
   }
 
-  if (prefix && state) {
+  // 2. Extract string literals from expression
+  if (!prefix && !suffix) {
+    const stringLiterals: Array<{ value: string; index: number; end: number }> =
+      [];
+    const stringRegex =
+      /(?:[rR][bB]|[bB][rR]|[rR][uU]|[uU][rR]|[fF][rR]|[rR][fF]|[rR]|[uU]|[bB]|[fF])?["']([^"'\n\\]*(?:\\.[^"'\n\\]*)*)["']/g;
+    let m: RegExpExecArray | null;
+    while ((m = stringRegex.exec(cleanExpr)) !== null) {
+      stringLiterals.push({
+        value: m[1]!,
+        index: m.index,
+        end: m.index + m[0].length,
+      });
+    }
+
+    if (stringLiterals.length === 1) {
+      const lit = stringLiterals[0]!;
+      if (lit.index === 0) {
+        prefix = lit.value;
+      } else {
+        suffix = lit.value;
+      }
+    } else if (stringLiterals.length >= 2) {
+      const first = stringLiterals[0]!;
+      const last = stringLiterals[stringLiterals.length - 1]!;
+      if (first.index === 0) {
+        prefix = first.value;
+      }
+      if (
+        last.end >= cleanExpr.length - 1 ||
+        cleanExpr.slice(last.end).trim() === ""
+      ) {
+        suffix = last.value;
+      }
+    }
+  }
+
+  if ((prefix || suffix) && state) {
     const candidates = new Set<string>();
+    const allLabels: string[] = [];
     if (state.canonicalLabelIdByName) {
       for (const labelName of state.canonicalLabelIdByName.keys()) {
-        if (labelName.startsWith(prefix)) {
-          candidates.add(labelName);
-        }
+        allLabels.push(labelName);
       }
     }
     if (state.allLabelIds) {
       for (const labelId of state.allLabelIds) {
-        if (labelId.startsWith(prefix)) {
-          candidates.add(labelId);
+        allLabels.push(labelId);
+      }
+    }
+
+    for (const label of allLabels) {
+      if (prefix && suffix) {
+        if (
+          label.startsWith(prefix) && label.endsWith(suffix) &&
+          label.length >= prefix.length + suffix.length
+        ) {
+          candidates.add(label);
+        }
+      } else if (prefix) {
+        if (label.startsWith(prefix)) {
+          candidates.add(label);
+        }
+      } else if (suffix) {
+        if (label.endsWith(suffix)) {
+          candidates.add(label);
         }
       }
     }
+
     if (candidates.size > 0) return Array.from(candidates);
   }
 

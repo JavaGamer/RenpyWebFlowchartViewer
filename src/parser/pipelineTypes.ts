@@ -81,7 +81,10 @@ export interface ParseDiagnosticContext {
     | "dead_menu_option"
     | "missing_asset"
     | "dangling_stack"
-    | "call_cycle_deadlock";
+    | "call_cycle_deadlock"
+    | "unused_variable"
+    | "undeclared_variable"
+    | "excessive_call_depth";
   detail?: string;
 }
 
@@ -123,7 +126,10 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | "dead_menu_option"
       | "missing_asset"
       | "dangling_stack"
-      | "call_cycle_deadlock";
+      | "call_cycle_deadlock"
+      | "unused_variable"
+      | "undeclared_variable"
+      | "excessive_call_depth";
     detail?: string;
   };
 }
@@ -266,6 +272,14 @@ export interface ParseGraphState {
     | Set<string>
     | string[];
   dynamicJumpRules?: DynamicJumpRule[];
+  maxCallStackDepth?: number;
+  allConditionalExpressions?: Array<{
+    expression: string;
+    branchKind: string;
+    chapter?: string;
+    sourceId?: string;
+    sourceLocation?: SourceLocation;
+  }>;
 }
 
 export interface ParseResult {
@@ -307,6 +321,7 @@ export interface ParseOptions {
     | Array<{ relativePath: string; fileName: string }>
     | Set<string>
     | string[];
+  maxCallStackDepth?: number;
   signal?: AbortSignal;
 }
 

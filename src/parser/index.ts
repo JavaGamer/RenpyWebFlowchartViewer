@@ -25,6 +25,8 @@ export {
   resolveAssetReference,
   verifyAssetIntegrity,
 } from "./assetIntegrity.ts";
+export { runControlFlowAnalysis } from "./controlFlowAnalysis.ts";
+export { materializeCallReturnEdges } from "./callReturnFinalization.ts";
 export type {
   InitVariableDescriptor,
   MissingAssetParseDiagnostic,

@@ -94,6 +94,8 @@ export function runLayoutInWorker(
     theme?: ThemeName;
     layoutDensity?: LayoutDensity;
     simplifyOptions?: GraphSimplificationOptions;
+    enableCompoundContainers?: boolean;
+    collapsedChapters?: Record<string, boolean>;
   } | undefined,
   onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
   onError?: (error: Error) => void,
@@ -135,6 +137,8 @@ export function runLayoutInWorker(
     layoutDensity: options?.layoutDensity,
     previousPositions: serializedPreviousPositions,
     simplifyOptions: options?.simplifyOptions,
+    enableCompoundContainers: options?.enableCompoundContainers,
+    collapsedChapters: options?.collapsedChapters,
   })
     .then((result) => {
       if (cancelled || thisRequestId !== currentRequestId) return;

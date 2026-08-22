@@ -32,6 +32,14 @@ export interface NodeData extends Record<string, unknown> {
   isRouteHighlighted?: boolean;
   isRouteDimmed?: boolean;
   routeStepIndex?: number;
+  isChapterContainer?: boolean;
+  isCollapsed?: boolean;
+  chapterNodeCount?: number;
+  chapterTotalDialogueCount?: number;
+  chapterTotalWordCount?: number;
+  chapterTotalPauseDuration?: number;
+  chapterSearchMatchCount?: number;
+  containsActiveRoute?: boolean;
 }
 
 export interface EdgeData extends Record<string, unknown> {
@@ -41,6 +49,18 @@ export interface EdgeData extends Record<string, unknown> {
   timeout?: FlowEdge["timeout"];
   conditionState?: ConditionReachability;
   callContext?: CallContext;
+  isBackEdge?: boolean;
+  isSelfLoop?: boolean;
+  laneIndex?: number;
+  svgPath?: string;
+  labelPosition?: { x: number; y: number };
+  bendPoints?: Array<{ x: number; y: number }>;
+  routePoints?: Array<{ x: number; y: number }>;
+  sections?: Array<{
+    startPoint: { x: number; y: number };
+    endPoint: { x: number; y: number };
+    bendPoints?: Array<{ x: number; y: number }>;
+  }>;
 }
 
 export interface CanvasNode {
@@ -101,6 +121,7 @@ export interface CanvasEdge {
 export type LabelNodeType = CanvasNode;
 export type MenuNodeType = CanvasNode;
 export type DecisionNodeType = CanvasNode;
+export type ChapterNodeType = CanvasNode;
 export type LabeledEdgeType = CanvasEdge;
 
 export type EdgeKindFilter = EdgeKind;

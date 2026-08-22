@@ -61,6 +61,18 @@ export function handleConditionalHeader(
   if (!pending || scanState.currentLabelId === null) return false;
   const source = resolveConditionalSource(scanState, meta, menuDepth);
   if (!source) return false;
+  if (pending.expression) {
+    if (!state.allConditionalExpressions) {
+      state.allConditionalExpressions = [];
+    }
+    state.allConditionalExpressions.push({
+      expression: pending.expression,
+      branchKind: pending.kind,
+      chapter,
+      sourceId: source,
+      sourceLocation: pending.sourceLocation,
+    });
+  }
   if (
     pending.kind === "if" || pending.kind === "while" || pending.kind === "for"
   ) {

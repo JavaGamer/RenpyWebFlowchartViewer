@@ -6,6 +6,7 @@ import {
   type FileGraphFragment,
   finalizeRoles,
   type InitVariableDescriptor,
+  materializeCallReturnEdges,
   type NodeDetailsPayload,
   type ParseDiagnostic,
   type ParseGraphState,
@@ -14,6 +15,7 @@ import {
   type PendingCallReturn,
   preParseInitialization,
   processTokenizedFile,
+  runControlFlowAnalysis,
   type TokenizedFile,
   tokenizeOneFile,
   type VariableMutation,
@@ -239,6 +241,7 @@ export interface InternalChunkResult {
   nodeMutations?: Array<[string, VariableMutation[]]>;
   imageDefinitions?: Array<[string, string]>;
   assets?: FlowAsset[];
+  allConditionalExpressions?: ParseGraphState["allConditionalExpressions"];
 }
 
 export const parserApi = {
@@ -259,6 +262,7 @@ export const parserApi = {
         | Array<{ relativePath: string; fileName: string }>
         | Set<string>
         | string[];
+      maxCallStackDepth?: number;
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
@@ -421,6 +425,7 @@ export const parserApi = {
           parserVariant: options.parserVariant,
           screenActionRules: options.screenActionRules,
           projectMediaFiles: options.projectMediaFiles,
+          maxCallStackDepth: options.maxCallStackDepth,
           onProgress: ({ doneFiles, totalFiles, currentFile }) => {
             if (cancelledRequests.has(requestId)) {
               throw new Error("Parsing cancelled");
@@ -505,6 +510,7 @@ export const parserApi = {
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
       sceneSplitDialogueThreshold?: number;
+      maxCallStackDepth?: number;
       prePassState?: {
         globalLabelVariableLiteralTargets?: Array<[string, string]>;
         globalLabelVariableDictTargets?: Array<
@@ -664,6 +670,7 @@ export const parserApi = {
           ? Array.from(chunkState.imageDefinitions.entries())
           : undefined,
         assets: chunkState.assets,
+        allConditionalExpressions: chunkState.allConditionalExpressions,
       };
     } finally {
       cancelledRequests.delete(requestId);
@@ -823,6 +830,8 @@ export const parserApi = {
         | Array<{ relativePath: string; fileName: string }>
         | Set<string>
         | string[];
+      maxCallStackDepth?: number;
+      allConditionalExpressions?: ParseGraphState["allConditionalExpressions"];
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
@@ -1036,8 +1045,26 @@ export const parserApi = {
             options.projectMediaFiles;
         }
 
+        if (options.allConditionalExpressions) {
+          if (!session.accumulatedState.allConditionalExpressions) {
+            session.accumulatedState.allConditionalExpressions = [];
+          }
+          session.accumulatedState.allConditionalExpressions.push(
+            ...options.allConditionalExpressions,
+          );
+        }
+        if (options.maxCallStackDepth !== undefined) {
+          session.accumulatedState.maxCallStackDepth =
+            options.maxCallStackDepth;
+        }
+
         if (isFinalChunk) {
           finalizeRoles(session.accumulatedState);
+          materializeCallReturnEdges(session.accumulatedState);
+          runControlFlowAnalysis(
+            session.accumulatedState,
+            options.projectMediaFiles,
+          );
           buildDialogueSearchIndex(session, session.accumulatedState.nodes);
         }
 
@@ -1169,10 +1196,20 @@ export const parserApi = {
         if (options.projectMediaFiles) {
           state.projectMediaFiles = options.projectMediaFiles;
         }
+        if (options.allConditionalExpressions) {
+          state.allConditionalExpressions = [
+            ...options.allConditionalExpressions,
+          ];
+        }
+        if (options.maxCallStackDepth !== undefined) {
+          state.maxCallStackDepth = options.maxCallStackDepth;
+        }
 
         session.accumulatedState = state;
 
         finalizeRoles(state);
+        materializeCallReturnEdges(state);
+        runControlFlowAnalysis(state, options.projectMediaFiles);
         buildDialogueSearchIndex(session, state.nodes);
 
         if (cancelledRequests.has(requestId)) {

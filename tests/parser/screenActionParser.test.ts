@@ -46,6 +46,8 @@ describe("Ren'Py Screen Action AST Parser", () => {
           "    screen score_screen():",
           '        textbutton "Increase Score" action SetVariable("score", 10)',
           '        textbutton "Toggle Difficulty" action ToggleVariable("hard_mode")',
+          "    if score > 0 or hard_mode:",
+          '        "Score updated"',
         ].join("\n"),
       },
     ];
@@ -69,6 +71,8 @@ describe("Ren'Py Screen Action AST Parser", () => {
           "    screen confirm_modal():",
           '        textbutton "Quit" action Confirm("Are you sure?", yes=Jump("exit_label"), no=NullAction())',
           '        textbutton "Multi" action [SetVariable("flag", True), Jump("multi_label")]',
+          "    if flag:",
+          '        "Flag set"',
           "",
           "label exit_label:",
           "    $ pass",
@@ -122,6 +126,8 @@ describe("Ren'Py Screen Action AST Parser", () => {
           "label main:",
           "    screen persist_ui():",
           '        textbutton "Unlock" action SetVariable("persistent.unlocked", True)',
+          "    if persistent.unlocked:",
+          '        "Unlocked"',
         ].join("\n"),
       },
     ];

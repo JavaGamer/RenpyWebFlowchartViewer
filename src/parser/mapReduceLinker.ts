@@ -47,6 +47,7 @@ export interface FileGraphFragment {
   globalLabelVariableListTargets?: Array<[string, string[]]>;
   imageDefinitions?: Array<[string, string]>;
   assets?: FlowAsset[];
+  allConditionalExpressions?: ParseGraphState["allConditionalExpressions"];
 }
 
 export function createFileGraphFragment(
@@ -104,6 +105,7 @@ export function createFileGraphFragment(
       ? Array.from(state.imageDefinitions.entries())
       : undefined,
     assets: state.assets,
+    allConditionalExpressions: state.allConditionalExpressions,
   };
 }
 
@@ -203,6 +205,9 @@ export function linkGraphFragments(
   const state = targetState ?? createGraphState();
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
+  }
+  if (options.maxCallStackDepth !== undefined) {
+    state.maxCallStackDepth = options.maxCallStackDepth;
   }
   if (options.projectMediaFiles && !state.projectMediaFiles) {
     state.projectMediaFiles = options.projectMediaFiles;
@@ -407,6 +412,16 @@ export function linkGraphFragments(
       if (!state.assets) state.assets = [];
       for (const asset of fragment.assets) {
         state.assets.push(asset);
+      }
+    }
+
+    // Conditional expressions
+    if (fragment.allConditionalExpressions) {
+      if (!state.allConditionalExpressions) {
+        state.allConditionalExpressions = [];
+      }
+      for (const cond of fragment.allConditionalExpressions) {
+        state.allConditionalExpressions.push(cond);
       }
     }
 

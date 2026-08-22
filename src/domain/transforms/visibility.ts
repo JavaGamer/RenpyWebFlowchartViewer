@@ -71,26 +71,96 @@ export function buildVisibleNodes(params: {
     highlightedRouteNodeIds && highlightedRouteNodeIds.size > 0,
   );
 
-  return nodes.map((n) => {
+  // Count visible child nodes per chapter to automatically hide empty containers
+  const visibleChildrenPerChapter = new Map<string, number>();
+  for (const n of nodes) {
+    if (n.type === "chapterNode") continue;
     const nodeData = n.data as NodeData;
-    const dialogueCountMatch = String(nodeData.dialogueCount).includes(query);
-    const chapterCollapsed = nodeData.chapter
-      ? collapsedChapters[nodeData.chapter]
-      : false;
+    const chapterName = nodeData.chapter || "Uncategorized";
+    const chapterCollapsed = Boolean(collapsedChapters[chapterName]);
     const labelCollapsed = collapsedLabelChildren.has(n.id);
-    const matchesSearch = query.length === 0 ||
-      (searchMatchNodeIds
-        ? (searchMatchNodeIds.has(n.id) ||
-          (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false))
-        : (nodeData.label.toLowerCase().includes(query) ||
+    const dialogueCountMatch = query.length > 0 &&
+      String(nodeData.dialogueCount ?? 0) === query;
+
+    let matchesSearch = true;
+    if (query.length > 0) {
+      if (searchMatchNodeIds) {
+        matchesSearch = searchMatchNodeIds.has(n.id) ||
+          (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false);
+      } else {
+        matchesSearch = (nodeData.label ?? "").toLowerCase().includes(query) ||
           dialogueCountMatch ||
           (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
           (includeDialogueLineSearch &&
             (nodeData.dialogueLines ?? []).some((line) =>
               line.toLowerCase().includes(query)
-            ))));
-    const matchesDialogue = nodeData.dialogueCount >= minDialogue;
-    const hidden = Boolean(
+            ));
+      }
+    }
+
+    const matchesDialogue = (nodeData.dialogueCount ?? 0) >= minDialogue;
+    const isHidden = Boolean(
+      chapterCollapsed ||
+        labelCollapsed ||
+        (conditionHiddenNodeIds?.has(n.id) ?? false) ||
+        !matchesSearch ||
+        !matchesDialogue,
+    );
+
+    if (!isHidden) {
+      visibleChildrenPerChapter.set(
+        chapterName,
+        (visibleChildrenPerChapter.get(chapterName) ?? 0) + 1,
+      );
+    }
+  }
+
+  return nodes.map((n) => {
+    const nodeData = n.data as NodeData;
+    const isChapter = n.type === "chapterNode";
+    const chapterName = nodeData.chapter ||
+      (n.id.startsWith("chapter:") ? n.id.slice(8) : undefined);
+    const chapterCollapsed = chapterName
+      ? Boolean(collapsedChapters[chapterName])
+      : false;
+    const labelCollapsed = collapsedLabelChildren.has(n.id);
+    const dialogueCountMatch = query.length > 0 &&
+      String(nodeData.dialogueCount ?? 0) === query;
+
+    let matchesSearch = true;
+    if (query.length > 0) {
+      if (isChapter) {
+        matchesSearch = (nodeData.label ?? "").toLowerCase().includes(query) ||
+          Boolean(
+            nodeData.chapterSearchMatchCount &&
+              nodeData.chapterSearchMatchCount > 0,
+          );
+      } else if (searchMatchNodeIds) {
+        matchesSearch = searchMatchNodeIds.has(n.id) ||
+          (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false);
+      } else {
+        matchesSearch = (nodeData.label ?? "").toLowerCase().includes(query) ||
+          dialogueCountMatch ||
+          (dialogueMatchNodeIds ? dialogueMatchNodeIds.has(n.id) : false) ||
+          (includeDialogueLineSearch &&
+            (nodeData.dialogueLines ?? []).some((line) =>
+              line.toLowerCase().includes(query)
+            ));
+      }
+    }
+
+    const matchesDialogue = isChapter ||
+      (nodeData.dialogueCount ?? 0) >= minDialogue;
+    const visibleChildCount =
+      visibleChildrenPerChapter.get(chapterName ?? "") ?? 0;
+    const isSearchActive = query.length > 0;
+    const chapterMatchesSearch = isSearchActive && matchesSearch;
+    const isCollapsed = Boolean(nodeData.isCollapsed);
+    const chapterHidden = isCollapsed
+      ? (isSearchActive ? !chapterMatchesSearch : false)
+      : (visibleChildCount === 0 && !chapterMatchesSearch);
+
+    const hidden = isChapter ? chapterHidden : Boolean(
       chapterCollapsed ||
         labelCollapsed ||
         (conditionHiddenNodeIds?.has(n.id) ?? false) ||
@@ -101,9 +171,13 @@ export function buildVisibleNodes(params: {
     const isRouteHighlighted = hasRouteHighlight
       ? Boolean(highlightedRouteNodeIds?.has(n.id))
       : false;
-    const isRouteDimmed = hasRouteHighlight && !isRouteHighlighted;
+    const isRouteDimmed = hasRouteHighlight && !isRouteHighlighted &&
+      !isChapter;
     const routeStepIndex = isRouteHighlighted && stepOrderMap
       ? stepOrderMap[n.id]
+      : undefined;
+    const containsActiveRoute = isChapter
+      ? (isRouteHighlighted || Boolean(nodeData.containsActiveRoute))
       : undefined;
 
     const previous = previousById?.get(n.id);
@@ -142,7 +216,18 @@ export function buildVisibleNodes(params: {
         prevData.characterDialogue === nodeData.characterDialogue &&
         prevData.isRouteHighlighted === isRouteHighlighted &&
         prevData.isRouteDimmed === isRouteDimmed &&
-        prevData.routeStepIndex === routeStepIndex
+        prevData.routeStepIndex === routeStepIndex &&
+        prevData.isCollapsed ===
+          (isChapter ? chapterCollapsed : nodeData.isCollapsed) &&
+        prevData.isChapterContainer === nodeData.isChapterContainer &&
+        prevData.chapterNodeCount === nodeData.chapterNodeCount &&
+        prevData.chapterTotalDialogueCount ===
+          nodeData.chapterTotalDialogueCount &&
+        prevData.chapterTotalWordCount === nodeData.chapterTotalWordCount &&
+        prevData.chapterTotalPauseDuration ===
+          nodeData.chapterTotalPauseDuration &&
+        prevData.chapterSearchMatchCount === nodeData.chapterSearchMatchCount &&
+        prevData.containsActiveRoute === containsActiveRoute
       ) {
         return previous;
       }
@@ -155,6 +240,8 @@ export function buildVisibleNodes(params: {
         isRouteHighlighted,
         isRouteDimmed,
         routeStepIndex,
+        isCollapsed: isChapter ? chapterCollapsed : nodeData.isCollapsed,
+        containsActiveRoute,
       },
       hidden,
     };
@@ -314,6 +401,9 @@ export function buildVisibleEdges(params: {
       previous.selected === edge.selected &&
       previous.animated === edge.animated &&
       previous.hidden === edge.hidden &&
+      previous.type === edge.type &&
+      previous.sourceHandle === edge.sourceHandle &&
+      previous.targetHandle === edge.targetHandle &&
       previousData?.label === edgeLabel &&
       previousData?.kind === kind &&
       previousData?.callContext === edgeData.callContext &&
@@ -321,6 +411,11 @@ export function buildVisibleEdges(params: {
       previousData?.timeout?.durationSeconds ===
         edgeData.timeout?.durationSeconds &&
       previousData?.conditionState === conditionState &&
+      previousData?.isBackEdge === edgeData.isBackEdge &&
+      previousData?.laneIndex === edgeData.laneIndex &&
+      previousData?.svgPath === edgeData.svgPath &&
+      previousData?.labelPosition?.x === edgeData.labelPosition?.x &&
+      previousData?.labelPosition?.y === edgeData.labelPosition?.y &&
       previous.source === edge.source &&
       previous.target === edge.target &&
       previous.style?.stroke === stroke &&

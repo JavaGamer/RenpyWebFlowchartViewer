@@ -41,24 +41,30 @@ export function ChapterFiltersSettings({
 }: ChapterFiltersSettingsProps) {
   const {
     theme,
+    enableCompoundContainers,
     collapsedChapters,
     labelSubgraphSearchInput,
     collapsedParentLabels,
     readingSpeedWpm,
 
+    setEnableCompoundContainers,
     toggleChapter,
+    setAllChaptersCollapsed,
     setLabelSubgraphSearchInput,
     toggleParentLabel,
     toggleShowAllLabelSubgraphToggles,
   } = useViewerStore(
     useShallow((s) => ({
       theme: s.theme,
+      enableCompoundContainers: s.enableCompoundContainers,
       collapsedChapters: s.collapsedChapters,
       labelSubgraphSearchInput: s.labelSubgraphSearchInput,
       collapsedParentLabels: s.collapsedParentLabels,
       readingSpeedWpm: s.readingSpeedWpm,
 
+      setEnableCompoundContainers: s.setEnableCompoundContainers,
       toggleChapter: s.toggleChapter,
+      setAllChaptersCollapsed: s.setAllChaptersCollapsed,
       setLabelSubgraphSearchInput: s.setLabelSubgraphSearchInput,
       toggleParentLabel: s.toggleParentLabel,
       toggleShowAllLabelSubgraphToggles: s.toggleShowAllLabelSubgraphToggles,
@@ -70,6 +76,9 @@ export function ChapterFiltersSettings({
   if (chapters.length === 0 && labels.length === 0) {
     return null;
   }
+
+  const allCollapsed = chapters.length > 0 &&
+    chapters.every((ch) => collapsedChapters[ch]);
 
   return (
     <div
@@ -83,7 +92,7 @@ export function ChapterFiltersSettings({
           isDark ? "text-slate-500" : "text-gray-400",
         )}
       >
-        Subgraphs
+        Subgraphs & Containers
       </h3>
       <div
         className={cn(
@@ -95,14 +104,44 @@ export function ChapterFiltersSettings({
       >
         {chapters.length > 0 && (
           <div className="flex flex-col gap-2">
-            <span
-              className={cn(
-                "font-semibold text-xs",
-                isDark ? "text-slate-300" : "text-gray-700",
-              )}
-            >
-              Chapter Subgraphs
-            </span>
+            <div className="flex justify-between items-center">
+              <span
+                className={cn(
+                  "font-semibold text-xs",
+                  isDark ? "text-slate-300" : "text-gray-700",
+                )}
+              >
+                Chapter Containers
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAllChaptersCollapsed(chapters, !allCollapsed)}
+                  className={cn(
+                    "text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer",
+                    isDark
+                      ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-300"
+                      : "bg-white hover:bg-gray-100 border-gray-200 text-gray-700",
+                  )}
+                >
+                  {allCollapsed ? "Expand All" : "Collapse All"}
+                </button>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs mb-1">
+              <input
+                type="checkbox"
+                checked={enableCompoundContainers}
+                onChange={(e) => setEnableCompoundContainers(e.target.checked)}
+                className="rounded border-gray-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+              />
+              <span className={isDark ? "text-slate-300" : "text-gray-700"}>
+                Group nodes into visually bounded chapter containers
+              </span>
+            </label>
+
             <div className="flex flex-wrap gap-1.5">
               {chapters.map((chapter) => {
                 const stats = chapterStats?.get(chapter);

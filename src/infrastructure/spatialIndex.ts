@@ -167,19 +167,39 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
   let maxX = -Infinity;
   let maxY = -Infinity;
 
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  function getAbsolutePosition(node: CanvasNode): { x: number; y: number } {
+    if (node.parentId) {
+      const parent = nodeById.get(node.parentId);
+      if (parent) {
+        return {
+          x: parent.position.x + node.position.x,
+          y: parent.position.y + node.position.y,
+        };
+      }
+    }
+    return node.position;
+  }
+
   const items: SpatialItem[] = [];
 
   for (const node of nodes) {
-    const x = node.position.x;
-    const y = node.position.y;
-    const width = node.measured?.width || node.width || 220;
+    const pos = getAbsolutePosition(node);
+    const x = pos.x;
+    const y = pos.y;
+    const width = node.measured?.width ||
+      (typeof node.style?.width === "number" ? node.style.width : node.width) ||
+      (node.type === "chapterNode" ? 300 : 220);
     const nodeData = node.data as {
       isShadowed?: boolean;
       isTerminalOutcome?: boolean;
       audioAssetCues?: unknown[];
     } | undefined;
-    const height = node.measured?.height || node.height ||
-      getNodeHeight({
+    const height = node.measured?.height ||
+      (typeof node.style?.height === "number"
+        ? node.style.height
+        : node.height) ||
+      (node.type === "chapterNode" ? 200 : getNodeHeight({
         type: node.type === "labelNode"
           ? "LABEL"
           : node.type === "menuNode"
@@ -190,7 +210,7 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
         audioAssetCues: nodeData?.audioAssetCues as
           | import("../domain/index.ts").AudioAssetCue[]
           | undefined,
-      });
+      }));
 
     const bounds: AABB = {
       minX: x,

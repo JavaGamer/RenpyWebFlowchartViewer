@@ -337,12 +337,18 @@ export function FlowchartCanvas({
               )}
               pannable={minimapPannable}
               zoomable={minimapZoomable}
-              nodeColor={(n) =>
-                n.type === "labelNode"
+              nodeColor={(n) => {
+                if (n.type === "chapterNode") {
+                  return n.data.isCollapsed
+                    ? (theme === "dark" ? "#334155" : "#cbd5e1")
+                    : "transparent";
+                }
+                return n.type === "labelNode"
                   ? THEMES[theme].minimapLabel
                   : n.type === "menuNode"
                   ? THEMES[theme].minimapMenu
-                  : THEMES[theme].minimapDecision}
+                  : THEMES[theme].minimapDecision;
+              }}
             />
           </ReactFlow>
         </div>

@@ -28,6 +28,7 @@ export {
   applyDagreLayout,
   applyElkLayout,
   preWarmElk,
+  setElkInstance,
 } from "./layoutEngines.ts";
 export {
   createPerfTracker,

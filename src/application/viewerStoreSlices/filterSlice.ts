@@ -21,6 +21,7 @@ import { useViewerStore } from "../viewerStore.ts";
 export interface FilterSliceState {
   layoutDirection: LayoutDirection;
   minDialogue: number;
+  enableCompoundContainers: boolean;
   collapsedChapters: Record<string, boolean>;
   collapsedParentLabels: Record<string, boolean>;
   largeGraphModeOverride: boolean | null;
@@ -35,7 +36,9 @@ export interface FilterSliceState {
 export interface FilterSliceActions {
   setLayoutDirection: (direction: LayoutDirection) => void;
   setMinDialogue: (value: number) => void;
+  setEnableCompoundContainers: (enable: boolean) => void;
   toggleChapter: (chapter: string) => void;
+  setAllChaptersCollapsed: (chapters: string[], collapsed: boolean) => void;
   toggleParentLabel: (label: string) => void;
   setAllParentLabelsCollapsed: (labels: string[], collapsed: boolean) => void;
   setLargeGraphModeOverride: (value: boolean | null) => void;
@@ -53,6 +56,7 @@ export type FilterSlice = FilterSliceState & FilterSliceActions;
 export const defaultFilterState: FilterSliceState = {
   layoutDirection: "TB",
   minDialogue: 0,
+  enableCompoundContainers: true,
   collapsedChapters: {},
   collapsedParentLabels: {},
   largeGraphModeOverride: null,
@@ -82,6 +86,11 @@ export const createFilterSlice: StateCreator<
       draft.minDialogue = value;
     }),
 
+  setEnableCompoundContainers: (enable) =>
+    set((draft) => {
+      draft.enableCompoundContainers = enable;
+    }),
+
   toggleChapter: (chapter) => {
     let nodesToFetch: string[] = [];
     set((draft) => {
@@ -90,6 +99,26 @@ export const createFilterSlice: StateCreator<
       if (!willBeCollapsed) {
         nodesToFetch = useAppStore.getState().flowNodes.filter(
           (n) => n.chapter === chapter && !n.isDetailsLoaded,
+        ).map((n) => n.id);
+      }
+    });
+    if (nodesToFetch.length > 0) {
+      useViewerStore.getState().fetchNodeDetails(nodesToFetch).catch(
+        () => {},
+      );
+    }
+  },
+
+  setAllChaptersCollapsed: (chapters, collapsed) => {
+    let nodesToFetch: string[] = [];
+    set((draft) => {
+      for (const ch of chapters) {
+        draft.collapsedChapters[ch] = collapsed;
+      }
+      if (!collapsed) {
+        const chapterSet = new Set(chapters);
+        nodesToFetch = useAppStore.getState().flowNodes.filter(
+          (n) => n.chapter && chapterSet.has(n.chapter) && !n.isDetailsLoaded,
         ).map((n) => n.id);
       }
     });

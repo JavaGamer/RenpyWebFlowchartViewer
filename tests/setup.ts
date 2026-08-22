@@ -239,8 +239,12 @@ vi.mock("@xyflow/react", () => {
     return [edges, setEdges, vi.fn()] as const;
   };
 
+  const ReactFlowProvider = ({ children }: { children: React.ReactNode }) =>
+    children;
+
   return {
     ReactFlow,
+    ReactFlowProvider,
     Background,
     Controls,
     MiniMap,

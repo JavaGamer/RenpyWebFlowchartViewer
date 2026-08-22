@@ -16,6 +16,7 @@ export type {
 export type {
   CanvasEdge,
   CanvasNode,
+  ChapterNodeType,
   ConditionReachability,
   ConditionVisibilityMode,
   DecisionNodeType,
@@ -30,19 +31,33 @@ export type {
   ThemeName,
 } from "./canvas.ts";
 
+export { Position } from "@xyflow/react";
+
 export {
   buildConditionalVisibility,
   buildVisibleEdges,
   buildVisibleNodes,
+  CHAPTER_CONTAINER_PADDING,
+  CHAPTER_HEADER_HEIGHT,
+  CHAPTER_NODE_PREFIX,
+  CHAPTER_SUMMARY_HEIGHT,
+  CHAPTER_SUMMARY_WIDTH,
+  type ChapterAggregates,
+  computeChapterAggregates,
+  extractChapterName,
+  getChapterId,
   getLabelHeight,
   getNodeCenter,
   getNodeHeight,
   type GraphSimplificationOptions,
+  groupNodesByChapter,
+  isChapterId,
   NODE_HEIGHT_DECISION,
   NODE_HEIGHT_LABEL,
   NODE_HEIGHT_MENU,
   NODE_WIDTH,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
+  redirectEdgesForCollapsedChapters,
   resolveGraphIntegrity,
   simplifyGraph,
 } from "./transforms/index.ts";
@@ -111,3 +126,15 @@ export {
   generateProjectNarrativeReport,
   identifyPointsOfNoReturn,
 } from "./analytics/index.ts";
+
+export {
+  buildFilletedOrthogonalPath,
+  calculateBackEdgeSpline,
+  calculateSelfLoopArc,
+  detectBackEdge,
+} from "./splineRouting.ts";
+export type {
+  BackEdgeSplineParams,
+  SelfLoopArcParams,
+  SplineResult,
+} from "./splineRouting.ts";

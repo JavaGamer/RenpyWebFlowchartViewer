@@ -10,6 +10,7 @@ import {
   extractNodeDetailsFromTokens,
   finalizeRoles,
   type InitVariableDescriptor,
+  type ParseGraphState,
   type ParseInputFile,
   preParseInitialization,
   processTokenizedFile,
@@ -319,6 +320,10 @@ async function parseRenpyFilesFallback(
     currentFallback.rawFilesByChapter.set(chapter, file);
   }
 
+  if (request.maxCallStackDepth !== undefined) {
+    currentFallback.graphState.maxCallStackDepth = request.maxCallStackDepth;
+  }
+
   try {
     for (let idx = 0; idx < files.length; idx += 1) {
       if (signal?.aborted) {
@@ -475,6 +480,7 @@ export function parseRenpyFilesInWorker(
             parserVariant,
             screenActionRules,
             projectMediaFiles: request.projectMediaFiles,
+            maxCallStackDepth: request.maxCallStackDepth,
             appendToActiveGraph,
             resetActiveGraph,
             isFinalChunk,
@@ -593,6 +599,7 @@ export interface ParseChunkRequest {
   parserVariant?: ParseWorkerClientRequest["parserVariant"];
   screenActionRules?: ParseWorkerClientRequest["screenActionRules"];
   projectMediaFiles?: ParseWorkerClientRequest["projectMediaFiles"];
+  maxCallStackDepth?: number;
   signal?: AbortSignal;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
@@ -625,6 +632,7 @@ interface InternalChunkResult extends ParseChunkResult {
   nodeMutations?: Array<[string, VariableMutation[]]>;
   imageDefinitions?: Array<[string, string]>;
   assets?: FlowAsset[];
+  allConditionalExpressions?: ParseGraphState["allConditionalExpressions"];
 }
 
 export function parseChunksInParallel({
@@ -634,6 +642,7 @@ export function parseChunksInParallel({
   parserVariant,
   screenActionRules,
   projectMediaFiles,
+  maxCallStackDepth,
   signal,
   appendToActiveGraph,
   resetActiveGraph,
@@ -723,6 +732,7 @@ export function parseChunksInParallel({
             deferDetails,
             parserVariant,
             screenActionRules,
+            maxCallStackDepth,
             prePassState: {
               globalLabelVariableLiteralTargets: Array.from(
                 prePassStateGraph.globalLabelVariableLiteralTargets.entries(),
@@ -1170,6 +1180,9 @@ export function parseChunksInParallel({
       );
 
       const mergedAssets = results.flatMap((r) => r.assets ?? []);
+      const mergedAllConditionalExpressions = results.flatMap(
+        (r) => r.allConditionalExpressions ?? [],
+      );
 
       const finalizeRequestId = ++requestCounter;
 
@@ -1215,6 +1228,8 @@ export function parseChunksInParallel({
           imageDefinitions: mergedImageDefinitions,
           assets: mergedAssets,
           projectMediaFiles,
+          maxCallStackDepth,
+          allConditionalExpressions: mergedAllConditionalExpressions,
           appendToActiveGraph,
           resetActiveGraph,
           isFinalChunk,

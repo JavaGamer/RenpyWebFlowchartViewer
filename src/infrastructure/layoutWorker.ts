@@ -22,6 +22,8 @@ const layoutApi = {
       layoutDensity?: LayoutDensity;
       previousPositions?: Array<[string, { x: number; y: number }]>;
       simplifyOptions?: GraphSimplificationOptions;
+      enableCompoundContainers?: boolean;
+      collapsedChapters?: Record<string, boolean>;
     },
   ) {
     let nodes = rawNodes;
@@ -39,6 +41,8 @@ const layoutApi = {
       theme: options?.theme,
       layoutDensity: options?.layoutDensity,
       previousPositions: options?.previousPositions,
+      enableCompoundContainers: options?.enableCompoundContainers,
+      collapsedChapters: options?.collapsedChapters,
     });
   },
 };

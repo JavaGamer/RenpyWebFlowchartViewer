@@ -8,6 +8,7 @@ import {
   buildMockFlagsFromVariableState,
   type CallArgument,
   evaluateConditionExpression,
+  extractConditionFlagRefs,
   type FlowEdge,
 } from "../domain/index.ts";
 
@@ -115,7 +116,9 @@ export function runControlFlowAnalysis(
   analyzeReachability(state, outgoingMap);
   analyzeTightCycles(state, outgoingMap);
   analyzeCallCycles(state, outgoingMap);
+  analyzeCallStackDepth(state, outgoingMap);
   analyzeCallReturnMismatches(state, outgoingMap);
+  analyzeDeadStateAndUnusedFlags(state);
   propagateVariableMutationsAndEvaluateConditions(state, outgoingMap);
   verifyAssetIntegrity(state, projectMediaFiles);
 }
@@ -780,6 +783,451 @@ function propagateVariableMutationsAndEvaluateConditions(
         if (changed) {
           nodeStates.set(edge.target, merged);
           queue.push(edge.target);
+        }
+      }
+    }
+  }
+}
+
+const RENPY_PYTHON_BUILTINS = new Set([
+  "renpy",
+  "config",
+  "persistent",
+  "preferences",
+  "gui",
+  "main_menu",
+  "_return",
+  "_rollback",
+  "_in_replay",
+  "_window",
+  "_window_during_transitions",
+  "_menu",
+  "_history",
+  "_voice",
+  "narrator",
+  "adv",
+  "nvl",
+  "True",
+  "False",
+  "None",
+  "true",
+  "false",
+  "none",
+  "null",
+  "len",
+  "str",
+  "int",
+  "float",
+  "bool",
+  "list",
+  "dict",
+  "set",
+  "tuple",
+  "range",
+  "min",
+  "max",
+  "abs",
+  "round",
+  "hasattr",
+  "getattr",
+  "setattr",
+  "isinstance",
+  "issubclass",
+  "any",
+  "all",
+  "zip",
+  "enumerate",
+  "sorted",
+  "reversed",
+]);
+
+const RENPY_ENGINE_NAMESPACES = new Set([
+  "renpy",
+  "config",
+  "preferences",
+  "gui",
+]);
+
+function isBuiltinOrInternalVariable(name: string): boolean {
+  if (!name) return true;
+  const trimmed = name.trim();
+  if (trimmed.startsWith("_")) return true;
+  if (
+    RENPY_PYTHON_BUILTINS.has(trimmed) ||
+    RENPY_PYTHON_BUILTINS.has(trimmed.toLowerCase())
+  ) {
+    return true;
+  }
+  const root = trimmed.split(".")[0]!;
+  if (
+    RENPY_ENGINE_NAMESPACES.has(root) ||
+    RENPY_ENGINE_NAMESPACES.has(root.toLowerCase())
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function extractInterpolationVariables(text: string): string[] {
+  if (!text || !text.includes("[")) return [];
+  const results: string[] = [];
+  const regex = /\[([A-Za-z_][A-Za-z0-9_.]*)\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    results.push(m[1]!);
+  }
+  return results;
+}
+
+function analyzeDeadStateAndUnusedFlags(state: ParseGraphState): void {
+  const declaredVariables = new Map<
+    string,
+    {
+      chapter?: string;
+      sourceId?: string;
+      sourceLocation?: ParseGraphState["nodes"][0]["sourceLocation"];
+    }
+  >();
+
+  // 1. Gather variables declared in define / default / top-level $
+  if (state.initVariables) {
+    for (const [varName, desc] of state.initVariables.entries()) {
+      const chapter = desc.filePath
+        ? desc.filePath.replace(/\\/g, "/").replace(/\.rpy$/i, "")
+        : undefined;
+      declaredVariables.set(varName, { chapter });
+    }
+  }
+
+  // 2. Gather in-label variable mutations ($ var = ...)
+  if (state.nodeMutations) {
+    for (const [nodeId, mutations] of state.nodeMutations.entries()) {
+      const node = state.nodeMap.get(nodeId);
+      for (const m of mutations) {
+        if (!declaredVariables.has(m.variableName)) {
+          declaredVariables.set(m.variableName, {
+            chapter: node?.chapter,
+            sourceId: nodeId,
+            sourceLocation: node?.sourceLocation,
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Gather label parameters (e.g. label my_label(param1, param2=0):)
+  for (const node of state.nodes) {
+    if (node.parameters) {
+      for (const p of node.parameters) {
+        declaredVariables.set(p.name, {
+          chapter: node.chapter,
+          sourceId: node.id,
+          sourceLocation: node.sourceLocation,
+        });
+      }
+    }
+  }
+
+  const referencedVariables = new Set<string>();
+  const conditionalReferences: Array<{
+    varName: string;
+    expression: string;
+    sourceId?: string;
+    edgeId?: string;
+    sourceLocation?: ParseGraphState["nodes"][0]["sourceLocation"];
+    chapter?: string;
+  }> = [];
+
+  // 4. Gather variable references from all parsed conditional expressions (if, elif, while, for, python)
+  if (state.allConditionalExpressions) {
+    for (const cond of state.allConditionalExpressions) {
+      if (cond.expression) {
+        if (cond.branchKind === "for") {
+          const forMatch = /^([A-Za-z0-9_,\s]+)\s+in\s+(.+)$/.exec(
+            cond.expression.trim(),
+          );
+          if (forMatch) {
+            const targets = forMatch[1]!.split(",").map((t) => t.trim());
+            for (const target of targets) {
+              if (target && !declaredVariables.has(target)) {
+                declaredVariables.set(target, {
+                  chapter: cond.chapter,
+                  sourceId: cond.sourceId,
+                  sourceLocation: cond.sourceLocation,
+                });
+              }
+            }
+            const rhsRefs = extractConditionFlagRefs(forMatch[2]);
+            for (const r of rhsRefs) {
+              referencedVariables.add(r);
+              conditionalReferences.push({
+                varName: r,
+                expression: cond.expression,
+                sourceId: cond.sourceId,
+                sourceLocation: cond.sourceLocation,
+                chapter: cond.chapter,
+              });
+            }
+            continue;
+          }
+        }
+
+        const refs = extractConditionFlagRefs(cond.expression);
+        for (const r of refs) {
+          referencedVariables.add(r);
+          conditionalReferences.push({
+            varName: r,
+            expression: cond.expression,
+            sourceId: cond.sourceId,
+            sourceLocation: cond.sourceLocation,
+            chapter: cond.chapter,
+          });
+        }
+      }
+    }
+  }
+
+  // 5. Gather variable references from edge conditions & edge labels
+  for (const edge of state.edges) {
+    if (edge.condition?.expression) {
+      const refs = extractConditionFlagRefs(edge.condition.expression);
+      const sourceNode = state.nodeMap.get(edge.source);
+      for (const r of refs) {
+        referencedVariables.add(r);
+        conditionalReferences.push({
+          varName: r,
+          expression: edge.condition.expression,
+          sourceId: edge.source,
+          edgeId: edge.id,
+          sourceLocation: edge.sourceLocation ?? sourceNode?.sourceLocation,
+          chapter: sourceNode?.chapter,
+        });
+      }
+    }
+    if (edge.label) {
+      const interpolations = extractInterpolationVariables(edge.label);
+      for (const interp of interpolations) {
+        referencedVariables.add(interp);
+      }
+    }
+  }
+
+  // 6. Gather variable references from node conditions and dialogue
+  for (const node of state.nodes) {
+    if (node.condition?.expression) {
+      const refs = extractConditionFlagRefs(node.condition.expression);
+      for (const r of refs) {
+        referencedVariables.add(r);
+        conditionalReferences.push({
+          varName: r,
+          expression: node.condition.expression,
+          sourceId: node.id,
+          sourceLocation: node.sourceLocation,
+          chapter: node.chapter,
+        });
+      }
+    }
+    if (node.label) {
+      const interpolations = extractInterpolationVariables(node.label);
+      for (const interp of interpolations) {
+        referencedVariables.add(interp);
+      }
+    }
+    if (node.dialogueLines) {
+      for (const line of node.dialogueLines) {
+        const interpolations = extractInterpolationVariables(line);
+        for (const interp of interpolations) {
+          referencedVariables.add(interp);
+        }
+      }
+    }
+  }
+
+  // 7. Gather variable references from mutation expressions and init expressions (RHS)
+  if (state.nodeMutations) {
+    for (const mutations of state.nodeMutations.values()) {
+      for (const m of mutations) {
+        if (m.rawExpression) {
+          const refs = extractConditionFlagRefs(m.rawExpression);
+          for (const r of refs) {
+            referencedVariables.add(r);
+          }
+        }
+      }
+    }
+  }
+  if (state.initVariables) {
+    for (const desc of state.initVariables.values()) {
+      if (desc.rawExpression) {
+        const refs = extractConditionFlagRefs(desc.rawExpression);
+        for (const r of refs) {
+          referencedVariables.add(r);
+        }
+      }
+    }
+  }
+
+  // 7. Check for unused variables/flags
+  for (const [varName, loc] of declaredVariables.entries()) {
+    if (isBuiltinOrInternalVariable(varName)) continue;
+    const isReferenced = referencedVariables.has(varName) ||
+      referencedVariables.has(`persistent.${varName}`) ||
+      (varName.startsWith("persistent.") &&
+        referencedVariables.has(varName.slice("persistent.".length)));
+
+    if (!isReferenced) {
+      addParseDiagnostic(
+        state,
+        {
+          code: "normalization",
+          severity: "warning",
+          location: {
+            chapter: loc.chapter,
+            construct: "variable",
+            sourceId: loc.sourceId,
+            sourceLocation: loc.sourceLocation,
+          },
+          context: {
+            category: "unused_variable",
+            detail: varName,
+          },
+          message:
+            `Variable/flag "${varName}" is declared or initialized but never evaluated in any conditional statement or dialogue.`,
+          recoveryAction:
+            "Remove the unused variable or verify if a conditional check or dialogue interpolation was intended.",
+        },
+        `unused_variable|${varName}`,
+      );
+    }
+  }
+
+  // 8. Check for undeclared conditional variables
+  for (const condRef of conditionalReferences) {
+    if (isBuiltinOrInternalVariable(condRef.varName)) continue;
+    const isDeclared = declaredVariables.has(condRef.varName) ||
+      declaredVariables.has(`persistent.${condRef.varName}`) ||
+      (condRef.varName.startsWith("persistent.") &&
+        declaredVariables.has(condRef.varName.slice("persistent.".length)));
+
+    if (!isDeclared) {
+      addParseDiagnostic(
+        state,
+        {
+          code: "normalization",
+          severity: "warning",
+          location: {
+            chapter: condRef.chapter,
+            construct: "condition",
+            sourceId: condRef.sourceId,
+            edgeId: condRef.edgeId,
+            targetExpression: condRef.expression,
+            sourceLocation: condRef.sourceLocation,
+          },
+          context: {
+            category: "undeclared_variable",
+            detail: condRef.varName,
+          },
+          message:
+            `Variable "${condRef.varName}" is evaluated in conditional expression ("${condRef.expression}") but is never assigned or declared in default/define blocks.`,
+          recoveryAction:
+            "Declare the variable using a default or define statement or assign it before evaluation.",
+        },
+        `undeclared_variable|${condRef.varName}|${condRef.expression}|${
+          condRef.sourceId ?? ""
+        }`,
+      );
+    }
+  }
+}
+
+function analyzeCallStackDepth(
+  state: ParseGraphState,
+  outgoingMap: Map<string, FlowEdge[]>,
+  maxDepthLimit?: number,
+): void {
+  const maxDepth = state.maxCallStackDepth ?? maxDepthLimit ?? 50;
+
+  const entryNodes = new Set<string>();
+  const canonicalStart = state.canonicalLabelIdByName.get("start") ?? "start";
+  if (state.nodeMap.has("start")) {
+    entryNodes.add("start");
+  } else if (state.nodeMap.has(canonicalStart)) {
+    entryNodes.add(canonicalStart);
+  }
+
+  for (const node of state.nodes) {
+    if (
+      node.role === "story" &&
+      (!state.incomingByLabel.has(node.id) ||
+        state.incomingByLabel.get(node.id)!.size === 0)
+    ) {
+      entryNodes.add(node.id);
+    }
+  }
+
+  for (const calledId of state.calledLabels) {
+    entryNodes.add(calledId);
+  }
+
+  const maxDepthSeenAtNode = new Map<string, number>();
+
+  for (const startId of entryNodes) {
+    const stack: Array<{ nodeId: string; callStack: string[] }> = [
+      { nodeId: startId, callStack: [] },
+    ];
+
+    while (stack.length > 0) {
+      const { nodeId, callStack } = stack.pop()!;
+      const currentDepth = callStack.length;
+
+      const prevMax = maxDepthSeenAtNode.get(nodeId);
+      if (prevMax !== undefined && prevMax >= currentDepth) {
+        continue;
+      }
+      maxDepthSeenAtNode.set(nodeId, currentDepth);
+
+      const outgoing = outgoingMap.get(nodeId) ?? [];
+      for (const edge of outgoing) {
+        if (edge.kind === "call") {
+          const nextStack = [...callStack, edge.target];
+          if (nextStack.length > maxDepth) {
+            const targetNode = state.nodeMap.get(edge.target);
+            const chainDisplay = nextStack
+              .map((id) => state.nodeMap.get(id)?.label ?? id)
+              .join(" -> ");
+            addParseDiagnostic(
+              state,
+              {
+                code: "normalization",
+                severity: "warning",
+                location: {
+                  chapter: targetNode?.chapter,
+                  construct: "call",
+                  sourceId: edge.source,
+                  targetId: edge.target,
+                  edgeId: edge.id,
+                  sourceLocation: edge.sourceLocation ??
+                    targetNode?.sourceLocation,
+                },
+                context: {
+                  category: "excessive_call_depth",
+                  detail: `${nextStack.length} frames`,
+                },
+                message:
+                  `Call stack depth (${nextStack.length}) exceeds safe limit (${maxDepth}): ${chainDisplay}`,
+                recoveryAction:
+                  "Refactor deep subroutine nesting into jumps or ensure returns pop call frames appropriately.",
+              },
+              `excessive_call_depth|${nextStack.join("|")}`,
+            );
+            continue;
+          }
+          stack.push({ nodeId: edge.target, callStack: nextStack });
+        } else if (edge.kind === "call_return") {
+          const nextStack = callStack.length > 0 ? callStack.slice(0, -1) : [];
+          stack.push({ nodeId: edge.target, callStack: nextStack });
+        } else {
+          stack.push({ nodeId: edge.target, callStack });
         }
       }
     }
