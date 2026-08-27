@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { strToU8, zipSync } from "fflate";
 import {
   fetchFilesFromUrl,
   resolveGithubUrl,
 } from "../src/application/urlImporter.ts";
 import * as zipExtractorModule from "../src/application/zipExtractor.ts";
 import type { UploadedFile } from "../src/application/uploadTypes.ts";
-
 
 describe("resolveGithubUrl", () => {
   it("resolves standard GitHub repo URL to main branch ZIP download", () => {
@@ -110,7 +110,6 @@ describe("fetchFilesFromUrl", () => {
     expect(fetchSpy).toHaveBeenCalledWith("https://example.com/archive.zip");
     expect(extractSpy).toHaveBeenCalled();
     expect(result).toEqual(mockExtracted);
-
   });
 
   it("throws a network/CORS error when fetch fails", async () => {
