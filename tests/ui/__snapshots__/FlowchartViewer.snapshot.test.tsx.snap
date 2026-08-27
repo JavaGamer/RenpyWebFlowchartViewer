@@ -11,8 +11,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linea
       "dialogueCount": 2,
       "hidden": false,
       "position": {
-        "x": -4,
-        "y": -17
+        "x": 40,
+        "y": 40
       }
     },
     {
@@ -23,8 +23,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linea
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 59,
-        "y": 90
+        "x": 24,
+        "y": 50
       }
     },
     {
@@ -35,8 +35,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for a linea
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 59,
-        "y": 260
+        "x": 24,
+        "y": 220
       }
     }
   ],
@@ -62,8 +62,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 2,
       "hidden": false,
       "position": {
-        "x": -4,
-        "y": -17
+        "x": 40,
+        "y": 40
       }
     },
     {
@@ -74,8 +74,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 69,
-        "y": 90
+        "x": 24,
+        "y": 50
       }
     },
     {
@@ -86,8 +86,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 69,
-        "y": 260
+        "x": 24,
+        "y": 220
       }
     },
     {
@@ -98,8 +98,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 142,
-        "y": 420
+        "x": 97,
+        "y": 380
       }
     },
     {
@@ -110,8 +110,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "dialogueCount": 1,
       "hidden": false,
       "position": {
-        "x": 69,
-        "y": 590
+        "x": 24,
+        "y": 550
       }
     }
   ],
@@ -155,8 +155,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": -4,
-        "y": -17
+        "x": 40,
+        "y": 40
       }
     },
     {
@@ -167,8 +167,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 59,
-        "y": 90
+        "x": 24,
+        "y": 50
       }
     },
     {
@@ -179,8 +179,8 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
       "dialogueCount": 0,
       "hidden": false,
       "position": {
-        "x": 59,
-        "y": 260
+        "x": 24,
+        "y": 220
       }
     }
   ],

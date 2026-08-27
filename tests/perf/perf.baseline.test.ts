@@ -129,6 +129,7 @@ describe("performance baseline benchmarks", () => {
           parsed.nodes,
           parsed.edges,
           "TB",
+          { enableCompoundContainers: true },
         );
         const layoutMs = performance.now() - layoutStarted;
 

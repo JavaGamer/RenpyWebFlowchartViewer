@@ -10,6 +10,7 @@ const DEFAULTS = {
   showCallReturns: false,
   minimapPannable: true,
   minimapZoomable: true,
+  enableLodZooming: true,
   visibleEdgeKinds: {
     sequence: true,
     jump: true,
@@ -28,8 +29,12 @@ const DEFAULT_SESSION = {
   focusNodeId: "",
   largeGraphModeOverride: null,
   selectedNodeId: "",
+  selectedNodeIds: [],
+  isBoxSelectionActive: false,
+  isolatedSubgraphNodeIds: null,
   selectedDialogueLineIndex: null,
   showAllInspectorLines: false,
+
   activeDialogueResultIndex: -1,
   dialogueSearchResults: [],
   showAdvancedControls: false,
@@ -60,6 +65,7 @@ describe("useViewerStore persistence", () => {
     expect(s.showCallReturns).toBe(DEFAULTS.showCallReturns);
     expect(s.minimapPannable).toBe(DEFAULTS.minimapPannable);
     expect(s.minimapZoomable).toBe(DEFAULTS.minimapZoomable);
+    expect(s.enableLodZooming).toBe(DEFAULTS.enableLodZooming);
     expect(s.visibleEdgeKinds).toEqual(DEFAULTS.visibleEdgeKinds);
   });
 
@@ -99,6 +105,17 @@ describe("useViewerStore persistence", () => {
     };
     expect(parsed.state?.minimapPannable).toBe(false);
     expect(parsed.state?.minimapZoomable).toBe(false);
+  });
+
+  it("writes enableLodZooming under STORAGE_KEYS.viewer", () => {
+    useViewerStore.getState().setEnableLodZooming(false);
+    const raw = globalThis.localStorage.getItem(STORAGE_KEYS.viewer);
+    const parsed = JSON.parse(raw as string) as {
+      state?: {
+        enableLodZooming?: boolean;
+      };
+    };
+    expect(parsed.state?.enableLodZooming).toBe(false);
   });
 
   // ── Rehydration / normalisation ──────────────────────────────────────────────
@@ -444,5 +461,39 @@ describe("useViewerStore session state actions", () => {
     expect(s.layoutDirection).toBe("TB");
     expect(Object.keys(s.mockFlags)).toEqual([]);
     expect(s.conditionVisibilityMode).toBe("fade");
+  });
+
+  it("manages multi-node selection, box selection toggle, and subgraph isolation", () => {
+    const store = useViewerStore.getState();
+
+    // Multi-selection
+    store.setSelectedNodeIds(["node1", "node2", "node3"]);
+    expect(useViewerStore.getState().selectedNodeIds).toEqual([
+      "node1",
+      "node2",
+      "node3",
+    ]);
+
+    // Box selection mode
+    expect(useViewerStore.getState().isBoxSelectionActive).toBe(false);
+    store.toggleBoxSelectionMode();
+    expect(useViewerStore.getState().isBoxSelectionActive).toBe(true);
+    store.setBoxSelectionMode(false);
+    expect(useViewerStore.getState().isBoxSelectionActive).toBe(false);
+
+    // Subgraph isolation
+    expect(useViewerStore.getState().isolatedSubgraphNodeIds).toBeNull();
+    store.setIsolatedSubgraphNodeIds(["node1", "node2"]);
+    expect(useViewerStore.getState().isolatedSubgraphNodeIds).toEqual([
+      "node1",
+      "node2",
+    ]);
+    store.setIsolatedSubgraphNodeIds(null);
+    expect(useViewerStore.getState().isolatedSubgraphNodeIds).toBeNull();
+
+    // Clear multi-selection
+    store.clearMultiSelection();
+    expect(useViewerStore.getState().selectedNodeIds).toEqual([]);
+    expect(useViewerStore.getState().selectedNodeId).toBe("");
   });
 });

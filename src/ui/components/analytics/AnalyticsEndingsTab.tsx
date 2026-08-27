@@ -1,4 +1,4 @@
-import { AlertTriangle, Award } from "lucide-react";
+import { AlertTriangle, Award, Compass } from "lucide-react";
 import type {
   EndingType,
   ProjectNarrativeReport,
@@ -9,6 +9,7 @@ export interface AnalyticsEndingsTabProps {
   report: ProjectNarrativeReport;
   onSetCustomEndingTag: (nodeId: string, tag: EndingType) => void;
   onHighlightRoute: (route: StoryRoute) => void;
+  onSolveRoute?: (nodeId: string) => void;
 }
 
 const ENDING_TAG_OPTIONS: Array<{ value: EndingType; label: string }> = [
@@ -24,6 +25,7 @@ export function AnalyticsEndingsTab({
   report,
   onSetCustomEndingTag,
   onHighlightRoute,
+  onSolveRoute,
 }: AnalyticsEndingsTabProps) {
   const allEndings = [...report.reachableEndings, ...report.unreachableEndings];
 
@@ -118,21 +120,37 @@ export function AnalyticsEndingsTab({
                     {ending.dialogueCount} lines
                   </td>
                   <td className="p-3 text-right">
-                    {primaryRoute
-                      ? (
+                    <div className="flex items-center justify-end gap-1.5">
+                      {onSolveRoute && !ending.isOrphan && (
                         <button
                           type="button"
-                          onClick={() => onHighlightRoute(primaryRoute)}
-                          className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 hover:bg-violet-100 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
+                          onClick={() => onSolveRoute(ending.nodeId)}
+                          className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
+                          title="Solve path & generate walkthrough"
                         >
-                          Highlight Route
+                          <Compass
+                            size={12}
+                            className="inline mr-1 text-violet-500"
+                          />
+                          Solve Path
                         </button>
-                      )
-                      : (
-                        <span className="text-[11px] text-slate-400 italic">
-                          No route
-                        </span>
                       )}
+                      {primaryRoute
+                        ? (
+                          <button
+                            type="button"
+                            onClick={() => onHighlightRoute(primaryRoute)}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 hover:bg-violet-100 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
+                          >
+                            Highlight
+                          </button>
+                        )
+                        : (
+                          <span className="text-[11px] text-slate-400 italic">
+                            No route
+                          </span>
+                        )}
+                    </div>
                   </td>
                 </tr>
               );

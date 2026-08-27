@@ -130,6 +130,7 @@ const viewerPersistedStateSchema = z.object({
     .min(100)
     .max(400)
     .catch(defaultPersistedState.readingSpeedWpm),
+  enableLodZooming: z.boolean().catch(defaultPersistedState.enableLodZooming),
   debugPrivacyOptions: z
     .object({
       includeFileNames: z.boolean().catch(
@@ -236,6 +237,7 @@ function migrateLegacyKeys(): string | null {
       simplifyInlineDialogueThreshold: 1,
       debugPrivacyOptions: defaultPersistedState.debugPrivacyOptions,
       readingSpeedWpm: defaultPersistedState.readingSpeedWpm,
+      enableLodZooming: defaultPersistedState.enableLodZooming,
     };
 
     for (const key of LEGACY_KEYS) {
@@ -335,6 +337,7 @@ export const useViewerStore = create<ViewerStore>()(
         simplifyInlineDialogueThreshold: state.simplifyInlineDialogueThreshold,
         debugPrivacyOptions: state.debugPrivacyOptions,
         readingSpeedWpm: state.readingSpeedWpm,
+        enableLodZooming: state.enableLodZooming,
       }),
     },
   ),

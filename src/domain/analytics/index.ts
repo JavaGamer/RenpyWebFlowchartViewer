@@ -154,3 +154,4 @@ export function generateProjectNarrativeReport(
 export * from "./routeTraversal.ts";
 export * from "./endingReachability.ts";
 export * from "./pacingAnalysis.ts";
+export * from "./routeSolver.ts";

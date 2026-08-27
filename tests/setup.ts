@@ -215,7 +215,21 @@ vi.mock("@xyflow/react", () => {
         .filter((v): v is string => Boolean(v))
         .join(","),
     );
-  const Handle = () => null;
+  const Handle = (props: {
+    id?: string;
+    type?: string;
+    position?: string;
+    className?: string;
+    style?: React.CSSProperties;
+  }) =>
+    React.createElement("div", {
+      "data-testid": `handle-${props.id}`,
+      "data-handleid": props.id,
+      "data-handletype": props.type,
+      "data-position": props.position,
+      className: props.className,
+      style: props.style,
+    });
   const BaseEdge = ({ id, path }: { id: string; path: string }) =>
     React.createElement("div", { "data-testid": `base-edge-${id}` }, path);
   const EdgeLabelRenderer = ({ children }: { children: React.ReactNode }) =>
@@ -230,6 +244,10 @@ vi.mock("@xyflow/react", () => {
     Right: "right",
   };
   const MarkerType = { ArrowClosed: "arrowclosed" };
+  const SelectionMode = {
+    Partial: "partial",
+    Full: "full",
+  };
   const useNodesState = (initial: unknown[]) => {
     const [nodes, setNodes] = React.useState(initial);
     return [nodes, setNodes, vi.fn()] as const;
@@ -238,6 +256,17 @@ vi.mock("@xyflow/react", () => {
     const [edges, setEdges] = React.useState(initial);
     return [edges, setEdges, vi.fn()] as const;
   };
+  const useStore = vi.fn((selector) => {
+    const globalState = (
+      globalThis as unknown as {
+        __mockReactFlowState?: { transform?: number[] };
+      }
+    ).__mockReactFlowState;
+    const state = globalState ?? { transform: [0, 0, 1] };
+    return typeof selector === "function" ? selector(state) : state;
+  });
+  const useViewport = vi.fn(() => ({ x: 0, y: 0, zoom: 1 }));
+  const useUpdateNodeInternals = vi.fn(() => vi.fn());
 
   const ReactFlowProvider = ({ children }: { children: React.ReactNode }) =>
     children;
@@ -254,8 +283,12 @@ vi.mock("@xyflow/react", () => {
     getBezierPath,
     Position,
     MarkerType,
+    SelectionMode,
     useNodesState,
     useEdgesState,
+    useStore,
+    useViewport,
+    useUpdateNodeInternals,
     __test: { flowApi },
   };
 });

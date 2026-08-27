@@ -107,3 +107,79 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
     y: node.position.y + nodeHeight / 2,
   };
 }
+
+export interface ClusterBoundingBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Computes tight bounding box and container dimensions for a collection of laid-out child nodes.
+ */
+export function computeClusterBoundingBox(
+  placedNodes: Array<{ x: number; y: number; width: number; height: number }>,
+  padding = CHAPTER_CONTAINER_PADDING,
+  minWidth = 280,
+  minHeight = 160,
+): ClusterBoundingBox {
+  if (placedNodes.length === 0) {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: minWidth,
+      maxY: minHeight,
+      width: minWidth,
+      height: minHeight,
+    };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const node of placedNodes) {
+    const left = node.x - node.width / 2;
+    const right = node.x + node.width / 2;
+    const top = node.y - node.height / 2;
+    const bottom = node.y + node.height / 2;
+
+    if (left < minX) minX = left;
+    if (right > maxX) maxX = right;
+    if (top < minY) minY = top;
+    if (bottom > maxY) maxY = bottom;
+  }
+
+  const contentWidth = maxX - minX;
+  const contentHeight = maxY - minY;
+
+  const width = Math.max(minWidth, contentWidth + padding.left + padding.right);
+  const height = Math.max(
+    minHeight,
+    contentHeight + padding.top + padding.bottom,
+  );
+
+  return { minX, minY, maxX, maxY, width, height };
+}
+
+/**
+ * Converts a child node's Dagre center coordinates into relative top-left position
+ * inside its parent chapter container.
+ */
+export function normalizeChildPosition(
+  dagreNode: { x: number; y: number },
+  nodeWidth: number,
+  nodeHeight: number,
+  minX: number,
+  minY: number,
+  padding = CHAPTER_CONTAINER_PADDING,
+): { x: number; y: number } {
+  return {
+    x: (dagreNode.x - nodeWidth / 2 - minX) + padding.left,
+    y: (dagreNode.y - nodeHeight / 2 - minY) + padding.top,
+  };
+}

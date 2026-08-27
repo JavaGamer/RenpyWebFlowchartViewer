@@ -162,31 +162,34 @@ async function getOrFetchTokenizedMap(
 async function buildDialogueSearchIndex(
   session: SessionState,
   nodes: FlowNode[],
+  deferUnhydrated = false,
 ) {
   session.dialogueSearchDocs = [];
-  const unhydrated = nodes.filter((n) =>
-    n.dialogueCount > 0 && !n.dialogueLines
-  );
-  if (unhydrated.length > 0) {
-    const tokenizedFilesByChapter = await getOrFetchTokenizedMap(
-      session,
-      unhydrated,
+  if (!deferUnhydrated) {
+    const unhydrated = nodes.filter((n) =>
+      n.dialogueCount > 0 && !n.dialogueLines
     );
-    const extractedDetails = extractNodeDetailsFromTokens(
-      unhydrated,
-      tokenizedFilesByChapter,
-    );
-    for (const [id, payload] of Object.entries(extractedDetails)) {
-      const node = session.accumulatedState.nodeMap.get(id);
-      if (node && payload.dialogueLines) {
-        node.dialogueLines = payload.dialogueLines;
-        if (payload.dialogueLineNums) {
-          node.dialogueLineNums = payload.dialogueLineNums;
+    if (unhydrated.length > 0) {
+      const tokenizedFilesByChapter = await getOrFetchTokenizedMap(
+        session,
+        unhydrated,
+      );
+      const extractedDetails = extractNodeDetailsFromTokens(
+        unhydrated,
+        tokenizedFilesByChapter,
+      );
+      for (const [id, payload] of Object.entries(extractedDetails)) {
+        const node = session.accumulatedState.nodeMap.get(id);
+        if (node && payload.dialogueLines) {
+          node.dialogueLines = payload.dialogueLines;
+          if (payload.dialogueLineNums) {
+            node.dialogueLineNums = payload.dialogueLineNums;
+          }
+          if (payload.audioAssetCues) {
+            node.audioAssetCues = payload.audioAssetCues;
+          }
+          node.isDetailsLoaded = true;
         }
-        if (payload.audioAssetCues) {
-          node.audioAssetCues = payload.audioAssetCues;
-        }
-        node.isDetailsLoaded = true;
       }
     }
   }
@@ -406,7 +409,13 @@ export const parserApi = {
         }
         if (isFinalChunk) {
           finalizeRoles(session.accumulatedState);
-          buildDialogueSearchIndex(session, session.accumulatedState.nodes);
+          buildDialogueSearchIndex(
+            session,
+            session.accumulatedState.nodes,
+            Boolean(
+              options.deferDetails || options.captureDialogueLines === false,
+            ),
+          );
         }
         result = {
           nodes: session.accumulatedState.nodes,
@@ -479,7 +488,13 @@ export const parserApi = {
         for (const e of result.edges) {
           session.accumulatedState.edgeMap.set(e.id, e);
         }
-        buildDialogueSearchIndex(session, result.nodes);
+        buildDialogueSearchIndex(
+          session,
+          result.nodes,
+          Boolean(
+            options.deferDetails || options.captureDialogueLines === false,
+          ),
+        );
       }
 
       if (wantsProgress && pendingProgress) {
@@ -835,6 +850,8 @@ export const parserApi = {
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
+      deferDetails?: boolean;
+      captureDialogueLines?: boolean;
     },
   ): Promise<ParseWorkerClientResult> {
     if (cancelledRequests.has(requestId)) {
@@ -969,10 +986,10 @@ export const parserApi = {
             let shouldOverwrite: boolean;
             if (!existing) {
               shouldOverwrite = true;
-            } else if (existing.kind === "define" && desc.kind === "default") {
-              shouldOverwrite = false;
-            } else if (desc.kind === "define" && existing.kind === "default") {
-              shouldOverwrite = true;
+            } else if (existing.kind === "define" && desc.kind !== "define") {
+              shouldOverwrite = desc.priority > existing.priority;
+            } else if (desc.kind === "define" && existing.kind !== "define") {
+              shouldOverwrite = desc.priority >= existing.priority;
             } else if (desc.kind === "default" && existing.kind === "default") {
               shouldOverwrite = desc.priority > existing.priority;
             } else {
@@ -1065,7 +1082,13 @@ export const parserApi = {
             session.accumulatedState,
             options.projectMediaFiles,
           );
-          buildDialogueSearchIndex(session, session.accumulatedState.nodes);
+          buildDialogueSearchIndex(
+            session,
+            session.accumulatedState.nodes,
+            Boolean(
+              options.deferDetails || options.captureDialogueLines === false,
+            ),
+          );
         }
 
         if (cancelledRequests.has(requestId)) {

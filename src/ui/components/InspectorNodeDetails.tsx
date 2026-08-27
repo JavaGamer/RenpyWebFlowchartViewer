@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import { useViewerStore } from "../../application/index.ts";
 import {
+  Compass,
   Image as ImageIcon,
   Mic as MicIcon,
   Music as MusicIcon,
@@ -8,6 +9,7 @@ import {
   Volume2 as Volume2Icon,
   VolumeX as VolumeXIcon,
 } from "lucide-react";
+
 import { cn } from "../utils/cn.ts";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { renderHighlightedText } from "../viewerText.tsx";
@@ -239,6 +241,7 @@ interface InspectorNodeDetailsProps {
   /** Reading speed WPM from the viewer store. */
   readingSpeedWpm: number;
   flowEdges?: FlowEdge[];
+  onSolveRoute?: (nodeId: string) => void;
 }
 
 /* eslint-disable react-hooks/incompatible-library */
@@ -255,6 +258,7 @@ export function InspectorNodeDetails({
   isDark,
   readingSpeedWpm,
   flowEdges,
+  onSolveRoute,
 }: InspectorNodeDetailsProps) {
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -349,9 +353,27 @@ export function InspectorNodeDetails({
 
   return (
     <div className="space-y-2">
-      <div className="text-xs">
-        <span className="font-semibold text-gray-500">Node:</span>{" "}
-        {selectedNodeData.label}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs">
+          <span className="font-semibold text-gray-500">Node:</span>{" "}
+          {selectedNodeData.label}
+        </div>
+        {onSolveRoute && selectedNodeId && (
+          <button
+            type="button"
+            onClick={() => onSolveRoute(selectedNodeId)}
+            className={cn(
+              "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
+              isDark
+                ? "bg-violet-950/60 border-violet-800 text-violet-300 hover:bg-violet-900/80"
+                : "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100",
+            )}
+            title="Solve path from start to this node"
+          >
+            <Compass size={11} />
+            <span>Solve Path</span>
+          </button>
+        )}
       </div>
       <div className="text-xs">
         <span className="font-semibold text-gray-500">
@@ -359,6 +381,7 @@ export function InspectorNodeDetails({
         </span>{" "}
         {selectedNodeData.dialogueCount ?? 0}
       </div>
+
       {isLoadingDetails && (
         <div className="text-xs p-2 rounded border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300 animate-pulse my-2">
           Loading full dialogue & audio cues...

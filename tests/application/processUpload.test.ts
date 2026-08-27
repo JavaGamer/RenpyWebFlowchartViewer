@@ -4,10 +4,20 @@ import { FileReadError } from "../../src/domain";
 import {
   readFileAsArrayBuffer,
   readFileAsText,
-} from "../../src/infrastructure/fileReader";
+} from "../../src/infrastructure/index.ts";
 import type { ParseService } from "../../src/application/parseService";
 import type { AppActions } from "../../src/application/appStore";
 
+vi.mock("../../src/infrastructure", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../src/infrastructure/index.ts")
+  >();
+  return {
+    ...actual,
+    readFileAsText: vi.fn(),
+    readFileAsArrayBuffer: vi.fn(),
+  };
+});
 vi.mock("../../src/infrastructure/fileReader", () => ({
   readFileAsText: vi.fn(),
   readFileAsArrayBuffer: vi.fn(),
@@ -337,6 +347,9 @@ describe("createProcessUpload", () => {
 
   it("dispatches file read failures with mapped message", async () => {
     vi.mocked(readFileAsText).mockRejectedValue(new FileReadError("bad.rpy"));
+    vi.mocked(readFileAsArrayBuffer).mockRejectedValue(
+      new FileReadError("bad.rpy"),
+    );
     const actions = makeActions();
     const parseService: ParseService = {
       parse: vi.fn(),
@@ -359,6 +372,9 @@ describe("createProcessUpload", () => {
 
   it("dispatches parse failures with mapped cancellation message", async () => {
     vi.mocked(readFileAsText).mockResolvedValue("label start:");
+    vi.mocked(readFileAsArrayBuffer).mockResolvedValue(
+      new TextEncoder().encode("label start:").buffer as ArrayBuffer,
+    );
     const actions = makeActions();
     const parseService: ParseService = {
       parse: vi.fn().mockRejectedValue(

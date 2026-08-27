@@ -74,6 +74,8 @@ export function useGraphVisibility({
     selectedSearchNodeKinds,
     selectedCallContextId,
     highlightedRoute,
+    selectedNodeIds,
+    isolatedSubgraphNodeIds,
   } = useViewerStore(
     useShallow((s) => ({
       searchInput: s.searchInput,
@@ -87,6 +89,8 @@ export function useGraphVisibility({
       focusNodeId: s.focusNodeId,
       largeGraphModeOverride: s.largeGraphModeOverride,
       selectedNodeId: s.selectedNodeId,
+      selectedNodeIds: s.selectedNodeIds,
+      isolatedSubgraphNodeIds: s.isolatedSubgraphNodeIds,
       activeDialogueResultIndex: s.activeDialogueResultIndex,
       dialogueSearchResults: s.dialogueSearchResults,
       showAllLabelSubgraphToggles: s.showAllLabelSubgraphToggles,
@@ -339,24 +343,71 @@ export function useGraphVisibility({
     ],
   );
 
-  const logicalVisibleNodes = visibleNodes;
+  const baseVisibleNodes = visibleNodes;
+
+  const isolatedVisibleNodes = useMemo(() => {
+    if (!isolatedSubgraphNodeIds || isolatedSubgraphNodeIds.length === 0) {
+      return baseVisibleNodes;
+    }
+    const isolatedSet = new Set(isolatedSubgraphNodeIds);
+    return baseVisibleNodes.filter((n) => isolatedSet.has(n.id));
+  }, [baseVisibleNodes, isolatedSubgraphNodeIds]);
+
+  const logicalVisibleNodes = isolatedVisibleNodes;
 
   const spatialIndex = useMemo(() => {
     if (nodes.length < 150) return null;
     return createSpatialIndex(nodes);
   }, [nodes]);
 
+  const selectedNodeIdsSet = useMemo(
+    () => new Set(selectedNodeIds),
+    [selectedNodeIds],
+  );
+
   const spatiallyFilteredNodes = useMemo(() => {
-    if (!spatialIndex || !viewportBounds) return visibleNodes;
+    if (!spatialIndex || !viewportBounds) return isolatedVisibleNodes;
     const visibleIds = spatialIndex.queryRange(viewportBounds);
-    return visibleNodes.filter(
+    const filtered = isolatedVisibleNodes.filter(
       (n) =>
         !n.hidden &&
         (n.id === selectedNodeId ||
+          selectedNodeIdsSet.has(n.id) ||
           n.id === focusNodeId ||
           visibleIds.has(n.id)),
     );
-  }, [focusNodeId, selectedNodeId, spatialIndex, viewportBounds, visibleNodes]);
+
+    // Ensure any parent node (e.g. chapter container) of a visible child is also retained
+    const includedIds = new Set(filtered.map((n) => n.id));
+    const missingParentIds = new Set<string>();
+    for (const n of filtered) {
+      if (n.parentId && !includedIds.has(n.parentId)) {
+        missingParentIds.add(n.parentId);
+      }
+    }
+
+    if (missingParentIds.size === 0) {
+      return filtered;
+    }
+
+    const nodeById = new Map(isolatedVisibleNodes.map((n) => [n.id, n]));
+    const result = [...filtered];
+    for (const parentId of missingParentIds) {
+      const parentNode = nodeById.get(parentId);
+      if (parentNode && !includedIds.has(parentNode.id)) {
+        includedIds.add(parentNode.id);
+        result.unshift(parentNode);
+      }
+    }
+    return result;
+  }, [
+    focusNodeId,
+    isolatedVisibleNodes,
+    selectedNodeId,
+    selectedNodeIdsSet,
+    spatialIndex,
+    viewportBounds,
+  ]);
 
   const visibleNodeIds = useMemo(
     () => new Set(spatiallyFilteredNodes.map((n) => n.id)),
@@ -364,8 +415,9 @@ export function useGraphVisibility({
   );
 
   const nonHiddenNodeIds = useMemo(
-    () => new Set(visibleNodes.filter((n) => !n.hidden).map((n) => n.id)),
-    [visibleNodes],
+    () =>
+      new Set(isolatedVisibleNodes.filter((n) => !n.hidden).map((n) => n.id)),
+    [isolatedVisibleNodes],
   );
 
   const visibleEdges = useMemo(
@@ -388,6 +440,7 @@ export function useGraphVisibility({
         previousById: previousVisibleEdgesByIdRef.current,
         selectedCallContextId,
         highlightedRouteEdgeIds,
+        theme,
       }),
     [
       conditionalVisibility.edgeConditionStateById,

@@ -27,6 +27,7 @@ export {
 export {
   applyDagreLayout,
   applyElkLayout,
+  applyTwoTierDagreLayout,
   preWarmElk,
   setElkInstance,
 } from "./layoutEngines.ts";
@@ -38,6 +39,9 @@ export {
 export { workerParseService } from "./workerParseAdapter.ts";
 export {
   type AABB,
+  computeSpatialItemsAndBounds,
   createSpatialIndex,
+  createSpatialIndexFromItems,
+  type SpatialItem,
   SpatialQuadtree,
 } from "./spatialIndex.ts";

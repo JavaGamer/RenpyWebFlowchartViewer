@@ -38,6 +38,7 @@ export interface ThemeSliceState {
   debugPrivacyOptions: DebugBundlePrivacyOptions;
   /** Reading speed in words per minute used for reading time calculations. */
   readingSpeedWpm: number;
+  enableLodZooming: boolean;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ export interface ThemeSliceActions {
   ) => void;
   /** Sets the reading speed in words per minute. Clamped to 100–400. */
   setReadingSpeedWpm: (wpm: number) => void;
+  setEnableLodZooming: (enabled: boolean) => void;
 }
 
 export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
@@ -93,6 +95,7 @@ export const defaultThemeState: ThemeSliceState = {
   simplifyInlineDialogueThreshold: 1,
   debugPrivacyOptions: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   readingSpeedWpm: 200,
+  enableLodZooming: true,
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -196,5 +199,10 @@ export const createThemeSlice: StateCreator<
   setReadingSpeedWpm: (wpm) =>
     set((draft) => {
       draft.readingSpeedWpm = Math.max(100, Math.min(400, Math.round(wpm)));
+    }),
+
+  setEnableLodZooming: (enabled) =>
+    set((draft) => {
+      draft.enableLodZooming = enabled;
     }),
 });

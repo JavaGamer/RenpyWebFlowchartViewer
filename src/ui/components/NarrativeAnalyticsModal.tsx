@@ -33,6 +33,8 @@ import { AnalyticsRoutesTab } from "./analytics/AnalyticsRoutesTab.tsx";
 import { AnalyticsPacingTab } from "./analytics/AnalyticsPacingTab.tsx";
 import { AnalyticsCharactersTab } from "./analytics/AnalyticsCharactersTab.tsx";
 
+import { RouteSolverModal } from "./RouteSolverModal.tsx";
+
 export interface NarrativeAnalyticsModalProps {
   onFocusNode?: (nodeId: string) => void;
 }
@@ -72,6 +74,10 @@ export function NarrativeAnalyticsModal({
   );
 
   const [copied, setCopied] = useState(false);
+  const [isRouteSolverOpen, setIsRouteSolverOpen] = useState(false);
+  const [routeSolverTargetId, setRouteSolverTargetId] = useState<string | null>(
+    null,
+  );
   const isDark = theme === "dark";
 
   // Clean timeout on unmount or reset
@@ -343,6 +349,10 @@ export function NarrativeAnalyticsModal({
               report={report}
               onSetCustomEndingTag={setCustomEndingTag}
               onHighlightRoute={handleHighlightRoute}
+              onSolveRoute={(nodeId) => {
+                setRouteSolverTargetId(nodeId);
+                setIsRouteSolverOpen(true);
+              }}
             />
           )}
 
@@ -362,6 +372,18 @@ export function NarrativeAnalyticsModal({
           )}
         </div>
       </div>
+
+      {isRouteSolverOpen && (
+        <RouteSolverModal
+          isOpen={isRouteSolverOpen}
+          onClose={() => {
+            setIsRouteSolverOpen(false);
+            setRouteSolverTargetId(null);
+          }}
+          initialTargetNodeId={routeSolverTargetId || undefined}
+          onFocusNode={onFocusNode}
+        />
+      )}
     </Modal>
   );
 }

@@ -28,6 +28,7 @@ export interface ViewerInspectorProps {
   onSetActiveDialogueResultIndex: (index: number) => void;
   onSelectDialogueSearchResult: (result: DialogueSearchResult) => void;
   flowEdges?: FlowEdge[];
+  onSolveRoute?: (nodeId: string) => void;
 }
 
 export function ViewerInspector({
@@ -47,6 +48,7 @@ export function ViewerInspector({
   onSetActiveDialogueResultIndex,
   onSelectDialogueSearchResult,
   flowEdges,
+  onSolveRoute,
 }: ViewerInspectorProps) {
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -113,6 +115,7 @@ export function ViewerInspector({
             isDark={isDark}
             readingSpeedWpm={readingSpeedWpm}
             flowEdges={flowEdges}
+            onSolveRoute={onSolveRoute}
           />
         )}
     </aside>

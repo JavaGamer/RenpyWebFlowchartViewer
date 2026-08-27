@@ -3,6 +3,8 @@ export {
   CHAPTER_HEADER_HEIGHT,
   CHAPTER_SUMMARY_HEIGHT,
   CHAPTER_SUMMARY_WIDTH,
+  type ClusterBoundingBox,
+  computeClusterBoundingBox,
   getLabelHeight,
   getNodeCenter,
   getNodeHeight,
@@ -10,6 +12,7 @@ export {
   NODE_HEIGHT_LABEL,
   NODE_HEIGHT_MENU,
   NODE_WIDTH,
+  normalizeChildPosition,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from "./layout.ts";
 export { resolveGraphIntegrity } from "./integrity.ts";

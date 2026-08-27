@@ -1,10 +1,14 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type {
-  ChapterNodeType,
-  DecisionNodeType,
-  LabelNodeType,
-  MenuNodeType,
+import {
+  CHAPTER_SUMMARY_HEIGHT,
+  type ChapterNodeType,
+  type DecisionNodeType,
+  getNodeHeight,
+  type LabelNodeType,
+  type MenuNodeType,
+  NODE_HEIGHT_DECISION,
+  NODE_HEIGHT_MENU,
 } from "../domain/index.ts";
 import { THEMES } from "./viewerTheme.ts";
 import { useViewerStore } from "../application/index.ts";
@@ -25,6 +29,8 @@ import {
   calculateReadingTimeSeconds,
   formatReadingTime,
 } from "./utils/readingTime.ts";
+import { useIsLodMode } from "./hooks/useLodMode.ts";
+import { useViewerPresentation } from "./viewerContext.tsx";
 
 function getTheme(themeName: unknown) {
   if (typeof themeName === "string" && themeName in THEMES) {
@@ -35,16 +41,19 @@ function getTheme(themeName: unknown) {
 
 export const LabelNodeComponent = memo(
   function LabelNodeComponent({ data }: NodeProps<LabelNodeType>) {
-    const themeName = useViewerStore((s) => s.theme);
+    const {
+      searchInput,
+      readingSpeedWpm,
+      layoutDirection,
+      showAudioAssetCues,
+      showPacingHeatmap,
+    } = useViewerPresentation();
+    const themeName = data.theme ?? "violet";
     const theme = getTheme(themeName);
-    const searchInput = useViewerStore((s) => s.searchInput);
-    const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
     const isDark = themeName === "dark";
     const isShadowed = data.isShadowed === true;
     const isOrphan = data.isOrphan === true;
     const isTerminalOutcome = data.isTerminalOutcome === true;
-    const showAudioAssetCues = useViewerStore((s) => s.showAudioAssetCues);
-    const showPacingHeatmap = useViewerStore((s) => s.showPacingHeatmap);
 
     const cues = data.audioAssetCues ?? [];
     const sceneCues = cues.filter((c) =>
@@ -84,7 +93,6 @@ export const LabelNodeComponent = memo(
       }
     }
 
-    const layoutDirection = useViewerStore((s) => s.layoutDirection);
     const targetPosition = layoutDirection === "LR"
       ? Position.Left
       : Position.Top;
@@ -95,6 +103,147 @@ export const LabelNodeComponent = memo(
     const sourcePosition = layoutDirection === "LR"
       ? Position.Right
       : Position.Bottom;
+
+    const isLod = useIsLodMode();
+
+    if (isLod) {
+      const tooltip = isOrphan
+        ? `[Unreachable] Label: ${data.label}`
+        : isTerminalOutcome
+        ? `[End of Route] Label: ${data.label}`
+        : `Label: ${data.label}`;
+
+      const labelHeight = getNodeHeight({
+        type: "LABEL",
+        isShadowed,
+        isTerminalOutcome,
+        audioAssetCues: data.audioAssetCues,
+      });
+
+      return (
+        <div
+          className={cn(
+            "w-[220px] flex items-center justify-center relative select-none cursor-pointer transition-all duration-200",
+            isRouteHighlighted && "scale-[1.02] z-20",
+          )}
+          style={{ minHeight: `${labelHeight}px` }}
+          title={tooltip}
+        >
+          {/* Target Anchors */}
+          <Handle
+            id="target-top"
+            type="target"
+            position={Position.Top}
+            className={cn(
+              targetPosition === Position.Top
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="target-bottom"
+            type="target"
+            position={Position.Bottom}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="target-left"
+            type="target"
+            position={Position.Left}
+            className={cn(
+              targetPosition === Position.Left
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="target-right"
+            type="target"
+            position={Position.Right}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+
+          {/* LOD Pill Body */}
+          <div
+            className={cn(
+              "w-[180px] h-[28px] px-3 rounded-full border-2 shadow-xs flex items-center justify-between overflow-hidden",
+              isRouteHighlighted && "ring-2 ring-violet-500 shadow-md",
+            )}
+            style={{
+              borderColor: isRouteHighlighted
+                ? (isDark ? "#a78bfa" : "#7c3aed")
+                : isOrphan
+                ? (isDark ? "#ef4444" : "#f87171")
+                : theme.labelBorder,
+              backgroundColor: customBg,
+              borderStyle: isOrphan || isShadowed ? "dashed" : "solid",
+              opacity: isRouteDimmed
+                ? 0.2
+                : isOrphan
+                ? 0.65
+                : (isShadowed ? 0.9 : 1),
+            }}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: theme.labelTitle }}
+              />
+              <span
+                className="font-mono text-xs font-semibold truncate"
+                style={{ color: theme.labelText }}
+              >
+                {searchInput
+                  ? renderHighlightedText(data.label, searchInput)
+                  : data.label}
+              </span>
+            </div>
+            {routeStepIndex !== undefined && (
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shrink-0 shadow-xs"
+                title={`Step ${routeStepIndex}`}
+              >
+                #{routeStepIndex}
+              </span>
+            )}
+          </div>
+
+          {/* Source Anchors */}
+          <Handle
+            id="source-top"
+            type="source"
+            position={Position.Top}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="source-bottom"
+            type="source"
+            position={Position.Bottom}
+            className={cn(
+              sourcePosition === Position.Bottom
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="source-left"
+            type="source"
+            position={Position.Left}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="source-right"
+            type="source"
+            position={Position.Right}
+            className={cn(
+              sourcePosition === Position.Right
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+        </div>
+      );
+    }
 
     return (
       <div
@@ -369,11 +518,10 @@ export const LabelNodeComponent = memo(
 
 export const MenuNodeComponent = memo(
   function MenuNodeComponent({ data }: NodeProps<MenuNodeType>) {
-    const themeName = useViewerStore((s) => s.theme);
+    const { searchInput, readingSpeedWpm, layoutDirection } =
+      useViewerPresentation();
+    const themeName = data.theme ?? "violet";
     const theme = getTheme(themeName);
-    const searchInput = useViewerStore((s) => s.searchInput);
-    const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
-    const layoutDirection = useViewerStore((s) => s.layoutDirection);
     const isDark = themeName === "dark";
     const isRouteHighlighted = data.isRouteHighlighted === true;
     const isRouteDimmed = data.isRouteDimmed === true;
@@ -385,6 +533,127 @@ export const MenuNodeComponent = memo(
     const sourcePosition = layoutDirection === "LR"
       ? Position.Right
       : Position.Bottom;
+
+    const isLod = useIsLodMode();
+
+    if (isLod) {
+      return (
+        <div
+          className={cn(
+            "w-[220px] flex items-center justify-center relative select-none cursor-pointer transition-all duration-200",
+            isRouteHighlighted && "scale-[1.02] z-20",
+          )}
+          style={{ minHeight: `${NODE_HEIGHT_MENU}px` }}
+          title={`Menu: ${data.label}`}
+        >
+          {/* Target Anchors */}
+          <Handle
+            id="target-top"
+            type="target"
+            position={Position.Top}
+            className={cn(
+              targetPosition === Position.Top
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="target-bottom"
+            type="target"
+            position={Position.Bottom}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="target-left"
+            type="target"
+            position={Position.Left}
+            className={cn(
+              targetPosition === Position.Left
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="target-right"
+            type="target"
+            position={Position.Right}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+
+          {/* LOD Pill Body */}
+          <div
+            className={cn(
+              "w-[180px] h-[28px] px-3 rounded-full border-2 shadow-xs flex items-center justify-between overflow-hidden",
+              isRouteHighlighted && "ring-2 ring-violet-500 shadow-md",
+            )}
+            style={{
+              borderColor: isRouteHighlighted
+                ? (isDark ? "#a78bfa" : "#7c3aed")
+                : theme.menuBorder,
+              backgroundColor: theme.menuBg,
+              opacity: isRouteDimmed ? 0.2 : 1,
+            }}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: theme.menuTitle }}
+              />
+              <span
+                className="font-mono text-xs font-semibold truncate"
+                style={{ color: theme.menuText }}
+              >
+                {searchInput
+                  ? renderHighlightedText(data.label, searchInput)
+                  : data.label}
+              </span>
+            </div>
+            {routeStepIndex !== undefined && (
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shrink-0 shadow-xs"
+                title={`Step ${routeStepIndex}`}
+              >
+                #{routeStepIndex}
+              </span>
+            )}
+          </div>
+
+          {/* Source Anchors */}
+          <Handle
+            id="source-top"
+            type="source"
+            position={Position.Top}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="source-bottom"
+            type="source"
+            position={Position.Bottom}
+            className={cn(
+              sourcePosition === Position.Bottom
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="source-left"
+            type="source"
+            position={Position.Left}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="source-right"
+            type="source"
+            position={Position.Right}
+            className={cn(
+              sourcePosition === Position.Right
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+        </div>
+      );
+    }
     return (
       <div
         className={cn(
@@ -519,10 +788,9 @@ export const MenuNodeComponent = memo(
 
 export const DecisionNodeComponent = memo(
   function DecisionNodeComponent({ data }: NodeProps<DecisionNodeType>) {
-    const themeName = useViewerStore((s) => s.theme);
+    const { searchInput, layoutDirection } = useViewerPresentation();
+    const themeName = data.theme ?? "violet";
     const theme = getTheme(themeName);
-    const searchInput = useViewerStore((s) => s.searchInput);
-    const layoutDirection = useViewerStore((s) => s.layoutDirection);
     const isDark = themeName === "dark";
     const isRouteHighlighted = data.isRouteHighlighted === true;
     const isRouteDimmed = data.isRouteDimmed === true;
@@ -535,6 +803,138 @@ export const DecisionNodeComponent = memo(
       ? Position.Right
       : Position.Bottom;
     const expression = data.conditionExpression ?? data.label;
+
+    const isLod = useIsLodMode();
+
+    if (isLod) {
+      return (
+        <div
+          className={cn(
+            "w-[220px] flex items-center justify-center relative py-2 transition-all duration-200 select-none cursor-pointer",
+            isRouteHighlighted && "scale-[1.02] z-20",
+          )}
+          style={{
+            height: `${NODE_HEIGHT_DECISION}px`,
+            opacity: isRouteDimmed ? 0.2 : 1,
+          }}
+          title={`Decision: ${expression}`}
+        >
+          {/* Target Anchors */}
+          <Handle
+            id="target-top"
+            type="target"
+            position={Position.Top}
+            style={{ top: "calc(50% - 14px)", left: "50%" }}
+            className={cn(
+              targetPosition === Position.Top
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="target-bottom"
+            type="target"
+            position={Position.Bottom}
+            style={{ bottom: "calc(50% - 14px)", left: "50%" }}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="target-left"
+            type="target"
+            position={Position.Left}
+            style={{ left: "20px", top: "50%" }}
+            className={cn(
+              targetPosition === Position.Left
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="target-right"
+            type="target"
+            position={Position.Right}
+            style={{ right: "20px", top: "50%" }}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+
+          {/* LOD Pill Body */}
+          <div
+            className="w-[180px] h-[28px] px-3 rounded-full border-2 shadow-xs flex items-center justify-between overflow-hidden"
+            style={{
+              borderColor: theme.decisionBorder,
+              backgroundColor: theme.decisionBg,
+              borderStyle: "solid",
+              opacity: isRouteDimmed ? 0.2 : 1,
+            }}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: theme.decisionTitle }}
+              />
+              <span
+                className="font-mono text-xs font-semibold truncate"
+                style={{ color: theme.decisionText }}
+              >
+                {renderHighlightedText(expression, searchInput)}
+              </span>
+            </div>
+            {routeStepIndex !== undefined && (
+              <span
+                className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.2 rounded-full shrink-0 shadow-xs",
+                  isDark
+                    ? "bg-amber-400 text-slate-950"
+                    : "bg-amber-600 text-white",
+                )}
+                title={`Step ${routeStepIndex}`}
+              >
+                #{routeStepIndex}
+              </span>
+            )}
+          </div>
+
+          {/* Source Anchors */}
+          <Handle
+            id="source-top"
+            type="source"
+            position={Position.Top}
+            style={{ top: "calc(50% - 14px)", left: "50%" }}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="source-bottom"
+            type="source"
+            position={Position.Bottom}
+            style={{ bottom: "calc(50% - 14px)", left: "50%" }}
+            className={cn(
+              sourcePosition === Position.Bottom
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+          <Handle
+            id="source-left"
+            type="source"
+            position={Position.Left}
+            style={{ left: "20px", top: "50%" }}
+            className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+          />
+          <Handle
+            id="source-right"
+            type="source"
+            position={Position.Right}
+            style={{ right: "20px", top: "50%" }}
+            className={cn(
+              sourcePosition === Position.Right
+                ? ""
+                : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+            )}
+          />
+        </div>
+      );
+    }
+
     return (
       <div
         className="w-[220px] flex items-center justify-center relative py-2 transition-all duration-200"
@@ -661,17 +1061,19 @@ export const DecisionNodeComponent = memo(
 
 export const ChapterNodeComponent = memo(
   function ChapterNodeComponent({ data }: NodeProps<ChapterNodeType>) {
-    const themeName = useViewerStore((s) => s.theme);
-    const searchInput = useViewerStore((s) => s.searchInput);
-    const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
-    const layoutDirection = useViewerStore((s) => s.layoutDirection);
-    const toggleChapter = useViewerStore((s) => s.toggleChapter);
+    const { searchInput, readingSpeedWpm, layoutDirection } =
+      useViewerPresentation();
+    const themeName = data.theme ?? "violet";
     const isDark = themeName === "dark";
 
     const chapterName = data.chapter || data.label || "Uncategorized";
     const isCollapsed = data.isCollapsed === true;
     const containsActiveRoute = data.containsActiveRoute === true;
     const searchMatchCount = data.chapterSearchMatchCount ?? 0;
+
+    const handleToggleChapter = useCallback(() => {
+      useViewerStore.getState().toggleChapter(chapterName);
+    }, [chapterName]);
 
     const totalWords = data.chapterTotalWordCount ?? data.wordCount ?? 0;
     const totalDialogue = data.chapterTotalDialogueCount ??
@@ -692,8 +1094,138 @@ export const ChapterNodeComponent = memo(
       ? Position.Right
       : Position.Bottom;
 
+    const isLod = useIsLodMode();
+
     // ── 1. Collapsed Summary Card on Canvas ──────────────────────────────────
     if (isCollapsed) {
+      if (isLod) {
+        return (
+          <div
+            className={cn(
+              "w-[260px] flex items-center justify-center relative select-none cursor-pointer transition-all duration-200",
+              containsActiveRoute && "scale-[1.02] z-20",
+            )}
+            style={{ minHeight: `${CHAPTER_SUMMARY_HEIGHT}px` }}
+            onClick={handleToggleChapter}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleToggleChapter();
+              }
+            }}
+            aria-label={`Expand chapter container for ${chapterName}`}
+            title={`Collapsed Chapter: ${chapterName} (${nodeCount} labels, ${totalDialogue} lines)`}
+          >
+            {/* Target Anchors */}
+            <Handle
+              id="target-top"
+              type="target"
+              position={Position.Top}
+              className={cn(
+                targetPosition === Position.Top
+                  ? ""
+                  : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+              )}
+            />
+            <Handle
+              id="target-bottom"
+              type="target"
+              position={Position.Bottom}
+              className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+            />
+            <Handle
+              id="target-left"
+              type="target"
+              position={Position.Left}
+              className={cn(
+                targetPosition === Position.Left
+                  ? ""
+                  : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+              )}
+            />
+            <Handle
+              id="target-right"
+              type="target"
+              position={Position.Right}
+              className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+            />
+
+            {/* LOD Pill Body */}
+            <div
+              className={cn(
+                "w-[220px] h-[28px] px-3 rounded-full border-2 shadow-xs flex items-center justify-between overflow-hidden",
+                containsActiveRoute && "ring-2 ring-violet-500 shadow-md",
+              )}
+              style={{
+                borderColor: containsActiveRoute
+                  ? (isDark ? "#a78bfa" : "#7c3aed")
+                  : isDark
+                  ? "#475569"
+                  : "#94a3b8",
+                backgroundColor: isDark ? "#1e293b" : "#f8fafc",
+              }}
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <FolderArchive
+                  size={12}
+                  className={isDark ? "text-violet-400" : "text-violet-600"}
+                />
+                <span
+                  className="font-mono text-xs font-semibold truncate"
+                  style={{ color: isDark ? "#f1f5f9" : "#0f172a" }}
+                >
+                  {searchInput
+                    ? renderHighlightedText(chapterName, searchInput)
+                    : chapterName}
+                </span>
+              </div>
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-700 text-slate-200 shrink-0 shadow-xs"
+                title={`${nodeCount} labels`}
+              >
+                {nodeCount}
+              </span>
+            </div>
+
+            {/* Source Anchors */}
+            <Handle
+              id="source-top"
+              type="source"
+              position={Position.Top}
+              className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+            />
+            <Handle
+              id="source-bottom"
+              type="source"
+              position={Position.Bottom}
+              className={cn(
+                sourcePosition === Position.Bottom
+                  ? ""
+                  : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+              )}
+            />
+            <Handle
+              id="source-left"
+              type="source"
+              position={Position.Left}
+              className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
+            />
+            <Handle
+              id="source-right"
+              type="source"
+              position={Position.Right}
+              className={cn(
+                sourcePosition === Position.Right
+                  ? ""
+                  : "!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2",
+              )}
+            />
+          </div>
+        );
+      }
+
       return (
         <div
           className={cn(
@@ -709,13 +1241,13 @@ export const ChapterNodeComponent = memo(
               : "#cbd5e1",
             backgroundColor: isDark ? "#1e293b" : "#f8fafc",
           }}
-          onClick={() => toggleChapter(chapterName)}
+          onClick={handleToggleChapter}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              toggleChapter(chapterName);
+              handleToggleChapter();
             }
           }}
           aria-label={`Expand chapter container for ${chapterName}`}
@@ -901,36 +1433,40 @@ export const ChapterNodeComponent = memo(
                 ? renderHighlightedText(chapterName, searchInput)
                 : chapterName}
             </span>
-            <div
-              className="h-3 w-px mx-0.5"
-              style={{ backgroundColor: isDark ? "#475569" : "#e2e8f0" }}
-            />
-            <span
-              className="text-[10px] font-medium"
-              style={{ color: isDark ? "#94a3b8" : "#64748b" }}
-            >
-              {nodeCount > 0 ? `${nodeCount} nodes` : ""}
-              {totalWords > 0 ? ` · ~${totalWords.toLocaleString()}w` : ""}
-              {readingTime ? ` · ${readingTime}` : ""}
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleChapter(chapterName);
-              }}
-              className={cn(
-                "ml-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors cursor-pointer",
-                isDark
-                  ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200"
-                  : "bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-700",
-              )}
-              aria-label={`Collapse chapter container ${chapterName}`}
-              title="Collapse chapter into summary node"
-            >
-              <ChevronDown size={11} />
-              <span>Collapse</span>
-            </button>
+            {!isLod && (
+              <>
+                <div
+                  className="h-3 w-px mx-0.5"
+                  style={{ backgroundColor: isDark ? "#475569" : "#e2e8f0" }}
+                />
+                <span
+                  className="text-[10px] font-medium"
+                  style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                >
+                  {nodeCount > 0 ? `${nodeCount} nodes` : ""}
+                  {totalWords > 0 ? ` · ~${totalWords.toLocaleString()}w` : ""}
+                  {readingTime ? ` · ${readingTime}` : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleChapter();
+                  }}
+                  className={cn(
+                    "ml-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors cursor-pointer",
+                    isDark
+                      ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200"
+                      : "bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-700",
+                  )}
+                  aria-label={`Collapse chapter container ${chapterName}`}
+                  title="Collapse chapter into summary node"
+                >
+                  <ChevronDown size={11} />
+                  <span>Collapse</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

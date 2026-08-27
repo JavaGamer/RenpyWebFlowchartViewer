@@ -12,7 +12,7 @@ import {
   detectBackEdge,
   type LabeledEdgeType,
 } from "../domain/index.ts";
-import { useViewerStore } from "../application/index.ts";
+import { useViewerLayoutDirection } from "./viewerContext.tsx";
 import { cn } from "./utils/cn.ts";
 
 export const LabeledEdge = memo(function LabeledEdge({
@@ -27,8 +27,8 @@ export const LabeledEdge = memo(function LabeledEdge({
   markerEnd,
   style,
 }: EdgeProps<LabeledEdgeType>) {
-  const theme = useViewerStore((s) => s.theme);
-  const layoutDirection = useViewerStore((s) => s.layoutDirection);
+  const layoutDirection = useViewerLayoutDirection();
+  const theme = data?.theme ?? "violet";
   const isDark = theme === "dark";
   const isHighContrast = theme === "highContrast";
 
@@ -79,8 +79,10 @@ export const LabeledEdge = memo(function LabeledEdge({
       sourceY,
       targetX,
       targetY,
-      sourcePosition: sourcePosition ?? Position.Right,
-      targetPosition: targetPosition ?? Position.Right,
+      sourcePosition: sourcePosition ??
+        (layoutDirection === "LR" ? Position.Bottom : Position.Right),
+      targetPosition: targetPosition ??
+        (layoutDirection === "LR" ? Position.Bottom : Position.Right),
       direction: layoutDirection,
       laneIndex: data?.laneIndex ?? 0,
     });

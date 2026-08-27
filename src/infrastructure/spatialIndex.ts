@@ -161,7 +161,10 @@ export class SpatialQuadtree {
   }
 }
 
-export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
+export function computeSpatialItemsAndBounds(nodes: CanvasNode[]): {
+  items: SpatialItem[];
+  bounds: AABB;
+} {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -169,16 +172,20 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
 
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   function getAbsolutePosition(node: CanvasNode): { x: number; y: number } {
-    if (node.parentId) {
-      const parent = nodeById.get(node.parentId);
-      if (parent) {
-        return {
-          x: parent.position.x + node.position.x,
-          y: parent.position.y + node.position.y,
-        };
-      }
+    let currX = Number.isFinite(node.position.x) ? node.position.x : 0;
+    let currY = Number.isFinite(node.position.y) ? node.position.y : 0;
+    let currentParentId = node.parentId;
+    const visited = new Set<string>();
+
+    while (currentParentId && !visited.has(currentParentId)) {
+      visited.add(currentParentId);
+      const parent = nodeById.get(currentParentId);
+      if (!parent) break;
+      currX += Number.isFinite(parent.position.x) ? parent.position.x : 0;
+      currY += Number.isFinite(parent.position.y) ? parent.position.y : 0;
+      currentParentId = parent.parentId;
     }
-    return node.position;
+    return { x: currX, y: currY };
   }
 
   const items: SpatialItem[] = [];
@@ -234,6 +241,37 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
     maxY = 1000;
   }
 
+  return {
+    items,
+    bounds: { minX, minY, maxX, maxY },
+  };
+}
+
+export function createSpatialIndexFromItems(
+  items: SpatialItem[],
+  bounds?: AABB,
+): SpatialQuadtree {
+  let minX = bounds ? bounds.minX : Infinity;
+  let minY = bounds ? bounds.minY : Infinity;
+  let maxX = bounds ? bounds.maxX : -Infinity;
+  let maxY = bounds ? bounds.maxY : -Infinity;
+
+  if (!bounds) {
+    for (const item of items) {
+      if (item.bounds.minX < minX) minX = item.bounds.minX;
+      if (item.bounds.minY < minY) minY = item.bounds.minY;
+      if (item.bounds.maxX > maxX) maxX = item.bounds.maxX;
+      if (item.bounds.maxY > maxY) maxY = item.bounds.maxY;
+    }
+  }
+
+  if (minX === Infinity) {
+    minX = 0;
+    minY = 0;
+    maxX = 1000;
+    maxY = 1000;
+  }
+
   const padding = 100;
   const quadtree = new SpatialQuadtree({
     minX: minX - padding,
@@ -246,4 +284,9 @@ export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
   }
 
   return quadtree;
+}
+
+export function createSpatialIndex(nodes: CanvasNode[]): SpatialQuadtree {
+  const { items, bounds } = computeSpatialItemsAndBounds(nodes);
+  return createSpatialIndexFromItems(items, bounds);
 }

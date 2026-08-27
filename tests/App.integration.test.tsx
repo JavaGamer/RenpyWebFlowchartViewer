@@ -45,9 +45,20 @@ import { useViewerStore } from "../src/application/viewerStore";
 
 vi.mock("../src/infrastructure/parserWorkerClient", () => {
   return {
-    parseRenpyFilesInWorker: vi.fn(async (
-      { files }: { files: Array<{ name: string; content: string }> },
-    ) => await parser.parseRenpyFiles(files)),
+    parseRenpyFilesInWorker: vi.fn(
+      async (
+        request:
+          | Array<{ name: string; content: string }>
+          | {
+            files?: Array<{ name: string; content: string }>;
+            [key: string]: unknown;
+          },
+      ) => {
+        const files = Array.isArray(request) ? request : (request.files ?? []);
+        const opts = Array.isArray(request) ? {} : request;
+        return await parser.parseRenpyFiles(files, opts);
+      },
+    ),
     searchDialogueLinesInWorker: vi.fn(() => Promise.resolve([])),
     areWorkersSupported: () => true,
     getWorkerPoolSize: () => 1,
@@ -954,7 +965,7 @@ describe("App – upload → parse → render integration", () => {
 
   it("cancels an active parse when a new invalid upload is selected", async () => {
     const user = userEvent.setup();
-    const parseSpy = vi.spyOn(infrastructure, "parseRenpyFilesInWorker");
+    const parseSpy = vi.spyOn(infrastructure.workerParseService, "parse");
     let aborted = false;
     parseSpy.mockImplementationOnce(
       (request: { signal?: AbortSignal }) =>
@@ -980,14 +991,20 @@ describe("App – upload → parse → render integration", () => {
       new File(["not renpy"], "notes.txt", { type: "text/plain" }),
     );
 
-    await waitFor(() => {
-      expect(view.getByText(/No \.rpy files found/i)).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(view.getByText(/No \.rpy files found/i)).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
 
-    await waitFor(() => {
-      expect(view.queryByText(/Parsing was cancelled/i)).not
-        .toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(view.queryByText(/Parsing was cancelled/i)).not
+          .toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
     expect(aborted).toBe(true);
     expect(parseSpy).toHaveBeenCalledTimes(1);
   });

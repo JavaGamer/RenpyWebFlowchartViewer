@@ -10,6 +10,7 @@ import {
   CHAPTER_SUMMARY_HEIGHT,
   CHAPTER_SUMMARY_WIDTH,
   computeChapterAggregates,
+  computeClusterBoundingBox,
   detectBackEdge,
   extractChapterName,
   type FlowEdge,
@@ -20,11 +21,24 @@ import {
   isChapterId,
   type LayoutDensity,
   NODE_WIDTH,
+  normalizeChildPosition,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   redirectEdgesForCollapsedChapters,
   resolveGraphIntegrity,
   type ThemeName,
 } from "../domain/index.ts";
+import {
+  type AABB,
+  computeSpatialItemsAndBounds,
+  type SpatialItem,
+} from "./spatialIndex.ts";
+
+export interface LayoutResult {
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  spatialItems?: SpatialItem[];
+  spatialBounds?: AABB;
+}
 
 interface ElkPoint {
   x: number;
@@ -74,6 +88,17 @@ let elkInstance: ElkInstance | null = null;
 const PROGRESSIVE_FALLBACK_MAX_COLUMNS = 16;
 
 /**
+ * Maps a domain FlowNode type to its corresponding React Flow CanvasNode type.
+ */
+export function mapDomainNodeTypeToCanvasType(
+  type: FlowNode["type"],
+): "labelNode" | "menuNode" | "decisionNode" {
+  if (type === "MENU") return "menuNode";
+  if (type === "DECISION") return "decisionNode";
+  return "labelNode";
+}
+
+/**
  * Generates CanvasEdges with smart loop, back-edge, and orthogonal spline routing.
  */
 function buildCanvasEdges(
@@ -84,22 +109,19 @@ function buildCanvasEdges(
   elkEdgeMap?: Map<string, ElkEdge>,
 ): CanvasEdge[] {
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
-
-  function getAbsolutePosition(
-    id: string,
-  ): { x: number; y: number } | undefined {
-    const node = nodeById.get(id);
-    if (!node) return undefined;
+  const absolutePositions = new Map<string, { x: number; y: number }>();
+  for (const node of nodes) {
     if (node.parentId) {
       const parent = nodeById.get(node.parentId);
       if (parent) {
-        return {
+        absolutePositions.set(node.id, {
           x: parent.position.x + node.position.x,
           y: parent.position.y + node.position.y,
-        };
+        });
+        continue;
       }
     }
-    return node.position;
+    absolutePositions.set(node.id, node.position);
   }
 
   // Track parallel back-edges to assign laneIndex
@@ -108,8 +130,8 @@ function buildCanvasEdges(
   return normalizedEdges
     .filter((e) => nodeById.has(e.source) && nodeById.has(e.target))
     .map((e) => {
-      const sourcePos = getAbsolutePosition(e.source)!;
-      const targetPos = getAbsolutePosition(e.target)!;
+      const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+      const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
       const isSelfLoop = e.source === e.target;
       const isBackEdge = detectBackEdge(
         sourcePos,
@@ -259,7 +281,7 @@ function applyProgressiveDagreLayout(
     layoutDensity?: LayoutDensity;
     previousPositions?: Map<string, { x: number; y: number }>;
   },
-): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+): LayoutResult {
   const isDark = options?.theme === "dark";
   const edgeColor = isDark ? "#475569" : "#cbd5e1";
 
@@ -371,11 +393,7 @@ function applyProgressiveDagreLayout(
     const h = getNodeHeight(n);
     return {
       id: n.id,
-      type: n.type === "LABEL"
-        ? "labelNode"
-        : n.type === "MENU"
-        ? "menuNode"
-        : "decisionNode",
+      type: mapDomainNodeTypeToCanvasType(n.type),
       position: { x, y },
       width: NODE_WIDTH,
       height: h,
@@ -403,8 +421,10 @@ function applyProgressiveDagreLayout(
   });
 
   const edges = buildCanvasEdges(normalizedEdges, nodes, direction, edgeColor);
+  const { items: spatialItems, bounds: spatialBounds } =
+    computeSpatialItemsAndBounds(nodes);
 
-  return { nodes, edges };
+  return { nodes, edges, spatialItems, spatialBounds };
 }
 
 /**
@@ -427,7 +447,7 @@ export function applyDagreLayout(
     enableCompoundContainers?: boolean;
     collapsedChapters?: Record<string, boolean>;
   },
-): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+): LayoutResult {
   const { nodes: normalizedNodes, edges: normalizedEdges } =
     resolveGraphIntegrity(rawNodes, rawEdges);
   const shouldUseProgressive = options?.progressive === true &&
@@ -456,7 +476,21 @@ export function applyDagreLayout(
     )
     : normalizedEdges;
 
-  const g = new dagre.graphlib.Graph({ compound: isCompound });
+  if (isCompound) {
+    return applyTwoTierDagreLayout(
+      normalizedNodes,
+      effectiveEdges,
+      direction,
+      {
+        theme: options?.theme,
+        layoutDensity: options?.layoutDensity,
+        collapsedChapters,
+        previousPositions: prevMap,
+      },
+    );
+  }
+
+  const g = new dagre.graphlib.Graph();
   const density = options?.layoutDensity ?? "normal";
   let ranksep = direction === "TB" ? 80 : 110;
   let nodesep = 50;
@@ -477,37 +511,12 @@ export function applyDagreLayout(
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  if (!isCompound) {
-    normalizedNodes.forEach((node) => {
-      g.setNode(node.id, {
-        width: NODE_WIDTH,
-        height: getNodeHeight(node),
-      });
+  normalizedNodes.forEach((node) => {
+    g.setNode(node.id, {
+      width: NODE_WIDTH,
+      height: getNodeHeight(node),
     });
-  } else {
-    for (const [chapterName, chapterNodes] of chapterGroups.entries()) {
-      const isCollapsed = Boolean(collapsedChapters[chapterName]);
-      const chapterId = getChapterId(chapterName);
-      if (isCollapsed) {
-        g.setNode(chapterId, {
-          width: CHAPTER_SUMMARY_WIDTH,
-          height: CHAPTER_SUMMARY_HEIGHT,
-        });
-      } else {
-        g.setNode(chapterId, {
-          label: chapterName,
-          clusterNodeClass: "chapter",
-        });
-        chapterNodes.forEach((node) => {
-          g.setNode(node.id, {
-            width: NODE_WIDTH,
-            height: getNodeHeight(node),
-          });
-          g.setParent(node.id, chapterId);
-        });
-      }
-    }
-  }
+  });
 
   effectiveEdges.forEach((edge) => {
     if (
@@ -523,171 +532,383 @@ export function applyDagreLayout(
 
   // Position nodes
   const nodes: CanvasNode[] = [];
+
+  normalizedNodes.forEach((n) => {
+    const dagreNode = g.node(n.id);
+    let x = 0;
+    let y = 0;
+    if (dagreNode) {
+      x = dagreNode.x - NODE_WIDTH / 2;
+      y = dagreNode.y - getNodeHeight(n) / 2;
+    } else if (prevMap) {
+      const prevPos = prevMap.get(n.id);
+      if (prevPos) {
+        x = prevPos.x;
+        y = prevPos.y;
+      }
+    }
+
+    const h = getNodeHeight(n);
+    nodes.push({
+      id: n.id,
+      type: mapDomainNodeTypeToCanvasType(n.type),
+      position: { x, y },
+      width: NODE_WIDTH,
+      height: h,
+      data: {
+        label: n.label,
+        dialogueCount: n.dialogueCount,
+        wordCount: n.wordCount,
+        pauseDuration: n.pauseDuration,
+        dialogueLines: n.dialogueLines,
+        dialogueLineNums: n.dialogueLineNums,
+        audioAssetCues: n.audioAssetCues,
+        nodeType: n.type,
+        chapter: n.chapter,
+        parentLabelId: n.parentLabelId,
+        role: n.role,
+        isShadowed: n.isShadowed,
+        shadowOfId: n.shadowOfId,
+        isTerminalOutcome: n.isTerminalOutcome,
+        conditionExpression: n.condition?.expression,
+        conditionReferences: n.condition?.references,
+      },
+      draggable: true,
+      measured: { width: NODE_WIDTH, height: h },
+    });
+  });
+
+  const edges = buildCanvasEdges(effectiveEdges, nodes, direction, edgeColor);
+  const { items: spatialItems, bounds: spatialBounds } =
+    computeSpatialItemsAndBounds(nodes);
+
+  return { nodes, edges, spatialItems, spatialBounds };
+}
+
+/**
+ * Applies a Two-Tier Hierarchical Dagre layout:
+ * - Tier 1: Independent micro Dagre layout for each expanded chapter's internal nodes.
+ * - Exact tight bounding box calculation (with header clearance and padding).
+ * - Tier 2: Macro Dagre layout for chapter containers using deduplicated cross-chapter edges.
+ * - Coordinate stitching and edge generation.
+ */
+export function applyTwoTierDagreLayout(
+  normalizedNodes: FlowNode[],
+  effectiveEdges: FlowEdge[],
+  direction: "TB" | "LR",
+  options?: {
+    theme?: ThemeName;
+    layoutDensity?: LayoutDensity;
+    collapsedChapters?: Record<string, boolean>;
+    previousPositions?: Map<string, { x: number; y: number }>;
+  },
+): LayoutResult {
+  const isDark = options?.theme === "dark";
+  const edgeColor = isDark ? "#475569" : "#cbd5e1";
+  const density = options?.layoutDensity ?? "normal";
+  const collapsedChapters = options?.collapsedChapters ?? {};
+  const chapterGroups = groupNodesByChapter(normalizedNodes);
   const chapterStats = computeChapterAggregates(normalizedNodes);
 
-  if (!isCompound) {
-    normalizedNodes.forEach((n) => {
-      const dagreNode = g.node(n.id);
-      let x = 0;
-      let y = 0;
-      if (dagreNode) {
-        x = dagreNode.x - NODE_WIDTH / 2;
-        y = dagreNode.y - getNodeHeight(n) / 2;
-      } else if (prevMap) {
-        const prevPos = prevMap.get(n.id);
-        if (prevPos) {
-          x = prevPos.x;
-          y = prevPos.y;
-        }
-      }
+  // Micro spacing
+  let microRanksep = direction === "TB" ? 80 : 110;
+  let microNodesep = 50;
+  if (density === "compact") {
+    microRanksep = direction === "TB" ? 50 : 70;
+    microNodesep = 30;
+  } else if (density === "spacious") {
+    microRanksep = direction === "TB" ? 120 : 160;
+    microNodesep = 80;
+  }
 
-      const h = getNodeHeight(n);
-      nodes.push({
-        id: n.id,
-        type: n.type === "LABEL"
-          ? "labelNode"
-          : n.type === "MENU"
-          ? "menuNode"
-          : "decisionNode",
-        position: { x, y },
-        width: NODE_WIDTH,
-        height: h,
-        data: {
-          label: n.label,
-          dialogueCount: n.dialogueCount,
-          wordCount: n.wordCount,
-          pauseDuration: n.pauseDuration,
-          dialogueLines: n.dialogueLines,
-          dialogueLineNums: n.dialogueLineNums,
-          audioAssetCues: n.audioAssetCues,
-          nodeType: n.type,
-          chapter: n.chapter,
-          parentLabelId: n.parentLabelId,
-          role: n.role,
-          isShadowed: n.isShadowed,
-          shadowOfId: n.shadowOfId,
-          isTerminalOutcome: n.isTerminalOutcome,
-          conditionExpression: n.condition?.expression,
-          conditionReferences: n.condition?.references,
-        },
-        draggable: true,
-        measured: { width: NODE_WIDTH, height: h },
-      });
-    });
-  } else {
-    for (const [chapterName, chapterNodes] of chapterGroups.entries()) {
-      const isCollapsed = Boolean(collapsedChapters[chapterName]);
-      const chapterId = getChapterId(chapterName);
-      const dChapter = g.node(chapterId);
-      const stats = chapterStats.get(chapterName);
+  // Macro spacing
+  let macroRanksep = direction === "TB" ? 140 : 180;
+  let macroNodesep = 90;
+  if (density === "compact") {
+    macroRanksep = direction === "TB" ? 100 : 130;
+    macroNodesep = 60;
+  } else if (density === "spacious") {
+    macroRanksep = direction === "TB" ? 200 : 250;
+    macroNodesep = 130;
+  }
 
-      const baseWidth = dChapter?.width ??
-        (isCollapsed ? CHAPTER_SUMMARY_WIDTH : 300);
-      const baseHeight = dChapter?.height ??
-        (isCollapsed ? CHAPTER_SUMMARY_HEIGHT : 200);
-
-      const chapterWidth = isCollapsed
-        ? baseWidth
-        : baseWidth + CHAPTER_CONTAINER_PADDING.left +
-          CHAPTER_CONTAINER_PADDING.right;
-      const chapterHeight = isCollapsed
-        ? baseHeight
-        : baseHeight + CHAPTER_CONTAINER_PADDING.top +
-          CHAPTER_CONTAINER_PADDING.bottom;
-
-      const parentTopLeftX = dChapter ? dChapter.x - chapterWidth / 2 : 0;
-      const parentTopLeftY = dChapter ? dChapter.y - chapterHeight / 2 : 0;
-
-      // 1. Add parent ChapterNode first
-      nodes.push({
-        id: chapterId,
-        type: "chapterNode",
-        position: { x: parentTopLeftX, y: parentTopLeftY },
-        width: chapterWidth,
-        height: chapterHeight,
-        style: {
-          width: chapterWidth,
-          height: chapterHeight,
-        },
-        data: {
-          label: chapterName,
-          chapter: chapterName,
-          nodeType: "LABEL",
-          dialogueCount: stats?.dialogueCount ?? 0,
-          wordCount: stats?.wordCount ?? 0,
-          pauseDuration: stats?.pauseDuration ?? 0,
-          isChapterContainer: true,
-          isCollapsed,
-          chapterNodeCount: stats?.nodeCount ?? 0,
-          chapterTotalDialogueCount: stats?.dialogueCount ?? 0,
-          chapterTotalWordCount: stats?.wordCount ?? 0,
-          chapterTotalPauseDuration: stats?.pauseDuration ?? 0,
-        },
-        draggable: true,
-        measured: {
-          width: chapterWidth,
-          height: chapterHeight,
-        },
-      });
-
-      // 2. If expanded, add child nodes with relative position
-      if (!isCollapsed) {
-        const clusterBaseLeft = dChapter ? dChapter.x - baseWidth / 2 : 0;
-        const clusterBaseTop = dChapter ? dChapter.y - baseHeight / 2 : 0;
-
-        chapterNodes.forEach((n) => {
-          const dNode = g.node(n.id);
-          const h = getNodeHeight(n);
-          let relX = CHAPTER_CONTAINER_PADDING.left;
-          let relY = CHAPTER_CONTAINER_PADDING.top;
-          if (dNode) {
-            const childAbsX = dNode.x - NODE_WIDTH / 2;
-            const childAbsY = dNode.y - h / 2;
-            relX = (childAbsX - clusterBaseLeft) +
-              CHAPTER_CONTAINER_PADDING.left;
-            relY = (childAbsY - clusterBaseTop) + CHAPTER_CONTAINER_PADDING.top;
-          }
-          nodes.push({
-            id: n.id,
-            type: n.type === "LABEL"
-              ? "labelNode"
-              : n.type === "MENU"
-              ? "menuNode"
-              : "decisionNode",
-            parentId: chapterId,
-            extent: "parent",
-            position: { x: relX, y: relY },
-            width: NODE_WIDTH,
-            height: h,
-            data: {
-              label: n.label,
-              dialogueCount: n.dialogueCount,
-              wordCount: n.wordCount,
-              pauseDuration: n.pauseDuration,
-              dialogueLines: n.dialogueLines,
-              dialogueLineNums: n.dialogueLineNums,
-              audioAssetCues: n.audioAssetCues,
-              nodeType: n.type,
-              chapter: n.chapter,
-              parentLabelId: n.parentLabelId,
-              role: n.role,
-              isShadowed: n.isShadowed,
-              shadowOfId: n.shadowOfId,
-              isTerminalOutcome: n.isTerminalOutcome,
-              conditionExpression: n.condition?.expression,
-              conditionReferences: n.condition?.references,
-            },
-            draggable: true,
-            measured: { width: NODE_WIDTH, height: h },
-          });
-        });
-      }
+  // Map nodeId -> chapterName
+  const chapterByNodeId = new Map<string, string>();
+  for (const [chapterName, cNodes] of chapterGroups.entries()) {
+    for (const n of cNodes) {
+      chapterByNodeId.set(n.id, chapterName);
     }
   }
 
-  const edges = buildCanvasEdges(effectiveEdges, nodes, direction, edgeColor);
+  // Partition edges into intra-chapter and cross-chapter
+  const intraChapterEdges = new Map<string, FlowEdge[]>();
+  const crossChapterEdges: FlowEdge[] = [];
 
-  return { nodes, edges };
+  for (const edge of effectiveEdges) {
+    const sChap = chapterByNodeId.get(edge.source) ??
+      (edge.source.startsWith("chapter:")
+        ? extractChapterName(edge.source)
+        : undefined);
+    const tChap = chapterByNodeId.get(edge.target) ??
+      (edge.target.startsWith("chapter:")
+        ? extractChapterName(edge.target)
+        : undefined);
+
+    if (sChap && tChap && sChap === tChap) {
+      const list = intraChapterEdges.get(sChap) ?? [];
+      list.push(edge);
+      intraChapterEdges.set(sChap, list);
+    } else {
+      crossChapterEdges.push(edge);
+    }
+  }
+
+  // 1. Tier 1: Micro layout for each chapter
+  interface ChapterPlacement {
+    chapterName: string;
+    chapterId: string;
+    isCollapsed: boolean;
+    width: number;
+    height: number;
+    childRelativePositions: Map<
+      string,
+      { x: number; y: number; height: number }
+    >;
+  }
+
+  const placements: ChapterPlacement[] = [];
+
+  for (const [chapterName, cNodes] of chapterGroups.entries()) {
+    if (cNodes.length === 0) continue;
+    const isCollapsed = Boolean(collapsedChapters[chapterName]);
+    const chapterId = getChapterId(chapterName);
+
+    if (isCollapsed) {
+      placements.push({
+        chapterName,
+        chapterId,
+        isCollapsed: true,
+        width: CHAPTER_SUMMARY_WIDTH,
+        height: CHAPTER_SUMMARY_HEIGHT,
+        childRelativePositions: new Map(),
+      });
+      continue;
+    }
+
+    const microG = new dagre.graphlib.Graph();
+    microG.setGraph({
+      rankdir: direction,
+      ranksep: microRanksep,
+      nodesep: microNodesep,
+      marginx: 0,
+      marginy: 0,
+    });
+    microG.setDefaultEdgeLabel(() => ({}));
+
+    cNodes.forEach((node) => {
+      microG.setNode(node.id, {
+        width: NODE_WIDTH,
+        height: getNodeHeight(node),
+      });
+    });
+
+    const cEdges = intraChapterEdges.get(chapterName) ?? [];
+    cEdges.forEach((edge) => {
+      if (
+        edge.source !== edge.target &&
+        microG.hasNode(edge.source) &&
+        microG.hasNode(edge.target)
+      ) {
+        microG.setEdge(edge.source, edge.target);
+      }
+    });
+
+    dagre.layout(microG);
+
+    const placedNodes: Array<
+      { x: number; y: number; width: number; height: number }
+    > = [];
+    cNodes.forEach((node) => {
+      const dNode = microG.node(node.id);
+      const h = getNodeHeight(node);
+      if (dNode) {
+        placedNodes.push({
+          x: dNode.x,
+          y: dNode.y,
+          width: NODE_WIDTH,
+          height: h,
+        });
+      }
+    });
+
+    const bbox = computeClusterBoundingBox(
+      placedNodes,
+      CHAPTER_CONTAINER_PADDING,
+    );
+
+    const childRelativePositions = new Map<
+      string,
+      { x: number; y: number; height: number }
+    >();
+    cNodes.forEach((node) => {
+      const dNode = microG.node(node.id);
+      const h = getNodeHeight(node);
+      if (dNode) {
+        const rel = normalizeChildPosition(
+          dNode,
+          NODE_WIDTH,
+          h,
+          bbox.minX,
+          bbox.minY,
+          CHAPTER_CONTAINER_PADDING,
+        );
+        childRelativePositions.set(node.id, { x: rel.x, y: rel.y, height: h });
+      } else {
+        childRelativePositions.set(node.id, {
+          x: CHAPTER_CONTAINER_PADDING.left,
+          y: CHAPTER_CONTAINER_PADDING.top,
+          height: h,
+        });
+      }
+    });
+
+    placements.push({
+      chapterName,
+      chapterId,
+      isCollapsed: false,
+      width: bbox.width,
+      height: bbox.height,
+      childRelativePositions,
+    });
+  }
+
+  // 2. Tier 2: Macro layout for chapter containers
+  const macroG = new dagre.graphlib.Graph();
+  macroG.setGraph({
+    rankdir: direction,
+    ranksep: macroRanksep,
+    nodesep: macroNodesep,
+    marginx: 40,
+    marginy: 40,
+  });
+  macroG.setDefaultEdgeLabel(() => ({}));
+
+  placements.forEach((p) => {
+    macroG.setNode(p.chapterId, {
+      width: p.width,
+      height: p.height,
+    });
+  });
+
+  crossChapterEdges.forEach((edge) => {
+    const sChap = chapterByNodeId.get(edge.source) ??
+      (edge.source.startsWith("chapter:")
+        ? extractChapterName(edge.source)
+        : undefined);
+    const tChap = chapterByNodeId.get(edge.target) ??
+      (edge.target.startsWith("chapter:")
+        ? extractChapterName(edge.target)
+        : undefined);
+
+    if (sChap && tChap && sChap !== tChap) {
+      const sId = getChapterId(sChap);
+      const tId = getChapterId(tChap);
+      if (macroG.hasNode(sId) && macroG.hasNode(tId)) {
+        macroG.setEdge(sId, tId);
+      }
+    }
+  });
+
+  dagre.layout(macroG);
+
+  // 3. Assemble canvas nodes (Strict parent-before-child ordering)
+  const nodes: CanvasNode[] = [];
+
+  placements.forEach((p) => {
+    const dChapter = macroG.node(p.chapterId);
+    const parentTopLeftX = dChapter ? dChapter.x - p.width / 2 : 0;
+    const parentTopLeftY = dChapter ? dChapter.y - p.height / 2 : 0;
+    const stats = chapterStats.get(p.chapterName);
+
+    // 1. Add parent ChapterNode first
+    nodes.push({
+      id: p.chapterId,
+      type: "chapterNode",
+      position: { x: parentTopLeftX, y: parentTopLeftY },
+      width: p.width,
+      height: p.height,
+      style: {
+        width: p.width,
+        height: p.height,
+      },
+      data: {
+        label: p.chapterName,
+        chapter: p.chapterName,
+        nodeType: "LABEL",
+        dialogueCount: stats?.dialogueCount ?? 0,
+        wordCount: stats?.wordCount ?? 0,
+        pauseDuration: stats?.pauseDuration ?? 0,
+        isChapterContainer: true,
+        isCollapsed: p.isCollapsed,
+        chapterNodeCount: stats?.nodeCount ?? 0,
+        chapterTotalDialogueCount: stats?.dialogueCount ?? 0,
+        chapterTotalWordCount: stats?.wordCount ?? 0,
+        chapterTotalPauseDuration: stats?.pauseDuration ?? 0,
+      },
+      draggable: true,
+      measured: {
+        width: p.width,
+        height: p.height,
+      },
+    });
+
+    // 2. If expanded, add child nodes with relative position
+    if (!p.isCollapsed) {
+      const cNodes = chapterGroups.get(p.chapterName) ?? [];
+      cNodes.forEach((n) => {
+        const placed = p.childRelativePositions.get(n.id);
+        const relX = placed?.x ?? CHAPTER_CONTAINER_PADDING.left;
+        const relY = placed?.y ?? CHAPTER_CONTAINER_PADDING.top;
+        const h = placed?.height ?? getNodeHeight(n);
+
+        nodes.push({
+          id: n.id,
+          type: mapDomainNodeTypeToCanvasType(n.type),
+          parentId: p.chapterId,
+          extent: "parent",
+          position: { x: relX, y: relY },
+          width: NODE_WIDTH,
+          height: h,
+          data: {
+            label: n.label,
+            dialogueCount: n.dialogueCount,
+            wordCount: n.wordCount,
+            pauseDuration: n.pauseDuration,
+            dialogueLines: n.dialogueLines,
+            dialogueLineNums: n.dialogueLineNums,
+            audioAssetCues: n.audioAssetCues,
+            nodeType: n.type,
+            chapter: n.chapter,
+            parentLabelId: n.parentLabelId,
+            role: n.role,
+            isShadowed: n.isShadowed,
+            shadowOfId: n.shadowOfId,
+            isTerminalOutcome: n.isTerminalOutcome,
+            conditionExpression: n.condition?.expression,
+            conditionReferences: n.condition?.references,
+          },
+          draggable: true,
+          measured: { width: NODE_WIDTH, height: h },
+        });
+      });
+    }
+  });
+
+  const edges = buildCanvasEdges(effectiveEdges, nodes, direction, edgeColor);
+  const { items: spatialItems, bounds: spatialBounds } =
+    computeSpatialItemsAndBounds(nodes);
+
+  return { nodes, edges, spatialItems, spatialBounds };
 }
 
 export function setElkInstance(instance: ElkInstance | null): void {
@@ -701,13 +922,15 @@ export async function preWarmElk(customInstance?: ElkInstance): Promise<void> {
   }
   if (!elkInstance) {
     const ELKModule = await import("elkjs/lib/elk-api.js");
-    const ELK = ELKModule.default || ELKModule;
+    const ELK = (ELKModule.default || ELKModule) as unknown as new (
+      options?: unknown,
+    ) => ElkInstance;
     try {
       elkInstance = new ELK({
         workerUrl: elkWorkerUrl,
-      }) as unknown as ElkInstance;
+      });
     } catch {
-      elkInstance = new ELK() as unknown as ElkInstance;
+      elkInstance = new ELK();
     }
   }
 }
@@ -725,7 +948,7 @@ export async function applyElkLayout(
     enableCompoundContainers?: boolean;
     collapsedChapters?: Record<string, boolean>;
   },
-): Promise<{ nodes: CanvasNode[]; edges: CanvasEdge[] }> {
+): Promise<LayoutResult> {
   await preWarmElk();
   const instance = elkInstance!;
   const { nodes: normalizedNodes, edges: normalizedEdges } =
@@ -888,7 +1111,7 @@ export async function applyElkLayout(
     let sumX = 0;
     let sumY = 0;
     let count = 0;
-    const processChildForPrev = (child: ElkNode) => {
+    laidOutGraph.children?.forEach((child: ElkNode) => {
       if (child.id && child.x !== undefined && child.y !== undefined) {
         const prev = previousPositionsMap.get(child.id);
         if (prev) {
@@ -897,9 +1120,7 @@ export async function applyElkLayout(
           count += 1;
         }
       }
-      child.children?.forEach(processChildForPrev);
-    };
-    laidOutGraph.children?.forEach(processChildForPrev);
+    });
 
     if (count > 0) {
       const deltaX = sumX / count;
@@ -943,11 +1164,7 @@ export async function applyElkLayout(
       const h = getNodeHeight(n);
       nodes.push({
         id: n.id,
-        type: n.type === "LABEL"
-          ? "labelNode"
-          : n.type === "MENU"
-          ? "menuNode"
-          : "decisionNode",
+        type: mapDomainNodeTypeToCanvasType(n.type),
         position: { x: child.x ?? 0, y: child.y ?? 0 },
         width: NODE_WIDTH,
         height: h,
@@ -1024,11 +1241,7 @@ export async function applyElkLayout(
             const h = getNodeHeight(n);
             nodes.push({
               id: n.id,
-              type: n.type === "LABEL"
-                ? "labelNode"
-                : n.type === "MENU"
-                ? "menuNode"
-                : "decisionNode",
+              type: mapDomainNodeTypeToCanvasType(n.type),
               parentId: topLevelNode.id,
               extent: "parent",
               position: { x: childElkNode.x ?? 0, y: childElkNode.y ?? 0 },
@@ -1063,11 +1276,7 @@ export async function applyElkLayout(
           const h = getNodeHeight(n);
           nodes.push({
             id: n.id,
-            type: n.type === "LABEL"
-              ? "labelNode"
-              : n.type === "MENU"
-              ? "menuNode"
-              : "decisionNode",
+            type: mapDomainNodeTypeToCanvasType(n.type),
             position: { x: topLevelNode.x ?? 0, y: topLevelNode.y ?? 0 },
             width: NODE_WIDTH,
             height: h,
@@ -1115,6 +1324,8 @@ export async function applyElkLayout(
     edgeColor,
     elkEdgeMap,
   );
+  const { items: spatialItems, bounds: spatialBounds } =
+    computeSpatialItemsAndBounds(nodes);
 
-  return { nodes, edges };
+  return { nodes, edges, spatialItems, spatialBounds };
 }

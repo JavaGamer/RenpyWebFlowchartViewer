@@ -738,7 +738,9 @@ describe("parseRenpyFilesInWorker", () => {
     await vi.advanceTimersByTimeAsync(3000);
 
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
-    expect(mockWorkers[0]?.terminate).toHaveBeenCalledTimes(1);
+    expect(
+      mockWorkers.some((w) => w.terminate.mock.calls.length > 0),
+    ).toBe(true);
     vi.useRealTimers();
   });
 

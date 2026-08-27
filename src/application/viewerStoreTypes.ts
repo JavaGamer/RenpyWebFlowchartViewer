@@ -40,6 +40,8 @@ export interface ViewerPersistedState {
   debugPrivacyOptions: DebugBundlePrivacyOptions;
   /** Reading speed in words per minute for reading time calculations. */
   readingSpeedWpm: number;
+  /** Whether Level of Detail (LOD) zooming is enabled to simplify nodes when zoomed out. */
+  enableLodZooming: boolean;
 }
 
 /**
@@ -58,6 +60,9 @@ export interface ViewerSessionState {
   focusNodeId: string;
   largeGraphModeOverride: boolean | null;
   selectedNodeId: string;
+  selectedNodeIds: string[];
+  isBoxSelectionActive: boolean;
+  isolatedSubgraphNodeIds: string[] | null;
   selectedDialogueLineIndex: number | null;
   showAllInspectorLines: boolean;
   activeDialogueResultIndex: number;
@@ -98,6 +103,7 @@ export interface ViewerActions {
     patch: Partial<DebugBundlePrivacyOptions>,
   ) => void;
   setReadingSpeedWpm: (wpm: number) => void;
+  setEnableLodZooming: (enabled: boolean) => void;
 
   // Session setters
   setLayoutDirection: (direction: LayoutDirection) => void;
@@ -112,6 +118,11 @@ export interface ViewerActions {
   setFocusNodeId: (id: string) => void;
   setLargeGraphModeOverride: (value: boolean | null) => void;
   setSelectedNodeId: (id: string) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
+  toggleBoxSelectionMode: () => void;
+  setBoxSelectionMode: (active: boolean) => void;
+  setIsolatedSubgraphNodeIds: (ids: string[] | null) => void;
+  clearMultiSelection: () => void;
   setSelectedDialogueLineIndex: (index: number | null) => void;
   toggleShowAllInspectorLines: () => void;
   setShowAllInspectorLines: (show: boolean) => void;

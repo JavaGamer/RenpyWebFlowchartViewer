@@ -222,40 +222,43 @@ function getActiveFallbackState(reset = false): FallbackState {
 async function fallbackBuildDialogueSearchIndex(
   fallbackState: FallbackState,
   nodes: FlowNode[],
+  deferUnhydrated = false,
 ) {
   fallbackState.docs = [];
-  const unhydrated = nodes.filter((n) =>
-    n.dialogueCount > 0 && !n.dialogueLines
-  );
-  if (unhydrated.length > 0 && fallbackState.rawFilesByChapter.size > 0) {
-    const tokenizedFilesByChapter = new Map<
-      string,
-      { document: TextDocument; tokenTree: TokenTree }
-    >();
-    for (
-      const [chapter, rawFile] of fallbackState.rawFilesByChapter.entries()
-    ) {
-      const tokenized = await tokenizeOneFile(rawFile);
-      tokenizedFilesByChapter.set(chapter, {
-        document: tokenized.document,
-        tokenTree: tokenized.tokenTree,
-      });
-    }
-    const extracted = extractNodeDetailsFromTokens(
-      unhydrated,
-      tokenizedFilesByChapter,
+  if (!deferUnhydrated) {
+    const unhydrated = nodes.filter((n) =>
+      n.dialogueCount > 0 && !n.dialogueLines
     );
-    for (const [id, payload] of Object.entries(extracted)) {
-      const node = fallbackState.graphState.nodeMap.get(id);
-      if (node) {
-        if (payload.dialogueLines) node.dialogueLines = payload.dialogueLines;
-        if (payload.dialogueLineNums) {
-          node.dialogueLineNums = payload.dialogueLineNums;
+    if (unhydrated.length > 0 && fallbackState.rawFilesByChapter.size > 0) {
+      const tokenizedFilesByChapter = new Map<
+        string,
+        { document: TextDocument; tokenTree: TokenTree }
+      >();
+      for (
+        const [chapter, rawFile] of fallbackState.rawFilesByChapter.entries()
+      ) {
+        const tokenized = await tokenizeOneFile(rawFile);
+        tokenizedFilesByChapter.set(chapter, {
+          document: tokenized.document,
+          tokenTree: tokenized.tokenTree,
+        });
+      }
+      const extracted = extractNodeDetailsFromTokens(
+        unhydrated,
+        tokenizedFilesByChapter,
+      );
+      for (const [id, payload] of Object.entries(extracted)) {
+        const node = fallbackState.graphState.nodeMap.get(id);
+        if (node) {
+          if (payload.dialogueLines) node.dialogueLines = payload.dialogueLines;
+          if (payload.dialogueLineNums) {
+            node.dialogueLineNums = payload.dialogueLineNums;
+          }
+          if (payload.audioAssetCues) {
+            node.audioAssetCues = payload.audioAssetCues;
+          }
+          node.isDetailsLoaded = true;
         }
-        if (payload.audioAssetCues) {
-          node.audioAssetCues = payload.audioAssetCues;
-        }
-        node.isDetailsLoaded = true;
       }
     }
   }
@@ -320,6 +323,10 @@ async function parseRenpyFilesFallback(
     currentFallback.rawFilesByChapter.set(chapter, file);
   }
 
+  if (resetActiveGraph || !currentFallback.graphState.initVariables?.size) {
+    preParseInitialization(files, currentFallback.graphState);
+  }
+
   if (request.maxCallStackDepth !== undefined) {
     currentFallback.graphState.maxCallStackDepth = request.maxCallStackDepth;
   }
@@ -349,6 +356,7 @@ async function parseRenpyFilesFallback(
       await fallbackBuildDialogueSearchIndex(
         currentFallback,
         currentFallback.graphState.nodes,
+        Boolean(deferDetails || captureDialogueLines === false),
       );
     }
 

@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   Controls,
   MiniMap,
   ReactFlow,
   type ReactFlowInstance,
+  SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useShallow } from "zustand/react/shallow";
@@ -30,12 +31,17 @@ import { AdvancedControlsModal } from "./components/AdvancedControlsModal.tsx";
 import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
 import { ActiveRouteBanner } from "./components/ActiveRouteBanner.tsx";
 import { NarrativeAnalyticsModal } from "./components/NarrativeAnalyticsModal.tsx";
+import { CanvasSelectionToolbar } from "./components/CanvasSelectionToolbar.tsx";
+import { RouteSolverModal } from "./components/RouteSolverModal.tsx";
 import { cn } from "./utils/cn.ts";
+
 import { ViewerInspector } from "./viewerInspector.tsx";
 import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
 import { useGraphVisibility } from "./hooks/useGraphVisibility.ts";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction.ts";
 import { useViewportBounds } from "./hooks/useViewportBounds.ts";
+import { useCanvasLodMode } from "./hooks/useLodMode.ts";
+import { ViewerPresentationProvider } from "./viewerContext.tsx";
 
 export interface FlowchartCanvasProps {
   flowNodes: FlowNode[];
@@ -81,6 +87,11 @@ export function FlowchartCanvas({
     minimapPannable,
     minimapZoomable,
     showMediaCuesInDialogue,
+    searchInput,
+    readingSpeedWpm,
+    showAudioAssetCues,
+    showPacingHeatmap,
+    isBoxSelectionActive,
   } = useViewerStore(
     useShallow((s) => ({
       layoutDirection: s.layoutDirection,
@@ -98,8 +109,19 @@ export function FlowchartCanvas({
       minimapPannable: s.minimapPannable,
       minimapZoomable: s.minimapZoomable,
       showMediaCuesInDialogue: s.showMediaCuesInDialogue,
+      searchInput: s.searchInput,
+      readingSpeedWpm: s.readingSpeedWpm,
+      showAudioAssetCues: s.showAudioAssetCues,
+      showPacingHeatmap: s.showPacingHeatmap,
+      isBoxSelectionActive: s.isBoxSelectionActive,
     })),
   );
+
+  const [solverTargetNodeId, setSolverTargetNodeId] = useState<string | null>(
+    null,
+  );
+
+  const isLod = useCanvasLodMode();
 
   const {
     setActiveDialogueResultIndex,
@@ -210,6 +232,7 @@ export function FlowchartCanvas({
     onPaneClick,
     onFocusSelectedNode,
     onSelectDialogueSearchResult,
+    onSelectionChange,
   } = useCanvasInteraction({
     visibleNodes,
     visibleNodeIds,
@@ -299,58 +322,79 @@ export function FlowchartCanvas({
           className="flex-1 min-h-[320px] relative"
           style={{ backgroundColor: THEMES[theme].pageBg }}
           data-theme={theme}
+          data-pacing-heatmap={String(showPacingHeatmap)}
+          data-show-audio-cues={String(showAudioAssetCues)}
+          data-layout-direction={layoutDirection}
+          data-lod={String(isLod)}
         >
           <CanvasOverlay isCalculatingLayout={isCalculatingLayout} />
           <ActiveRouteBanner onFocusNode={onFocusNode} />
-          <ReactFlow
-            colorMode={theme === "dark" ? "dark" : "light"}
-            nodes={visibleNodes}
-            edges={visibleEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
-            onEdgeClick={onEdgeClick}
-            onPaneClick={onPaneClick}
-            onMove={updateBounds}
-            onInit={(instance) => {
-              flowInstanceRef.current = instance as ReactFlowInstance<
-                CanvasNode,
-                CanvasEdge
-              >;
-              updateBounds();
-            }}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.1}
-            maxZoom={2.5}
-            nodesDraggable
-            proOptions={{ hideAttribution: false }}
+          <CanvasSelectionToolbar
+            flowEdges={flowEdges}
+          />
+
+          <ViewerPresentationProvider
+            searchInput={searchInput}
+            readingSpeedWpm={readingSpeedWpm}
+            layoutDirection={layoutDirection}
+            showAudioAssetCues={showAudioAssetCues}
+            showPacingHeatmap={showPacingHeatmap}
+            isLod={isLod}
           >
-            <Background color={THEMES[theme].grid} gap={20} />
-            <Controls />
-            <MiniMap
-              className={cn(
-                minimapPannable && "minimap-pannable",
-                minimapZoomable && "minimap-zoomable",
-              )}
-              pannable={minimapPannable}
-              zoomable={minimapZoomable}
-              nodeColor={(n) => {
-                if (n.type === "chapterNode") {
-                  return n.data.isCollapsed
-                    ? (theme === "dark" ? "#334155" : "#cbd5e1")
-                    : "transparent";
-                }
-                return n.type === "labelNode"
-                  ? THEMES[theme].minimapLabel
-                  : n.type === "menuNode"
-                  ? THEMES[theme].minimapMenu
-                  : THEMES[theme].minimapDecision;
+            <ReactFlow
+              colorMode={theme === "dark" ? "dark" : "light"}
+              nodes={visibleNodes}
+              edges={visibleEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onSelectionChange={onSelectionChange}
+              selectionMode={SelectionMode.Partial}
+              selectionOnDrag={isBoxSelectionActive}
+              panOnDrag={isBoxSelectionActive ? [1, 2] : true}
+              onNodeClick={onNodeClick}
+              onEdgeClick={onEdgeClick}
+              onPaneClick={onPaneClick}
+              onMove={updateBounds}
+              onInit={(instance) => {
+                flowInstanceRef.current = instance as ReactFlowInstance<
+                  CanvasNode,
+                  CanvasEdge
+                >;
+                updateBounds();
               }}
-            />
-          </ReactFlow>
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              minZoom={0.1}
+              maxZoom={2.5}
+              nodesDraggable
+              proOptions={{ hideAttribution: false }}
+            >
+              <Background color={THEMES[theme].grid} gap={20} />
+              <Controls />
+              <MiniMap
+                className={cn(
+                  minimapPannable && "minimap-pannable",
+                  minimapZoomable && "minimap-zoomable",
+                )}
+                pannable={minimapPannable}
+                zoomable={minimapZoomable}
+                nodeColor={(n) => {
+                  if (n.type === "chapterNode") {
+                    return n.data.isCollapsed
+                      ? (theme === "dark" ? "#334155" : "#cbd5e1")
+                      : "transparent";
+                  }
+                  return n.type === "labelNode"
+                    ? THEMES[theme].minimapLabel
+                    : n.type === "menuNode"
+                    ? THEMES[theme].minimapMenu
+                    : THEMES[theme].minimapDecision;
+                }}
+              />
+            </ReactFlow>
+          </ViewerPresentationProvider>
         </div>
         <ViewerInspector
           effectiveSearch={effectiveSearch}
@@ -369,8 +413,18 @@ export function FlowchartCanvas({
           onSetActiveDialogueResultIndex={setActiveDialogueResultIndex}
           onSelectDialogueSearchResult={onSelectDialogueSearchResult}
           flowEdges={flowEdges}
+          onSolveRoute={setSolverTargetNodeId}
         />
       </div>
+
+      {solverTargetNodeId && (
+        <RouteSolverModal
+          isOpen={Boolean(solverTargetNodeId)}
+          onClose={() => setSolverTargetNodeId(null)}
+          initialTargetNodeId={solverTargetNodeId}
+          onFocusNode={onFocusNode}
+        />
+      )}
     </>
   );
 }

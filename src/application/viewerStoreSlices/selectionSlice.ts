@@ -16,6 +16,9 @@ import { useAppStore } from "../appStore.ts";
 export interface SelectionSliceState {
   focusNodeId: string;
   selectedNodeId: string;
+  selectedNodeIds: string[];
+  isBoxSelectionActive: boolean;
+  isolatedSubgraphNodeIds: string[] | null;
   selectedDialogueLineIndex: number | null;
   showAllInspectorLines: boolean;
   selectedCallContextId: string | null;
@@ -30,6 +33,11 @@ export interface SelectionSliceActions {
   markNodesHydrated: (ids: string[]) => void;
   setFocusNodeId: (id: string) => void;
   setSelectedNodeId: (id: string) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
+  toggleBoxSelectionMode: () => void;
+  setBoxSelectionMode: (active: boolean) => void;
+  setIsolatedSubgraphNodeIds: (ids: string[] | null) => void;
+  clearMultiSelection: () => void;
   setSelectedDialogueLineIndex: (index: number | null) => void;
   toggleShowAllInspectorLines: () => void;
   setShowAllInspectorLines: (show: boolean) => void;
@@ -45,6 +53,9 @@ export function createDefaultSelectionState(): SelectionSliceState {
   return {
     focusNodeId: "",
     selectedNodeId: "",
+    selectedNodeIds: [],
+    isBoxSelectionActive: false,
+    isolatedSubgraphNodeIds: null,
     selectedDialogueLineIndex: null,
     showAllInspectorLines: false,
     selectedCallContextId: null,
@@ -120,6 +131,52 @@ export const createSelectionSlice: StateCreator<
   setSelectedNodeId: (id) =>
     set((draft) => {
       draft.selectedNodeId = id;
+      if (id && !draft.selectedNodeIds.includes(id)) {
+        draft.selectedNodeIds = [id];
+      } else if (!id) {
+        draft.selectedNodeIds = [];
+      }
+    }),
+
+  setSelectedNodeIds: (ids) =>
+    set((draft) => {
+      if (
+        draft.selectedNodeIds.length === ids.length &&
+        draft.selectedNodeIds.every((val, idx) => val === ids[idx])
+      ) {
+        return;
+      }
+      draft.selectedNodeIds = ids;
+      if (ids.length === 1) {
+        draft.selectedNodeId = ids[0]!;
+      } else if (ids.length === 0) {
+        draft.selectedNodeId = "";
+      } else if (!ids.includes(draft.selectedNodeId)) {
+        draft.selectedNodeId = ids[0]!;
+      }
+    }),
+
+  toggleBoxSelectionMode: () =>
+    set((draft) => {
+      draft.isBoxSelectionActive = !draft.isBoxSelectionActive;
+    }),
+
+  setBoxSelectionMode: (active) =>
+    set((draft) => {
+      draft.isBoxSelectionActive = active;
+    }),
+
+  setIsolatedSubgraphNodeIds: (ids) =>
+    set((draft) => {
+      draft.isolatedSubgraphNodeIds = ids;
+    }),
+
+  clearMultiSelection: () =>
+    set((draft) => {
+      draft.selectedNodeIds = [];
+      draft.selectedNodeId = "";
+      draft.selectedDialogueLineIndex = null;
+      draft.showAllInspectorLines = false;
     }),
 
   setSelectedDialogueLineIndex: (index) =>

@@ -20,6 +20,7 @@ export function ThemeSettings({
     showPacingHeatmap,
     minimapPannable,
     minimapZoomable,
+    enableLodZooming,
     largeGraphModeOverride,
     visibleEdgeKinds,
     setShowCallReturns,
@@ -28,6 +29,7 @@ export function ThemeSettings({
     setShowPacingHeatmap,
     setMinimapPannable,
     setMinimapZoomable,
+    setEnableLodZooming,
     setLargeGraphModeOverride,
     setEdgeKindVisible,
   } = useViewerStore(
@@ -39,6 +41,7 @@ export function ThemeSettings({
       showPacingHeatmap: s.showPacingHeatmap,
       minimapPannable: s.minimapPannable,
       minimapZoomable: s.minimapZoomable,
+      enableLodZooming: s.enableLodZooming,
       largeGraphModeOverride: s.largeGraphModeOverride,
       visibleEdgeKinds: s.visibleEdgeKinds,
       setShowCallReturns: s.setShowCallReturns,
@@ -47,6 +50,7 @@ export function ThemeSettings({
       setShowPacingHeatmap: s.setShowPacingHeatmap,
       setMinimapPannable: s.setMinimapPannable,
       setMinimapZoomable: s.setMinimapZoomable,
+      setEnableLodZooming: s.setEnableLodZooming,
       setLargeGraphModeOverride: s.setLargeGraphModeOverride,
       setEdgeKindVisible: s.setEdgeKindVisible,
     })),
@@ -177,6 +181,23 @@ export function ThemeSettings({
               )}
             >
               Show pacing heatmap
+            </span>
+          </label>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={enableLodZooming}
+              onChange={(e) => setEnableLodZooming(e.target.checked)}
+              className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
+              aria-label="Enable Level of Detail (LOD) canvas zooming"
+            />
+            <span
+              className={cn(
+                "font-medium",
+                isDark ? "text-slate-300" : "text-gray-700",
+              )}
+            >
+              Level of Detail (LOD) zooming
             </span>
           </label>
           <label className="inline-flex items-center gap-2 cursor-pointer select-none col-span-2">

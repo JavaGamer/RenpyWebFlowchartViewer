@@ -54,6 +54,8 @@ export function useCanvasInteraction({
 
   const {
     setSelectedNodeId,
+    setSelectedNodeIds,
+    clearMultiSelection,
     setSelectedDialogueLineIndex,
     setShowAllInspectorLines,
     setActiveDialogueResultIndex,
@@ -62,6 +64,8 @@ export function useCanvasInteraction({
   } = useViewerStore(
     useShallow((s) => ({
       setSelectedNodeId: s.setSelectedNodeId,
+      setSelectedNodeIds: s.setSelectedNodeIds,
+      clearMultiSelection: s.clearMultiSelection,
       setSelectedDialogueLineIndex: s.setSelectedDialogueLineIndex,
       setShowAllInspectorLines: s.setShowAllInspectorLines,
       setActiveDialogueResultIndex: s.setActiveDialogueResultIndex,
@@ -72,13 +76,23 @@ export function useCanvasInteraction({
 
   const clearSelection = useCallback(() => {
     setSelectedNodeId("");
+    clearMultiSelection();
     setSelectedDialogueLineIndex(null);
     setShowAllInspectorLines(false);
   }, [
     setSelectedNodeId,
+    clearMultiSelection,
     setSelectedDialogueLineIndex,
     setShowAllInspectorLines,
   ]);
+
+  const onSelectionChange = useCallback(
+    ({ nodes }: { nodes: CanvasNode[] }) => {
+      const ids = nodes.map((n) => n.id);
+      setSelectedNodeIds(ids);
+    },
+    [setSelectedNodeIds],
+  );
 
   const onNodeClick = useCallback((_: unknown, node: CanvasNode) => {
     setSelectedNodeId(node.id);
@@ -255,5 +269,6 @@ export function useCanvasInteraction({
     onPaneClick,
     onFocusSelectedNode,
     onSelectDialogueSearchResult,
+    onSelectionChange,
   };
 }

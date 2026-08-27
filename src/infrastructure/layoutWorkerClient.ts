@@ -9,6 +9,7 @@ import type {
   ThemeName,
 } from "../domain/index.ts";
 import type { LayoutWorkerApi } from "./layoutWorker.ts";
+import type { AABB, SpatialItem } from "./spatialIndex.ts";
 
 let worker: Worker | null = null;
 
@@ -97,7 +98,12 @@ export function runLayoutInWorker(
     enableCompoundContainers?: boolean;
     collapsedChapters?: Record<string, boolean>;
   } | undefined,
-  onResult: (result: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => void,
+  onResult: (result: {
+    nodes: CanvasNode[];
+    edges: CanvasEdge[];
+    spatialItems?: SpatialItem[];
+    spatialBounds?: AABB;
+  }) => void,
   onError?: (error: Error) => void,
 ): () => void {
   if (!isWorkerSupported()) {

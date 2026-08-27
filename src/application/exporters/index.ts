@@ -12,3 +12,9 @@ export {
   exportToStoryboard,
   exportToStoryboardWithHydration,
 } from "./storyboardExporter.ts";
+export {
+  downloadWalkthrough,
+  exportWalkthroughToMarkdown,
+  exportWalkthroughToSteamGuide,
+  exportWalkthroughToText,
+} from "./walkthroughExporter.ts";

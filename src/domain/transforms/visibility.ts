@@ -287,6 +287,7 @@ export function buildVisibleEdges(params: {
   previousById?: Map<string, CanvasEdge>;
   selectedCallContextId?: string | null;
   highlightedRouteEdgeIds?: Set<string> | null;
+  theme?: ThemeName;
 }): CanvasEdge[] {
   const {
     edges,
@@ -294,6 +295,7 @@ export function buildVisibleEdges(params: {
     visibleEdgeKinds,
     visibleNodeIds,
     nonHiddenNodeIds,
+    theme = "violet",
     edgeColor,
     decisionColor,
     labelColor,
@@ -411,7 +413,9 @@ export function buildVisibleEdges(params: {
       previousData?.timeout?.durationSeconds ===
         edgeData.timeout?.durationSeconds &&
       previousData?.conditionState === conditionState &&
+      previousData?.theme === theme &&
       previousData?.isBackEdge === edgeData.isBackEdge &&
+      previousData?.isSelfLoop === edgeData.isSelfLoop &&
       previousData?.laneIndex === edgeData.laneIndex &&
       previousData?.svgPath === edgeData.svgPath &&
       previousData?.labelPosition?.x === edgeData.labelPosition?.x &&
@@ -429,7 +433,7 @@ export function buildVisibleEdges(params: {
 
     visible.push({
       ...edge,
-      data: { ...edgeData, label: edgeLabel, kind, conditionState },
+      data: { ...edgeData, label: edgeLabel, kind, conditionState, theme },
       style: {
         ...(edge.style || {}),
         ...unreachableStyle,

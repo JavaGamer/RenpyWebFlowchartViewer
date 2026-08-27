@@ -43,7 +43,9 @@ export {
   CHAPTER_SUMMARY_HEIGHT,
   CHAPTER_SUMMARY_WIDTH,
   type ChapterAggregates,
+  type ClusterBoundingBox,
   computeChapterAggregates,
+  computeClusterBoundingBox,
   extractChapterName,
   getChapterId,
   getLabelHeight,
@@ -56,6 +58,7 @@ export {
   NODE_HEIGHT_LABEL,
   NODE_HEIGHT_MENU,
   NODE_WIDTH,
+  normalizeChildPosition,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   redirectEdgesForCollapsedChapters,
   resolveGraphIntegrity,
@@ -115,6 +118,14 @@ export type {
   StoryRoute,
 } from "./analytics.ts";
 
+export type {
+  RouteSolverHeuristic,
+  RouteSolverOptions,
+  SolvedStep,
+  SolvedStepType,
+  SolvedWalkthrough,
+} from "./analytics/index.ts";
+
 export {
   classifyEndingTypeHeuristic,
   computeChapterPacing,
@@ -125,6 +136,7 @@ export {
   enumerateStoryRoutes,
   generateProjectNarrativeReport,
   identifyPointsOfNoReturn,
+  solveRouteToTarget,
 } from "./analytics/index.ts";
 
 export {

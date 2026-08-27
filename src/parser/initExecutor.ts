@@ -33,10 +33,16 @@ export function processAssignment(
     state.initVariables = new Map();
   }
 
-  // Respect 'default' semantics: do not overwrite if already defined at same or higher priority
+  // Respect 'default' & 'define' semantics: do not overwrite if already defined at same or higher priority
   const existingDesc = state.initVariables.get(variableName);
   if (existingDesc) {
     if (kind === "default" && existingDesc.priority >= priority) {
+      return false;
+    }
+    if (
+      existingDesc.kind === "define" && kind === "python" &&
+      existingDesc.priority >= priority
+    ) {
       return false;
     }
     if (existingDesc.priority > priority) {

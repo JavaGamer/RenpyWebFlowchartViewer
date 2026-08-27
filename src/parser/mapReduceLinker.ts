@@ -507,10 +507,10 @@ export function linkGraphFragments(
         let shouldOverwrite: boolean;
         if (!existing) {
           shouldOverwrite = true;
-        } else if (existing.kind === "define" && desc.kind === "default") {
-          shouldOverwrite = false;
-        } else if (desc.kind === "define" && existing.kind === "default") {
-          shouldOverwrite = true;
+        } else if (existing.kind === "define" && desc.kind !== "define") {
+          shouldOverwrite = desc.priority > existing.priority;
+        } else if (desc.kind === "define" && existing.kind !== "define") {
+          shouldOverwrite = desc.priority >= existing.priority;
         } else if (desc.kind === "default" && existing.kind === "default") {
           shouldOverwrite = desc.priority > existing.priority;
         } else {
