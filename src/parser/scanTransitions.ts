@@ -68,12 +68,18 @@ export function maybeUpdateConditionalState(
     return;
   }
 
+  const rawLine = (lineText ?? "").trim();
+  const tokenVal = getTokenText().trim();
+  const isMatchOrCase = (tokenVal === "match" || tokenVal === "case") &&
+    /^(match|case)\b/.test(rawLine);
+  const isLineMatchOrCase = /^(match|case)\b/.test(rawLine);
+
   if (
     lineNumber !== undefined && scanState.lastConditionalLine === lineNumber
   ) {
     // We are on the same line as the conditional statement keyword itself.
     // Do not pop.
-    if (type !== PARSER_TOKENS.kwConditional) return;
+    if (type !== PARSER_TOKENS.kwConditional && !isMatchOrCase) return;
   }
 
   scanState.pendingConditionalHeader = null;
@@ -102,7 +108,10 @@ export function maybeUpdateConditionalState(
       }
       continue;
     }
-    if (indent === top.indent && type !== PARSER_TOKENS.kwConditional) {
+    if (
+      indent === top.indent && type !== PARSER_TOKENS.kwConditional &&
+      !isLineMatchOrCase
+    ) {
       const popped = scanState.conditionalDecisionStack.pop()!;
       if (
         popped.decisionNodeId &&
@@ -116,17 +125,19 @@ export function maybeUpdateConditionalState(
     break;
   }
 
-  if (type !== PARSER_TOKENS.kwConditional) return;
+  if (type !== PARSER_TOKENS.kwConditional && !isMatchOrCase) return;
   scanState.lastConditionalLine = lineNumber;
   const tokenText = getTokenText();
+  const parsedHeader = parseConditionalHeader(lineText ?? tokenText);
+  if (!parsedHeader) return;
   if (
-    tokenText === "if" || tokenText === "elif" || tokenText === "else" ||
-    tokenText === "while" || tokenText === "for"
+    parsedHeader.kind === "if" || parsedHeader.kind === "elif" ||
+    parsedHeader.kind === "else" || parsedHeader.kind === "while" ||
+    parsedHeader.kind === "for" || parsedHeader.kind === "match" ||
+    parsedHeader.kind === "case"
   ) {
     scanState.conditionalIndentStack.push(indent);
   }
-  const parsedHeader = parseConditionalHeader(lineText ?? tokenText);
-  if (!parsedHeader) return;
   scanState.pendingConditionalHeader = {
     ...parsedHeader,
     indent,
@@ -135,15 +146,15 @@ export function maybeUpdateConditionalState(
 }
 
 /**
- * Extracts the conditional keyword (if, elif, else, while, for) and the evaluated expression
- * from a raw statement line (e.g. "if x == 5:").
+ * Extracts the conditional keyword (if, elif, else, while, for, match, case) and the evaluated expression
+ * from a raw statement line (e.g. "if x == 5:" or "match x:" or "case 'a':").
  */
 function parseConditionalHeader(lineText: string): {
   kind: ConditionalBranchKind;
   expression: string | null;
 } | null {
   const trimmed = lineText.trim();
-  const keywordMatch = /^(if|elif|else|while|for)\b/.exec(trimmed);
+  const keywordMatch = /^(if|elif|else|while|for|match|case)\b/.exec(trimmed);
   if (!keywordMatch) return null;
   const kind = keywordMatch[1] as ConditionalBranchKind;
   const headerColonIndex = findTopLevelHeaderColon(trimmed);

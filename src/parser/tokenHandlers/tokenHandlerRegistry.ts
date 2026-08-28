@@ -397,6 +397,25 @@ export function dispatchToken(
 
   const { type, meta } = input;
 
+  // Handle pending match/case conditional header
+  if (
+    scanState.pendingConditionalHeader &&
+    (scanState.pendingConditionalHeader.kind === "match" ||
+      scanState.pendingConditionalHeader.kind === "case")
+  ) {
+    if (
+      handleConditionalHeader(
+        state,
+        scanState,
+        input.meta,
+        input.menuDepth,
+        input.chapter,
+      )
+    ) {
+      scanState.currentLabelHasContentSinceSceneBoundary = true;
+    }
+  }
+
   // 2. Check label keyword
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     handleKwLabelToken(scanState, input.sourceLocation);
@@ -461,6 +480,12 @@ export function dispatchToken(
 
   // 10. Dialogue string literals
   if (type === PARSER_TOKENS.literalString) {
+    if (
+      scanState.lastConditionalLine === input.lineNum ||
+      /^\s*(?:if|elif|else|while|for|match|case)\b/.test(input.lineText ?? "")
+    ) {
+      return;
+    }
     handleDialogueStringToken(
       state,
       scanState,

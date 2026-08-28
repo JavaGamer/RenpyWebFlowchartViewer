@@ -13,6 +13,7 @@ import {
   type LabeledEdgeType,
 } from "../domain/index.ts";
 import { useViewerLayoutDirection } from "./viewerContext.tsx";
+import { useAppStore, useViewerStore } from "../application/index.ts";
 import { cn } from "./utils/cn.ts";
 
 export const LabeledEdge = memo(function LabeledEdge({
@@ -103,10 +104,47 @@ export const LabeledEdge = memo(function LabeledEdge({
     labelY = ly;
   }
 
+  const activeLanguage = useViewerStore((s) => s.activeLanguage);
+  const translations = useAppStore((s) => s.translations);
+
+  const rawLabel = data?.label;
+  const displayLabel = (rawLabel && activeLanguage &&
+      translations?.translationsByLanguage[activeLanguage]?.strings[rawLabel])
+    ? translations.translationsByLanguage[activeLanguage].strings[rawLabel]!
+    : rawLabel;
+
+  const tooltipParts: string[] = [];
+  if (displayLabel) {
+    tooltipParts.push(displayLabel);
+    if (rawLabel && displayLabel !== rawLabel) {
+      tooltipParts.push(`(Original: ${rawLabel})`);
+    }
+  }
+  if (data?.condition) {
+    const condExpr = typeof data.condition === "object"
+      ? data.condition.expression
+      : String(data.condition);
+    if (condExpr) {
+      tooltipParts.push(`Condition: ${condExpr}`);
+    }
+  }
+  if (data?.conditionState) {
+    tooltipParts.push(`State: ${data.conditionState}`);
+  }
+  if (data?.timeout !== undefined) {
+    const timeoutSec = typeof data.timeout === "object"
+      ? data.timeout.durationSeconds
+      : data.timeout;
+    if (timeoutSec !== undefined) {
+      tooltipParts.push(`Timeout: ${timeoutSec}s`);
+    }
+  }
+  const fullTooltip = tooltipParts.join(" · ");
+
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
-      {data?.label && (
+      {displayLabel && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -114,19 +152,19 @@ export const LabeledEdge = memo(function LabeledEdge({
               transform:
                 `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
-              opacity: data.conditionState === "unreachable" ? 0.45 : 1,
+              opacity: data?.conditionState === "unreachable" ? 0.45 : 1,
             }}
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] max-w-[120px] truncate shadow-sm nodrag nopan border transition-colors duration-200",
+              "rounded px-1.5 py-0.5 text-[10px] max-w-[120px] truncate shadow-sm nodrag nopan border transition-colors duration-200 cursor-help",
               isDark
                 ? "bg-slate-800 border-slate-700 text-slate-200"
                 : isHighContrast
                 ? "bg-white border-2 border-black text-black font-semibold"
                 : "bg-white border-gray-200 text-gray-600",
             )}
-            title={data.label}
+            title={fullTooltip || displayLabel}
           >
-            {data.label}
+            {displayLabel}
           </div>
         </EdgeLabelRenderer>
       )}

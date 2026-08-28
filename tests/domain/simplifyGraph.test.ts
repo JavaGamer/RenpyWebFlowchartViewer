@@ -258,4 +258,141 @@ describe("simplifyGraph", () => {
     expect(edge.condition?.expression).toBe("(flag1) and (flag2)");
     expect(edge.condition?.references).toEqual(["flag1", "flag2"]);
   });
+
+  it("preserves mutations across collapsed linear chains", () => {
+    // A -> B -> C (linear chain eligible for collapsing)
+    const nodes: FlowNode[] = [
+      {
+        id: "nodeA",
+        type: "LABEL",
+        label: "nodeA",
+        dialogueCount: 1,
+        mutations: [
+          {
+            variableName: "affection",
+            operator: "+=",
+            value: 1,
+            rawExpression: "1",
+            nodeId: "nodeA",
+            lineNum: 10,
+          },
+        ],
+      },
+      {
+        id: "nodeB",
+        type: "LABEL",
+        label: "nodeB",
+        dialogueCount: 1,
+        mutations: [
+          {
+            variableName: "gold",
+            operator: "*=",
+            value: 2,
+            rawExpression: "2",
+            nodeId: "nodeB",
+            lineNum: 20,
+          },
+        ],
+      },
+      {
+        id: "nodeC",
+        type: "LABEL",
+        label: "nodeC",
+        dialogueCount: 1,
+        mutations: [
+          {
+            variableName: "has_key",
+            operator: "toggle",
+            value: true,
+            rawExpression: "not has_key",
+            nodeId: "nodeC",
+            lineNum: 30,
+          },
+        ],
+      },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "nodeA", target: "nodeB", kind: "sequence" },
+      { id: "e2", source: "nodeB", target: "nodeC", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      collapseLinearChains: true,
+    });
+
+    expect(result.nodes).toHaveLength(1);
+    const collapsedNode = result.nodes[0];
+    expect(collapsedNode.id).toBe("nodeA");
+    expect(collapsedNode.mutations).toBeDefined();
+    expect(collapsedNode.mutations).toHaveLength(3);
+    expect(
+      collapsedNode.mutations?.some(
+        (m) => m.variableName === "affection" && m.operator === "+=",
+      ),
+    ).toBe(true);
+    expect(
+      collapsedNode.mutations?.some(
+        (m) => m.variableName === "gold" && m.operator === "*=",
+      ),
+    ).toBe(true);
+    expect(
+      collapsedNode.mutations?.some(
+        (m) => m.variableName === "has_key" && m.operator === "toggle",
+      ),
+    ).toBe(true);
+  });
+
+  it("migrates mutations from inlined state toggle nodes to predecessor", () => {
+    const nodes: FlowNode[] = [
+      {
+        id: "start",
+        type: "LABEL",
+        label: "start",
+        dialogueCount: 1,
+      },
+      {
+        id: "toggle_flag",
+        type: "LABEL",
+        label: "toggle_flag",
+        dialogueCount: 0,
+        role: "state_toggle",
+        mutations: [
+          {
+            variableName: "visited_room",
+            operator: "=",
+            value: true,
+            rawExpression: "True",
+            nodeId: "toggle_flag",
+            lineNum: 5,
+          },
+        ],
+      },
+      {
+        id: "end",
+        type: "LABEL",
+        label: "end",
+        dialogueCount: 1,
+      },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "toggle_flag", kind: "sequence" },
+      { id: "e2", source: "toggle_flag", target: "end", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      inlineStateToggles: true,
+    });
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes.map((n) => n.id)).not.toContain("toggle_flag");
+    const startNode = result.nodes.find((n) => n.id === "start");
+    expect(startNode?.mutations).toBeDefined();
+    expect(
+      startNode?.mutations?.some(
+        (m) => m.variableName === "visited_room" && m.value === true,
+      ),
+    ).toBe(true);
+  });
 });

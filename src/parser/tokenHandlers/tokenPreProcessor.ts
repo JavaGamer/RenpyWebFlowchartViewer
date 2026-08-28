@@ -14,7 +14,10 @@ import {
   emitJumpEdge,
   resolveCallContext,
 } from "../handlers/jumpCallHandler.ts";
-import type { SourceLocation } from "../../domain/index.ts";
+import {
+  evaluatePythonAstExpression,
+  type SourceLocation,
+} from "../../domain/index.ts";
 
 export function handlePreTokenLineStatements(
   state: ParseGraphState,
@@ -45,8 +48,58 @@ export function handlePreTokenLineStatements(
     lineNum !== scanState.lastProcessedCustomLineNum
   ) {
     const trimmed = lineText.trim();
+    const callScreenExprMatch = /^call\s+screen\s+expression\s+(.+)$/i.exec(
+      trimmed,
+    );
     const callScreenMatch = /^call\s+screen\s+([A-Za-z0-9_]+)/i.exec(trimmed);
-    if (callScreenMatch) {
+
+    if (callScreenExprMatch) {
+      scanState.lastProcessedCustomLineNum = lineNum;
+      const rawExpr = callScreenExprMatch[1]!.trim();
+      const env: Record<string, unknown> = {};
+      if (state.initVariables) {
+        for (const [k, desc] of state.initVariables.entries()) {
+          env[k] = desc.value;
+        }
+      }
+      if (state.globalLabelVariableLiteralTargets) {
+        for (
+          const [k, v] of state.globalLabelVariableLiteralTargets.entries()
+        ) {
+          env[k] = v;
+        }
+      }
+      if (scanState.labelVariableLiteralTargets) {
+        for (const [k, v] of scanState.labelVariableLiteralTargets.entries()) {
+          env[k] = v;
+        }
+      }
+      const evalRes = evaluatePythonAstExpression(rawExpr, env);
+      const candidates = evalRes.stringCandidates.length > 0
+        ? evalRes.stringCandidates
+        : (evalRes.value ? [String(evalRes.value)] : []);
+      if (candidates.length > 0) {
+        for (const cand of candidates) {
+          handleCallScreenStatement(
+            state,
+            scanState,
+            cand,
+            chapter,
+            lineNum,
+            sourceLocation,
+          );
+        }
+      } else {
+        handleCallScreenStatement(
+          state,
+          scanState,
+          rawExpr,
+          chapter,
+          lineNum,
+          sourceLocation,
+        );
+      }
+    } else if (callScreenMatch) {
       scanState.lastProcessedCustomLineNum = lineNum;
       handleCallScreenStatement(
         state,

@@ -170,6 +170,9 @@ export async function parseFileToFragment(
         state.globalLabelVariableListTargets.set(k, [...v]);
       }
     }
+    if (prePassState.screenDefinitions) {
+      state.screenDefinitions = new Map(prePassState.screenDefinitions);
+    }
   }
 
   const tokenized = await tokenizeOneFile(file, options, fileIndex);

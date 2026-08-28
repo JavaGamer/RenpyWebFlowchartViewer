@@ -2,12 +2,13 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from "react";
-import { BarChart3, Redo, Undo } from "lucide-react";
+import { BarChart3, Languages, Redo, Undo } from "lucide-react";
 import { Tooltip } from "./primitives/index.ts";
 import * as RadixTooltip from "@radix-ui/react-tooltip";
 import {
   type DebugBundlePrivacyOptions,
   type DialogueSearchMode,
+  useAppStore,
   useViewerStore,
 } from "../application/index.ts";
 import type { ThemeName } from "../domain/index.ts";
@@ -122,6 +123,9 @@ export function ViewerToolbar({
   uniqueChapters,
 }: ViewerToolbarProps) {
   const isDark = theme === "dark";
+  const availableLanguages = useAppStore((s) => s.availableLanguages);
+  const activeLanguage = useViewerStore((s) => s.activeLanguage);
+  const setActiveLanguage = useViewerStore((s) => s.setActiveLanguage);
   return (
     <RadixTooltip.Provider>
       <div
@@ -273,6 +277,34 @@ export function ViewerToolbar({
                 Analytics
               </button>
             </Tooltip>
+            {availableLanguages && availableLanguages.length > 0 && (
+              <div className="flex items-center gap-1.5 ml-1">
+                <Languages
+                  size={14}
+                  className={isDark ? "text-violet-400" : "text-violet-600"}
+                  aria-hidden="true"
+                />
+                <select
+                  value={activeLanguage ?? ""}
+                  onChange={(e) => setActiveLanguage(e.target.value || null)}
+                  className={cn(
+                    "text-xs px-2 py-1 rounded border cursor-pointer font-medium transition-colors",
+                    isDark
+                      ? "bg-slate-800 border-slate-700 text-slate-200 focus:border-violet-400"
+                      : "bg-white border-gray-300 text-gray-700 focus:border-violet-500",
+                  )}
+                  aria-label="Select translation language"
+                  title="Switch displayed language overlay"
+                >
+                  <option value="">Original / Base</option>
+                  {availableLanguages.map((lang: string) => (
+                    <option key={lang} value={lang}>
+                      {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <ExportMenu

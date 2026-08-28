@@ -10,6 +10,7 @@ import {
   resolveStaticTargetExpression,
 } from "./handlers/jumpCallHandler.ts";
 import { stripInlineComment } from "./handlers/screen/screenHandlerEntry.ts";
+import { parseScreenDefinition } from "./handlers/screen/screenActionExtractor.ts";
 import type { InitItem } from "./initScanner.ts";
 import {
   getLogicalBodyAndEndLine,
@@ -312,6 +313,19 @@ export function executeInitItemsPass(
     if (item.type === "screen" && item.variableName) {
       if (!state.globalScreens.has(item.variableName)) {
         state.globalScreens.add(item.variableName);
+        stateChanged = true;
+      }
+      if (!state.screenDefinitions) {
+        state.screenDefinitions = new Map();
+      }
+      if (item.body && !state.screenDefinitions.has(item.variableName)) {
+        const screenDef = parseScreenDefinition(
+          item.variableName,
+          item.filePath,
+          item.lineIndex,
+          item.body,
+        );
+        state.screenDefinitions.set(item.variableName, screenDef);
         stateChanged = true;
       }
     } else if (

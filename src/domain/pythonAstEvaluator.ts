@@ -3,6 +3,16 @@ import type { SyntaxNode } from "@lezer/common";
 
 export interface PythonAssignment {
   variable: string;
+  operator?:
+    | "="
+    | "+="
+    | "-="
+    | "*="
+    | "/="
+    | "%="
+    | "//="
+    | "**="
+    | "toggle";
   typeAnnotation?: string;
   valueExpression?: string;
   valueLiteral?: string;
@@ -285,6 +295,15 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
         const allChildren: SyntaxNode[] = [];
         let curr = node.firstChild;
         let assignOpIndex = -1;
+        let detectedOp:
+          | "="
+          | "+="
+          | "-="
+          | "*="
+          | "/="
+          | "%="
+          | "//="
+          | "**=" = "=";
         while (curr) {
           if (
             curr.name === "AssignOp" ||
@@ -292,6 +311,15 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
             curr.name.includes("=")
           ) {
             assignOpIndex = allChildren.length;
+            const opText = extractNodeText(code, curr).trim();
+            if (opText === "+=") detectedOp = "+=";
+            else if (opText === "-=") detectedOp = "-=";
+            else if (opText === "*=") detectedOp = "*=";
+            else if (opText === "/=") detectedOp = "/=";
+            else if (opText === "%=") detectedOp = "%=";
+            else if (opText === "//=") detectedOp = "//=";
+            else if (opText === "**=") detectedOp = "**=";
+            else detectedOp = "=";
           } else if (
             curr.name !== "(" &&
             curr.name !== ")" &&
@@ -345,9 +373,23 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
               const valueLiteral = extractStringLiteral(code, valNode);
               const valueList = extractListLiteral(code, valNode);
               const valueDict = extractDictLiteral(code, valNode);
+              let op:
+                | "="
+                | "+="
+                | "-="
+                | "*="
+                | "/="
+                | "%="
+                | "//="
+                | "**="
+                | "toggle" = detectedOp;
+              if (op === "=" && /^not\s+/.test(valueExpression)) {
+                op = "toggle";
+              }
 
               assignments.push({
                 variable: varName,
+                operator: op,
                 typeAnnotation,
                 valueExpression,
                 valueLiteral,
@@ -364,11 +406,26 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
             const valueList = extractListLiteral(code, lastRhs);
             const valueDict = extractDictLiteral(code, lastRhs);
 
+            let op:
+              | "="
+              | "+="
+              | "-="
+              | "*="
+              | "/="
+              | "%="
+              | "//="
+              | "**="
+              | "toggle" = detectedOp;
+            if (op === "=" && /^not\s+/.test(rawRhsExpr)) {
+              op = "toggle";
+            }
+
             for (const varNode of lhsVars) {
               const variableName = extractNodeText(code, varNode);
               const valueExpression = rawRhsExpr;
               assignments.push({
                 variable: variableName,
+                operator: op,
                 typeAnnotation,
                 valueExpression,
                 valueLiteral,
@@ -775,9 +832,27 @@ export function evaluatePythonAstExpression(
             const aRes = evalNode(alternativeNode);
             if (cRes.ok && typeof cRes.value === "string") {
               stringCandidates.push(cRes.value);
+            } else if (!cRes.ok && consequenceNode) {
+              const cText = extractStringLiteral(trimmed, consequenceNode) ??
+                extractNodeText(trimmed, consequenceNode).trim().replace(
+                  /^["']|["']$/g,
+                  "",
+                );
+              if (cText && /^[A-Za-z_][A-Za-z0-9_]*$/.test(cText)) {
+                stringCandidates.push(cText);
+              }
             }
             if (aRes.ok && typeof aRes.value === "string") {
               stringCandidates.push(aRes.value);
+            } else if (!aRes.ok && alternativeNode) {
+              const aText = extractStringLiteral(trimmed, alternativeNode) ??
+                extractNodeText(trimmed, alternativeNode).trim().replace(
+                  /^["']|["']$/g,
+                  "",
+                );
+              if (aText && /^[A-Za-z_][A-Za-z0-9_]*$/.test(aText)) {
+                stringCandidates.push(aText);
+              }
             }
             return { value: undefined, ok: false };
           }

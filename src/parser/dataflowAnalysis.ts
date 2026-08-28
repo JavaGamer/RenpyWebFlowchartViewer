@@ -1,3 +1,4 @@
+import type { MutationOperator } from "../domain/index.ts";
 import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import {
   evaluatePythonAstExpression,
@@ -37,16 +38,110 @@ export function mergeEnvs(envs: AbstractEnv[]): AbstractEnv {
   return { vars: merged };
 }
 
+function buildEnvSingleMap(
+  env: AbstractEnv,
+  baseMap?: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = baseMap ? { ...baseMap } : {};
+  for (const [k, set] of env.vars.entries()) {
+    if (set.size === 1) {
+      const raw = Array.from(set)[0]!;
+      if (/^-?\d+(?:\.\d+)?$/.test(raw)) {
+        result[k] = Number(raw);
+      } else if (raw === "true" || raw === "True") {
+        result[k] = true;
+      } else if (raw === "false" || raw === "False") {
+        result[k] = false;
+      } else {
+        result[k] = raw;
+      }
+    }
+  }
+  return result;
+}
+
 export function recordAssignmentInEnv(
   env: AbstractEnv,
   variable: string,
   expression: string,
+  operator: MutationOperator = "=",
 ) {
-  const envSingleMap: Record<string, unknown> = {};
-  for (const [k, set] of env.vars.entries()) {
-    if (set.size === 1) {
-      envSingleMap[k] = Array.from(set)[0];
+  if (operator === "toggle") {
+    const existing = env.vars.get(variable);
+    if (existing && existing.size === 1) {
+      const prevBool = Array.from(existing)[0] === "true" ||
+        Array.from(existing)[0] === "True";
+      env.vars.set(variable, new Set([String(!prevBool)]));
+      return;
     }
+    env.vars.delete(variable);
+    return;
+  }
+
+  const envSingleMap = buildEnvSingleMap(env);
+
+  if (
+    operator === "+=" || operator === "-=" || operator === "*=" ||
+    operator === "/=" || operator === "%=" || operator === "//=" ||
+    operator === "**="
+  ) {
+    let rhsNum: number | undefined;
+    const directNum = Number(expression);
+    if (!isNaN(directNum) && expression.trim() !== "") {
+      rhsNum = directNum;
+    } else {
+      const evalRes = evaluatePythonAstExpression(expression, envSingleMap);
+      if (typeof evalRes.value === "number") {
+        rhsNum = evalRes.value;
+      } else if (
+        evalRes.value !== undefined && !isNaN(Number(evalRes.value)) &&
+        String(evalRes.value).trim() !== ""
+      ) {
+        rhsNum = Number(evalRes.value);
+      }
+    }
+
+    if (rhsNum !== undefined && !isNaN(rhsNum)) {
+      const existing = env.vars.get(variable);
+      if (existing && existing.size === 1) {
+        const prevNum = Number(Array.from(existing)[0]);
+        if (!isNaN(prevNum)) {
+          if (
+            (operator === "/=" || operator === "%=" || operator === "//=") &&
+            rhsNum === 0
+          ) {
+            env.vars.delete(variable);
+            return;
+          }
+          let nextVal = prevNum;
+          if (operator === "+=") nextVal = prevNum + rhsNum;
+          else if (operator === "-=") nextVal = prevNum - rhsNum;
+          else if (operator === "*=") nextVal = prevNum * rhsNum;
+          else if (operator === "/=") nextVal = prevNum / rhsNum;
+          else if (operator === "%=") nextVal = prevNum % rhsNum;
+          else if (operator === "//=") nextVal = Math.floor(prevNum / rhsNum);
+          else if (operator === "**=") nextVal = Math.pow(prevNum, rhsNum);
+          env.vars.set(variable, new Set([String(nextVal)]));
+          return;
+        }
+      }
+    }
+
+    if (operator === "+=") {
+      const existing = env.vars.get(variable);
+      if (existing && existing.size === 1) {
+        const prevStr = Array.from(existing)[0]!;
+        const evalRes = evaluatePythonAstExpression(expression, envSingleMap);
+        if (typeof evalRes.value === "string") {
+          env.vars.set(variable, new Set([prevStr + evalRes.value]));
+          return;
+        }
+      }
+    }
+
+    // Indeterminate new value
+    env.vars.delete(variable);
+    return;
   }
 
   const evalRes = evaluatePythonAstExpression(expression, envSingleMap);
@@ -119,23 +214,24 @@ export function resolveDynamicTargetWithDataflow(
     const parsed = parsePythonBlock(blockCode);
     for (const assign of parsed.assignments) {
       if (assign.variable && assign.valueExpression) {
-        recordAssignmentInEnv(env, assign.variable, assign.valueExpression);
+        recordAssignmentInEnv(
+          env,
+          assign.variable,
+          assign.valueExpression,
+          assign.operator,
+        );
       }
     }
   }
 
   // Evaluate target expression against tracked dataflow env
-  const envSingleMap: Record<string, unknown> = {};
+  const initVarsMap: Record<string, unknown> = {};
   if (state?.initVariables) {
     for (const [k, desc] of state.initVariables.entries()) {
-      envSingleMap[k] = desc.value;
+      initVarsMap[k] = desc.value;
     }
   }
-  for (const [k, set] of env.vars.entries()) {
-    if (set.size === 1) {
-      envSingleMap[k] = Array.from(set)[0];
-    }
-  }
+  const envSingleMap = buildEnvSingleMap(env, initVarsMap);
 
   const evalRes = evaluatePythonAstExpression(targetExpression, envSingleMap);
   const results = new Set<string>();
@@ -147,7 +243,8 @@ export function resolveDynamicTargetWithDataflow(
       if (
         state?.canonicalLabelIdByName?.has(candidate) ||
         state?.allLabelIds?.has(candidate) ||
-        state?.nodeMap?.has(candidate)
+        state?.nodeMap?.has(candidate) ||
+        /^[A-Za-z_][A-Za-z0-9_]*$/.test(candidate)
       ) {
         results.add(candidate);
       }

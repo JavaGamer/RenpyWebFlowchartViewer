@@ -77,9 +77,11 @@ export interface ViewerSessionState {
   selectedCallContextId: string | null;
   loadingNodeDetailIds: Set<string>;
   hydratedNodeDetailIds: Set<string>;
+  activeLanguage: string | null;
 }
 
 export interface ViewerActions {
+  setActiveLanguage: (language: string | null) => void;
   fetchNodeDetails: (nodeIds: string[]) => Promise<void>;
   markNodesHydrated: (ids: string[]) => void;
   // Persisted setters

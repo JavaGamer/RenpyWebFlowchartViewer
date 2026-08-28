@@ -11,7 +11,7 @@ import {
   processDirectScreenActionCalls,
 } from "../handlers/screen/screenHandlerEntry.ts";
 import type { ScreenActionKind } from "../../config/parserRules.ts";
-import { parsePythonBlock } from "../../domain/index.ts";
+import { type MutationOperator, parsePythonBlock } from "../../domain/index.ts";
 
 export function parseAndRecordVariableMutation(
   state: ParseGraphState,
@@ -33,9 +33,6 @@ export function parseAndRecordVariableMutation(
       state.nodeMutations.set(targetNodeId, nodeMutList);
     }
 
-    const opMatch = /(?<![<>=!])(\+=|-=|=)(?![=])/.exec(statement);
-    const op = (opMatch ? opMatch[1] : "=") as "=" | "+=" | "-=";
-
     for (const assign of parsed.assignments) {
       const varName = assign.variable;
       const isPersist = varName.startsWith("persistent.");
@@ -52,6 +49,7 @@ export function parseAndRecordVariableMutation(
         }
       }
 
+      const op = assign.operator ?? "=";
       const mutation: VariableMutation = {
         variableName: varName,
         operator: op,
@@ -84,15 +82,19 @@ export function parseAndRecordVariableMutation(
 
   // Fallback regex for augmented assignments or single statement lines
   const assignMatch =
-    /^([A-Za-z_][A-Za-z0-9_.]*)\s*(?<![<>=!])(\+=|-=|=)(?![=])\s*(.*)$/.exec(
-      statement.trim(),
-    );
+    /^([A-Za-z_][A-Za-z0-9_.]*)\s*(?<![<>=!])(\+=|-=|\*=|\/=|%=|\/\/=|\*\*=|=(?![=]))\s*(.*)$/
+      .exec(
+        statement.trim(),
+      );
   if (!assignMatch) return;
 
   const varName = assignMatch[1]!.trim();
-  const op = assignMatch[2]! as "=" | "+=" | "-=";
+  let op = assignMatch[2]! as MutationOperator;
   const rawRhs = assignMatch[3]!.trim();
   const isPersist = varName.startsWith("persistent.");
+  if (op === "=" && /^not\s+/.test(rawRhs)) {
+    op = "toggle";
+  }
 
   const literalVal = extractLiteralTarget(rawRhs);
   let parsedValue: VariableValue = literalVal;

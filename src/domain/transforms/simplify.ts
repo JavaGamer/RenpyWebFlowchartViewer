@@ -7,6 +7,7 @@ import type {
   FlowEdge,
   FlowNode,
   SourceLocation,
+  VariableMutation,
 } from "../graph.ts";
 
 export interface GraphSimplificationOptions {
@@ -196,6 +197,23 @@ function inlineNodes(
             : undefined,
         });
         continue;
+      }
+
+      if (
+        targetNode && targetNode.mutations && targetNode.mutations.length > 0
+      ) {
+        if (!u.mutations) u.mutations = [];
+        for (const m of targetNode.mutations) {
+          if (
+            !u.mutations.some((existing) =>
+              existing.variableName === m.variableName &&
+              existing.operator === m.operator &&
+              existing.rawExpression === m.rawExpression
+            )
+          ) {
+            u.mutations.push(m);
+          }
+        }
       }
 
       const nextEdges = outgoingEdges.get(current.nodeId) || [];
@@ -449,6 +467,8 @@ export function collapseLinearChains(
         }
       }
 
+      const mutations: VariableMutation[] = [...(rootNode.mutations || [])];
+
       for (let i = 1; i < path.length; i++) {
         const node = nodeMap.get(path[i])!;
         dialogueCount += node.dialogueCount;
@@ -467,6 +487,9 @@ export function collapseLinearChains(
             characterDialogue[char].lineCount += stats.lineCount;
             characterDialogue[char].wordCount += stats.wordCount;
           }
+        }
+        if (node.mutations) {
+          mutations.push(...node.mutations);
         }
         if (node.isShadowed) isShadowed = true;
         if (node.isTerminalOutcome) isTerminalOutcome = true;
@@ -498,6 +521,7 @@ export function collapseLinearChains(
           ? collapsedLocations
           : rootNode.collapsedLocations,
         sourceLocation: combinedSourceLocation,
+        mutations: mutations.length > 0 ? mutations : undefined,
         isShadowed,
         isTerminalOutcome,
       });
@@ -550,6 +574,8 @@ export function collapseLinearChains(
         }
       }
 
+      const mutations: VariableMutation[] = [...(rootNode.mutations || [])];
+
       for (let i = 1; i < path.length; i++) {
         const node = nodeMap.get(path[i])!;
         dialogueCount += node.dialogueCount;
@@ -568,6 +594,9 @@ export function collapseLinearChains(
             characterDialogue[char].lineCount += stats.lineCount;
             characterDialogue[char].wordCount += stats.wordCount;
           }
+        }
+        if (node.mutations) {
+          mutations.push(...node.mutations);
         }
         if (node.isShadowed) isShadowed = true;
         if (node.isTerminalOutcome) isTerminalOutcome = true;
@@ -599,6 +628,7 @@ export function collapseLinearChains(
           ? collapsedLocations
           : rootNode.collapsedLocations,
         sourceLocation: combinedSourceLocation,
+        mutations: mutations.length > 0 ? mutations : undefined,
         isShadowed,
         isTerminalOutcome,
       });

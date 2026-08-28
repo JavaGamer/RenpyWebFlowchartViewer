@@ -33,6 +33,8 @@ export interface AppState {
   parseProgress: ParseProgress | null;
   importRevision: number;
   dialogueSearchMode: DialogueSearchMode;
+  translations: import("../domain/index.ts").ProjectTranslations | null;
+  availableLanguages: string[];
 }
 
 export interface AppActions {
@@ -59,6 +61,10 @@ export interface AppActions {
     nodes: FlowNode[],
     edges: FlowEdge[],
     diagnostics?: ParseDiagnosticPayload[],
+    translations?: import("../domain/index.ts").ProjectTranslations | null,
+  ) => void;
+  setTranslations: (
+    translations: import("../domain/index.ts").ProjectTranslations | null,
   ) => void;
   setDialogueSearchMode: (mode: DialogueSearchMode) => void;
   fail: (message: string) => void;

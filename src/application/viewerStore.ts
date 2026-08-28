@@ -68,6 +68,7 @@ function createFreshSessionState(): ViewerSessionState & AnalyticsSliceState {
     mockFlags: createEmptyMockFlags(),
     loadingNodeDetailIds: new Set<string>(),
     hydratedNodeDetailIds: new Set<string>(),
+    activeLanguage: null,
     ...initialAnalyticsState,
     customEndingTags: {},
     cachedAnalyticsReport: null,
@@ -262,6 +263,13 @@ export const useViewerStore = create<ViewerStore>()(
         ...createSelectionSlice(set, get, api),
         ...createSimulationSlice(set, get, api),
         ...createAnalyticsSlice(set, get, api),
+
+        activeLanguage: null,
+        setActiveLanguage: (language: string | null) => {
+          set((draft) => {
+            draft.activeLanguage = language;
+          });
+        },
 
         // ── Reset ─────────────────────────────────────────────────────────────
         resetSession: () => {

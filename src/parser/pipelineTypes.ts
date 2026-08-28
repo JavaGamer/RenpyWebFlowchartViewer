@@ -6,7 +6,11 @@ import type {
   FlowAsset,
   FlowEdge,
   FlowNode,
+  LanguageTranslationData,
+  MutationOperator,
+  ProjectTranslations,
   SourceLocation,
+  VariableMutation,
 } from "../domain/index.ts";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
@@ -172,14 +176,40 @@ export interface InitVariableDescriptor {
   isPersistent: boolean;
 }
 
-export interface VariableMutation {
-  variableName: string;
-  operator: "=" | "+=" | "-=" | "toggle";
-  value: VariableValue;
-  rawExpression: string;
-  nodeId: string;
-  lineNum: number;
-  isPersistent: boolean;
+export type {
+  LanguageTranslationData,
+  MutationOperator,
+  ProjectTranslations,
+  VariableMutation,
+};
+
+export interface ScreenActionTarget {
+  construct:
+    | "jump"
+    | "call"
+    | "set_variable"
+    | "toggle_variable"
+    | "show_menu"
+    | "return"
+    | "null_action";
+  targetExpression: string;
+  target?: string;
+  caption?: string;
+  timeout?: FlowEdge["timeout"];
+  conditionExpression?: string;
+  variableName?: string;
+  variableValue?: VariableValue;
+}
+
+export interface ScreenDefinition {
+  name: string;
+  parameters?: string[];
+  filePath: string;
+  lineIndex: number;
+  rawBody: string;
+  actions: ScreenActionTarget[];
+  hasReturnAction: boolean;
+  isEngineChoiceScreen: boolean;
 }
 
 export interface PathVariableState {
@@ -280,6 +310,9 @@ export interface ParseGraphState {
     sourceId?: string;
     sourceLocation?: SourceLocation;
   }>;
+  screenDefinitions?: Map<string, ScreenDefinition>;
+  translations?: ProjectTranslations;
+  availableLanguages?: string[];
 }
 
 export interface ParseResult {
@@ -289,6 +322,9 @@ export interface ParseResult {
   diagnostics?: ParseDiagnostic[];
   initVariables?: Map<string, InitVariableDescriptor>;
   nodeMutations?: Map<string, VariableMutation[]>;
+  screenDefinitions?: Map<string, ScreenDefinition>;
+  translations?: ProjectTranslations;
+  availableLanguages?: string[];
 }
 
 export interface ParseProgress {

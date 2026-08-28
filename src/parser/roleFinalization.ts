@@ -51,6 +51,15 @@ export function finalizeRoles(state: ParseGraphState) {
   normalizeGraphState(state);
   emitShadowedTargetResolutionDiagnostics(state);
 
+  if (state.nodeMutations && state.nodeMutations.size > 0) {
+    for (const node of state.nodes) {
+      const muts = state.nodeMutations.get(node.id);
+      if (muts && muts.length > 0) {
+        node.mutations = muts;
+      }
+    }
+  }
+
   for (const node of state.nodes) {
     node.role = classifyNodeRole(state, node);
     if (node.type !== "LABEL") {

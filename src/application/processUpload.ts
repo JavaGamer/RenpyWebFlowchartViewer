@@ -11,6 +11,7 @@ import {
   compareDeterministicStrings,
   type FlowEdge,
   type FlowNode,
+  type ProjectTranslations,
   UploadValidationError,
 } from "../domain/index.ts";
 import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
@@ -188,6 +189,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     let parsedNodes: FlowNode[] = [];
     let parsedEdges: FlowEdge[] = [];
     let parsedDiagnostics: ParseDiagnosticPayload[] = [];
+    let parsedTranslations: ProjectTranslations | null = null;
     let hasStartedParsing = false;
 
     try {
@@ -340,6 +342,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             parsedNodes = result.nodes;
             parsedEdges = result.edges;
             parsedDiagnostics = result.diagnostics ?? parsedDiagnostics;
+            if (result.translations) {
+              parsedTranslations = result.translations;
+            }
             parsedFileCount += parseChunk.length;
             if (!shouldUseChunking) {
               actions.partialParseSuccess(
@@ -379,6 +384,15 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       edgeCount: parsedEdges.length,
     });
     useViewerStore.getState().resetSession();
-    actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
+    if (parsedTranslations) {
+      actions.parseSuccess(
+        parsedNodes,
+        parsedEdges,
+        parsedDiagnostics,
+        parsedTranslations,
+      );
+    } else {
+      actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
+    }
   };
 }

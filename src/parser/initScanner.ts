@@ -327,18 +327,22 @@ export function scanInitItemsFromFiles(
         continue;
       }
 
-      // 2. Detect python early
-      const pythonEarlyMatch = /^python\s+early\s*:(.*)$/i.exec(trimmed);
+      // 2. Detect python early variants (e.g. python early:, python early -10:, init python early:, init -10 python early:)
+      const pythonEarlyMatch =
+        /^(?:init(?:\s+([+-]?\d+))?\s+)?(?:python\s+early|early\s+python)(?:\s+([+-]?\d+))?\s*:(.*)$/i
+          .exec(trimmed);
       if (pythonEarlyMatch) {
+        const explicitPriority = pythonEarlyMatch[2] ?? pythonEarlyMatch[1];
+        const offset = explicitPriority ? parseInt(explicitPriority, 10) : 0;
         const { body, endLineIndex } = getLogicalBodyAndEndLine(
           lines,
           idx,
-          pythonEarlyMatch[1],
+          pythonEarlyMatch[3],
         );
         items.push({
           type: "python_block",
           kind: "python",
-          priority: -10000,
+          priority: -50000 + offset,
           filePath,
           lineIndex: idx,
           body,
@@ -489,9 +493,17 @@ export function scanInitItemsFromFiles(
       }
 
       // 6. Detect screen definitions
-      const screenMatch = /^screen\s+([A-Za-z_][A-Za-z0-9_]*)/i.exec(trimmed);
+      const screenMatch =
+        /^screen\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s*\((.*?)\))?\s*:(.*)$/i.exec(
+          trimmed,
+        );
       if (screenMatch) {
         const screenName = screenMatch[1].trim();
+        const { body, endLineIndex } = getLogicalBodyAndEndLine(
+          lines,
+          idx,
+          screenMatch[3],
+        );
         items.push({
           type: "screen",
           kind: "define",
@@ -499,7 +511,10 @@ export function scanInitItemsFromFiles(
           filePath,
           lineIndex: idx,
           variableName: screenName,
+          body,
         });
+        idx = endLineIndex + 1;
+        continue;
       }
 
       // 7. Detect image definitions

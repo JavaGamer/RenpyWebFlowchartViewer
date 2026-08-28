@@ -9,6 +9,7 @@ import { compareFiles, createPerfTracker } from "../domain/index.ts";
 import { createGraphState } from "./pipelineState.ts";
 import { preParseInitialization } from "./initMapper.ts";
 import { linkGraphFragments, parseFileToFragment } from "./mapReduceLinker.ts";
+import { RENPY_TL_PATH_REGEX, scanTranslations } from "./translationScanner.ts";
 import type {
   ParseInputFile,
   ParseOptions,
@@ -72,6 +73,7 @@ export async function parseRenpyFiles(
   ]);
 
   const scriptFiles: typeof normalizedFiles = [];
+  const translationFiles: typeof normalizedFiles = [];
   const discoveredMediaFiles: string[] = [];
 
   for (const file of normalizedFiles) {
@@ -81,9 +83,17 @@ export async function parseRenpyFiles(
     const ext = dotIdx !== -1 ? lower.slice(dotIdx) : "";
     if (mediaFileExtensions.has(ext)) {
       discoveredMediaFiles.push(rawPath);
+    } else if (RENPY_TL_PATH_REGEX.test(rawPath)) {
+      translationFiles.push(file);
     } else {
       scriptFiles.push(file);
     }
+  }
+
+  if (translationFiles.length > 0) {
+    const projectTrans = scanTranslations(translationFiles);
+    state.translations = projectTrans;
+    state.availableLanguages = projectTrans.availableLanguages;
   }
 
   if (options.projectMediaFiles) {
@@ -164,5 +174,9 @@ export async function parseRenpyFiles(
     ...(hasNodeMutations ? { nodeMutations: state.nodeMutations } : {}),
     ...(hasAssets ? { assets: state.assets } : {}),
     ...(hasDiagnostics ? { diagnostics: state.diagnostics } : {}),
+    ...(state.translations ? { translations: state.translations } : {}),
+    ...(state.availableLanguages
+      ? { availableLanguages: state.availableLanguages }
+      : {}),
   };
 }

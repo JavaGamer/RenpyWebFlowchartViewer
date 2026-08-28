@@ -15,7 +15,14 @@ export type NodeRole =
   | "for_loop"
   | "screen_call";
 export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
-export type ConditionBranchKind = "if" | "elif" | "else" | "while" | "for";
+export type ConditionBranchKind =
+  | "if"
+  | "elif"
+  | "else"
+  | "while"
+  | "for"
+  | "match"
+  | "case";
 
 export interface LabelParameter {
   name: string;
@@ -124,6 +131,41 @@ export interface FlowNode {
   sourceLocation?: SourceLocation;
   /** Declared parameters for parameterized label definitions. */
   parameters?: LabelParameter[];
+  /** Variable state mutations executed within this node block. */
+  mutations?: VariableMutation[];
+}
+
+export type MutationOperator =
+  | "="
+  | "+="
+  | "-="
+  | "*="
+  | "/="
+  | "%="
+  | "//="
+  | "**="
+  | "toggle";
+
+export interface VariableMutation {
+  variableName: string;
+  operator: MutationOperator;
+  value: string | number | boolean | null;
+  rawExpression: string;
+  nodeId: string;
+  lineNum: number;
+  isPersistent: boolean;
+}
+
+export interface LanguageTranslationData {
+  language: string;
+  strings: Record<string, string>;
+  dialogueByNodeId: Record<string, string[]>;
+  dialogueByLabel?: Record<string, string[]>;
+}
+
+export interface ProjectTranslations {
+  availableLanguages: string[];
+  translationsByLanguage: Record<string, LanguageTranslationData>;
 }
 
 export interface CallContext {

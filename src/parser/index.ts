@@ -42,4 +42,5 @@ export type {
   VariableMutation,
   VariableValue,
 } from "./pipelineTypes.ts";
+export { RENPY_TL_PATH_REGEX, scanTranslations } from "./translationScanner.ts";
 export * from "./workerProtocol.ts";

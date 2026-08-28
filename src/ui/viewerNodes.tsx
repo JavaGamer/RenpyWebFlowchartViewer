@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import {
   CHAPTER_SUMMARY_HEIGHT,
@@ -11,7 +11,7 @@ import {
   NODE_HEIGHT_MENU,
 } from "../domain/index.ts";
 import { THEMES } from "./viewerTheme.ts";
-import { useViewerStore } from "../application/index.ts";
+import { useAppStore, useViewerStore } from "../application/index.ts";
 import {
   ChevronDown,
   ChevronRight,
@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Mic as MicIcon,
   Music as MusicIcon,
+  SlidersHorizontal,
   Sparkles,
   Volume2 as Volume2Icon,
 } from "lucide-react";
@@ -92,6 +93,14 @@ export const LabelNodeComponent = memo(
         customBg = isDark ? "#022c22" : "#d1fadf";
       }
     }
+
+    const activeLanguage = useViewerStore((s) => s.activeLanguage);
+    const translations = useAppStore((s) => s.translations);
+    const displayLabel = useMemo(() => {
+      if (!activeLanguage || !translations) return data.label;
+      const langData = translations.translationsByLanguage[activeLanguage];
+      return langData?.strings[data.label] ?? data.label;
+    }, [activeLanguage, translations, data.label]);
 
     const targetPosition = layoutDirection === "LR"
       ? Position.Left
@@ -368,6 +377,33 @@ export const LabelNodeComponent = memo(
                 +{data.collapsedLabels.length} labels
               </span>
             )}
+            {data.mutations && data.mutations.length > 0 && (
+              <span
+                className={cn(
+                  "text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border flex items-center gap-1 cursor-help",
+                  isDark
+                    ? "bg-cyan-950/60 border-cyan-800/80 text-cyan-300"
+                    : "bg-cyan-50 border-cyan-200 text-cyan-800",
+                )}
+                title={data.mutations
+                  .map(
+                    (m) =>
+                      `${
+                        m.isPersistent &&
+                          !m.variableName.startsWith("persistent.")
+                          ? "persistent."
+                          : ""
+                      }${m.variableName} ${m.operator} ${m.rawExpression}`,
+                  )
+                  .join("\n")}
+              >
+                <SlidersHorizontal size={10} aria-hidden="true" />
+                <span>
+                  {data.mutations.length}{" "}
+                  {data.mutations.length === 1 ? "var" : "vars"}
+                </span>
+              </span>
+            )}
           </div>
         </div>
         <div
@@ -375,8 +411,8 @@ export const LabelNodeComponent = memo(
           style={{ color: theme.labelText, opacity: isShadowed ? 0.8 : 1 }}
         >
           {searchInput
-            ? renderHighlightedText(data.label, searchInput)
-            : data.label}
+            ? renderHighlightedText(displayLabel, searchInput)
+            : displayLabel}
         </div>
         {isShadowed && data.shadowOfId && (
           <div className="mt-1 text-[10px]" style={{ color: theme.labelTitle }}>
@@ -533,6 +569,14 @@ export const MenuNodeComponent = memo(
     const sourcePosition = layoutDirection === "LR"
       ? Position.Right
       : Position.Bottom;
+    const activeLanguage = useViewerStore((s) => s.activeLanguage);
+    const translations = useAppStore((s) => s.translations);
+    const displayLabel = (activeLanguage &&
+        translations?.translationsByLanguage[activeLanguage]?.strings[
+          data.label
+        ])
+      ? translations.translationsByLanguage[activeLanguage].strings[data.label]!
+      : data.label;
 
     const isLod = useIsLodMode();
 
@@ -544,7 +588,7 @@ export const MenuNodeComponent = memo(
             isRouteHighlighted && "scale-[1.02] z-20",
           )}
           style={{ minHeight: `${NODE_HEIGHT_MENU}px` }}
-          title={`Menu: ${data.label}`}
+          title={`Menu: ${displayLabel}`}
         >
           {/* Target Anchors */}
           <Handle
@@ -579,24 +623,10 @@ export const MenuNodeComponent = memo(
             position={Position.Right}
             className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
           />
-
-          {/* LOD Pill Body */}
-          <div
-            className={cn(
-              "w-[180px] h-[28px] px-3 rounded-full border-2 shadow-xs flex items-center justify-between overflow-hidden",
-              isRouteHighlighted && "ring-2 ring-violet-500 shadow-md",
-            )}
-            style={{
-              borderColor: isRouteHighlighted
-                ? (isDark ? "#a78bfa" : "#7c3aed")
-                : theme.menuBorder,
-              backgroundColor: theme.menuBg,
-              opacity: isRouteDimmed ? 0.2 : 1,
-            }}
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
+          <div className="flex items-center justify-between w-full px-2">
+            <div className="flex items-center gap-1 min-w-0">
+              <div
+                className="w-2 h-2 rounded-full shrink-0"
                 style={{ backgroundColor: theme.menuTitle }}
               />
               <span
@@ -604,8 +634,8 @@ export const MenuNodeComponent = memo(
                 style={{ color: theme.menuText }}
               >
                 {searchInput
-                  ? renderHighlightedText(data.label, searchInput)
-                  : data.label}
+                  ? renderHighlightedText(displayLabel, searchInput)
+                  : displayLabel}
               </span>
             </div>
             {routeStepIndex !== undefined && (
@@ -703,11 +733,40 @@ export const MenuNodeComponent = memo(
           className="!opacity-0 !pointer-events-none !border-none !bg-transparent !w-2 !h-2"
         />
         <div className="flex items-center justify-between gap-2 mb-1">
-          <div
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: theme.menuTitle }}
-          >
-            Menu
+          <div className="flex items-center gap-1.5">
+            <div
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: theme.menuTitle }}
+            >
+              Menu
+            </div>
+            {data.mutations && data.mutations.length > 0 && (
+              <span
+                className={cn(
+                  "text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border flex items-center gap-1 cursor-help",
+                  isDark
+                    ? "bg-cyan-950/60 border-cyan-800/80 text-cyan-300"
+                    : "bg-cyan-50 border-cyan-200 text-cyan-800",
+                )}
+                title={data.mutations
+                  .map(
+                    (m) =>
+                      `${
+                        m.isPersistent &&
+                          !m.variableName.startsWith("persistent.")
+                          ? "persistent."
+                          : ""
+                      }${m.variableName} ${m.operator} ${m.rawExpression}`,
+                  )
+                  .join("\n")}
+              >
+                <SlidersHorizontal size={10} aria-hidden="true" />
+                <span>
+                  {data.mutations.length}{" "}
+                  {data.mutations.length === 1 ? "var" : "vars"}
+                </span>
+              </span>
+            )}
           </div>
           {routeStepIndex !== undefined && (
             <span
@@ -723,8 +782,8 @@ export const MenuNodeComponent = memo(
           style={{ color: theme.menuText }}
         >
           {searchInput
-            ? renderHighlightedText(data.label, searchInput)
-            : data.label}
+            ? renderHighlightedText(displayLabel, searchInput)
+            : displayLabel}
         </div>
         {data.dialogueCount > 0 && (
           <div className="mt-1 text-xs" style={{ color: theme.menuTitle }}>

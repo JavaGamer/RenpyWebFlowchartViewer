@@ -669,6 +669,42 @@ function propagateVariableMutationsAndEvaluateConditions(
             ? raw
             : (!isNaN(Number(raw)) ? Number(raw) : 0);
           store.set(mut.variableName, prev - mut.value);
+        } else if (mut.operator === "*=" && typeof mut.value === "number") {
+          const raw = store.get(mut.variableName);
+          const prev = typeof raw === "number"
+            ? raw
+            : (!isNaN(Number(raw)) ? Number(raw) : 0);
+          store.set(mut.variableName, prev * mut.value);
+        } else if (mut.operator === "/=" && typeof mut.value === "number") {
+          if (mut.value !== 0) {
+            const raw = store.get(mut.variableName);
+            const prev = typeof raw === "number"
+              ? raw
+              : (!isNaN(Number(raw)) ? Number(raw) : 0);
+            store.set(mut.variableName, prev / mut.value);
+          }
+        } else if (mut.operator === "%=" && typeof mut.value === "number") {
+          if (mut.value !== 0) {
+            const raw = store.get(mut.variableName);
+            const prev = typeof raw === "number"
+              ? raw
+              : (!isNaN(Number(raw)) ? Number(raw) : 0);
+            store.set(mut.variableName, prev % mut.value);
+          }
+        } else if (mut.operator === "//=" && typeof mut.value === "number") {
+          if (mut.value !== 0) {
+            const raw = store.get(mut.variableName);
+            const prev = typeof raw === "number"
+              ? raw
+              : (!isNaN(Number(raw)) ? Number(raw) : 0);
+            store.set(mut.variableName, Math.floor(prev / mut.value));
+          }
+        } else if (mut.operator === "**=" && typeof mut.value === "number") {
+          const raw = store.get(mut.variableName);
+          const prev = typeof raw === "number"
+            ? raw
+            : (!isNaN(Number(raw)) ? Number(raw) : 0);
+          store.set(mut.variableName, Math.pow(prev, mut.value));
         } else if (mut.operator === "toggle") {
           const raw = store.get(mut.variableName);
           const currentBool = raw === true || raw === "true" || raw === "True";

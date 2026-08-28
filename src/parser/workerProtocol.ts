@@ -3,6 +3,7 @@ import type {
   FlowAsset,
   FlowEdge,
   FlowNode,
+  ProjectTranslations,
   SourceLocation,
 } from "../domain/index.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
@@ -10,6 +11,7 @@ import type {
   InitVariableDescriptor,
   ParseInputFile,
   PendingCallReturn,
+  ScreenDefinition,
   VariableMutation,
   VariableValue,
 } from "./pipelineTypes.ts";
@@ -57,6 +59,8 @@ export interface ParseWorkerClientResult {
   nodes: FlowNode[];
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
+  translations?: ProjectTranslations;
+  availableLanguages?: string[];
 }
 
 export interface ParseRequestMessage {
@@ -198,6 +202,9 @@ export interface FinalizeRequestMessage {
     sourceId?: string;
     sourceLocation?: SourceLocation;
   }>;
+  translations?: ProjectTranslations;
+  availableLanguages?: string[];
+  screenDefinitions?: Array<[string, ScreenDefinition]>;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -398,6 +405,8 @@ export interface ChunkResultResponseMessage {
     sourceId?: string;
     sourceLocation?: SourceLocation;
   }>;
+  translations?: ProjectTranslations;
+  availableLanguages?: string[];
   elapsedMs?: number;
 }
 
@@ -425,6 +434,8 @@ export interface FinalizeResponseMessage {
   nodes: FlowNode[];
   edges: FlowEdge[];
   diagnostics?: ParseDiagnosticPayload[];
+  translations?: ProjectTranslations;
+  availableLanguages?: string[];
   elapsedMs?: number;
   partial?: boolean;
 }

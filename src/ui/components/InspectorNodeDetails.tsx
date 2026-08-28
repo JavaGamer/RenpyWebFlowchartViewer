@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useRef } from "react";
-import { useViewerStore } from "../../application/index.ts";
+import { useAppStore, useViewerStore } from "../../application/index.ts";
 import {
   Compass,
+  Globe,
   Image as ImageIcon,
   Mic as MicIcon,
   Music as MusicIcon,
   PhoneCall,
+  SlidersHorizontal,
   Volume2 as Volume2Icon,
   VolumeX as VolumeXIcon,
 } from "lucide-react";
@@ -13,7 +15,12 @@ import {
 import { cn } from "../utils/cn.ts";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { renderHighlightedText } from "../viewerText.tsx";
-import type { FlowEdge, NodeData } from "../../domain/index.ts";
+import type {
+  AudioAssetCue,
+  FlowEdge,
+  NodeData,
+  VariableMutation,
+} from "../../domain/index.ts";
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../../config/viewerConfig.ts";
 import {
   calculateReadingTimeSeconds,
@@ -104,7 +111,7 @@ function CallOriginsSection({
 }
 
 function renderCueItem(
-  cue: import("../../domain/graph.ts").AudioAssetCue,
+  cue: AudioAssetCue,
   theme: string,
   effectiveSearch: string,
 ) {
@@ -244,6 +251,67 @@ interface InspectorNodeDetailsProps {
   onSolveRoute?: (nodeId: string) => void;
 }
 
+function StateMutationsSection({
+  mutations,
+  isDark,
+}: {
+  mutations?: VariableMutation[];
+  isDark: boolean;
+}) {
+  if (!mutations || mutations.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "text-xs space-y-1.5 mt-2 pt-2 border-t",
+        isDark ? "border-slate-800" : "border-gray-100",
+      )}
+    >
+      <div
+        className={cn(
+          "font-semibold flex items-center gap-1.5",
+          isDark ? "text-slate-300" : "text-gray-700",
+        )}
+      >
+        <SlidersHorizontal size={12} className="text-cyan-500 shrink-0" />
+        State Mutations ({mutations.length})
+      </div>
+      <div className="space-y-1 max-h-36 overflow-y-auto pr-1 font-mono">
+        {mutations.map((m, idx) => (
+          <div
+            key={`${m.variableName}-${idx}`}
+            className={cn(
+              "flex items-center justify-between text-[11px] px-2 py-1 rounded border",
+              isDark
+                ? "bg-cyan-950/30 border-cyan-800/60 text-cyan-200"
+                : "bg-cyan-50/60 border-cyan-200 text-cyan-900",
+            )}
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              {m.isPersistent && (
+                <span
+                  className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-sans font-semibold shrink-0"
+                  title="Persistent variable"
+                >
+                  persist
+                </span>
+              )}
+              <span className="font-semibold">{m.variableName}</span>
+              <span className="text-cyan-500 font-bold">{m.operator}</span>
+              <span className="truncate opacity-90">{m.rawExpression}</span>
+            </div>
+            {m.lineNum !== undefined && (
+              <span className="text-[9px] opacity-60 font-sans shrink-0 ml-1">
+                L{m.lineNum}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* eslint-disable react-hooks/incompatible-library */
 export function InspectorNodeDetails({
   selectedNodeData,
@@ -261,9 +329,26 @@ export function InspectorNodeDetails({
   onSolveRoute,
 }: InspectorNodeDetailsProps) {
   const inspectorLinesScrollRef = useRef<HTMLDivElement | null>(null);
+  const activeLanguage = useViewerStore((s) => s.activeLanguage);
+  const translations = useAppStore((s) => s.translations);
+
+  const localizedLines = useMemo(() => {
+    if (!activeLanguage || !translations) return null;
+    const langData = translations.translationsByLanguage[activeLanguage];
+    if (!langData) return null;
+    if (langData.dialogueByNodeId[selectedNodeId]) {
+      return langData.dialogueByNodeId[selectedNodeId];
+    }
+    if (langData.dialogueByLabel?.[selectedNodeData.label]) {
+      return langData.dialogueByLabel[selectedNodeData.label];
+    }
+    return null;
+  }, [activeLanguage, translations, selectedNodeId, selectedNodeData.label]);
 
   const interleavedLines = useMemo(() => {
-    const dialogueLines = selectedNodeData.dialogueLines ?? [];
+    const dialogueLines: string[] = localizedLines ??
+      selectedNodeData.dialogueLines ??
+      [];
     const dialogueLineNums = selectedNodeData.dialogueLineNums ?? [];
     const cues = selectedNodeData.audioAssetCues ?? [];
 
@@ -271,11 +356,14 @@ export function InspectorNodeDetails({
       ? dialogueLines.length
       : INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT;
 
-    const visibleDialogueLines = dialogueLines.slice(0, maxDialogueIdx);
+    const visibleDialogueLines: string[] = dialogueLines.slice(
+      0,
+      maxDialogueIdx,
+    );
     const visibleDialogueLineNums = dialogueLineNums.slice(0, maxDialogueIdx);
 
     if (!showMediaCuesInDialogue) {
-      return visibleDialogueLines.map((line, idx) => ({
+      return visibleDialogueLines.map((line: string, idx: number) => ({
         type: "dialogue" as const,
         lineNum: visibleDialogueLineNums[idx] ?? idx,
         dialogueText: line,
@@ -288,10 +376,10 @@ export function InspectorNodeDetails({
       lineNum: number;
       dialogueText?: string;
       dialogueIndex?: number;
-      cue?: import("../../domain/graph.ts").AudioAssetCue;
+      cue?: AudioAssetCue;
     }> = [];
 
-    visibleDialogueLines.forEach((line, idx) => {
+    visibleDialogueLines.forEach((line: string, idx: number) => {
       items.push({
         type: "dialogue",
         lineNum: visibleDialogueLineNums[idx] ?? idx * 10,
@@ -328,7 +416,12 @@ export function InspectorNodeDetails({
     });
 
     return items;
-  }, [selectedNodeData, showMediaCuesInDialogue, showAllInspectorLines]);
+  }, [
+    selectedNodeData,
+    showMediaCuesInDialogue,
+    showAllInspectorLines,
+    localizedLines,
+  ]);
 
   const shouldVirtualizeInspectorLines = interleavedLines.length > 120;
 
@@ -500,6 +593,11 @@ export function InspectorNodeDetails({
         isDark={isDark}
       />
 
+      <StateMutationsSection
+        mutations={selectedNodeData.mutations}
+        isDark={isDark}
+      />
+
       {!showMediaCuesInDialogue && selectedNodeData.audioAssetCues &&
         selectedNodeData.audioAssetCues.length > 0 && (
         <div
@@ -527,7 +625,23 @@ export function InspectorNodeDetails({
       )}
 
       <div className="flex items-center justify-between border-t pt-2 mt-2">
-        <div className="text-xs font-semibold">Dialogue</div>
+        <div className="flex items-center gap-1.5">
+          <div className="text-xs font-semibold">Dialogue</div>
+          {localizedLines && (
+            <span
+              className={cn(
+                "text-[10px] font-medium px-1.5 py-0.2 rounded border flex items-center gap-1",
+                isDark
+                  ? "bg-violet-950/60 border-violet-800 text-violet-300"
+                  : "bg-violet-50 border-violet-200 text-violet-700",
+              )}
+              title={`Showing ${activeLanguage} translation`}
+            >
+              <Globe size={10} />
+              <span>{activeLanguage}</span>
+            </span>
+          )}
+        </div>
         <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-[11px]">
           <input
             type="checkbox"
@@ -625,43 +739,45 @@ export function InspectorNodeDetails({
           )
           : (
             <div className="space-y-1">
-              {interleavedLines.map((item, idx) => {
-                if (item.type === "cue") {
+              {interleavedLines.map(
+                (item: (typeof interleavedLines)[number], idx: number) => {
+                  if (item.type === "cue") {
+                    return (
+                      <div
+                        key={`${selectedNodeId}-cue-${idx}`}
+                        className="py-0.5"
+                      >
+                        {renderCueItem(item.cue!, theme, effectiveSearch)}
+                      </div>
+                    );
+                  }
+
+                  const line = item.dialogueText ?? "";
+                  const absoluteIndex = item.dialogueIndex!;
+                  const isSelectedLine =
+                    selectedDialogueLineIndex === absoluteIndex;
                   return (
                     <div
-                      key={`${selectedNodeId}-cue-${idx}`}
-                      className="py-0.5"
+                      key={`${selectedNodeId}-line-${idx}`}
+                      className={cn(
+                        "text-xs border rounded px-2 py-1 transition-colors",
+                        isDark
+                          ? isSelectedLine
+                            ? "border-violet-500 bg-violet-950/50 text-violet-200"
+                            : "border-slate-800 bg-slate-800/10 text-slate-300"
+                          : isSelectedLine
+                          ? "border-violet-400 bg-violet-50 text-violet-900"
+                          : "border-gray-200 bg-white text-gray-800",
+                      )}
                     >
-                      {renderCueItem(item.cue!, theme, effectiveSearch)}
+                      <span className="font-medium mr-1">
+                        {absoluteIndex}.
+                      </span>
+                      {renderHighlightedText(line, effectiveSearch)}
                     </div>
                   );
-                }
-
-                const line = item.dialogueText ?? "";
-                const absoluteIndex = item.dialogueIndex!;
-                const isSelectedLine =
-                  selectedDialogueLineIndex === absoluteIndex;
-                return (
-                  <div
-                    key={`${selectedNodeId}-line-${idx}`}
-                    className={cn(
-                      "text-xs border rounded px-2 py-1 transition-colors",
-                      isDark
-                        ? isSelectedLine
-                          ? "border-violet-500 bg-violet-950/50 text-violet-200"
-                          : "border-slate-800 bg-slate-800/10 text-slate-300"
-                        : isSelectedLine
-                        ? "border-violet-400 bg-violet-50 text-violet-900"
-                        : "border-gray-200 bg-white text-gray-800",
-                    )}
-                  >
-                    <span className="font-medium mr-1">
-                      {absoluteIndex}.
-                    </span>
-                    {renderHighlightedText(line, effectiveSearch)}
-                  </div>
-                );
-              })}
+                },
+              )}
             </div>
           )}
       </div>

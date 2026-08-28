@@ -547,6 +547,12 @@ export function resolvePatternMatches(
 
   const cleanExpr = trimmed.replace(/^\s*\(\s*|\s*\)\s*$/g, "").trim();
 
+  // If this is a ternary conditional expression ("a" if cond else "b"),
+  // let dataflow and AST evaluation resolve both branches instead of prefix/suffix matching.
+  if (/\bif\b.+\belse\b/.test(cleanExpr)) {
+    return [];
+  }
+
   let prefix = "";
   let suffix = "";
 

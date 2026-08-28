@@ -74,7 +74,9 @@ export function handleConditionalHeader(
     });
   }
   if (
-    pending.kind === "if" || pending.kind === "while" || pending.kind === "for"
+    pending.kind === "if" || pending.kind === "while" ||
+    pending.kind === "for" ||
+    pending.kind === "match"
   ) {
     state.decisionCounter += 1;
     const decisionNodeId = `decision_${state.decisionCounter}`;
@@ -125,6 +127,72 @@ export function handleConditionalHeader(
       sourceId: source,
       branchKind: pending.kind,
       expression: pending.expression,
+      references,
+      sourceLocation: pending.sourceLocation,
+    });
+    scanState.pendingConditionalHeader = null;
+    return true;
+  }
+
+  if (pending.kind === "case") {
+    const matchContext = [...scanState.conditionalDecisionStack]
+      .reverse()
+      .find((c) => c.branchKind === "match");
+    if (!matchContext) {
+      scanState.pendingConditionalHeader = null;
+      return false;
+    }
+    const rawPattern = (pending.expression ?? "").trim();
+    let synthesizedExpr: string | undefined;
+    if (rawPattern) {
+      let patPart = rawPattern;
+      let guardPart: string | undefined;
+      if (/\s+if\s+/.test(rawPattern)) {
+        const parts = rawPattern.split(/\s+if\s+/);
+        patPart = parts[0]!.trim();
+        guardPart = parts.slice(1).join(" if ").trim();
+      }
+
+      if (patPart === "_") {
+        synthesizedExpr = guardPart ? guardPart : undefined;
+      } else if (matchContext.expression) {
+        const orSegments = patPart
+          .split(/\s*\|\s*/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (orSegments.length > 1) {
+          const comparisons = orSegments.map((seg) =>
+            seg === "_" ? "True" : `((${matchContext.expression}) == (${seg}))`
+          );
+          const disjunction = `(${comparisons.join(" or ")})`;
+          synthesizedExpr = guardPart
+            ? `(${disjunction}) and (${guardPart})`
+            : disjunction;
+        } else {
+          synthesizedExpr = guardPart
+            ? `((${matchContext.expression}) == (${patPart})) and (${guardPart})`
+            : `(${matchContext.expression}) == (${patPart})`;
+        }
+      } else {
+        synthesizedExpr = guardPart
+          ? `(${patPart}) and (${guardPart})`
+          : patPart;
+      }
+    }
+    const references = extractConditionFlagRefs(
+      synthesizedExpr ?? pending.expression ?? undefined,
+    );
+    const top = scanState
+      .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
+    if (top && top.branchKind === "case" && top.indent === pending.indent) {
+      scanState.conditionalDecisionStack.pop();
+    }
+    scanState.conditionalDecisionStack.push({
+      indent: pending.indent,
+      decisionNodeId: matchContext.decisionNodeId,
+      sourceId: matchContext.sourceId,
+      branchKind: "case",
+      expression: synthesizedExpr ?? null,
       references,
       sourceLocation: pending.sourceLocation,
     });

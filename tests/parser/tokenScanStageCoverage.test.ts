@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { createGraphState, createScanState } from "../../src/parser/pipelineState.ts";
+import {
+  createGraphState,
+  createScanState,
+} from "../../src/parser/pipelineState.ts";
 import { processFlatTokens } from "../../src/parser/tokenScanStage.ts";
 
 describe("processFlatTokens coverage", () => {
   it("skips non-relevant token types", () => {
     const state = createGraphState();
     const scanState = createScanState();
-    const doc = TextDocument.create("file://skip.rpy", "rpy", 1, "label start:\n");
+    const doc = TextDocument.create(
+      "file://skip.rpy",
+      "rpy",
+      1,
+      "label start:\n",
+    );
 
     processFlatTokens(
       state,

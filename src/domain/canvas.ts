@@ -40,6 +40,7 @@ export interface NodeData extends Record<string, unknown> {
   chapterTotalPauseDuration?: number;
   chapterSearchMatchCount?: number;
   containsActiveRoute?: boolean;
+  mutations?: FlowNode["mutations"];
 }
 
 export interface EdgeData extends Record<string, unknown> {

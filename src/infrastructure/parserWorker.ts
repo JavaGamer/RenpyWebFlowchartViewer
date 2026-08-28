@@ -36,6 +36,7 @@ import {
   type FlowAsset,
   type FlowEdge,
   type FlowNode,
+  type ProjectTranslations,
 } from "../domain/index.ts";
 import type {
   DialogueSearchResult,
@@ -204,6 +205,50 @@ async function buildDialogueSearchIndex(
         lineIndex: idx + 1,
         lineText: node.dialogueLines[idx]!,
       });
+    }
+  }
+
+  if (session.accumulatedState?.translations) {
+    const tl = session.accumulatedState.translations;
+    for (const [lang, langData] of Object.entries(tl.translationsByLanguage)) {
+      for (
+        const [rawBlockId, lines] of Object.entries(langData.dialogueByNodeId)
+      ) {
+        let canonicalNodeId = rawBlockId;
+        if (!session.accumulatedState.nodeMap.has(rawBlockId)) {
+          const hashMatch = /^(.+)_[0-9a-fA-F]{8}$/.exec(rawBlockId);
+          if (hashMatch) {
+            const stripped = hashMatch[1]!;
+            if (session.accumulatedState.nodeMap.has(stripped)) {
+              canonicalNodeId = stripped;
+            } else if (
+              session.accumulatedState.canonicalLabelIdByName?.has(stripped)
+            ) {
+              canonicalNodeId = session.accumulatedState.canonicalLabelIdByName
+                .get(stripped)!;
+            }
+          } else if (
+            session.accumulatedState.canonicalLabelIdByName?.has(rawBlockId)
+          ) {
+            canonicalNodeId = session.accumulatedState.canonicalLabelIdByName
+              .get(rawBlockId)!;
+          }
+        }
+        const targetNode = session.accumulatedState.nodeMap.get(
+          canonicalNodeId,
+        );
+        const nodeLabel = targetNode?.label ?? canonicalNodeId;
+
+        for (let idx = 0; idx < lines.length; idx += 1) {
+          session.dialogueSearchDocs.push({
+            id: `${rawBlockId}::tl_${lang}::${idx + 1}`,
+            nodeId: canonicalNodeId,
+            nodeLabel,
+            lineIndex: idx + 1,
+            lineText: lines[idx]!,
+          });
+        }
+      }
     }
   }
   if (session.dialogueSearchDocs.length > 0) {
@@ -537,6 +582,9 @@ export const parserApi = {
         globalScreens?: string[];
         globalCharacters?: string[];
         imageDefinitions?: Array<[string, string]>;
+        screenDefinitions?: Array<
+          [string, import("../parser/pipelineTypes.ts").ScreenDefinition]
+        >;
       };
     },
   ): Promise<InternalChunkResult> {
@@ -610,6 +658,14 @@ export const parserApi = {
           }
           for (const [k, v] of options.prePassState.imageDefinitions) {
             chunkState.imageDefinitions.set(k, v);
+          }
+        }
+        if (options.prePassState.screenDefinitions) {
+          if (!chunkState.screenDefinitions) {
+            chunkState.screenDefinitions = new Map();
+          }
+          for (const [k, v] of options.prePassState.screenDefinitions) {
+            chunkState.screenDefinitions.set(k, v);
           }
         }
       }
@@ -847,6 +903,11 @@ export const parserApi = {
         | string[];
       maxCallStackDepth?: number;
       allConditionalExpressions?: ParseGraphState["allConditionalExpressions"];
+      screenDefinitions?: Array<
+        [string, import("../parser/pipelineTypes.ts").ScreenDefinition]
+      >;
+      translations?: ProjectTranslations;
+      availableLanguages?: string[];
       appendToActiveGraph?: boolean;
       resetActiveGraph?: boolean;
       isFinalChunk?: boolean;
@@ -1101,6 +1162,8 @@ export const parserApi = {
           diagnostics: session.accumulatedState.diagnostics.length > 0
             ? (session.accumulatedState.diagnostics as ParseDiagnosticPayload[])
             : undefined,
+          translations: session.accumulatedState.translations,
+          availableLanguages: session.accumulatedState.availableLanguages,
         };
       } else {
         const state = createGraphState();
@@ -1227,6 +1290,15 @@ export const parserApi = {
         if (options.maxCallStackDepth !== undefined) {
           state.maxCallStackDepth = options.maxCallStackDepth;
         }
+        if (options.screenDefinitions) {
+          state.screenDefinitions = new Map(options.screenDefinitions);
+        }
+        if (options.translations) {
+          state.translations = options.translations;
+        }
+        if (options.availableLanguages) {
+          state.availableLanguages = options.availableLanguages;
+        }
 
         session.accumulatedState = state;
 
@@ -1245,6 +1317,9 @@ export const parserApi = {
           diagnostics: state.diagnostics.length > 0
             ? (state.diagnostics as ParseDiagnosticPayload[])
             : undefined,
+          translations: options.translations ?? state.translations,
+          availableLanguages: options.availableLanguages ??
+            state.availableLanguages,
         };
       }
     } finally {

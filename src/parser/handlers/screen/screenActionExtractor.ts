@@ -2,6 +2,8 @@ import type {
   ExtractedScreenActionExpression,
   ParseGraphState,
   ParseScanState,
+  ScreenActionTarget,
+  ScreenDefinition,
 } from "../../pipelineTypes.ts";
 import type { FlowEdge } from "../../../domain/index.ts";
 import { resolveExpressionTargets } from "../jumpCallHandler.ts";
@@ -29,6 +31,7 @@ const RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES = new Set([
 const SCREEN_ACTION_TRIGGER_KEYWORDS = new Set([
   "action",
   "selected_action",
+  "alternate",
 ]);
 
 export function readScreenActionExpression(
@@ -329,4 +332,91 @@ export function walkScreenActionExpression(
       visitCall,
     );
   }
+}
+
+export function parseScreenDefinition(
+  name: string,
+  filePath: string,
+  lineIndex: number,
+  rawBody: string,
+): ScreenDefinition {
+  const actions: ScreenActionTarget[] = [];
+  let hasReturnAction = false;
+  const isEngineChoiceScreen = name === "choice";
+
+  const extracted = extractScreenActionExpressions(rawBody);
+  for (const { expression, timeout } of extracted) {
+    walkScreenActionExpression(expression, (construct, argumentList) => {
+      const lower = construct.toLowerCase();
+      if (lower === "jump") {
+        const rawTarget = extractNestedExpressionValue(argumentList);
+        const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
+        actions.push({
+          construct: "jump",
+          targetExpression: rawTarget,
+          target: cleanTarget,
+          timeout,
+        });
+      } else if (lower === "call") {
+        const rawTarget = extractNestedExpressionValue(argumentList);
+        const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
+        actions.push({
+          construct: "call",
+          targetExpression: rawTarget,
+          target: cleanTarget,
+          timeout,
+        });
+      } else if (lower === "showmenu") {
+        const rawTarget = extractNestedExpressionValue(argumentList);
+        const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
+        actions.push({
+          construct: "show_menu",
+          targetExpression: rawTarget,
+          target: cleanTarget,
+          timeout,
+        });
+      } else if (lower === "return") {
+        hasReturnAction = true;
+        actions.push({
+          construct: "return",
+          targetExpression: argumentList,
+          timeout,
+        });
+      } else if (lower === "setvariable") {
+        const parts = splitTopLevelArguments(argumentList);
+        if (parts.length >= 2) {
+          const varName = parts[0].replace(/^["']|["']$/g, "").trim();
+          const rawVal = parts[1].trim();
+          actions.push({
+            construct: "set_variable",
+            targetExpression: rawVal,
+            variableName: varName,
+            variableValue: rawVal.replace(/^["']|["']$/g, ""),
+            timeout,
+          });
+        }
+      } else if (lower === "togglevariable") {
+        const varName = extractNestedExpressionValue(argumentList).replace(
+          /^["']|["']$/g,
+          "",
+        ).trim();
+        actions.push({
+          construct: "toggle_variable",
+          targetExpression: "toggle",
+          variableName: varName,
+          timeout,
+        });
+      }
+    });
+  }
+
+  return {
+    name,
+    filePath,
+    lineIndex,
+    rawBody,
+    actions,
+    hasReturnAction,
+    isEngineChoiceScreen,
+  };
 }

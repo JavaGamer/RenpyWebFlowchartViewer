@@ -9,8 +9,12 @@ export type {
   FlowEdge,
   FlowNode,
   LabelParameter,
+  LanguageTranslationData,
+  MutationOperator,
+  ProjectTranslations,
   SourceLocation,
   SourcePosition,
+  VariableMutation,
 } from "./graph.ts";
 
 export type {

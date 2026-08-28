@@ -14,6 +14,8 @@ import {
   type ParseInputFile,
   preParseInitialization,
   processTokenizedFile,
+  RENPY_TL_PATH_REGEX,
+  scanTranslations,
   type TextDocument,
   tokenizeOneFile,
   type TokenTree,
@@ -620,6 +622,8 @@ export interface ParseChunkResult {
   nodes: ParseWorkerClientResult["nodes"];
   edges: ParseWorkerClientResult["edges"];
   diagnostics?: ParseWorkerClientResult["diagnostics"];
+  translations?: ParseWorkerClientResult["translations"];
+  availableLanguages?: ParseWorkerClientResult["availableLanguages"];
 }
 
 interface InternalChunkResult extends ParseChunkResult {
@@ -682,19 +686,36 @@ export function parseChunksInParallel({
   }
   const workerCount = useWorkerIndices.length;
 
-  const chunks: ParseWorkerClientRequest["files"][] = [];
-  const chunkSize = Math.ceil(files.length / workerCount);
-  for (let i = 0; i < files.length; i += chunkSize) {
-    chunks.push(files.slice(i, i + chunkSize));
+  const scriptFiles: ParseInputFile[] = [];
+  const translationFiles: ParseInputFile[] = [];
+
+  for (const file of files) {
+    const rawPath = file.relativePath ?? file.name;
+    if (RENPY_TL_PATH_REGEX.test(rawPath)) {
+      translationFiles.push(file);
+    } else {
+      scriptFiles.push(file);
+    }
   }
 
-  return computeFileCacheKeys(files).then((allCacheKeys) => {
+  const effectiveScriptFiles = scriptFiles.length > 0 ? scriptFiles : files;
+  const projectTranslations = translationFiles.length > 0
+    ? scanTranslations(translationFiles)
+    : undefined;
+
+  const chunks: ParseWorkerClientRequest["files"][] = [];
+  const chunkSize = Math.ceil(effectiveScriptFiles.length / workerCount);
+  for (let i = 0; i < effectiveScriptFiles.length; i += chunkSize) {
+    chunks.push(effectiveScriptFiles.slice(i, i + chunkSize));
+  }
+
+  return computeFileCacheKeys(effectiveScriptFiles).then((allCacheKeys) => {
     if (signal?.aborted) {
       throw new DOMException("Parsing cancelled", "AbortError");
     }
 
     const prePassStateGraph = createGraphState();
-    preParseInitialization(files, prePassStateGraph);
+    preParseInitialization(effectiveScriptFiles, prePassStateGraph);
 
     const chunkPromises = chunks.map((chunkFiles, chunkIdx) => {
       const workerIdx = useWorkerIndices[chunkIdx % workerCount]!;
@@ -764,6 +785,9 @@ export function parseChunksInParallel({
               globalCharacters: Array.from(prePassStateGraph.globalCharacters),
               imageDefinitions: prePassStateGraph.imageDefinitions
                 ? Array.from(prePassStateGraph.imageDefinitions.entries())
+                : undefined,
+              screenDefinitions: prePassStateGraph.screenDefinitions
+                ? Array.from(prePassStateGraph.screenDefinitions.entries())
                 : undefined,
             },
           })
@@ -1238,6 +1262,11 @@ export function parseChunksInParallel({
           projectMediaFiles,
           maxCallStackDepth,
           allConditionalExpressions: mergedAllConditionalExpressions,
+          translations: projectTranslations,
+          availableLanguages: projectTranslations?.availableLanguages,
+          screenDefinitions: prePassStateGraph.screenDefinitions
+            ? Array.from(prePassStateGraph.screenDefinitions.entries())
+            : undefined,
           appendToActiveGraph,
           resetActiveGraph,
           isFinalChunk,
@@ -1252,7 +1281,12 @@ export function parseChunksInParallel({
             if (signal?.aborted) {
               reject(new DOMException("Parsing cancelled", "AbortError"));
             } else {
-              resolve(finalResult);
+              resolve({
+                ...finalResult,
+                translations: projectTranslations ?? finalResult.translations,
+                availableLanguages: projectTranslations?.availableLanguages ??
+                  finalResult.availableLanguages,
+              });
             }
           })
           .catch((err) => {
