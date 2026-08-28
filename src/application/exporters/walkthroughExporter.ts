@@ -5,11 +5,19 @@
  * Generates formatted Markdown, Steam Community Guide BBCode, and plain text.
  */
 
-import saveAs from "file-saver";
+import { downloadBlob } from "../downloadHelper.ts";
 import type { SolvedWalkthrough } from "../../domain/index.ts";
 
 function escapeMarkdownTableCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+function escapeMarkdownCodeSpan(value: string): string {
+  return value.replace(/`/g, "\\`").replace(/[\r\n]+/g, " ");
+}
+
+function sanitizeHeading(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").trim();
 }
 
 export function exportWalkthroughToMarkdown(
@@ -17,11 +25,17 @@ export function exportWalkthroughToMarkdown(
 ): string {
   const lines: string[] = [];
 
-  lines.push(`# Walkthrough Guide: ${walkthrough.targetLabel}\n`);
+  lines.push(
+    `# Walkthrough Guide: ${sanitizeHeading(walkthrough.targetLabel)}\n`,
+  );
 
   // Summary Metadata
   lines.push("## Summary\n");
-  lines.push(`- **Target Ending / Label**: \`${walkthrough.targetLabel}\``);
+  lines.push(
+    `- **Target Ending / Label**: \`${
+      escapeMarkdownCodeSpan(walkthrough.targetLabel)
+    }\``,
+  );
   if (walkthrough.endingType) {
     lines.push(`- **Ending Classification**: \`${walkthrough.endingType}\``);
   }
@@ -249,5 +263,5 @@ export function downloadWalkthrough(
   }
 
   const blob = new Blob([content], { type: mime });
-  saveAs(blob, filename);
+  void downloadBlob(blob, filename);
 }

@@ -400,6 +400,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
   for (const node of normalizedNodes) {
     if (node.audioAssetCues) {
       for (const cue of node.audioAssetCues) {
+        if (!cue.asset || !cue.asset.trim()) continue;
         const assetType: "image" | "scene" | "audio" =
           cue.type === "show" || cue.type === "image"
             ? "image"

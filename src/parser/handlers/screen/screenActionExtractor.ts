@@ -239,6 +239,34 @@ export function extractStaticTargetsFromArgumentList(
   );
 }
 
+export function extractScreenActionTarget(argumentList: string): string {
+  const args = splitTopLevelArguments(argumentList);
+  if (args.length === 0) return "";
+  const first = args[0]!.trim();
+  const equalsIndex = findTopLevelDelimiterIndex(first, "=");
+  if (equalsIndex > 0) {
+    const kw = first.slice(0, equalsIndex).trim().toLowerCase();
+    if (kw === "target" || kw === "label" || kw === "screen" || kw === "name") {
+      return first.slice(equalsIndex + 1).trim();
+    }
+  } else if (first.length > 0) {
+    return first;
+  }
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i]!.trim();
+    const eqIdx = findTopLevelDelimiterIndex(arg, "=");
+    if (eqIdx > 0) {
+      const kw = arg.slice(0, eqIdx).trim().toLowerCase();
+      if (
+        kw === "target" || kw === "label" || kw === "screen" || kw === "name"
+      ) {
+        return arg.slice(eqIdx + 1).trim();
+      }
+    }
+  }
+  return extractNestedExpressionValue(argumentList);
+}
+
 export function extractNestedExpressionValue(expression: string): string {
   const equalsIndex = findTopLevelDelimiterIndex(expression, "=");
   if (equalsIndex > 0) {
@@ -349,7 +377,7 @@ export function parseScreenDefinition(
     walkScreenActionExpression(expression, (construct, argumentList) => {
       const lower = construct.toLowerCase();
       if (lower === "jump") {
-        const rawTarget = extractNestedExpressionValue(argumentList);
+        const rawTarget = extractScreenActionTarget(argumentList);
         const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
         actions.push({
           construct: "jump",
@@ -358,7 +386,7 @@ export function parseScreenDefinition(
           timeout,
         });
       } else if (lower === "call") {
-        const rawTarget = extractNestedExpressionValue(argumentList);
+        const rawTarget = extractScreenActionTarget(argumentList);
         const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
         actions.push({
           construct: "call",
@@ -367,7 +395,7 @@ export function parseScreenDefinition(
           timeout,
         });
       } else if (lower === "showmenu") {
-        const rawTarget = extractNestedExpressionValue(argumentList);
+        const rawTarget = extractScreenActionTarget(argumentList);
         const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
         actions.push({
           construct: "show_menu",

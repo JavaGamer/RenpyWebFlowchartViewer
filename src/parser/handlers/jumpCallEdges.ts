@@ -129,13 +129,10 @@ export function emitJumpEdge(
       timeout,
       sourceLocation: context.sourceLocation,
     });
-    if (!isInOption && scanState.currentLabelId) {
-      addOutgoing(state, scanState.currentLabelId, "jump");
-      addIncoming(state, resolvedTargetId, "jump");
-    } else if (isInOption) {
-      addOutgoing(state, source, "jump");
-      addIncoming(state, resolvedTargetId, "jump");
+    addOutgoing(state, source, "jump");
+    addIncoming(state, resolvedTargetId, "jump");
 
+    if (isInOption) {
       if (!context.condition) {
         const menu = menuAtDepth(
           scanState.menuStack,
@@ -218,10 +215,8 @@ export function emitCallEdge(
     callContext,
   });
   state.calledLabels.add(resolvedTargetId);
-  if (!isInOption && scanState.currentLabelId) {
-    addOutgoing(state, scanState.currentLabelId, "call");
-    addIncoming(state, resolvedTargetId, "call");
-  }
+  addOutgoing(state, source, "call");
+  addIncoming(state, resolvedTargetId, "call");
   state.pendingCallReturns.push({
     returnTargetId: source,
     callTargetId: resolvedTargetId,

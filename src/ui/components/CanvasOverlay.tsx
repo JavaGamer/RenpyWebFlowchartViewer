@@ -21,8 +21,17 @@ export function CanvasOverlay({ isCalculatingLayout }: CanvasOverlayProps) {
 
   if (!showLayoutSpinner) return null;
 
+  const isDark = theme === "dark";
+
   return (
-    <div className="absolute inset-0 bg-white/45 backdrop-blur-md z-30 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Generating flowchart layout"
+      className={`absolute inset-0 backdrop-blur-md z-30 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none ${
+        isDark ? "bg-slate-950/60" : "bg-white/45"
+      }`}
+    >
       <div className="flex flex-col items-center gap-3">
         <div
           className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin"

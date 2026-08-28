@@ -41,9 +41,9 @@ export function extractMenuOptionCondition(lineText: string): string | null {
     trimmed = trimmed.slice(0, -1).trim();
   }
 
-  // Scan outside quotes for ' if '
+  // Scan outside quotes for the first top-level ' if ' following the caption string
   inQuote = null;
-  let lastIfIndex = -1;
+  let captionClosed = false;
   for (let i = 0; i < trimmed.length; i++) {
     const ch = trimmed[i];
     if (inQuote) {
@@ -51,10 +51,12 @@ export function extractMenuOptionCondition(lineText: string): string | null {
         i++;
       } else if (ch === inQuote) {
         inQuote = null;
+        captionClosed = true;
       }
     } else if (ch === '"' || ch === "'") {
       inQuote = ch;
     } else if (
+      captionClosed &&
       (ch === "i" || ch === "I") &&
       i + 1 < trimmed.length &&
       (trimmed[i + 1] === "f" || trimmed[i + 1] === "F")
@@ -62,17 +64,12 @@ export function extractMenuOptionCondition(lineText: string): string | null {
       const prevChar = i > 0 ? trimmed[i - 1] : " ";
       const nextChar = i + 2 < trimmed.length ? trimmed[i + 2] : " ";
       if (/\s/.test(prevChar) && /\s/.test(nextChar)) {
-        lastIfIndex = i;
+        const cond = trimmed.slice(i + 2).trim();
+        return cond.length > 0 ? cond : null;
       }
     }
   }
 
-  if (lastIfIndex !== -1) {
-    const cond = trimmed.slice(lastIfIndex + 2).trim();
-    if (cond.length > 0) {
-      return cond;
-    }
-  }
   return null;
 }
 

@@ -79,9 +79,14 @@ export function handleDialogueStringToken(
     stats.pauseDuration;
 
   let speaker = "narrator";
-  const charMatch = /^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\b/.exec(lineText);
-  if (charMatch) {
-    speaker = charMatch[1]!;
+  const quotedSpeakerMatch = /^\s*["']([^"']+)["']\s+["']/.exec(lineText);
+  if (quotedSpeakerMatch) {
+    speaker = quotedSpeakerMatch[1]!;
+  } else {
+    const charMatch = /^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\b/.exec(lineText);
+    if (charMatch) {
+      speaker = charMatch[1]!;
+    }
   }
   if (!ownerNode.characterDialogue) {
     ownerNode.characterDialogue = {};

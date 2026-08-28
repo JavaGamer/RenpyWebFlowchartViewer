@@ -1,5 +1,9 @@
 import type { FlowNode } from "../../domain/index.ts";
 
+function sanitizeHeading(text: string): string {
+  return text.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").trim();
+}
+
 export function exportToStoryboard(nodes: FlowNode[]): string {
   const lines: string[] = ["# Narrative Storyboard\n"];
 
@@ -12,11 +16,11 @@ export function exportToStoryboard(nodes: FlowNode[]): string {
 
   const sortedChapters = Array.from(byChapter.keys()).sort();
   for (const chapter of sortedChapters) {
-    lines.push(`## ${chapter}\n`);
+    lines.push(`## ${sanitizeHeading(chapter)}\n`);
     const chapterNodes = byChapter.get(chapter)!;
 
     for (const node of chapterNodes) {
-      lines.push(`### ${node.label}`);
+      lines.push(`### ${sanitizeHeading(node.label)}`);
       lines.push(
         `*Type: ${node.type} | Dialogue Lines: ${node.dialogueCount} | Words: ${
           node.wordCount || 0
@@ -54,10 +58,10 @@ export async function exportToStoryboardWithHydration(
     const details = await extractNodeDetailsInWorker(unhydratedIds);
     useAppStore.getState().updateNodeDetails(details);
     useViewerStore.getState().markNodesHydrated(Object.keys(details));
-    const updatedMap = new Map(
-      useAppStore.getState().flowNodes.map((n) => [n.id, n]),
+    const updatedMap = new Map<string, FlowNode>(
+      useAppStore.getState().flowNodes.map((n: FlowNode) => [n.id, n]),
     );
-    const updatedNodes = nodes.map((n) => updatedMap.get(n.id) ?? n);
+    const updatedNodes = nodes.map((n: FlowNode) => updatedMap.get(n.id) ?? n);
     return exportToStoryboard(updatedNodes);
   }
   return exportToStoryboard(nodes);

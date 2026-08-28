@@ -215,10 +215,12 @@ export function useViewerLayout({
   ]);
 
   useEffect(() => {
-    startTransition(() => {
-      setNodes(layoutNodes);
-      setEdges(layoutEdges);
-    });
+    if (!isWorkerEnabled || flowNodes.length === 0) {
+      startTransition(() => {
+        setNodes(layoutNodes);
+        setEdges(layoutEdges);
+      });
+    }
     if (layoutNodes.length > 0) {
       nodePositionsRef.current = new Map(
         layoutNodes.map((n) => [n.id, n.position]),
@@ -287,7 +289,6 @@ export function useViewerLayout({
     return () => {
       clearTimeout(timer);
       cancelLayout();
-      setIsCalculatingLayout(false);
     };
   }, [
     flowEdges,

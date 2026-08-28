@@ -10,6 +10,7 @@ import { type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ErrorBoundary } from "react-error-boundary";
 import {
+  downloadBlob,
   exportToHtmlBundle,
   exportToMermaid,
   exportToStoryboardWithHydration,
@@ -178,6 +179,24 @@ export default function FlowchartViewer({
     visiblePauseDuration: 0,
   });
 
+  const handleMetrics = useCallback((next: CanvasMetrics) => {
+    setCanvasMetrics((prev) => {
+      if (
+        prev.visibleNodeCount === next.visibleNodeCount &&
+        prev.visibleEdgeCount === next.visibleEdgeCount &&
+        prev.dialogueLineSearchEnabled === next.dialogueLineSearchEnabled &&
+        prev.isLargeExportTarget === next.isLargeExportTarget &&
+        prev.totalWordCount === next.totalWordCount &&
+        prev.totalPauseDuration === next.totalPauseDuration &&
+        prev.visibleWordCount === next.visibleWordCount &&
+        prev.visiblePauseDuration === next.visiblePauseDuration
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
   // -- Dialogue mode ----------------------------------------------------------
   const useAppStoreDialogueMode = !!propOnDialogueSearchModeChange ||
     !propFlowNodes;
@@ -208,30 +227,27 @@ export default function FlowchartViewer({
   const onExportMermaid = useCallback(async () => {
     const mermaidStr = exportToMermaid(flowNodes, flowEdges);
     const blob = new Blob([mermaidStr], { type: "text/plain" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "renpy-flowchart.mmd");
+    await downloadBlob(blob, "renpy-flowchart.mmd");
   }, [flowNodes, flowEdges]);
 
   const onExportStoryboard = useCallback(async () => {
     const mdStr = await exportToStoryboardWithHydration(flowNodes);
     const blob = new Blob([mdStr], { type: "text/plain" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "renpy-storyboard.md");
+    await downloadBlob(blob, "renpy-storyboard.md");
   }, [flowNodes]);
 
   const onExportHtmlBundle = useCallback(async () => {
     if (!flowRef.current) return;
     const { toSvg } = await import("html-to-image");
-    const { saveAs } = await import("file-saver");
     toSvg(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       width: flowRef.current.offsetWidth,
       height: flowRef.current.offsetHeight,
     })
-      .then((svgDataUrl) => {
+      .then(async (svgDataUrl) => {
         const htmlStr = exportToHtmlBundle(svgDataUrl);
         const blob = new Blob([htmlStr], { type: "text/html" });
-        saveAs(blob, "renpy-flowchart-interactive.html");
+        await downloadBlob(blob, "renpy-flowchart-interactive.html");
       })
       .catch((err) => {
         console.error("HTML Bundle export failed:", err);
@@ -245,8 +261,7 @@ export default function FlowchartViewer({
       2,
     );
     const blob = new Blob([graphJson], { type: "application/json" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "renpy-flowchart.json");
+    await downloadBlob(blob, "renpy-flowchart.json");
   }, [flowEdges, flowNodes]);
 
   const onExport = useCallback(async () => {
@@ -256,16 +271,15 @@ export default function FlowchartViewer({
       canvasMetrics;
     const pixelRatio = isLargeExportTarget ? 1 : 2;
     const { toBlob } = await import("html-to-image");
-    const { saveAs } = await import("file-saver");
     toBlob(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       pixelRatio,
       width: flowRef.current.offsetWidth,
       height: flowRef.current.offsetHeight,
     })
-      .then((blob) => {
+      .then(async (blob) => {
         if (!blob) return;
-        saveAs(blob, "renpy-flowchart.png");
+        await downloadBlob(blob, "renpy-flowchart.png");
         perf.log("export_png_ms", performance.now() - startedAt, {
           nodeCount: visibleNodeCount,
           edgeCount: visibleEdgeCount,
@@ -281,15 +295,14 @@ export default function FlowchartViewer({
     const startedAt = performance.now();
     const { visibleNodeCount, visibleEdgeCount } = canvasMetrics;
     const { toSvg } = await import("html-to-image");
-    const { saveAs } = await import("file-saver");
     toSvg(flowRef.current, {
       backgroundColor: THEMES[theme].pageBg,
       width: flowRef.current.offsetWidth,
       height: flowRef.current.offsetHeight,
     })
-      .then((svgDataUrl) => {
+      .then(async (svgDataUrl) => {
         const svgBlob = dataUrlToBlob(svgDataUrl);
-        saveAs(svgBlob, "renpy-flowchart.svg");
+        await downloadBlob(svgBlob, "renpy-flowchart.svg");
         perf.log("export_svg_ms", performance.now() - startedAt, {
           nodeCount: visibleNodeCount,
           edgeCount: visibleEdgeCount,
@@ -442,7 +455,7 @@ export default function FlowchartViewer({
           dialogueSearchMode={dialogueSearchMode}
           onDialogueSearchModeChange={onDialogueSearchModeChange}
           perf={perf}
-          onMetrics={setCanvasMetrics}
+          onMetrics={handleMetrics}
         />
       </ErrorBoundary>
     </div>

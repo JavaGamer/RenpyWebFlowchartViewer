@@ -283,7 +283,9 @@ export function scanInitItemsFromFiles(
         getLineIndent(line) !== 0
       ) continue;
       const labelMatch =
-        /^label\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*:/i.exec(trimmed);
+        /^label\s+(\.?[A-Za-z_][A-Za-z0-9_.]*)\s*(?:\([^)]*\))?\s*:/i.exec(
+          trimmed,
+        );
       if (labelMatch) {
         const declaredName = labelMatch[1].trim();
         if (!chapterLabels.has(declaredName)) {
@@ -526,7 +528,9 @@ export function scanInitItemsFromFiles(
         !trimmed.startsWith("screen")
       ) {
         const imageName = imageMatch[2]!.trim();
-        const rawTarget = imageMatch[3] ? imageMatch[3].trim() : "";
+        const rawTarget = imageMatch[3]
+          ? stripPythonComments(imageMatch[3]).trim()
+          : "";
         if (!state.imageDefinitions) state.imageDefinitions = new Map();
         state.imageDefinitions.set(
           imageName,

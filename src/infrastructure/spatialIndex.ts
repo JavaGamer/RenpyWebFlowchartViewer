@@ -172,8 +172,8 @@ export function computeSpatialItemsAndBounds(nodes: CanvasNode[]): {
 
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   function getAbsolutePosition(node: CanvasNode): { x: number; y: number } {
-    let currX = Number.isFinite(node.position.x) ? node.position.x : 0;
-    let currY = Number.isFinite(node.position.y) ? node.position.y : 0;
+    let currX = Number.isFinite(node.position?.x) ? node.position.x : 0;
+    let currY = Number.isFinite(node.position?.y) ? node.position.y : 0;
     let currentParentId = node.parentId;
     const visited = new Set<string>();
 
@@ -181,8 +181,8 @@ export function computeSpatialItemsAndBounds(nodes: CanvasNode[]): {
       visited.add(currentParentId);
       const parent = nodeById.get(currentParentId);
       if (!parent) break;
-      currX += Number.isFinite(parent.position.x) ? parent.position.x : 0;
-      currY += Number.isFinite(parent.position.y) ? parent.position.y : 0;
+      currX += Number.isFinite(parent.position?.x) ? parent.position.x : 0;
+      currY += Number.isFinite(parent.position?.y) ? parent.position.y : 0;
       currentParentId = parent.parentId;
     }
     return { x: currX, y: currY };

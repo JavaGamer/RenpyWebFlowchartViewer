@@ -466,16 +466,34 @@ export function parseRenpyFilesInWorker(
           );
         }
 
-        const transfers: Transferable[] = [];
+        const transfers = new Set<Transferable>();
         for (const file of files) {
           if (file.content instanceof Uint8Array) {
-            transfers.push(file.content.buffer);
+            transfers.add(file.content.buffer);
           }
         }
+        const transferList = Array.from(transfers);
 
-        const filesArg = transfers.length > 0
-          ? transfer(files, transfers)
+        const filesArg = transferList.length > 0
+          ? transfer(files, transferList)
           : files;
+
+        const cleanup = () => {
+          if (
+            progressProxy &&
+            (progressProxy as unknown as { [releaseProxy]?: () => void })[
+              releaseProxy
+            ]
+          ) {
+            try {
+              (progressProxy as unknown as { [releaseProxy]: () => void })[
+                releaseProxy
+              ]();
+            } catch {
+              // Ignore proxy release error
+            }
+          }
+        };
 
         return getWorkerApi(0).parse(
           requestId,
@@ -496,7 +514,15 @@ export function parseRenpyFilesInWorker(
             isFinalChunk,
           },
           progressProxy,
-        );
+        )
+          .then((res) => {
+            cleanup();
+            return res;
+          })
+          .catch((err) => {
+            cleanup();
+            throw err;
+          });
       })
       .then((result: ParseWorkerClientResult) => {
         signal?.removeEventListener("abort", onAbort);
@@ -743,15 +769,16 @@ export function parseChunksInParallel({
         };
         signal?.addEventListener("abort", onAbort, { once: true });
 
-        const transfers: Transferable[] = [];
+        const transfers = new Set<Transferable>();
         for (const file of chunkFiles) {
           if (file.content instanceof Uint8Array) {
-            transfers.push(file.content.buffer);
+            transfers.add(file.content.buffer);
           }
         }
+        const transferList = Array.from(transfers);
 
-        const chunkFilesArg = transfers.length > 0
-          ? transfer(chunkFiles, transfers)
+        const chunkFilesArg = transferList.length > 0
+          ? transfer(chunkFiles, transferList)
           : chunkFiles;
 
         try {
@@ -1326,14 +1353,17 @@ export function tokenizeFilesInWorker(
       throw new DOMException("Tokenize cancelled", "AbortError");
     }
 
-    const transfers: Transferable[] = [];
+    const transfers = new Set<Transferable>();
     for (const file of files) {
       if (file.content instanceof Uint8Array) {
-        transfers.push(file.content.buffer);
+        transfers.add(file.content.buffer);
       }
     }
+    const transferList = Array.from(transfers);
 
-    const filesArg = transfers.length > 0 ? transfer(files, transfers) : files;
+    const filesArg = transferList.length > 0
+      ? transfer(files, transferList)
+      : files;
 
     return getWorkerApi(0).tokenize(requestId, filesArg, { fileCacheKeys });
   });

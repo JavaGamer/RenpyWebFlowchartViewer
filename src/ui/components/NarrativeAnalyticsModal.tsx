@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   type AnalyticsTab,
+  downloadBlob,
   exportAnalyticsToMarkdown,
   exportCharacterStatsToCsv,
   exportEndingMatrixToCsv,
@@ -147,35 +148,34 @@ export function NarrativeAnalyticsModal({
   const handleExportMarkdown = useCallback(async () => {
     const md = exportAnalyticsToMarkdown(report);
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "narrative-analytics-report.md");
+    await downloadBlob(blob, "narrative-analytics-report.md");
   }, [report]);
 
   const handleExportCsvEndings = useCallback(async () => {
     const csv = exportEndingMatrixToCsv(report);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "ending-matrix.csv");
+    await downloadBlob(blob, "ending-matrix.csv");
   }, [report]);
 
   const handleExportCsvRoutes = useCallback(async () => {
     const csv = exportRoutesToCsv(report);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "story-routes.csv");
+    await downloadBlob(blob, "story-routes.csv");
   }, [report]);
 
   const handleExportCsvCharacters = useCallback(async () => {
     const csv = exportCharacterStatsToCsv(report);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const { saveAs } = await import("file-saver");
-    saveAs(blob, "character-stats.csv");
+    await downloadBlob(blob, "character-stats.csv");
   }, [report]);
 
   const handleCopyMarkdown = useCallback(() => {
     const md = exportAnalyticsToMarkdown(report);
-    navigator.clipboard.writeText(md);
-    setCopied(true);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(md)
+        .then(() => setCopied(true))
+        .catch((err) => console.error("Failed to copy report:", err));
+    }
   }, [report]);
 
   const tabs = useMemo<

@@ -78,6 +78,7 @@ export const createSelectionSlice: StateCreator<
   ...createDefaultSelectionState(),
 
   fetchNodeDetails: async (nodeIds) => {
+    const currentRevision = useAppStore.getState().importRevision;
     const currentState = get();
     const toFetch = nodeIds.filter(
       (id) =>
@@ -94,6 +95,8 @@ export const createSelectionSlice: StateCreator<
 
     try {
       const details = await extractNodeDetailsInWorker(toFetch);
+      if (useAppStore.getState().importRevision !== currentRevision) return;
+
       useAppStore.getState().updateNodeDetails(details);
       set((draft) => {
         const nextLoading = new Set(draft.loadingNodeDetailIds);
@@ -131,11 +134,7 @@ export const createSelectionSlice: StateCreator<
   setSelectedNodeId: (id) =>
     set((draft) => {
       draft.selectedNodeId = id;
-      if (id && !draft.selectedNodeIds.includes(id)) {
-        draft.selectedNodeIds = [id];
-      } else if (!id) {
-        draft.selectedNodeIds = [];
-      }
+      draft.selectedNodeIds = id ? [id] : [];
     }),
 
   setSelectedNodeIds: (ids) =>

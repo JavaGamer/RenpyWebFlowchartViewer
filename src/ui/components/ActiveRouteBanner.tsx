@@ -38,8 +38,9 @@ function ActiveRouteBannerContent({
   // Keyboard shortcut: Esc to clear route highlight (only when not interacting with modals/inputs)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isModalOpen) {
+      if (e.key === "Escape" && !e.defaultPrevented && !isModalOpen) {
         const target = e.target as HTMLElement | null;
+        if (target?.closest('[role="dialog"]')) return;
         const isInput = target && (
           target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||

@@ -158,47 +158,11 @@ export function solveRouteToTarget(
     }
   }
 
-  const foundPaths: PathState[] = [];
-  let stateSteps = 0;
+  const initialQueue: PathState[] = [];
 
   for (const entryId of entryNodeIds) {
     const entryNode = nodeMap.get(entryId);
     if (!entryNode) continue;
-
-    if (entryId === targetNodeId) {
-      const readingTimeSeconds =
-        ((entryNode.wordCount ?? 0) / Math.max(1, readingSpeedWpm)) * 60 +
-        (entryNode.pauseDuration ?? 0);
-      return {
-        targetNodeId: targetNode.id,
-        targetLabel: targetNode.label,
-        isReachable: true,
-        endingType: classifyEndingTypeHeuristic(targetNode.label, targetNode),
-        totalSteps: 1,
-        totalChoices: 0,
-        totalWordCount: entryNode.wordCount ?? 0,
-        totalPauseDuration: entryNode.pauseDuration ?? 0,
-        totalDialogueCount: entryNode.dialogueCount ?? 0,
-        readingTimeSeconds,
-        formattedReadingTime: formatReadingTimeHelper(readingTimeSeconds),
-        chaptersTraversed: entryNode.chapter ? [entryNode.chapter] : [],
-        steps: [
-          {
-            stepIndex: 1,
-            type: "start",
-            nodeId: entryNode.id,
-            nodeLabel: entryNode.label,
-            chapter: entryNode.chapter,
-            dialogueCount: entryNode.dialogueCount ?? 0,
-            wordCount: entryNode.wordCount ?? 0,
-          },
-        ],
-        nodeIds: [entryNode.id],
-        edgeIds: [],
-        flagsNeeded: {},
-        alternativeRoutesCount: 1,
-      };
-    }
 
     const initialChapters = new Set<string>();
     if (entryNode.chapter) initialChapters.add(entryNode.chapter);
@@ -216,140 +180,136 @@ export function solveRouteToTarget(
       wordCount: entryNode.wordCount ?? 0,
     };
 
-    // Queue for BFS / path search
-    const queue: PathState[] = [
-      {
-        nodeId: entryId,
-        callStack: [],
-        pathNodeIds: [entryId],
-        pathEdgeIds: [],
-        steps: [initialStep],
-        wordCount: entryNode.wordCount ?? 0,
-        pauseDuration: entryNode.pauseDuration ?? 0,
-        dialogueCount: entryNode.dialogueCount ?? 0,
-        traversedChapters: initialChapters,
-        visitedNodeCounts: initialCounts,
-        conditionExpressions: [],
-        choiceCount: 0,
-      },
-    ];
+    initialQueue.push({
+      nodeId: entryId,
+      callStack: [],
+      pathNodeIds: [entryId],
+      pathEdgeIds: [],
+      steps: [initialStep],
+      wordCount: entryNode.wordCount ?? 0,
+      pauseDuration: entryNode.pauseDuration ?? 0,
+      dialogueCount: entryNode.dialogueCount ?? 0,
+      traversedChapters: initialChapters,
+      visitedNodeCounts: initialCounts,
+      conditionExpressions: [],
+      choiceCount: 0,
+    });
+  }
 
-    let queueHead = 0;
+  const foundPaths: PathState[] = [];
+  let stateSteps = 0;
+  const queue: PathState[] = initialQueue;
+  let queueHead = 0;
 
-    while (queueHead < queue.length) {
-      stateSteps++;
-      if (stateSteps > maxVisitedStates) break;
+  while (queueHead < queue.length) {
+    stateSteps++;
+    if (stateSteps > maxVisitedStates) break;
 
-      const current = queue[queueHead++]!;
-      const currNode = nodeMap.get(current.nodeId);
+    const current = queue[queueHead++]!;
+    const currNode = nodeMap.get(current.nodeId);
 
-      if (current.nodeId === targetNodeId) {
-        foundPaths.push(current);
-        if (heuristic === "shortest_steps") {
-          // In BFS, the first found path is optimal for step count
-          break;
-        }
-        if (foundPaths.length >= (heuristic === "least_choices" ? 25 : 100)) {
-          break;
-        }
-        continue;
+    if (current.nodeId === targetNodeId) {
+      foundPaths.push(current);
+      if (heuristic === "shortest_steps") {
+        // In BFS, the first found path is optimal for step count
+        break;
       }
-
-      if (current.pathNodeIds.length >= maxDepth) continue;
-
-      const outgoing = outgoingMap.get(current.nodeId) ?? [];
-      for (const edge of outgoing) {
-        if (edge.kind === "call_return") {
-          if (current.callStack.length === 0) {
-            // Cannot return if call stack is empty
-            continue;
-          }
-          const topCtx = current.callStack[current.callStack.length - 1]!;
-          if (edge.callContext) {
-            if (edge.callContext.callContextId !== topCtx.callContextId) {
-              continue;
-            }
-          } else if (edge.target !== topCtx.returnTargetId) {
-            continue;
-          }
-        }
-
-        const target = nodeMap.get(edge.target);
-
-        if (!target) continue;
-
-        const visitCount = current.visitedNodeCounts.get(edge.target) ?? 0;
-        // Disallow more than 1 cycle revisit per node
-        if (visitCount >= 2) continue;
-
-        const nextVisitedCounts = new Map(current.visitedNodeCounts);
-        nextVisitedCounts.set(edge.target, visitCount + 1);
-
-        const nextChapters = new Set(current.traversedChapters);
-        if (target.chapter) nextChapters.add(target.chapter);
-
-        const nextCallStack = [...current.callStack];
-        if (edge.kind === "call" && edge.callContext) {
-          nextCallStack.push(edge.callContext);
-        } else if (edge.kind === "call_return" && nextCallStack.length > 0) {
-          nextCallStack.pop();
-        }
-
-        const nextConditions = [...current.conditionExpressions];
-        if (edge.condition?.expression) {
-          nextConditions.push(edge.condition.expression);
-        }
-
-        let isChoice = false;
-        let stepType: SolvedStepType = "label";
-        if (currNode?.type === "MENU" || Boolean(edge.label)) {
-          stepType = "choice";
-          isChoice = true;
-        } else if (edge.condition?.expression) {
-          stepType = "decision_branch";
-        } else if (edge.kind === "call") {
-          stepType = "call";
-        } else if (edge.kind === "call_return") {
-          stepType = "call_return";
-        } else if (target.id === targetNodeId) {
-          stepType = "ending";
-        }
-
-        const nextStep: SolvedStep = {
-          stepIndex: current.steps.length + 1,
-          type: stepType,
-          nodeId: target.id,
-          nodeLabel: target.label,
-          chapter: target.chapter,
-          choiceText: edge.label,
-          menuNodeId: currNode?.type === "MENU" ? currNode.id : undefined,
-          menuLabel: currNode?.type === "MENU" ? currNode.label : undefined,
-          conditionExpression: edge.condition?.expression,
-          conditionReferences: edge.condition?.references,
-          edgeId: edge.id,
-          dialogueCount: target.dialogueCount ?? 0,
-          wordCount: target.wordCount ?? 0,
-        };
-
-        queue.push({
-          nodeId: edge.target,
-          callStack: nextCallStack,
-          pathNodeIds: [...current.pathNodeIds, edge.target],
-          pathEdgeIds: [...current.pathEdgeIds, edge.id],
-          steps: [...current.steps, nextStep],
-          wordCount: current.wordCount + (target.wordCount ?? 0),
-          pauseDuration: current.pauseDuration + (target.pauseDuration ?? 0),
-          dialogueCount: current.dialogueCount + (target.dialogueCount ?? 0),
-          traversedChapters: nextChapters,
-          visitedNodeCounts: nextVisitedCounts,
-          conditionExpressions: nextConditions,
-          choiceCount: current.choiceCount + (isChoice ? 1 : 0),
-        });
+      if (foundPaths.length >= (heuristic === "least_choices" ? 25 : 100)) {
+        break;
       }
+      continue;
     }
 
-    if (foundPaths.length > 0 && heuristic === "shortest_steps") {
-      break;
+    if (current.pathNodeIds.length >= maxDepth) continue;
+
+    const outgoing = outgoingMap.get(current.nodeId) ?? [];
+    for (const edge of outgoing) {
+      if (edge.kind === "call_return") {
+        if (current.callStack.length === 0) {
+          // Cannot return if call stack is empty
+          continue;
+        }
+        const topCtx = current.callStack[current.callStack.length - 1]!;
+        if (edge.callContext) {
+          if (edge.callContext.callContextId !== topCtx.callContextId) {
+            continue;
+          }
+        } else if (edge.target !== topCtx.returnTargetId) {
+          continue;
+        }
+      }
+
+      const target = nodeMap.get(edge.target);
+
+      if (!target) continue;
+
+      const visitCount = current.visitedNodeCounts.get(edge.target) ?? 0;
+      // Disallow more than 1 cycle revisit per node
+      if (visitCount >= 2) continue;
+
+      const nextVisitedCounts = new Map(current.visitedNodeCounts);
+      nextVisitedCounts.set(edge.target, visitCount + 1);
+
+      const nextChapters = new Set(current.traversedChapters);
+      if (target.chapter) nextChapters.add(target.chapter);
+
+      const nextCallStack = [...current.callStack];
+      if (edge.kind === "call" && edge.callContext) {
+        nextCallStack.push(edge.callContext);
+      } else if (edge.kind === "call_return" && nextCallStack.length > 0) {
+        nextCallStack.pop();
+      }
+
+      const nextConditions = [...current.conditionExpressions];
+      if (edge.condition?.expression) {
+        nextConditions.push(edge.condition.expression);
+      }
+
+      let isChoice = false;
+      let stepType: SolvedStepType = "label";
+      if (currNode?.type === "MENU" || Boolean(edge.label)) {
+        stepType = "choice";
+        isChoice = true;
+      } else if (edge.condition?.expression) {
+        stepType = "decision_branch";
+      } else if (edge.kind === "call") {
+        stepType = "call";
+      } else if (edge.kind === "call_return") {
+        stepType = "call_return";
+      } else if (target.id === targetNodeId) {
+        stepType = "ending";
+      }
+
+      const nextStep: SolvedStep = {
+        stepIndex: current.steps.length + 1,
+        type: stepType,
+        nodeId: target.id,
+        nodeLabel: target.label,
+        chapter: target.chapter,
+        choiceText: edge.label,
+        menuNodeId: currNode?.type === "MENU" ? currNode.id : undefined,
+        menuLabel: currNode?.type === "MENU" ? currNode.label : undefined,
+        conditionExpression: edge.condition?.expression,
+        conditionReferences: edge.condition?.references,
+        edgeId: edge.id,
+        dialogueCount: target.dialogueCount ?? 0,
+        wordCount: target.wordCount ?? 0,
+      };
+
+      queue.push({
+        nodeId: edge.target,
+        callStack: nextCallStack,
+        pathNodeIds: [...current.pathNodeIds, edge.target],
+        pathEdgeIds: [...current.pathEdgeIds, edge.id],
+        steps: [...current.steps, nextStep],
+        wordCount: current.wordCount + (target.wordCount ?? 0),
+        pauseDuration: current.pauseDuration + (target.pauseDuration ?? 0),
+        dialogueCount: current.dialogueCount + (target.dialogueCount ?? 0),
+        traversedChapters: nextChapters,
+        visitedNodeCounts: nextVisitedCounts,
+        conditionExpressions: nextConditions,
+        choiceCount: current.choiceCount + (isChoice ? 1 : 0),
+      });
     }
   }
 

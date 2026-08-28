@@ -864,6 +864,22 @@ export const parserApi = {
           node.audioAssetCues = payload.audioAssetCues;
         }
         node.isDetailsLoaded = true;
+
+        if (payload.dialogueLines && session.dialogueSearchMiniSearch) {
+          for (let idx = 0; idx < payload.dialogueLines.length; idx += 1) {
+            const doc: DialogueSearchDocument = {
+              id: `${node.id}::${idx + 1}`,
+              nodeId: node.id,
+              nodeLabel: node.label,
+              lineIndex: idx + 1,
+              lineText: payload.dialogueLines[idx]!,
+            };
+            session.dialogueSearchDocs.push(doc);
+            if (!session.dialogueSearchMiniSearch.has(doc.id)) {
+              session.dialogueSearchMiniSearch.add(doc);
+            }
+          }
+        }
       }
     }
 

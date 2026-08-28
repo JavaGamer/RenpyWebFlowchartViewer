@@ -83,6 +83,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
 
   const processFiles = useCallback(
     async (files: FileList | UploadedFile[] | null) => {
+      useTelemetryStore.getState().reset();
       preWarmLayoutWorker();
       perf.mark("read");
       const process = createProcessUpload({

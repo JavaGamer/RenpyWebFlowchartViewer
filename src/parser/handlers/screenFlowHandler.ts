@@ -171,18 +171,18 @@ export function handleCallScreenStatement(
           isPersistent: action.variableName.startsWith("persistent."),
         });
       } else if (action.construct === "return") {
-        const returnEdgeId =
-          `seq_${screenCallNodeId}__${scanState.currentLabelId}`;
-        addEdge(state, {
-          id: returnEdgeId,
-          source: screenCallNodeId,
-          target: scanState.currentLabelId,
-          kind: "sequence",
-          label: action.caption ?? "return",
-          sourceLocation,
-        });
-        addOutgoing(state, screenCallNodeId, "sequence");
-        addIncoming(state, scanState.currentLabelId, "sequence");
+        if (
+          scanState.currentLabelId &&
+          screenCallNodeId !== scanState.currentLabelId
+        ) {
+          addEdge(state, {
+            id: `seq_${screenCallNodeId}__${scanState.currentLabelId}`,
+            source: screenCallNodeId,
+            target: scanState.currentLabelId,
+            kind: "sequence",
+            label: "return",
+          });
+        }
       }
     }
 

@@ -31,6 +31,12 @@ export function resolveGithubUrl(urlStr: string): string {
           repo.replace(/\.git$/i, "")
         }/archive/refs/heads/main.zip`;
       }
+      if (parts.length >= 4 && parts[2] === "tree") {
+        const [owner, repo, , branch] = parts;
+        return `https://github.com/${owner}/${
+          repo.replace(/\.git$/i, "")
+        }/archive/refs/heads/${branch}.zip`;
+      }
       if (parts.length >= 4 && (parts[2] === "blob" || parts[2] === "raw")) {
         const [owner, repo, , branch, ...filePath] = parts;
         return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${

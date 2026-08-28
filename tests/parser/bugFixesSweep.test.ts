@@ -60,7 +60,7 @@ describe("Parser Bug Fixes Sweep", () => {
     materializeCallReturnEdges(state);
     expect(state.edges.length).toBe(1);
     expect(state.edges[0].kind).toBe("call_return");
-    expect(state.edges[0].source).toBe("sub_routine__scene_1");
+    expect(state.edges[0].source).toBe("sub_routine__scene_2");
     expect(state.edges[0].target).toBe("main_label");
   });
 

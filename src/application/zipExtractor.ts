@@ -52,14 +52,34 @@ export async function extractRpyFilesFromZip(
   const { unzip, strFromU8 } = await import("fflate");
 
   return new Promise((resolve, reject) => {
+    let cumulativeHeaderSize = 0;
+
     unzip(
       zipData,
       {
-        filter: (file) => isAcceptedExtension(file.name),
+        filter: (file) => {
+          if (!isAcceptedExtension(file.name)) return false;
+          if (file.originalSize) {
+            cumulativeHeaderSize += file.originalSize;
+            if (cumulativeHeaderSize > MAX_TOTAL_EXTRACTED_BYTES) {
+              return false;
+            }
+          }
+          return true;
+        },
       },
       (err, unzipped) => {
         if (err) {
           reject(new Error(`Failed to decompress ZIP: ${err.message}`));
+          return;
+        }
+
+        if (cumulativeHeaderSize > MAX_TOTAL_EXTRACTED_BYTES) {
+          reject(
+            new Error(
+              "Decompressed ZIP exceeds maximum permitted size (200MB).",
+            ),
+          );
           return;
         }
 

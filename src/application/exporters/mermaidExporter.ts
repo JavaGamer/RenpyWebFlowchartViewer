@@ -6,6 +6,12 @@ function sanitizeMermaidText(text: string): string {
     .replace(/\r\n|\r|\n/g, "<br/>")
     .replace(/"/g, "#quot;")
     .replace(/\|/g, "#124;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\[/g, "#91;")
+    .replace(/\]/g, "#93;")
+    .replace(/\{/g, "#123;")
+    .replace(/\}/g, "#125;")
     .trim();
 }
 

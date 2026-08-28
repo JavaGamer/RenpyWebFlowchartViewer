@@ -17,11 +17,11 @@ const parser = new Parser({
   operators: {
     logical: true,
     comparison: true,
-    add: false,
-    subtract: false,
-    multiply: false,
-    divide: false,
-    remainder: false,
+    add: true,
+    subtract: true,
+    multiply: true,
+    divide: true,
+    remainder: true,
     power: false,
     concatenate: false,
   },
@@ -206,18 +206,31 @@ function evaluateInstructions(
       }
 
       const op = typeof inst.value === "string" ? inst.value : "";
+      const isFalsy = (v: string) => {
+        const numVal = Number(v);
+        return v === "false" ||
+          (!isNaN(numVal) && numVal === 0) ||
+          v === "none" ||
+          v === "null" ||
+          v === "";
+      };
+      const isTruthy = (v: string) => {
+        const numVal = Number(v);
+        return v === "true" || (!isNaN(numVal) && numVal !== 0);
+      };
+
       if (op === "and" || op === "&&") {
-        if (left === "false" || right === "false") {
+        if (isFalsy(left) || isFalsy(right)) {
           stack.push("false");
-        } else if (left !== "unknown" && right !== "unknown") {
+        } else if (isTruthy(left) && isTruthy(right)) {
           stack.push("true");
         } else {
           stack.push("unknown");
         }
       } else if (op === "or" || op === "||") {
-        if (left === "true" || right === "true") {
+        if (isTruthy(left) || isTruthy(right)) {
           stack.push("true");
-        } else if (left === "false" && right === "false") {
+        } else if (isFalsy(left) && isFalsy(right)) {
           stack.push("false");
         } else {
           stack.push("unknown");
@@ -244,8 +257,14 @@ function evaluateInstructions(
         if (left === "unknown" || right === "unknown") {
           stack.push("unknown");
         } else {
-          const numL = Number(left);
-          const numR = Number(right);
+          const parseNumeric = (s: string) => {
+            const low = s.trim().toLowerCase();
+            if (low === "true") return 1;
+            if (low === "false") return 0;
+            return Number(s);
+          };
+          const numL = parseNumeric(left);
+          const numR = parseNumeric(right);
           if (!isNaN(numL) && !isNaN(numR)) {
             let res = false;
             if (op === "<") res = numL < numR;
@@ -253,6 +272,26 @@ function evaluateInstructions(
             else if (op === "<=") res = numL <= numR;
             else if (op === ">=") res = numL >= numR;
             stack.push(res ? "true" : "false");
+          } else {
+            stack.push("unknown");
+          }
+        }
+      } else if (
+        op === "+" || op === "-" || op === "*" || op === "/" || op === "%"
+      ) {
+        if (left === "unknown" || right === "unknown") {
+          stack.push("unknown");
+        } else {
+          const numL = Number(left);
+          const numR = Number(right);
+          if (!isNaN(numL) && !isNaN(numR)) {
+            let val = 0;
+            if (op === "+") val = numL + numR;
+            else if (op === "-") val = numL - numR;
+            else if (op === "*") val = numL * numR;
+            else if (op === "/") val = numR !== 0 ? numL / numR : NaN;
+            else if (op === "%") val = numR !== 0 ? numL % numR : NaN;
+            stack.push(!isNaN(val) ? String(val) : "unknown");
           } else {
             stack.push("unknown");
           }

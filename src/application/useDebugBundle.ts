@@ -10,6 +10,7 @@ import {
   type DebugBundlePrivacyOptions,
   toDebugBundleBlob,
 } from "./debugBundle.ts";
+import { downloadBlob } from "./downloadHelper.ts";
 
 export interface UseDebugBundleResult {
   debugPrivacyOptions: DebugBundlePrivacyOptions;
@@ -109,8 +110,10 @@ export function useDebugBundle(): UseDebugBundleResult {
           fileCount: useTelemetryStore.getState().fileCount,
         },
       });
-      const { saveAs } = await import("file-saver");
-      saveAs(toDebugBundleBlob(bundle), "renpy-flowchart-debug-bundle.json");
+      await downloadBlob(
+        toDebugBundleBlob(bundle),
+        "renpy-flowchart-debug-bundle.json",
+      );
     },
     [
       appVersion,

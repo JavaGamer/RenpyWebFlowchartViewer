@@ -170,6 +170,21 @@ export function computeChapterPacing(
     list.push(m);
   }
 
+  const nodeMap = new Map<string, FlowNode>();
+  for (const n of nodes) {
+    nodeMap.set(n.id, n);
+  }
+
+  const choicesByChapter = new Map<string, number>();
+  for (const e of edges) {
+    if (e.conditionIsStaticallyFalse) continue;
+    const srcNode = nodeMap.get(e.source);
+    if (srcNode && (srcNode.type === "MENU" || Boolean(e.label))) {
+      const ch = srcNode.chapter || "Uncategorized";
+      choicesByChapter.set(ch, (choicesByChapter.get(ch) ?? 0) + 1);
+    }
+  }
+
   const result: Record<string, ChapterPacingStats> = {};
 
   for (const [chapter, { nodes: chNodes }] of byChapter.entries()) {
@@ -177,7 +192,7 @@ export function computeChapterPacing(
     let totalWords = 0;
     let totalPause = 0;
     let totalMenus = 0;
-    let totalChoices = 0;
+    const totalChoices = choicesByChapter.get(chapter) ?? 0;
 
     for (const n of chNodes) {
       totalLines += n.dialogueCount ?? 0;
@@ -186,17 +201,6 @@ export function computeChapterPacing(
 
       if (n.type === "MENU") {
         totalMenus++;
-      }
-    }
-
-    for (const e of edges) {
-      if (e.conditionIsStaticallyFalse) continue;
-      const srcNode = nodes.find((n) => n.id === e.source);
-      if (
-        srcNode && (srcNode.chapter ?? "Uncategorized") === chapter &&
-        (srcNode.type === "MENU" || Boolean(e.label))
-      ) {
-        totalChoices++;
       }
     }
 

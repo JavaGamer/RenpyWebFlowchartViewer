@@ -176,7 +176,7 @@ function parseConditionalHeader(lineText: string): {
  * Correctly bypasses colons found within string literals or parenthesized expressions.
  * Returns -1 if no valid root-level colon can be found.
  */
-function findTopLevelHeaderColon(text: string): number {
+export function findTopLevelHeaderColon(text: string): number {
   const delimiterStack: Array<")" | "]" | "}"> = [];
   let activeQuote: '"' | "'" | null = null;
   let tripleQuoted = false;
@@ -250,6 +250,9 @@ function findTopLevelHeaderColon(text: string): number {
     }
 
     if (char === ":" && delimiterStack.length === 0) {
+      if (i + 1 < text.length && text[i + 1] === "=") {
+        continue;
+      }
       return i;
     }
   }

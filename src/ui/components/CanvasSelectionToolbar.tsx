@@ -18,10 +18,13 @@ import {
   Layers,
   X,
 } from "lucide-react";
-import { useAppStore, useViewerStore } from "../../application/index.ts";
+import {
+  downloadBlob,
+  useAppStore,
+  useViewerStore,
+} from "../../application/index.ts";
 import type { FlowEdge } from "../../domain/index.ts";
 import { cn } from "../utils/cn.ts";
-import saveAs from "file-saver";
 
 export interface CanvasSelectionToolbarProps {
   flowEdges: FlowEdge[];
@@ -61,7 +64,16 @@ export function CanvasSelectionToolbar({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        const target = e.target as HTMLElement | null;
+        if (
+          target?.closest('[role="dialog"]') ||
+          target?.tagName === "INPUT" ||
+          target?.tagName === "TEXTAREA" ||
+          target?.tagName === "SELECT"
+        ) {
+          return;
+        }
         clearMultiSelection();
       }
     };
@@ -172,7 +184,7 @@ export function CanvasSelectionToolbar({
       2,
     );
     const blob = new Blob([data], { type: "application/json;charset=utf-8" });
-    saveAs(blob, "subgraph_selection.json");
+    void downloadBlob(blob, "subgraph_selection.json");
   };
 
   return (

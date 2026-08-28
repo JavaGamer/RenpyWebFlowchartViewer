@@ -72,10 +72,14 @@ export interface AppActions {
 
 export type AppStore = AppState & AppActions;
 
-export const useAppStore = create<AppStore>()(
-  immer((set, get, api) => ({
-    ...createAppPhaseSlice(set, get, api),
-    ...createAppGraphSlice(set, get, api),
-    ...createAppProgressSlice(set, get, api),
-  })),
-);
+export function createAppStore() {
+  return create<AppStore>()(
+    immer((set, get, api) => ({
+      ...createAppPhaseSlice(set, get, api),
+      ...createAppGraphSlice(set, get, api),
+      ...createAppProgressSlice(set, get, api),
+    })),
+  );
+}
+
+export const useAppStore = createAppStore();

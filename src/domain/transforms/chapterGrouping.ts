@@ -135,15 +135,18 @@ export function redirectEdgesForCollapsedChapters(
       continue;
     }
 
-    const pairKey = `${effectiveSource}__${effectiveTarget}__${
-      edge.kind || "seq"
-    }`;
-    if (seenPairKeys.has(pairKey)) {
-      continue;
-    }
-    seenPairKeys.add(pairKey);
-
     const isRedirected = isSourceCollapsed || isTargetCollapsed;
+
+    if (isRedirected) {
+      const pairKey = `${effectiveSource}__${effectiveTarget}__${
+        edge.kind || "seq"
+      }`;
+      if (seenPairKeys.has(pairKey)) {
+        continue;
+      }
+      seenPairKeys.add(pairKey);
+    }
+
     redirected.push({
       ...edge,
       id: isRedirected

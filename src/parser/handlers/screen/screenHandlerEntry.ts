@@ -35,18 +35,16 @@ export function stripInlineComment(value: string): string {
   while (i < value.length) {
     const char = value[i];
     if (activeQuote) {
-      if (char === "\\") {
-        result += char;
-        if (i + 1 < value.length) {
-          result += value[i + 1];
-          i += 2;
-          continue;
-        }
-      }
-      if (tripleQuoted) {
+      if (char === "\n" && !tripleQuoted) {
+        activeQuote = null;
+      } else if (char === "\\") {
+        result += char + (value[i + 1] ?? "");
+        i += 2;
+        continue;
+      } else if (tripleQuoted) {
         if (
-          i + 2 < value.length &&
           char === activeQuote &&
+          i + 2 < value.length &&
           value[i + 1] === activeQuote &&
           value[i + 2] === activeQuote
         ) {

@@ -61,7 +61,12 @@ export function Modal({
                       {headerAction}
                       <Dialog.Close
                         aria-label="Close modal"
-                        className="rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200"
+                        className={cn(
+                          "rounded-lg p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer",
+                          isDark
+                            ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                            : "text-gray-400 hover:bg-gray-100 hover:text-gray-700",
+                        )}
                       >
                         <X size={16} />
                       </Dialog.Close>
@@ -78,11 +83,7 @@ export function Modal({
             <>
               {/* Sidebar Overlay */}
               {modal && (
-                <div
-                  className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in"
-                  aria-hidden="true"
-                  onClick={() => onOpenChange(false)}
-                />
+                <Dialog.Overlay className="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 animate-fade-in" />
               )}
               <Dialog.Content
                 className={cn(
@@ -117,7 +118,12 @@ export function Modal({
                     {headerAction}
                     <Dialog.Close
                       aria-label="Close modal"
-                      className="rounded-lg p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-300 transition-colors duration-200"
+                      className={cn(
+                        "rounded-lg p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer",
+                        isDark
+                          ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                          : "text-gray-400 hover:bg-gray-100 hover:text-gray-700",
+                      )}
                     >
                       <X size={16} />
                     </Dialog.Close>

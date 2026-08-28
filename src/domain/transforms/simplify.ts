@@ -202,18 +202,19 @@ function inlineNodes(
       if (
         targetNode && targetNode.mutations && targetNode.mutations.length > 0
       ) {
-        if (!u.mutations) u.mutations = [];
+        const updatedMutations = [...(u.mutations || [])];
         for (const m of targetNode.mutations) {
           if (
-            !u.mutations.some((existing) =>
+            !updatedMutations.some((existing) =>
               existing.variableName === m.variableName &&
               existing.operator === m.operator &&
               existing.rawExpression === m.rawExpression
             )
           ) {
-            u.mutations.push(m);
+            updatedMutations.push(m);
           }
         }
+        u.mutations = updatedMutations;
       }
 
       const nextEdges = outgoingEdges.get(current.nodeId) || [];
@@ -336,7 +337,9 @@ export function collapseLinearChains(
       B.type === "LABEL" &&
       A.chapter === B.chapter &&
       A.id !== "start" &&
+      A.label?.toLowerCase() !== "start" &&
       B.id !== "start" &&
+      B.label?.toLowerCase() !== "start" &&
       (outgoing.get(A.id)?.length ?? 0) === 1 &&
       (incoming.get(B.id)?.length ?? 0) === 1 &&
       !edge.label &&

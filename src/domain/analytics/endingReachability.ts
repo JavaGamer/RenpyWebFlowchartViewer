@@ -84,7 +84,9 @@ export function discoverTerminalEndings(
 
     const outgoing = outgoingMap.get(node.id) ?? [];
     const hasForwardFlow = outgoing.some(
-      (e) => e.kind === "sequence" || e.kind === "jump" || e.kind === "call",
+      (e) =>
+        e.kind === "sequence" || e.kind === "jump" || e.kind === "call" ||
+        e.kind === "call_return",
     );
 
     const isTerminal = node.isTerminalOutcome === true ||
@@ -259,6 +261,7 @@ export function identifyPointsOfNoReturn(
         targetNodeId: targetNode.id,
         targetNodeLabel: targetNode.label || targetNode.id,
         choiceText: edge.label,
+        conditionExpression: edge.condition?.expression,
         priorReachableEndingIds: Array.from(sourceReach),
         remainingReachableEndingIds: Array.from(targetReach),
         eliminatedEndingIds: eliminated,

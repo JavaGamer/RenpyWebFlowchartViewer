@@ -290,6 +290,7 @@ export function SearchControls({
                   <button
                     key={kind}
                     type="button"
+                    aria-pressed={isActive}
                     onClick={() => {
                       setSelectedSearchNodeKinds({
                         ...selectedSearchNodeKinds,
