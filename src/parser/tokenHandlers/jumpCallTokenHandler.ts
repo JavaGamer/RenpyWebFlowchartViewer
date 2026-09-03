@@ -36,6 +36,39 @@ export function handleJumpKeywordToken(scanState: ParseScanState): void {
   scanState.waitForJumpExpressionTarget = false;
 }
 
+import { stripInlineComment } from "../handlers/screen/screenHandlerEntry.ts";
+
+function extractTargetExpressionClause(
+  lineText: string,
+  prefixPattern: RegExp,
+): string | null {
+  const clean = stripInlineComment(lineText).trim();
+  const match = prefixPattern.exec(clean);
+  if (!match) return null;
+  const startIdx = match.index + match[0].length;
+  let depth = 0;
+  let inQuote: string | null = null;
+  for (let i = startIdx; i < clean.length; i++) {
+    const ch = clean[i]!;
+    if (inQuote) {
+      if (ch === "\\" && i + 1 < clean.length) i++;
+      else if (ch === inQuote) inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === ")" || ch === "]" || ch === "}") {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0) {
+      const rest = clean.slice(i);
+      if (/^\s+(?:pass|from)\b/i.test(rest)) {
+        return clean.slice(startIdx, i).trim();
+      }
+    }
+  }
+  return clean.slice(startIdx).trim();
+}
+
 export function handleJumpTargetToken(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -48,13 +81,11 @@ export function handleJumpTargetToken(
 ): void {
   let rawExpr = val();
   if (scanState.waitForJumpExpressionTarget && lineText) {
-    const clean = lineText.split("#")[0]!.trim();
-    const match = /jump\s+expression\s+(.+?)(?:\s+from\b|$)/i.exec(clean);
-    rawExpr = match
-      ? match[1]!.trim()
-      : (clean.includes("expression")
-        ? clean.substring(clean.indexOf("expression") + 10).trim()
-        : val());
+    const extracted = extractTargetExpressionClause(
+      lineText,
+      /jump\s+expression\s+/i,
+    );
+    rawExpr = extracted && extracted.length > 0 ? extracted : val();
   }
   const targetExpression = rawExpr;
   const targets = resolveExpressionTargets(
@@ -112,15 +143,11 @@ export function handleCallTargetToken(
 ): void {
   let rawExpr = val();
   if (scanState.waitForCallExpressionTarget && lineText) {
-    const clean = lineText.split("#")[0]!.trim();
-    const match = /call\s+expression\s+(.+?)(?:\s+pass\b|\s+from\b|$)/i.exec(
-      clean,
+    const extracted = extractTargetExpressionClause(
+      lineText,
+      /call\s+expression\s+/i,
     );
-    rawExpr = match
-      ? match[1]!.trim()
-      : (clean.includes("expression")
-        ? clean.substring(clean.indexOf("expression") + 10).trim()
-        : val());
+    rawExpr = extracted && extracted.length > 0 ? extracted : val();
   }
   const targetExpression = rawExpr;
   const targets = resolveExpressionTargets(

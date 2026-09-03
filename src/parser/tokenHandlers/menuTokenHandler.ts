@@ -21,16 +21,38 @@ function edgeIdWithOption(baseId: string, optionText: string | null): string {
 export function extractMenuOptionCondition(lineText: string): string | null {
   let cleanLine = lineText;
   let inQuote: string | null = null;
+  let tripleQuoted = false;
   for (let i = 0; i < lineText.length; i++) {
-    const ch = lineText[i];
+    const ch = lineText[i]!;
     if (inQuote) {
       if (ch === "\\" && i + 1 < lineText.length) {
         i++;
+      } else if (tripleQuoted) {
+        if (
+          ch === inQuote &&
+          i + 2 < lineText.length &&
+          lineText[i + 1] === inQuote &&
+          lineText[i + 2] === inQuote
+        ) {
+          i += 2;
+          inQuote = null;
+          tripleQuoted = false;
+        }
       } else if (ch === inQuote) {
         inQuote = null;
       }
+    } else if (
+      (ch === '"' || ch === "'") &&
+      i + 2 < lineText.length &&
+      lineText[i + 1] === ch &&
+      lineText[i + 2] === ch
+    ) {
+      inQuote = ch;
+      tripleQuoted = true;
+      i += 2;
     } else if (ch === '"' || ch === "'") {
       inQuote = ch;
+      tripleQuoted = false;
     } else if (ch === "#") {
       cleanLine = lineText.slice(0, i);
       break;
@@ -43,18 +65,41 @@ export function extractMenuOptionCondition(lineText: string): string | null {
 
   // Scan outside quotes for the first top-level ' if ' following the caption string
   inQuote = null;
+  tripleQuoted = false;
   let captionClosed = false;
   for (let i = 0; i < trimmed.length; i++) {
-    const ch = trimmed[i];
+    const ch = trimmed[i]!;
     if (inQuote) {
       if (ch === "\\" && i + 1 < trimmed.length) {
         i++;
+      } else if (tripleQuoted) {
+        if (
+          ch === inQuote &&
+          i + 2 < trimmed.length &&
+          trimmed[i + 1] === inQuote &&
+          trimmed[i + 2] === inQuote
+        ) {
+          i += 2;
+          inQuote = null;
+          tripleQuoted = false;
+          captionClosed = true;
+        }
       } else if (ch === inQuote) {
         inQuote = null;
         captionClosed = true;
       }
+    } else if (
+      (ch === '"' || ch === "'") &&
+      i + 2 < trimmed.length &&
+      trimmed[i + 1] === ch &&
+      trimmed[i + 2] === ch
+    ) {
+      inQuote = ch;
+      tripleQuoted = true;
+      i += 2;
     } else if (ch === '"' || ch === "'") {
       inQuote = ch;
+      tripleQuoted = false;
     } else if (
       captionClosed &&
       (ch === "i" || ch === "I") &&
@@ -99,6 +144,7 @@ export function handleMenuStatementToken(
     parentLabelId: scanState.currentLabelId ?? undefined,
     sourceLocation,
   });
+  let connectedPoppedMenu = false;
   for (const closedMenu of poppedMenus) {
     if (!menuHasFallthrough(closedMenu)) continue;
     addEdge(state, {
@@ -111,6 +157,7 @@ export function handleMenuStatementToken(
     });
     addOutgoing(state, closedMenu.id, "sequence");
     addIncoming(state, newMenuId, "sequence");
+    connectedPoppedMenu = true;
   }
 
   const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
@@ -120,7 +167,8 @@ export function handleMenuStatementToken(
     ];
   const source = parentMenu
     ? parentMenu.id
-    : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
+    : (decisionContext?.decisionNodeId ??
+      (connectedPoppedMenu ? null : scanState.currentLabelId));
   if (source) {
     const condition = decisionContext
       ? {

@@ -45,7 +45,7 @@ export function generateProjectNarrativeReport(
       totalUniquePause += n.pauseDuration ?? 0;
       totalDialogueLines += n.dialogueCount ?? 0;
     }
-    if (n.type === "MENU") {
+    if (n.type === "MENU" && !n.isOrphan) {
       totalMenus++;
     }
   }

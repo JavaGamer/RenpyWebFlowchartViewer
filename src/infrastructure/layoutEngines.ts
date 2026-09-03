@@ -108,9 +108,15 @@ function buildCanvasEdges(
   edgeColor: string,
   elkEdgeMap?: Map<string, ElkEdge>,
 ): CanvasEdge[] {
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const nodeById = new Map<string, CanvasNode>();
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    nodeById.set(node.id, node);
+  }
+
   const absolutePositions = new Map<string, { x: number; y: number }>();
-  for (const node of nodes) {
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
     if (node.parentId) {
       const parent = nodeById.get(node.parentId);
       if (parent) {
@@ -140,9 +146,12 @@ function buildCanvasEdges(
         isSelfLoop,
       );
 
-      const corridorKey = `${direction}_${e.target}`;
-      const laneIndex = corridorCounts.get(corridorKey) ?? 0;
-      corridorCounts.set(corridorKey, laneIndex + 1);
+      let laneIndex = 0;
+      if (isSelfLoop || isBackEdge) {
+        const corridorKey = `${direction}_${e.target}`;
+        laneIndex = corridorCounts.get(corridorKey) ?? 0;
+        corridorCounts.set(corridorKey, laneIndex + 1);
+      }
 
       const sourceNode = nodeById.get(e.source);
       const targetNode = nodeById.get(e.target);
@@ -610,7 +619,10 @@ export function applyTwoTierDagreLayout(
   const density = options?.layoutDensity ?? "normal";
   const collapsedChapters = options?.collapsedChapters ?? {};
   const chapterGroups = groupNodesByChapter(normalizedNodes);
-  const chapterStats = computeChapterAggregates(normalizedNodes);
+  const chapterStats = computeChapterAggregates(
+    normalizedNodes,
+    chapterGroups,
+  );
 
   // Micro spacing
   let microRanksep = direction === "TB" ? 80 : 110;
@@ -1029,7 +1041,10 @@ export async function applyElkLayout(
     ...(isCompound ? { "elk.hierarchyHandling": "INCLUDE_CHILDREN" } : {}),
   };
 
-  const chapterStats = computeChapterAggregates(normalizedNodes);
+  const chapterStats = computeChapterAggregates(
+    normalizedNodes,
+    isCompound ? chapterGroups : undefined,
+  );
   let elkNodes: ElkNode[] = [];
 
   if (!isCompound) {

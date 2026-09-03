@@ -350,7 +350,18 @@ export function useGraphVisibility({
       return baseVisibleNodes;
     }
     const isolatedSet = new Set(isolatedSubgraphNodeIds);
-    return baseVisibleNodes.filter((n) => isolatedSet.has(n.id));
+    const isolatedChildren = baseVisibleNodes.filter((n) =>
+      isolatedSet.has(n.id)
+    );
+    const parentIds = new Set<string>();
+    for (const node of isolatedChildren) {
+      if (node.parentId) {
+        parentIds.add(node.parentId);
+      }
+    }
+    return baseVisibleNodes.filter((n) =>
+      isolatedSet.has(n.id) || parentIds.has(n.id)
+    );
   }, [baseVisibleNodes, isolatedSubgraphNodeIds]);
 
   const logicalVisibleNodes = isolatedVisibleNodes;

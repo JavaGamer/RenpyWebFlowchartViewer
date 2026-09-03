@@ -499,6 +499,14 @@ function applySingleBinaryOp(
     ) {
       return { value: lv.repeat(Math.min(rv, 1000)), ok: true };
     }
+    if (
+      typeof rv === "string" &&
+      typeof lv === "number" &&
+      Number.isInteger(lv) &&
+      lv >= 0
+    ) {
+      return { value: rv.repeat(Math.min(lv, 1000)), ok: true };
+    }
     const num = (lv as number) * (rv as number);
     return { value: num, ok: !isNaN(num) };
   }

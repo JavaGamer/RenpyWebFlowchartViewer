@@ -395,4 +395,401 @@ describe("simplifyGraph", () => {
       ),
     ).toBe(true);
   });
+
+  it("adversarial: preserves parallel edges with different arguments when inlining nodes", () => {
+    // start -> utilA -> target with arg="modeA"
+    // start -> utilB -> target with arg="modeB"
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      {
+        id: "utilA",
+        type: "LABEL",
+        label: "utilA",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      {
+        id: "utilB",
+        type: "LABEL",
+        label: "utilB",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      { id: "target", type: "LABEL", label: "target", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      {
+        id: "e1",
+        source: "start",
+        target: "utilA",
+        kind: "call",
+        arguments: [{ name: "mode", value: "'A'" }],
+      },
+      { id: "e2", source: "utilA", target: "target", kind: "sequence" },
+      {
+        id: "e3",
+        source: "start",
+        target: "utilB",
+        kind: "call",
+        arguments: [{ name: "mode", value: "'B'" }],
+      },
+      { id: "e4", source: "utilB", target: "target", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      inlineUtilities: true,
+    });
+
+    expect(result.nodes.map((n) => n.id)).toEqual(["start", "target"]);
+    expect(result.edges).toHaveLength(2);
+    const argValues = result.edges.map((e) => e.arguments?.[0]?.value).sort();
+    expect(argValues).toEqual(["'A'", "'B'"]);
+  });
+
+  it("adversarial: preserves non-inlined parallel edges with different callContext when inlining is active", () => {
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      { id: "target", type: "LABEL", label: "target", dialogueCount: 1 },
+      {
+        id: "dummyUtil",
+        type: "LABEL",
+        label: "dummyUtil",
+        dialogueCount: 0,
+        role: "utility",
+      },
+    ];
+    const edges: FlowEdge[] = [
+      {
+        id: "e1",
+        source: "start",
+        target: "target",
+        kind: "call",
+        callContext: { callSiteId: "start", returnTargetId: "ret1" },
+      },
+      {
+        id: "e2",
+        source: "start",
+        target: "target",
+        kind: "call",
+        callContext: { callSiteId: "start", returnTargetId: "ret2" },
+      },
+      { id: "e3", source: "start", target: "dummyUtil", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      inlineUtilities: true,
+    });
+
+    const targetEdges = result.edges.filter((e) => e.target === "target");
+    expect(targetEdges).toHaveLength(2);
+    const returnTargets = targetEdges.map((e) => e.callContext?.returnTargetId)
+      .sort();
+    expect(returnTargets).toEqual(["ret1", "ret2"]);
+  });
+
+  it("adversarial: preserves parallel edges with different timeouts", () => {
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      { id: "target", type: "LABEL", label: "target", dialogueCount: 1 },
+      {
+        id: "dummyUtil",
+        type: "LABEL",
+        label: "dummyUtil",
+        dialogueCount: 0,
+        role: "utility",
+      },
+    ];
+    const edges: FlowEdge[] = [
+      {
+        id: "e1",
+        source: "start",
+        target: "target",
+        kind: "sequence",
+        timeout: { isTimeout: true, durationSeconds: 5 },
+      },
+      { id: "e2", source: "start", target: "target", kind: "sequence" },
+      { id: "e3", source: "start", target: "dummyUtil", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      inlineUtilities: true,
+    });
+
+    const targetEdges = result.edges.filter((e) => e.target === "target");
+    expect(targetEdges).toHaveLength(2);
+    expect(targetEdges.some((e) => e.timeout?.isTimeout)).toBe(true);
+    expect(targetEdges.some((e) => !e.timeout)).toBe(true);
+  });
+
+  it("adversarial: does not skip distinct paths through chained inlined nodes when arguments differ", () => {
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      {
+        id: "util1",
+        type: "LABEL",
+        label: "util1",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      {
+        id: "util2",
+        type: "LABEL",
+        label: "util2",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      {
+        id: "util3",
+        type: "LABEL",
+        label: "util3",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      { id: "target", type: "LABEL", label: "target", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      {
+        id: "e1",
+        source: "start",
+        target: "util1",
+        kind: "call",
+        arguments: [{ name: "opt", value: "1" }],
+      },
+      { id: "e2", source: "util1", target: "util3", kind: "sequence" },
+      {
+        id: "e3",
+        source: "start",
+        target: "util2",
+        kind: "call",
+        arguments: [{ name: "opt", value: "2" }],
+      },
+      { id: "e4", source: "util2", target: "util3", kind: "sequence" },
+      { id: "e5", source: "util3", target: "target", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      inlineUtilities: true,
+    });
+
+    expect(result.nodes.map((n) => n.id)).toEqual(["start", "target"]);
+    expect(result.edges).toHaveLength(2);
+    const values = result.edges.map((e) => e.arguments?.[0]?.value).sort();
+    expect(values).toEqual(["1", "2"]);
+  });
+
+  it("adversarial: handles cyclic inlined utilities without infinite loops or dropping exits", () => {
+    // start -> utilA <-> utilB -> target
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      {
+        id: "utilA",
+        type: "LABEL",
+        label: "utilA",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      {
+        id: "utilB",
+        type: "LABEL",
+        label: "utilB",
+        dialogueCount: 0,
+        role: "utility",
+      },
+      { id: "target", type: "LABEL", label: "target", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "utilA", kind: "sequence" },
+      { id: "e2", source: "utilA", target: "utilB", kind: "sequence" },
+      { id: "e3", source: "utilB", target: "utilA", kind: "sequence" },
+      { id: "e4", source: "utilB", target: "target", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      inlineUtilities: true,
+    });
+
+    expect(result.nodes.map((n) => n.id)).toEqual(["start", "target"]);
+    expect(
+      result.edges.some((e) => e.source === "start" && e.target === "target"),
+    ).toBe(true);
+  });
+
+  it("adversarial: combineSourceLocations handles multi-file linear collapsing respecting root file", () => {
+    const nodes: FlowNode[] = [
+      {
+        id: "start",
+        type: "LABEL",
+        label: "start",
+        dialogueCount: 1,
+        chapter: "ch1",
+      },
+      {
+        id: "rootNode",
+        type: "LABEL",
+        label: "rootNode",
+        dialogueCount: 1,
+        chapter: "ch1",
+        sourceLocation: {
+          file: "fileB.rpy",
+          start: { line: 20, character: 0, offset: 200 },
+          end: { line: 30, character: 0, offset: 300 },
+        },
+      },
+      {
+        id: "linear1",
+        type: "LABEL",
+        label: "linear1",
+        dialogueCount: 1,
+        chapter: "ch1",
+        sourceLocation: {
+          file: "fileA.rpy",
+          start: { line: 5, character: 0, offset: 50 },
+          end: { line: 10, character: 0, offset: 100 },
+        },
+      },
+      {
+        id: "linear2",
+        type: "LABEL",
+        label: "linear2",
+        dialogueCount: 1,
+        chapter: "ch1",
+        sourceLocation: {
+          file: "fileB.rpy",
+          start: { line: 35, character: 0, offset: 350 },
+          end: { line: 50, character: 0, offset: 500 },
+        },
+      },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "rootNode", kind: "sequence" },
+      { id: "e2", source: "rootNode", target: "linear1", kind: "sequence" },
+      { id: "e3", source: "linear1", target: "linear2", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      collapseLinearChains: true,
+    });
+
+    const collapsed = result.nodes.find((n) => n.id === "rootNode")!;
+    expect(collapsed).toBeDefined();
+    expect(collapsed.sourceLocation?.file).toBe("fileB.rpy");
+    expect(collapsed.sourceLocation?.start.line).toBe(20);
+    expect(collapsed.sourceLocation?.end.line).toBe(50);
+  });
+
+  it("adversarial: combineSourceLocations selects dominant file when root node has no location", () => {
+    const nodes: FlowNode[] = [
+      {
+        id: "start",
+        type: "LABEL",
+        label: "start",
+        dialogueCount: 1,
+        chapter: "ch1",
+      },
+      {
+        id: "rootNode",
+        type: "LABEL",
+        label: "rootNode",
+        dialogueCount: 1,
+        chapter: "ch1",
+      },
+      {
+        id: "linear1",
+        type: "LABEL",
+        label: "linear1",
+        dialogueCount: 1,
+        chapter: "ch1",
+        sourceLocation: {
+          file: "fileA.rpy",
+          start: { line: 1, character: 0, offset: 10 },
+          end: { line: 2, character: 0, offset: 20 },
+        },
+      },
+      {
+        id: "linear2",
+        type: "LABEL",
+        label: "linear2",
+        dialogueCount: 1,
+        chapter: "ch1",
+        sourceLocation: {
+          file: "fileB.rpy",
+          start: { line: 100, character: 0, offset: 1000 },
+          end: { line: 150, character: 0, offset: 1500 },
+        },
+      },
+      {
+        id: "linear3",
+        type: "LABEL",
+        label: "linear3",
+        dialogueCount: 1,
+        chapter: "ch1",
+        sourceLocation: {
+          file: "fileB.rpy",
+          start: { line: 151, character: 0, offset: 1510 },
+          end: { line: 200, character: 0, offset: 2000 },
+        },
+      },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "rootNode", kind: "sequence" },
+      { id: "e2", source: "rootNode", target: "linear1", kind: "sequence" },
+      { id: "e3", source: "linear1", target: "linear2", kind: "sequence" },
+      { id: "e4", source: "linear2", target: "linear3", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      collapseLinearChains: true,
+    });
+
+    const collapsed = result.nodes.find((n) => n.id === "rootNode")!;
+    expect(collapsed).toBeDefined();
+    expect(collapsed.sourceLocation?.file).toBe("fileB.rpy");
+    expect(collapsed.sourceLocation?.start.line).toBe(100);
+    expect(collapsed.sourceLocation?.end.line).toBe(200);
+  });
+
+  it("adversarial: preserves chapter boundaries and never collapses linear chains across chapters", () => {
+    const nodes: FlowNode[] = [
+      {
+        id: "start",
+        type: "LABEL",
+        label: "start",
+        dialogueCount: 1,
+        chapter: "prologue",
+      },
+      {
+        id: "ch1_node",
+        type: "LABEL",
+        label: "ch1_node",
+        dialogueCount: 1,
+        chapter: "chapter1",
+      },
+      {
+        id: "ch2_node",
+        type: "LABEL",
+        label: "ch2_node",
+        dialogueCount: 1,
+        chapter: "chapter2",
+      },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "ch1_node", kind: "sequence" },
+      { id: "e2", source: "ch1_node", target: "ch2_node", kind: "sequence" },
+    ];
+
+    const result = simplifyGraph(nodes, edges, {
+      ...defaultOptions,
+      collapseLinearChains: true,
+    });
+
+    // ch1_node and ch2_node must NOT be collapsed together because their chapters differ
+    expect(result.nodes).toHaveLength(3);
+  });
 });

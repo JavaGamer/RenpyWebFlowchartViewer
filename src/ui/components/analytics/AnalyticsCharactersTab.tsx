@@ -24,7 +24,8 @@ export function AnalyticsCharactersTab(
               <th scope="col" className="p-3">Character / Speaker</th>
               <th scope="col" className="p-3">Line Count</th>
               <th scope="col" className="p-3">Word Count</th>
-              <th scope="col" className="p-3">Dialogue Share (%)</th>
+              <th scope="col" className="p-3">Line Share (%)</th>
+              <th scope="col" className="p-3">Word Share (%)</th>
               <th scope="col" className="p-3">Visual Distribution</th>
             </tr>
           </thead>
@@ -42,6 +43,9 @@ export function AnalyticsCharactersTab(
                 </td>
                 <td className="p-3 font-mono text-slate-500">
                   ~{char.wordCount.toLocaleString()}
+                </td>
+                <td className="p-3 font-mono">
+                  {char.percentageOfLines}%
                 </td>
                 <td className="p-3 font-mono font-semibold">
                   {char.percentageOfWords}%

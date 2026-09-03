@@ -356,5 +356,42 @@ describe("Comprehensive Bug Fixes & Regressions", () => {
       });
       expect(md).toContain("Target \\`Special\\` Ending");
     });
+
+    it("exportToHtmlBundle sanitizes non-svg data URLs safely", async () => {
+      const { exportToHtmlBundle } = await import(
+        "../src/application/exporters/htmlExporter.ts"
+      );
+      const html = exportToHtmlBundle("javascript:alert(1)");
+      expect(html).toContain('src=""');
+    });
+
+    it("escapeCsvCell prevents CSV injection with leading whitespace", async () => {
+      const { escapeCsvCell } = await import(
+        "../src/application/exporters/analyticsExporter.ts"
+      );
+      expect(escapeCsvCell("  =cmd|' /C calc'!A0")).toBe(
+        `"'  =cmd|' /C calc'!A0"`,
+      );
+      expect(escapeCsvCell("   @SUM(1,2)")).toBe(`"'   @SUM(1,2)"`);
+    });
+
+    it("resolveGithubUrl handles branch names with slashes", () => {
+      const parsed = resolveGithubUrl(
+        "https://github.com/owner/repo/tree/feature/sub-branch",
+      );
+      expect(parsed).toBe(
+        "https://github.com/owner/repo/archive/refs/heads/feature/sub-branch.zip",
+      );
+    });
+
+    it("pythonAstEvaluator supports commutative string multiplication", async () => {
+      const { evaluatePythonAstExpression } = await import(
+        "../src/domain/pythonAstEvaluator.ts"
+      );
+      expect(evaluatePythonAstExpression('3 * "abc"', {}).value).toBe(
+        "abcabcabc",
+      );
+      expect(evaluatePythonAstExpression('"xyz" * 2', {}).value).toBe("xyzxyz");
+    });
   });
 });

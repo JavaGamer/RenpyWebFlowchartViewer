@@ -58,6 +58,7 @@ const workerPool: (Worker | null)[] = new Array(MAX_POOL_SIZE).fill(null);
 const apiPool: (Remote<ParserWorkerApi> | null)[] = new Array(MAX_POOL_SIZE)
   .fill(null);
 const idleTimeoutIds: (number | null)[] = new Array(MAX_POOL_SIZE).fill(null);
+const cancelTimeoutIds: (number | null)[] = new Array(MAX_POOL_SIZE).fill(null);
 let isWorkerSpawningFailed = false;
 
 export function setWorkerSpawningFailedForTesting(failed: boolean): void {
@@ -87,6 +88,22 @@ function clearIdleTimeout(index: number) {
   }
 }
 
+function clearCancelTimeout(index: number) {
+  const id = cancelTimeoutIds[index];
+  if (id !== null) {
+    clearTimeout(id);
+    cancelTimeoutIds[index] = null;
+  }
+}
+
+function setCancelTimeout(index: number, delayMs = 3000) {
+  clearCancelTimeout(index);
+  cancelTimeoutIds[index] = setTimeout(() => {
+    cancelTimeoutIds[index] = null;
+    terminateWorker(index);
+  }, delayMs) as unknown as number;
+}
+
 function resetIdleTimeout(index: number) {
   clearIdleTimeout(index);
   if (index === 0) return; // Keep primary worker 0 active for search queries
@@ -102,6 +119,7 @@ function getWorker(index: number): Worker {
     );
   }
   clearIdleTimeout(index);
+  clearCancelTimeout(index);
   let w = workerPool[index];
   if (!w) {
     try {
@@ -126,6 +144,7 @@ function getWorkerApi(index: number): Remote<ParserWorkerApi> {
 function terminateWorker(index: number): void {
   if (index < 0 || index >= MAX_POOL_SIZE) return;
   clearIdleTimeout(index);
+  clearCancelTimeout(index);
   const p = apiPool[index];
   if (p) {
     try {
@@ -434,8 +453,6 @@ export function parseRenpyFilesInWorker(
   }
 
   return new Promise<ParseWorkerClientResult>((resolve, reject) => {
-    let cancelTimeout: number | undefined;
-
     const onAbort = () => {
       try {
         getWorkerApi(0).cancel(requestId);
@@ -443,11 +460,7 @@ export function parseRenpyFilesInWorker(
         // Ignore
       }
       reject(new DOMException("Parsing cancelled", "AbortError"));
-
-      // 3-second failsafe timeout: if worker is hung, terminate it
-      cancelTimeout = setTimeout(() => {
-        terminateWorker(0);
-      }, 3000) as unknown as number;
+      setCancelTimeout(0, 3000);
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -526,9 +539,7 @@ export function parseRenpyFilesInWorker(
       })
       .then((result: ParseWorkerClientResult) => {
         signal?.removeEventListener("abort", onAbort);
-        if (cancelTimeout !== undefined) {
-          clearTimeout(cancelTimeout);
-        }
+        clearCancelTimeout(0);
         resetIdleTimeout(0);
 
         if (signal?.aborted) {
@@ -542,9 +553,7 @@ export function parseRenpyFilesInWorker(
       })
       .catch((error) => {
         signal?.removeEventListener("abort", onAbort);
-        if (cancelTimeout !== undefined) {
-          clearTimeout(cancelTimeout);
-        }
+        clearCancelTimeout(0);
         resetIdleTimeout(0);
 
         if (!signal?.aborted) {
@@ -753,8 +762,6 @@ export function parseChunksInParallel({
       );
 
       return new Promise<InternalChunkResult>((resolve, reject) => {
-        let cancelTimeout: number | undefined;
-
         const onAbort = () => {
           try {
             getWorkerApi(workerIdx).cancel(chunkRequestId);
@@ -762,10 +769,7 @@ export function parseChunksInParallel({
             // Ignore
           }
           reject(new DOMException("Parsing cancelled", "AbortError"));
-
-          cancelTimeout = setTimeout(() => {
-            terminateWorker(workerIdx);
-          }, 3000) as unknown as number;
+          setCancelTimeout(workerIdx, 3000);
         };
         signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -820,9 +824,7 @@ export function parseChunksInParallel({
           })
             .then((chunkResult) => {
               signal?.removeEventListener("abort", onAbort);
-              if (cancelTimeout !== undefined) {
-                clearTimeout(cancelTimeout);
-              }
+              clearCancelTimeout(workerIdx);
               resetIdleTimeout(workerIdx);
 
               if (signal?.aborted) {
@@ -833,9 +835,7 @@ export function parseChunksInParallel({
             })
             .catch((err) => {
               signal?.removeEventListener("abort", onAbort);
-              if (cancelTimeout !== undefined) {
-                clearTimeout(cancelTimeout);
-              }
+              clearCancelTimeout(workerIdx);
               resetIdleTimeout(workerIdx);
 
               if (!signal?.aborted) {
@@ -844,9 +844,7 @@ export function parseChunksInParallel({
             });
         } catch (err) {
           signal?.removeEventListener("abort", onAbort);
-          if (cancelTimeout !== undefined) {
-            clearTimeout(cancelTimeout);
-          }
+          clearCancelTimeout(workerIdx);
           reject(err);
         }
       });
@@ -1246,8 +1244,6 @@ export function parseChunksInParallel({
       const finalizeRequestId = ++requestCounter;
 
       return new Promise<ParseChunkResult>((resolve, reject) => {
-        let cancelTimeout: number | undefined;
-
         const onAbortFinalize = () => {
           try {
             getWorkerApi(0).cancel(finalizeRequestId);
@@ -1255,10 +1251,7 @@ export function parseChunksInParallel({
             // Ignore
           }
           reject(new DOMException("Parsing cancelled", "AbortError"));
-
-          cancelTimeout = setTimeout(() => {
-            terminateWorker(0);
-          }, 3000) as unknown as number;
+          setCancelTimeout(0, 3000);
         };
         signal?.addEventListener("abort", onAbortFinalize, { once: true });
 
@@ -1300,9 +1293,7 @@ export function parseChunksInParallel({
         })
           .then((finalResult) => {
             signal?.removeEventListener("abort", onAbortFinalize);
-            if (cancelTimeout !== undefined) {
-              clearTimeout(cancelTimeout);
-            }
+            clearCancelTimeout(0);
             resetIdleTimeout(0);
 
             if (signal?.aborted) {
@@ -1318,9 +1309,7 @@ export function parseChunksInParallel({
           })
           .catch((err) => {
             signal?.removeEventListener("abort", onAbortFinalize);
-            if (cancelTimeout !== undefined) {
-              clearTimeout(cancelTimeout);
-            }
+            clearCancelTimeout(0);
             resetIdleTimeout(0);
 
             if (!signal?.aborted) {

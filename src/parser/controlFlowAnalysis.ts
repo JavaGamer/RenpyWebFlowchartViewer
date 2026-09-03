@@ -11,6 +11,7 @@ import {
   extractConditionFlagRefs,
   type FlowEdge,
 } from "../domain/index.ts";
+import { splitBalancedArguments } from "./handlers/jumpCallArgs.ts";
 
 function parseForLoopSequenceValues(
   expression?: string,
@@ -49,7 +50,7 @@ function parseForLoopSequenceValues(
   }
 
   if (rhs.startsWith("[") && rhs.endsWith("]")) {
-    const rawItems = rhs.substring(1, rhs.length - 1).split(",");
+    const rawItems = splitBalancedArguments(rhs.substring(1, rhs.length - 1));
     const values: string[] = [];
     for (const item of rawItems) {
       const trimmed = item.trim().replace(/^["']|["']$/g, "");
@@ -932,6 +933,17 @@ function analyzeDeadStateAndUnusedFlags(state: ParseGraphState): void {
         ? desc.filePath.replace(/\\/g, "/").replace(/\.rpy$/i, "")
         : undefined;
       declaredVariables.set(varName, { chapter });
+    }
+  }
+
+  if (state.globalCharacters) {
+    for (const charName of state.globalCharacters) {
+      if (!declaredVariables.has(charName)) {
+        declaredVariables.set(
+          charName,
+          { construct: "character" } as unknown as { chapter?: string },
+        );
+      }
     }
   }
 

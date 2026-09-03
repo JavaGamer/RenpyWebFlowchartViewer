@@ -67,5 +67,8 @@ export const createAppPhaseSlice: StateCreator<
       draft.phase = "error";
       draft.errorMsg = message;
       draft.parseProgress = null;
+      draft.flowNodes = [];
+      draft.flowEdges = [];
+      draft.parseDiagnostics = [];
     }),
 });

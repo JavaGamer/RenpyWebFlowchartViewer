@@ -19,6 +19,34 @@ import {
   type SourceLocation,
 } from "../../domain/index.ts";
 
+function extractCallScreenExpression(lineText: string): string | null {
+  const match = /^call\s+screen\s+expression\s+/i.exec(lineText.trim());
+  if (!match) return null;
+  const startIdx = match.index + match[0].length;
+  const clean = lineText.trim();
+  let depth = 0;
+  let inQuote: string | null = null;
+  for (let i = startIdx; i < clean.length; i++) {
+    const ch = clean[i]!;
+    if (inQuote) {
+      if (ch === "\\" && i + 1 < clean.length) i++;
+      else if (ch === inQuote) inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === ")" || ch === "]" || ch === "}") {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0) {
+      const rest = clean.slice(i);
+      if (/^\s+(?:with|pass|as)\b/i.test(rest)) {
+        return clean.slice(startIdx, i).trim();
+      }
+    }
+  }
+  return clean.slice(startIdx).trim();
+}
+
 export function handlePreTokenLineStatements(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -48,14 +76,12 @@ export function handlePreTokenLineStatements(
     lineNum !== scanState.lastProcessedCustomLineNum
   ) {
     const trimmed = lineText.trim();
-    const callScreenExprMatch = /^call\s+screen\s+expression\s+(.+)$/i.exec(
-      trimmed,
-    );
+    const callScreenExprStr = extractCallScreenExpression(trimmed);
     const callScreenMatch = /^call\s+screen\s+([A-Za-z0-9_]+)/i.exec(trimmed);
 
-    if (callScreenExprMatch) {
+    if (callScreenExprStr) {
       scanState.lastProcessedCustomLineNum = lineNum;
-      const rawExpr = callScreenExprMatch[1]!.trim();
+      const rawExpr = callScreenExprStr;
       const env: Record<string, unknown> = {};
       if (state.initVariables) {
         for (const [k, desc] of state.initVariables.entries()) {

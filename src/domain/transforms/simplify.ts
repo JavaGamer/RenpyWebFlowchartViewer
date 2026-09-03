@@ -61,6 +61,26 @@ export function simplifyGraph(
   return { nodes: currentNodes, edges: currentEdges };
 }
 
+function serializeCallArguments(args?: CallArgument[]): string {
+  if (!args || args.length === 0) return "";
+  return args
+    .map((a) => `${a.name ?? ""}=${a.value}`)
+    .sort()
+    .join(";");
+}
+
+function serializeCallContext(ctx?: CallContext): string {
+  if (!ctx) return "";
+  return `${ctx.callSiteId ?? ""}__${ctx.returnTargetId ?? ""}__${
+    ctx.labelName ?? ""
+  }`;
+}
+
+function serializeTimeout(t?: FlowEdge["timeout"]): string {
+  if (!t) return "";
+  return `${t.isTimeout}_${t.durationSeconds ?? ""}`;
+}
+
 function inlineNodes(
   nodes: FlowNode[],
   edges: FlowEdge[],
@@ -126,8 +146,14 @@ function inlineNodes(
 
   const newEdges: FlowEdge[] = [];
 
+  const updatedNodeMutations = new Map<string, VariableMutation[]>();
+
   for (const u of nodes) {
     if (H.has(u.id)) continue;
+
+    const visitedMutationNodes = new Set<string>();
+    const visitedInlinedQueueStates = new Set<string>();
+    const emittedEdgeKeys = new Set<string>();
 
     const queue: Array<{
       nodeId: string;
@@ -161,11 +187,23 @@ function inlineNodes(
 
     let head = 0;
     const MAX_INLINE_QUEUE = 1000;
-    while (head < queue.length && queue.length < MAX_INLINE_QUEUE) {
+    while (head < queue.length && head < MAX_INLINE_QUEUE) {
       const current = queue[head++]!;
 
       const targetNode = nodesMap.get(current.nodeId);
       if (!targetNode || !H.has(current.nodeId)) {
+        const edgeKey = `${current.nodeId}__${current.kind}__${
+          current.condition?.expression ?? ""
+        }__${current.condition?.branchKind ?? ""}__${current.label || ""}__${
+          serializeTimeout(current.timeout)
+        }__${serializeCallArguments(current.arguments)}__${
+          serializeCallContext(current.callContext)
+        }`;
+        if (emittedEdgeKeys.has(edgeKey)) {
+          continue;
+        }
+        emittedEdgeKeys.add(edgeKey);
+
         newEdges.push({
           id: current.isInlinedPath
             ? `${
@@ -200,9 +238,15 @@ function inlineNodes(
       }
 
       if (
-        targetNode && targetNode.mutations && targetNode.mutations.length > 0
+        targetNode &&
+        targetNode.mutations &&
+        targetNode.mutations.length > 0 &&
+        !visitedMutationNodes.has(targetNode.id)
       ) {
-        const updatedMutations = [...(u.mutations || [])];
+        visitedMutationNodes.add(targetNode.id);
+        const currentMutations = updatedNodeMutations.get(u.id) ??
+          [...(u.mutations || [])];
+        const updatedMutations = [...currentMutations];
         for (const m of targetNode.mutations) {
           if (
             !updatedMutations.some((existing) =>
@@ -214,14 +258,12 @@ function inlineNodes(
             updatedMutations.push(m);
           }
         }
-        u.mutations = updatedMutations;
+        updatedNodeMutations.set(u.id, updatedMutations);
       }
 
       const nextEdges = outgoingEdges.get(current.nodeId) || [];
       for (const edge of nextEdges) {
         if (current.pathVisited.has(edge.target)) continue;
-        const nextPathVisited = new Set(current.pathVisited);
-        nextPathVisited.add(edge.target);
 
         const mergedLabel = current.label || edge.label || "";
         let mergedKind: EdgeKind = current.kind;
@@ -269,7 +311,12 @@ function inlineNodes(
               edge.condition.decisionNodeId,
           };
         }
+
+        const nextPathVisited = new Set(current.pathVisited);
+        nextPathVisited.add(edge.target);
+
         const mergedTimeout = current.timeout || edge.timeout;
+        const mergedArguments = current.arguments || edge.arguments;
 
         let mergedCallContext = current.callContext || edge.callContext;
         if (mergedCallContext) {
@@ -284,24 +331,47 @@ function inlineNodes(
           };
         }
 
-        queue.push({
-          nodeId: edge.target,
-          label: mergedLabel,
-          kind: mergedKind,
-          condition: mergedCondition,
-          timeout: mergedTimeout,
-          arguments: current.arguments || edge.arguments,
-          sourceLocation: current.sourceLocation || edge.sourceLocation,
-          callContext: mergedCallContext,
-          originalId: current.originalId || edge.id,
-          isInlinedPath: true,
-          pathVisited: nextPathVisited,
-        });
+        // If edge.target is inlined, avoid re-queuing duplicate inlined search states
+        if (H.has(edge.target)) {
+          const queueKey = `${edge.target}__${mergedKind}__${
+            mergedCondition?.expression ?? ""
+          }__${mergedCondition?.branchKind ?? ""}__${mergedLabel}__${
+            serializeTimeout(mergedTimeout)
+          }__${serializeCallArguments(mergedArguments)}__${
+            serializeCallContext(mergedCallContext)
+          }`;
+          if (visitedInlinedQueueStates.has(queueKey)) {
+            continue;
+          }
+          visitedInlinedQueueStates.add(queueKey);
+        }
+
+        if (queue.length < MAX_INLINE_QUEUE) {
+          queue.push({
+            nodeId: edge.target,
+            label: mergedLabel,
+            kind: mergedKind,
+            condition: mergedCondition,
+            timeout: mergedTimeout,
+            arguments: mergedArguments,
+            sourceLocation: current.sourceLocation || edge.sourceLocation,
+            callContext: mergedCallContext,
+            originalId: current.originalId || edge.id,
+            isInlinedPath: true,
+            pathVisited: nextPathVisited,
+          });
+        }
       }
     }
   }
 
-  const remainingNodes = nodes.filter((n) => !H.has(n.id));
+  const remainingNodes = nodes
+    .filter((n) => !H.has(n.id))
+    .map((n) =>
+      updatedNodeMutations.has(n.id)
+        ? { ...n, mutations: updatedNodeMutations.get(n.id) }
+        : n
+    );
 
   return { nodes: remainingNodes, edges: newEdges };
 }
@@ -360,9 +430,26 @@ export function collapseLinearChains(
     fallback?: SourceLocation,
   ): SourceLocation | undefined {
     if (locations.length === 0) return fallback;
-    const file = locations[0]!.file;
-    const sameFileLocs = locations.filter((l) => l.file === file);
-    if (sameFileLocs.length === 0) return fallback;
+    if (locations.length === 1) return locations[0];
+    // Prefer fallback's file (the surviving root node), otherwise determine the dominant file
+    let file = fallback?.file;
+    if (!file) {
+      const fileCounts = new Map<string, number>();
+      for (let i = 0; i < locations.length; i++) {
+        const f = locations[i]!.file;
+        fileCounts.set(f, (fileCounts.get(f) ?? 0) + 1);
+      }
+      let maxCount = -1;
+      for (const [f, cnt] of fileCounts.entries()) {
+        if (cnt > maxCount) {
+          maxCount = cnt;
+          file = f;
+        }
+      }
+    }
+    if (!file) {
+      file = locations[0]!.file;
+    }
 
     let minLine = Infinity;
     let minCol = Infinity;
@@ -370,20 +457,21 @@ export function collapseLinearChains(
     let maxLine = -Infinity;
     let maxCol = -Infinity;
     let maxOffset: number | undefined = -Infinity;
+    let count = 0;
 
-    for (const l of sameFileLocs) {
+    for (let i = 0; i < locations.length; i++) {
+      const l = locations[i]!;
+      if (l.file !== file) continue;
+      count++;
       if (
         l.start.line < minLine ||
         (l.start.line === minLine && l.start.character < minCol)
       ) {
         minLine = l.start.line;
         minCol = l.start.character;
-      }
-      if (
-        l.start.offset !== undefined &&
-        (minOffset === undefined || l.start.offset < minOffset)
-      ) {
-        minOffset = l.start.offset;
+        if (l.start.offset !== undefined) {
+          minOffset = l.start.offset;
+        }
       }
       if (
         l.end.line > maxLine ||
@@ -391,14 +479,13 @@ export function collapseLinearChains(
       ) {
         maxLine = l.end.line;
         maxCol = l.end.character;
-      }
-      if (
-        l.end.offset !== undefined &&
-        (maxOffset === undefined || l.end.offset > maxOffset)
-      ) {
-        maxOffset = l.end.offset;
+        if (l.end.offset !== undefined) {
+          maxOffset = l.end.offset;
+        }
       }
     }
+
+    if (count === 0) return fallback;
 
     return {
       file,
@@ -417,6 +504,92 @@ export function collapseLinearChains(
           : 0,
       },
     };
+  }
+
+  function collapsePath(path: string[]) {
+    if (path.length <= 1) return;
+    const rootId = path[0]!;
+    const rootNode = nodeMap.get(rootId)!;
+    let dialogueCount = rootNode.dialogueCount;
+    let wordCount = rootNode.wordCount ?? 0;
+    let pauseDuration = rootNode.pauseDuration ?? 0;
+    const dialogueLines = [...(rootNode.dialogueLines || [])];
+    const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
+    const audioAssetCues = [...(rootNode.audioAssetCues || [])];
+    const collapsedLabels = [...(rootNode.collapsedLabels || [])];
+    let isShadowed = rootNode.isShadowed;
+    let isTerminalOutcome = rootNode.isTerminalOutcome;
+
+    const characterDialogue: Record<
+      string,
+      { lineCount: number; wordCount: number }
+    > = {};
+    if (rootNode.characterDialogue) {
+      for (
+        const [char, stats] of Object.entries(rootNode.characterDialogue)
+      ) {
+        characterDialogue[char] = { ...stats };
+      }
+    }
+
+    const mutations: VariableMutation[] = [...(rootNode.mutations || [])];
+
+    for (let i = 1; i < path.length; i++) {
+      const node = nodeMap.get(path[i]!)!;
+      dialogueCount += node.dialogueCount;
+      wordCount += node.wordCount ?? 0;
+      pauseDuration += node.pauseDuration ?? 0;
+      dialogueLines.push(...(node.dialogueLines || []));
+      dialogueLineNums.push(...(node.dialogueLineNums || []));
+      audioAssetCues.push(...(node.audioAssetCues || []));
+      collapsedLabels.push(node.label);
+      collapsedLabels.push(...(node.collapsedLabels || []));
+      if (node.characterDialogue) {
+        for (const [char, stats] of Object.entries(node.characterDialogue)) {
+          if (!characterDialogue[char]) {
+            characterDialogue[char] = { lineCount: 0, wordCount: 0 };
+          }
+          characterDialogue[char].lineCount += stats.lineCount;
+          characterDialogue[char].wordCount += stats.wordCount;
+        }
+      }
+      if (node.mutations) {
+        mutations.push(...node.mutations);
+      }
+      if (node.isShadowed) isShadowed = true;
+      if (node.isTerminalOutcome) isTerminalOutcome = true;
+      collapsedInto.set(node.id, rootId);
+    }
+
+    const collapsedLocations = path
+      .map((id) => nodeMap.get(id)?.sourceLocation)
+      .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
+
+    const combinedSourceLocation = combineSourceLocations(
+      collapsedLocations,
+      rootNode.sourceLocation,
+    );
+
+    mergedNodesMap.set(rootId, {
+      ...rootNode,
+      dialogueCount,
+      wordCount,
+      pauseDuration,
+      dialogueLines,
+      dialogueLineNums,
+      audioAssetCues,
+      collapsedLabels,
+      characterDialogue: Object.keys(characterDialogue).length > 0
+        ? characterDialogue
+        : undefined,
+      collapsedLocations: collapsedLocations.length > 0
+        ? collapsedLocations
+        : rootNode.collapsedLocations,
+      sourceLocation: combinedSourceLocation,
+      mutations: mutations.length > 0 ? mutations : undefined,
+      isShadowed,
+      isTerminalOutcome,
+    });
   }
 
   const visited = new Set<string>();
@@ -446,89 +619,7 @@ export function collapseLinearChains(
       currentId = nextId;
     }
 
-    if (path.length > 1) {
-      const rootNode = nodeMap.get(rootId)!;
-      let dialogueCount = rootNode.dialogueCount;
-      let wordCount = rootNode.wordCount ?? 0;
-      let pauseDuration = rootNode.pauseDuration ?? 0;
-      const dialogueLines = [...(rootNode.dialogueLines || [])];
-      const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
-      const audioAssetCues = [...(rootNode.audioAssetCues || [])];
-      const collapsedLabels = [...(rootNode.collapsedLabels || [])];
-      let isShadowed = rootNode.isShadowed;
-      let isTerminalOutcome = rootNode.isTerminalOutcome;
-
-      const characterDialogue: Record<
-        string,
-        { lineCount: number; wordCount: number }
-      > = {};
-      if (rootNode.characterDialogue) {
-        for (
-          const [char, stats] of Object.entries(rootNode.characterDialogue)
-        ) {
-          characterDialogue[char] = { ...stats };
-        }
-      }
-
-      const mutations: VariableMutation[] = [...(rootNode.mutations || [])];
-
-      for (let i = 1; i < path.length; i++) {
-        const node = nodeMap.get(path[i])!;
-        dialogueCount += node.dialogueCount;
-        wordCount += node.wordCount ?? 0;
-        pauseDuration += node.pauseDuration ?? 0;
-        dialogueLines.push(...(node.dialogueLines || []));
-        dialogueLineNums.push(...(node.dialogueLineNums || []));
-        audioAssetCues.push(...(node.audioAssetCues || []));
-        collapsedLabels.push(node.label);
-        collapsedLabels.push(...(node.collapsedLabels || []));
-        if (node.characterDialogue) {
-          for (const [char, stats] of Object.entries(node.characterDialogue)) {
-            if (!characterDialogue[char]) {
-              characterDialogue[char] = { lineCount: 0, wordCount: 0 };
-            }
-            characterDialogue[char].lineCount += stats.lineCount;
-            characterDialogue[char].wordCount += stats.wordCount;
-          }
-        }
-        if (node.mutations) {
-          mutations.push(...node.mutations);
-        }
-        if (node.isShadowed) isShadowed = true;
-        if (node.isTerminalOutcome) isTerminalOutcome = true;
-        collapsedInto.set(node.id, rootId);
-      }
-
-      const collapsedLocations = path
-        .map((id) => nodeMap.get(id)?.sourceLocation)
-        .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
-
-      const combinedSourceLocation = combineSourceLocations(
-        collapsedLocations,
-        rootNode.sourceLocation,
-      );
-
-      mergedNodesMap.set(rootId, {
-        ...rootNode,
-        dialogueCount,
-        wordCount,
-        pauseDuration,
-        dialogueLines,
-        dialogueLineNums,
-        audioAssetCues,
-        collapsedLabels,
-        characterDialogue: Object.keys(characterDialogue).length > 0
-          ? characterDialogue
-          : undefined,
-        collapsedLocations: collapsedLocations.length > 0
-          ? collapsedLocations
-          : rootNode.collapsedLocations,
-        sourceLocation: combinedSourceLocation,
-        mutations: mutations.length > 0 ? mutations : undefined,
-        isShadowed,
-        isTerminalOutcome,
-      });
-    }
+    collapsePath(path);
   }
 
   // 2. Traverse remaining nodes with outgoing collapsible (handles cycles)
@@ -552,90 +643,7 @@ export function collapseLinearChains(
       currentId = nextId;
     }
 
-    if (path.length > 1) {
-      const rootId = startId;
-      const rootNode = nodeMap.get(rootId)!;
-      let dialogueCount = rootNode.dialogueCount;
-      let wordCount = rootNode.wordCount ?? 0;
-      let pauseDuration = rootNode.pauseDuration ?? 0;
-      const dialogueLines = [...(rootNode.dialogueLines || [])];
-      const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
-      const audioAssetCues = [...(rootNode.audioAssetCues || [])];
-      const collapsedLabels = [...(rootNode.collapsedLabels || [])];
-      let isShadowed = rootNode.isShadowed;
-      let isTerminalOutcome = rootNode.isTerminalOutcome;
-
-      const characterDialogue: Record<
-        string,
-        { lineCount: number; wordCount: number }
-      > = {};
-      if (rootNode.characterDialogue) {
-        for (
-          const [char, stats] of Object.entries(rootNode.characterDialogue)
-        ) {
-          characterDialogue[char] = { ...stats };
-        }
-      }
-
-      const mutations: VariableMutation[] = [...(rootNode.mutations || [])];
-
-      for (let i = 1; i < path.length; i++) {
-        const node = nodeMap.get(path[i])!;
-        dialogueCount += node.dialogueCount;
-        wordCount += node.wordCount ?? 0;
-        pauseDuration += node.pauseDuration ?? 0;
-        dialogueLines.push(...(node.dialogueLines || []));
-        dialogueLineNums.push(...(node.dialogueLineNums || []));
-        audioAssetCues.push(...(node.audioAssetCues || []));
-        collapsedLabels.push(node.label);
-        collapsedLabels.push(...(node.collapsedLabels || []));
-        if (node.characterDialogue) {
-          for (const [char, stats] of Object.entries(node.characterDialogue)) {
-            if (!characterDialogue[char]) {
-              characterDialogue[char] = { lineCount: 0, wordCount: 0 };
-            }
-            characterDialogue[char].lineCount += stats.lineCount;
-            characterDialogue[char].wordCount += stats.wordCount;
-          }
-        }
-        if (node.mutations) {
-          mutations.push(...node.mutations);
-        }
-        if (node.isShadowed) isShadowed = true;
-        if (node.isTerminalOutcome) isTerminalOutcome = true;
-        collapsedInto.set(node.id, rootId);
-      }
-
-      const collapsedLocations = path
-        .map((id) => nodeMap.get(id)?.sourceLocation)
-        .filter((loc): loc is NonNullable<typeof loc> => Boolean(loc));
-
-      const combinedSourceLocation = combineSourceLocations(
-        collapsedLocations,
-        rootNode.sourceLocation,
-      );
-
-      mergedNodesMap.set(rootId, {
-        ...rootNode,
-        dialogueCount,
-        wordCount,
-        pauseDuration,
-        dialogueLines,
-        dialogueLineNums,
-        audioAssetCues,
-        collapsedLabels,
-        characterDialogue: Object.keys(characterDialogue).length > 0
-          ? characterDialogue
-          : undefined,
-        collapsedLocations: collapsedLocations.length > 0
-          ? collapsedLocations
-          : rootNode.collapsedLocations,
-        sourceLocation: combinedSourceLocation,
-        mutations: mutations.length > 0 ? mutations : undefined,
-        isShadowed,
-        isTerminalOutcome,
-      });
-    }
+    collapsePath(path);
   }
 
   // 3. Filter and map nodes

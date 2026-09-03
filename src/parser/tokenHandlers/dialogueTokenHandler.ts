@@ -79,7 +79,9 @@ export function handleDialogueStringToken(
     stats.pauseDuration;
 
   let speaker = "narrator";
-  const quotedSpeakerMatch = /^\s*["']([^"']+)["']\s+["']/.exec(lineText);
+  const quotedSpeakerMatch = /^\s*["']([^"']+)["'](?:\s+[^"'\n]+)?\s+["']/.exec(
+    lineText,
+  );
   if (quotedSpeakerMatch) {
     speaker = quotedSpeakerMatch[1]!;
   } else {

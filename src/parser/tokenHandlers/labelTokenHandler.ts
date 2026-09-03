@@ -41,22 +41,39 @@ export function handleLabelNameToken(
   lineText: string,
   sourceLocation?: SourceLocation,
 ): void {
-  let newLabelId = state.labelsByChapter.get(chapter)?.get(declaredLabelName);
+  let qualifiedLabelName = declaredLabelName;
+  if (declaredLabelName.startsWith(".")) {
+    const parentGlobal = scanState.currentGlobalLabelDeclaredName ?? "";
+    if (parentGlobal) {
+      qualifiedLabelName = `${parentGlobal}${declaredLabelName}`;
+    }
+  } else {
+    scanState.currentGlobalLabelDeclaredName = declaredLabelName;
+    scanState.currentGlobalLabelIndent = lineIndent;
+  }
+
+  let newLabelId =
+    state.labelsByChapter.get(chapter)?.get(qualifiedLabelName) ??
+      state.labelsByChapter.get(chapter)?.get(declaredLabelName);
   let definitionCount: number;
   let canonicalLabelId: string;
 
   if (newLabelId) {
-    definitionCount = state.labelDefinitionCountByName.get(declaredLabelName) ??
-      1;
-    canonicalLabelId = state.canonicalLabelIdByName.get(declaredLabelName) ??
-      declaredLabelName;
+    definitionCount =
+      state.labelDefinitionCountByName.get(qualifiedLabelName) ??
+        1;
+    canonicalLabelId = state.canonicalLabelIdByName.get(qualifiedLabelName) ??
+      qualifiedLabelName;
   } else {
     definitionCount =
-      (state.labelDefinitionCountByName.get(declaredLabelName) ?? 0) + 1;
-    state.labelDefinitionCountByName.set(declaredLabelName, definitionCount);
-    canonicalLabelId = state.canonicalLabelIdByName.get(declaredLabelName) ??
-      declaredLabelName;
-    state.canonicalLabelIdByName.set(declaredLabelName, canonicalLabelId);
+      (state.labelDefinitionCountByName.get(qualifiedLabelName) ?? 0) + 1;
+    state.labelDefinitionCountByName.set(qualifiedLabelName, definitionCount);
+    canonicalLabelId = state.canonicalLabelIdByName.get(qualifiedLabelName) ??
+      qualifiedLabelName;
+    state.canonicalLabelIdByName.set(qualifiedLabelName, canonicalLabelId);
+    if (declaredLabelName !== qualifiedLabelName) {
+      state.canonicalLabelIdByName.set(declaredLabelName, canonicalLabelId);
+    }
     newLabelId = definitionCount === 1
       ? canonicalLabelId
       : `${canonicalLabelId}__shadow_${definitionCount}`;
@@ -65,6 +82,7 @@ export function handleLabelNameToken(
       chapterLabels = new Map();
       state.labelsByChapter.set(chapter, chapterLabels);
     }
+    chapterLabels.set(qualifiedLabelName, newLabelId);
     chapterLabels.set(declaredLabelName, newLabelId);
   }
 

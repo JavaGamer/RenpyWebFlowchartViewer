@@ -37,12 +37,17 @@ export const LabeledEdge = memo(function LabeledEdge({
   let labelX: number;
   let labelY: number;
 
+  const safeSourceX = Number.isFinite(sourceX) ? sourceX : 0;
+  const safeSourceY = Number.isFinite(sourceY) ? sourceY : 0;
+  const safeTargetX = Number.isFinite(targetX) ? targetX : 0;
+  const safeTargetY = Number.isFinite(targetY) ? targetY : 0;
+
   const isSelf = data?.isSelfLoop ||
-    (sourceX === targetX && sourceY === targetY);
+    (safeSourceX === safeTargetX && safeSourceY === safeTargetY);
   const isBack = data?.isBackEdge ||
     detectBackEdge(
-      { x: sourceX, y: sourceY },
-      { x: targetX, y: targetY },
+      { x: safeSourceX, y: safeSourceY },
+      { x: safeTargetX, y: safeTargetY },
       layoutDirection,
       isSelf,
     );
@@ -50,12 +55,12 @@ export const LabeledEdge = memo(function LabeledEdge({
   const isCustomPathStale = data?.bendPoints &&
     data.bendPoints.length >= 2 &&
     (Math.hypot(
-          sourceX - data.bendPoints[0]!.x,
-          sourceY - data.bendPoints[0]!.y,
+          safeSourceX - data.bendPoints[0]!.x,
+          safeSourceY - data.bendPoints[0]!.y,
         ) > 3 ||
       Math.hypot(
-          targetX - data.bendPoints[data.bendPoints.length - 1]!.x,
-          targetY - data.bendPoints[data.bendPoints.length - 1]!.y,
+          safeTargetX - data.bendPoints[data.bendPoints.length - 1]!.x,
+          safeTargetY - data.bendPoints[data.bendPoints.length - 1]!.y,
         ) > 3);
 
   if (data?.svgPath && data?.labelPosition && !isCustomPathStale) {
@@ -64,10 +69,10 @@ export const LabeledEdge = memo(function LabeledEdge({
     labelY = data.labelPosition.y;
   } else if (isSelf) {
     const res = calculateSelfLoopArc({
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
       direction: layoutDirection,
       laneIndex: data?.laneIndex ?? 0,
     });
@@ -76,10 +81,10 @@ export const LabeledEdge = memo(function LabeledEdge({
     labelY = res.labelY;
   } else if (isBack) {
     const res = calculateBackEdgeSpline({
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
       sourcePosition: sourcePosition ??
         (layoutDirection === "LR" ? Position.Bottom : Position.Right),
       targetPosition: targetPosition ??
@@ -92,17 +97,20 @@ export const LabeledEdge = memo(function LabeledEdge({
     labelY = res.labelY;
   } else {
     const [d, lx, ly] = getBezierPath({
-      sourceX,
-      sourceY,
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
       sourcePosition,
-      targetX,
-      targetY,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
       targetPosition,
     });
     edgePath = d;
     labelX = lx;
     labelY = ly;
   }
+
+  const safeLabelX = Number.isFinite(labelX) ? labelX : 0;
+  const safeLabelY = Number.isFinite(labelY) ? labelY : 0;
 
   const activeLanguage = useViewerStore((s) => s.activeLanguage);
   const translations = useAppStore((s) => s.translations);
@@ -150,7 +158,7 @@ export const LabeledEdge = memo(function LabeledEdge({
             style={{
               position: "absolute",
               transform:
-                `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                `translate(-50%, -50%) translate(${safeLabelX}px,${safeLabelY}px)`,
               pointerEvents: "all",
               opacity: data?.conditionState === "unreachable" ? 0.45 : 1,
             }}

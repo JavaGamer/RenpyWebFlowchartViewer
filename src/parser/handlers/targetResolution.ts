@@ -323,8 +323,7 @@ export function extractLiteralTarget(expression: string): string | null {
       if (!isEscaped) {
         const remainder = rest.substring(i + quote.length).trim();
         if (remainder.length === 0) {
-          const finalStr = result.trim();
-          return finalStr.length > 0 ? finalStr : null;
+          return result.length > 0 ? result : null;
         }
         return null;
       }
@@ -584,7 +583,10 @@ export function resolvePatternMatches(
       const lit = stringLiterals[0]!;
       if (lit.index === 0) {
         prefix = lit.value;
-      } else {
+      } else if (
+        lit.end >= cleanExpr.length - 1 ||
+        cleanExpr.slice(lit.end).trim() === ""
+      ) {
         suffix = lit.value;
       }
     } else if (stringLiterals.length >= 2) {

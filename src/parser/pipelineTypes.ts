@@ -227,6 +227,8 @@ export interface ResolveTargetScanState {
 export interface ParseScanState extends ResolveTargetScanState {
   currentLabelId: string | null;
   currentLabelIndent: number | null;
+  currentGlobalLabelIndent?: number | null;
+  currentGlobalLabelDeclaredName?: string | null;
   currentLabelDeclaredName?: string | null;
   currentLabelBaseId?: string | null;
   currentLabelSceneIndex?: number;

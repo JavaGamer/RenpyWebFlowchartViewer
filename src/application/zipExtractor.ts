@@ -53,13 +53,17 @@ export async function extractRpyFilesFromZip(
 
   return new Promise((resolve, reject) => {
     let cumulativeHeaderSize = 0;
+    let fileCount = 0;
+    const MAX_FILE_COUNT = 2000;
 
     unzip(
       zipData,
       {
         filter: (file) => {
           if (!isAcceptedExtension(file.name)) return false;
-          if (file.originalSize) {
+          fileCount += 1;
+          if (fileCount > MAX_FILE_COUNT) return false;
+          if (typeof file.originalSize === "number" && file.originalSize > 0) {
             cumulativeHeaderSize += file.originalSize;
             if (cumulativeHeaderSize > MAX_TOTAL_EXTRACTED_BYTES) {
               return false;
@@ -87,6 +91,7 @@ export async function extractRpyFilesFromZip(
         const files: UploadedFile[] = [];
 
         for (const [path, data] of Object.entries(unzipped)) {
+          if (path.endsWith("/") || path.endsWith("\\")) continue;
           totalSize += data.length;
           if (totalSize > MAX_TOTAL_EXTRACTED_BYTES) {
             reject(
@@ -102,8 +107,9 @@ export async function extractRpyFilesFromZip(
             .split("/")
             .filter((part) => part !== "" && part !== "." && part !== "..")
             .join("/");
+          if (!cleanPath) continue;
           const parts = cleanPath.split("/");
-          const name = parts[parts.length - 1] || cleanPath;
+          const name = parts[parts.length - 1] || "unnamed.rpy";
 
           files.push({
             name,

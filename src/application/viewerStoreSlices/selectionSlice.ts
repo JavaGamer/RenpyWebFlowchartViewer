@@ -109,6 +109,7 @@ export const createSelectionSlice: StateCreator<
         draft.hydratedNodeDetailIds = nextHydrated;
       });
     } catch {
+      if (useAppStore.getState().importRevision !== currentRevision) return;
       set((draft) => {
         const nextLoading = new Set(draft.loadingNodeDetailIds);
         toFetch.forEach((id) => {

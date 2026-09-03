@@ -52,6 +52,17 @@ interface UseViewerLayoutParams {
   onRelayoutComplete?: () => void;
 }
 
+function createNodePositionsMap(
+  nodes: CanvasNode[],
+): Map<string, { x: number; y: number }> {
+  const map = new Map<string, { x: number; y: number }>();
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]!;
+    map.set(n.id, n.position);
+  }
+  return map;
+}
+
 export function useViewerLayout({
   flowNodes,
   flowEdges,
@@ -78,6 +89,7 @@ export function useViewerLayout({
     })),
   );
 
+  const isInitialMountRef = useRef(true);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(
     new Map(),
   );
@@ -143,10 +155,23 @@ export function useViewerLayout({
     [onNodesChange],
   );
 
+  const relayoutRafRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    return () => {
+      if (relayoutRafRef.current !== undefined) {
+        cancelAnimationFrame(relayoutRafRef.current);
+      }
+    };
+  }, []);
+
   const relayout = useCallback(() => {
     setIsCalculatingLayout(true);
     if (!isWorkerEnabled) {
-      const simplified = simplifyGraph(flowNodes, flowEdges, simplifyOptions);
+      const simplified = simplifyGraph(
+        flowNodes,
+        flowEdges,
+        simplifyOptions,
+      );
       const next = applyDagreLayout(
         simplified.nodes,
         simplified.edges,
@@ -159,14 +184,12 @@ export function useViewerLayout({
           collapsedChapters,
         },
       );
-      nodePositionsRef.current = new Map(
-        next.nodes.map((n) => [n.id, n.position]),
-      );
+      nodePositionsRef.current = createNodePositionsMap(next.nodes);
       setNodes(next.nodes);
       setEdges(next.edges);
       setIsCalculatingLayout(false);
       if (onRelayoutComplete) {
-        requestAnimationFrame(onRelayoutComplete);
+        relayoutRafRef.current = requestAnimationFrame(onRelayoutComplete);
       }
       return;
     }
@@ -184,14 +207,12 @@ export function useViewerLayout({
         collapsedChapters,
       },
       (next) => {
-        nodePositionsRef.current = new Map(
-          next.nodes.map((n) => [n.id, n.position]),
-        );
+        nodePositionsRef.current = createNodePositionsMap(next.nodes);
         setNodes(next.nodes);
         setEdges(next.edges);
         setIsCalculatingLayout(false);
         if (onRelayoutComplete) {
-          requestAnimationFrame(onRelayoutComplete);
+          relayoutRafRef.current = requestAnimationFrame(onRelayoutComplete);
         }
       },
       (error) => {
@@ -215,20 +236,30 @@ export function useViewerLayout({
   ]);
 
   useEffect(() => {
-    if (!isWorkerEnabled || flowNodes.length === 0) {
-      startTransition(() => {
-        setNodes(layoutNodes);
-        setEdges(layoutEdges);
-      });
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      if (layoutNodes.length > 0) {
+        nodePositionsRef.current = createNodePositionsMap(layoutNodes);
+      }
+      if (!isWorkerEnabled) {
+        return;
+      }
+    } else {
+      if (!isWorkerEnabled || flowNodes.length === 0) {
+        startTransition(() => {
+          setNodes(layoutNodes);
+          setEdges(layoutEdges);
+        });
+      }
+      if (layoutNodes.length > 0) {
+        nodePositionsRef.current = createNodePositionsMap(layoutNodes);
+      }
+      if (!isWorkerEnabled) {
+        return;
+      }
     }
-    if (layoutNodes.length > 0) {
-      nodePositionsRef.current = new Map(
-        layoutNodes.map((n) => [n.id, n.position]),
-      );
-    }
-    if (!isWorkerEnabled) {
-      return;
-    }
+
+    let rafId: number | undefined;
 
     const timer = setTimeout(() => {
       setIsCalculatingLayout(true);
@@ -247,14 +278,15 @@ export function useViewerLayout({
         collapsedChapters,
       },
       (refined) => {
-        nodePositionsRef.current = new Map(
-          refined.nodes.map((n) => [n.id, n.position]),
-        );
+        nodePositionsRef.current = createNodePositionsMap(refined.nodes);
         startTransition(() => {
           setNodes(refined.nodes);
           setEdges(refined.edges);
         });
         setIsCalculatingLayout(false);
+        if (onRelayoutComplete) {
+          rafId = requestAnimationFrame(onRelayoutComplete);
+        }
       },
       (error) => {
         console.error("Layout worker error:", error);
@@ -288,7 +320,11 @@ export function useViewerLayout({
 
     return () => {
       clearTimeout(timer);
+      if (rafId !== undefined) {
+        cancelAnimationFrame(rafId);
+      }
       cancelLayout();
+      setIsCalculatingLayout(false);
     };
   }, [
     flowEdges,
@@ -304,6 +340,7 @@ export function useViewerLayout({
     simplifyOptions,
     enableCompoundContainers,
     collapsedChapters,
+    onRelayoutComplete,
   ]);
 
   return {

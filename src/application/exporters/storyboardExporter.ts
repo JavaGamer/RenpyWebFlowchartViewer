@@ -1,7 +1,8 @@
 import type { FlowNode } from "../../domain/index.ts";
 
 function sanitizeHeading(text: string): string {
-  return text.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").trim();
+  const clean = text.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").trim();
+  return clean || "Untitled";
 }
 
 export function exportToStoryboard(nodes: FlowNode[]): string {
@@ -55,14 +56,20 @@ export async function exportToStoryboardWithHydration(
     )
     .map((n) => n.id);
   if (unhydratedIds.length > 0) {
-    const details = await extractNodeDetailsInWorker(unhydratedIds);
-    useAppStore.getState().updateNodeDetails(details);
-    useViewerStore.getState().markNodesHydrated(Object.keys(details));
-    const updatedMap = new Map<string, FlowNode>(
-      useAppStore.getState().flowNodes.map((n: FlowNode) => [n.id, n]),
-    );
-    const updatedNodes = nodes.map((n: FlowNode) => updatedMap.get(n.id) ?? n);
-    return exportToStoryboard(updatedNodes);
+    try {
+      const details = await extractNodeDetailsInWorker(unhydratedIds);
+      useAppStore.getState().updateNodeDetails(details);
+      useViewerStore.getState().markNodesHydrated(Object.keys(details));
+      const updatedMap = new Map<string, FlowNode>(
+        useAppStore.getState().flowNodes.map((n: FlowNode) => [n.id, n]),
+      );
+      const updatedNodes = nodes.map((n: FlowNode) =>
+        updatedMap.get(n.id) ?? n
+      );
+      return exportToStoryboard(updatedNodes);
+    } catch {
+      // Fall back to unhydrated nodes
+    }
   }
   return exportToStoryboard(nodes);
 }

@@ -12,12 +12,22 @@ function escapeMarkdownTableCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
-function escapeMarkdownCodeSpan(value: string): string {
-  return value.replace(/`/g, "\\`").replace(/[\r\n]+/g, " ");
+function formatMarkdownCodeSpan(value: string): string {
+  const clean = value.replace(/[\r\n]+/g, " ");
+  if (!clean.includes("`")) {
+    return `\`${clean}\``;
+  }
+  const match = clean.match(/`+/g);
+  const maxBackticks = match ? Math.max(...match.map((m) => m.length)) : 1;
+  const delimiter = "`".repeat(maxBackticks + 1);
+  return `${delimiter} ${clean} ${delimiter}`;
 }
 
 function sanitizeHeading(value: string): string {
-  return value.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").trim();
+  return value.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").replace(
+    /`/g,
+    "\\`",
+  ).trim();
 }
 
 export function exportWalkthroughToMarkdown(
@@ -32,9 +42,9 @@ export function exportWalkthroughToMarkdown(
   // Summary Metadata
   lines.push("## Summary\n");
   lines.push(
-    `- **Target Ending / Label**: \`${
-      escapeMarkdownCodeSpan(walkthrough.targetLabel)
-    }\``,
+    `- **Target Ending / Label**: ${
+      formatMarkdownCodeSpan(walkthrough.targetLabel)
+    }`,
   );
   if (walkthrough.endingType) {
     lines.push(`- **Ending Classification**: \`${walkthrough.endingType}\``);

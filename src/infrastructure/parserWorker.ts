@@ -114,6 +114,14 @@ function clearSession(sessionId: string) {
   sessions.delete(sessionId);
 }
 
+function pruneOldSessions(activeSessionId: string) {
+  for (const sId of Array.from(sessions.keys())) {
+    if (sId !== activeSessionId) {
+      sessions.delete(sId);
+    }
+  }
+}
+
 async function getOrFetchTokenizedMap(
   session: SessionState,
   nodes: FlowNode[],
@@ -344,13 +352,11 @@ export const parserApi = {
 
     try {
       let result;
+      if (resetActiveGraph) {
+        pruneOldSessions(sessionId);
+      }
       if (appendToActiveGraph) {
         if (resetActiveGraph) {
-          for (const sId of Array.from(sessions.keys())) {
-            if (sId !== sessionId) {
-              sessions.delete(sId);
-            }
-          }
           session.accumulatedState = createGraphState();
           session.rawFilesByChapter.clear();
           session.dialogueSearchDocs = [];
@@ -955,13 +961,11 @@ export const parserApi = {
     }
 
     try {
+      if (options.resetActiveGraph) {
+        pruneOldSessions(sessionId);
+      }
       if (appendToActiveGraph) {
         if (options.resetActiveGraph) {
-          for (const sId of Array.from(sessions.keys())) {
-            if (sId !== sessionId) {
-              sessions.delete(sId);
-            }
-          }
           session.accumulatedState = createGraphState();
           session.rawFilesByChapter.clear();
           session.dialogueSearchDocs = [];

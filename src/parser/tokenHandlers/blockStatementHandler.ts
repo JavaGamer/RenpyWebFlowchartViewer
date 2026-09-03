@@ -9,6 +9,7 @@ import { extractLiteralTarget } from "../handlers/jumpCallHandler.ts";
 import {
   processDirectRenpyBlockCalls,
   processDirectScreenActionCalls,
+  stripInlineComment,
 } from "../handlers/screen/screenHandlerEntry.ts";
 import type { ScreenActionKind } from "../../config/parserRules.ts";
 import { type MutationOperator, parsePythonBlock } from "../../domain/index.ts";
@@ -185,7 +186,8 @@ export function handlePythonBlockToken(
       trimmed.startsWith("while ") ||
       trimmed.startsWith("for ")
     ) {
-      const cleanHeader = trimmed
+      const stripped = stripInlineComment(trimmed).trim();
+      const cleanHeader = stripped
         .replace(/:$/, "")
         .replace(/^(if|elif|while|for)\s+/, "");
       if (!state.allConditionalExpressions) {

@@ -276,18 +276,26 @@ export function scanInitItemsFromFiles(
       state.labelsByChapter.set(chapter, chapterLabels);
     }
 
+    let currentGlobalLabel = "";
     for (const line of lines) {
       const trimmed = line.trim();
       if (
-        trimmed.length === 0 || trimmed.startsWith("#") ||
-        getLineIndent(line) !== 0
+        trimmed.length === 0 || trimmed.startsWith("#")
       ) continue;
       const labelMatch =
         /^label\s+(\.?[A-Za-z_][A-Za-z0-9_.]*)\s*(?:\([^)]*\))?\s*:/i.exec(
           trimmed,
         );
       if (labelMatch) {
-        const declaredName = labelMatch[1].trim();
+        const rawName = labelMatch[1]!.trim();
+        let declaredName = rawName;
+        if (rawName.startsWith(".")) {
+          if (currentGlobalLabel) {
+            declaredName = `${currentGlobalLabel}${rawName}`;
+          }
+        } else {
+          currentGlobalLabel = rawName;
+        }
         if (!chapterLabels.has(declaredName)) {
           const count =
             (state.labelDefinitionCountByName.get(declaredName) ?? 0) + 1;
@@ -299,6 +307,9 @@ export function scanInitItemsFromFiles(
             ? canonical
             : `${canonical}__shadow_${count}`;
           chapterLabels.set(declaredName, labelId);
+          if (rawName !== declaredName) {
+            chapterLabels.set(rawName, labelId);
+          }
         }
       }
     }

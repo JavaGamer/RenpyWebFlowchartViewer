@@ -52,9 +52,10 @@ export function groupNodesByChapter(
  */
 export function computeChapterAggregates(
   nodes: FlowNode[],
+  precomputedGroups?: Map<string, FlowNode[]>,
 ): Map<string, ChapterAggregates> {
   const aggregates = new Map<string, ChapterAggregates>();
-  const groups = groupNodesByChapter(nodes);
+  const groups = precomputedGroups ?? groupNodesByChapter(nodes);
 
   for (const [chapter, chapterNodes] of groups.entries()) {
     let dialogueCount = 0;

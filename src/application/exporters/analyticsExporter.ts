@@ -10,8 +10,13 @@ export function escapeCsvCell(val: unknown): string {
 
   // Defend against formula injection
   const formulaTriggers = ["=", "+", "-", "@", "\t", "\r"];
+  const trimmed = str.trimStart();
   let needsQuotePrefix = false;
-  if (str.length > 0 && formulaTriggers.includes(str[0]!)) {
+  if (
+    str.length > 0 &&
+    (formulaTriggers.includes(str[0]!) ||
+      (trimmed.length > 0 && formulaTriggers.includes(trimmed[0]!)))
+  ) {
     needsQuotePrefix = true;
   }
 

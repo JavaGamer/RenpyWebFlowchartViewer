@@ -3,11 +3,11 @@ import type { FlowEdge, FlowNode } from "../../domain/index.ts";
 function sanitizeMermaidText(text: string): string {
   return text
     .replace(/\\/g, "#92;")
-    .replace(/\r\n|\r|\n/g, "<br/>")
     .replace(/"/g, "#quot;")
     .replace(/\|/g, "#124;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
+    .replace(/\r\n|\r|\n/g, "<br/>")
     .replace(/\[/g, "#91;")
     .replace(/\]/g, "#93;")
     .replace(/\{/g, "#123;")

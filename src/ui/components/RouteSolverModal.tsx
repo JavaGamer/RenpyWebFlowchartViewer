@@ -93,7 +93,16 @@ export function RouteSolverModal({
     return firstEnding ? firstEnding.id : (candidateNodes[0]?.id ?? "");
   }, [candidateNodes, initialTargetNodeId]);
 
+  const [prevInitialTarget, setPrevInitialTarget] = useState(
+    initialTargetNodeId,
+  );
   const [selectedTargetId, setSelectedTargetId] = useState<string>("");
+
+  if (initialTargetNodeId !== prevInitialTarget) {
+    setPrevInitialTarget(initialTargetNodeId);
+    setSelectedTargetId(initialTargetNodeId || "");
+  }
+
   const effectiveTargetId = selectedTargetId || defaultTargetId;
 
   const filteredCandidates = useMemo(() => {

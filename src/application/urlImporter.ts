@@ -17,7 +17,11 @@ import type { UploadedFile } from "./uploadTypes.ts";
  * E.g., https://github.com/owner/repo -> https://github.com/owner/repo/archive/refs/heads/main.zip
  */
 export function resolveGithubUrl(urlStr: string): string {
-  const cleanUrl = urlStr.trim();
+  let cleanUrl = urlStr.trim();
+  if (!cleanUrl) return cleanUrl;
+  if (!/^https?:\/\//i.test(cleanUrl)) {
+    cleanUrl = "https://" + cleanUrl;
+  }
   try {
     const parsed = new URL(cleanUrl);
     if (
@@ -28,20 +32,22 @@ export function resolveGithubUrl(urlStr: string): string {
       if (parts.length === 2) {
         const [owner, repo] = parts;
         return `https://github.com/${owner}/${
-          repo.replace(/\.git$/i, "")
+          repo!.replace(/\.git$/i, "")
         }/archive/refs/heads/main.zip`;
       }
       if (parts.length >= 4 && parts[2] === "tree") {
-        const [owner, repo, , branch] = parts;
+        const owner = parts[0]!;
+        const repo = parts[1]!;
+        const branch = parts.slice(3).join("/");
         return `https://github.com/${owner}/${
           repo.replace(/\.git$/i, "")
         }/archive/refs/heads/${branch}.zip`;
       }
       if (parts.length >= 4 && (parts[2] === "blob" || parts[2] === "raw")) {
-        const [owner, repo, , branch, ...filePath] = parts;
-        return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${
-          filePath.join("/")
-        }`;
+        const owner = parts[0]!;
+        const repo = parts[1]!;
+        const branchAndPath = parts.slice(3).join("/");
+        return `https://raw.githubusercontent.com/${owner}/${repo}/${branchAndPath}`;
       }
     }
   } catch {

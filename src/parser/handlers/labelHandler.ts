@@ -31,7 +31,9 @@ export function isWithinCurrentLabelScope(
   ) {
     return false;
   }
-  return lineIndent > scanState.currentLabelIndent;
+  const rootIndent = scanState.currentGlobalLabelIndent ??
+    scanState.currentLabelIndent;
+  return lineIndent > rootIndent;
 }
 
 export const LABEL_SCENE_ID_SEPARATOR = "__scene_";

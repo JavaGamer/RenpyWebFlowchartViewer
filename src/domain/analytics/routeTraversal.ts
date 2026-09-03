@@ -241,8 +241,14 @@ export function enumerateStoryRoutes(
         if (targetNode.chapter) nextChapters.add(targetNode.chapter);
 
         const nextCallStack = [...current.callStack];
-        if (edge.kind === "call" && edge.callContext) {
-          nextCallStack.push(edge.callContext);
+        if (edge.kind === "call") {
+          const ctx = edge.callContext ?? {
+            callContextId: edge.id,
+            callEdgeId: edge.id,
+            callSiteId: edge.source,
+            returnTargetId: edge.target,
+          };
+          nextCallStack.push(ctx);
         } else if (edge.kind === "call_return" && nextCallStack.length > 0) {
           nextCallStack.pop();
         }

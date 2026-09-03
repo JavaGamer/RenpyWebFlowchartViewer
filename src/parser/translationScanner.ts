@@ -148,24 +148,53 @@ export function parseTranslationFileContent(
 
     const gatherMultiLine = (initial: string): string => {
       let result = initial;
-      if (
-        result.includes('"""') &&
-        (result.match(/"""/g) || []).length % 2 !== 0
-      ) {
-        while (idx + 1 < lines.length) {
-          idx++;
-          result += "\n" + lines[idx];
-          if (lines[idx]!.includes('"""')) break;
+      const getUnclosedQuote = (
+        text: string,
+      ): { quote: string; triple: boolean } | null => {
+        let inQuote: string | null = null;
+        let triple = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i]!;
+          if (inQuote) {
+            if (ch === "\\" && i + 1 < text.length) {
+              i++;
+            } else if (
+              triple &&
+              ch === inQuote &&
+              i + 2 < text.length &&
+              text[i + 1] === inQuote &&
+              text[i + 2] === inQuote
+            ) {
+              i += 2;
+              inQuote = null;
+              triple = false;
+            } else if (!triple && ch === inQuote) {
+              inQuote = null;
+            }
+          } else if (
+            (ch === '"' || ch === "'") &&
+            i + 2 < text.length &&
+            text[i + 1] === ch &&
+            text[i + 2] === ch
+          ) {
+            inQuote = ch;
+            triple = true;
+            i += 2;
+          } else if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            triple = false;
+          } else if (ch === "#") {
+            break;
+          }
         }
-      } else if (
-        result.includes("'''") &&
-        (result.match(/'''/g) || []).length % 2 !== 0
-      ) {
-        while (idx + 1 < lines.length) {
-          idx++;
-          result += "\n" + lines[idx];
-          if (lines[idx]!.includes("'''")) break;
-        }
+        return inQuote ? { quote: inQuote, triple } : null;
+      };
+
+      let quoteState = getUnclosedQuote(result);
+      while (quoteState !== null && idx + 1 < lines.length) {
+        idx++;
+        result += "\n" + lines[idx];
+        quoteState = getUnclosedQuote(result);
       }
       return result;
     };
