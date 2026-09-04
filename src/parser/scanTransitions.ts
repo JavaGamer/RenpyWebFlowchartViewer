@@ -1,5 +1,11 @@
 import { PARSER_TOKENS } from "./parserTokens.ts";
-import type { ConditionalBranchKind, ParseScanState } from "./pipelineTypes.ts";
+import type {
+  ConditionalBranchKind,
+  ParseGraphState,
+  ParseScanState,
+  TokenMetaFlags,
+} from "./pipelineTypes.ts";
+import { menuHasFallthrough } from "./handlers/menuHandler.ts";
 import type { SourceLocation } from "../domain/index.ts";
 
 /**
@@ -101,10 +107,17 @@ export function maybeUpdateConditionalState(
       const popped = scanState.conditionalDecisionStack.pop()!;
       if (
         popped.decisionNodeId &&
+        popped.branchKind !== "else" &&
         !popped.sourceId?.startsWith("menu_") &&
-        !scanState.pendingMenuFallthroughIds.includes(popped.decisionNodeId)
+        !scanState.pendingMenuFallthrough.some((e) =>
+          e.menuId === popped.decisionNodeId
+        )
       ) {
-        scanState.pendingMenuFallthroughIds.push(popped.decisionNodeId);
+        scanState.pendingMenuFallthrough.push({
+          menuId: popped.decisionNodeId,
+          optionText: null,
+          sourceLocation: popped.sourceLocation,
+        });
       }
       continue;
     }
@@ -115,10 +128,17 @@ export function maybeUpdateConditionalState(
       const popped = scanState.conditionalDecisionStack.pop()!;
       if (
         popped.decisionNodeId &&
+        popped.branchKind !== "else" &&
         !popped.sourceId?.startsWith("menu_") &&
-        !scanState.pendingMenuFallthroughIds.includes(popped.decisionNodeId)
+        !scanState.pendingMenuFallthrough.some((e) =>
+          e.menuId === popped.decisionNodeId
+        )
       ) {
-        scanState.pendingMenuFallthroughIds.push(popped.decisionNodeId);
+        scanState.pendingMenuFallthrough.push({
+          menuId: popped.decisionNodeId,
+          optionText: null,
+          sourceLocation: popped.sourceLocation,
+        });
       }
       continue;
     }
@@ -258,4 +278,154 @@ export function findTopLevelHeaderColon(text: string): number {
   }
 
   return -1;
+}
+
+/**
+ * Evaluates block indentation changes and token meta flags to pop out-of-scope menus
+ * from the menuStack and record their fallthrough options into pendingMenuFallthrough.
+ */
+export function maybeUpdateMenuScope(
+  _state: ParseGraphState,
+  scanState: ParseScanState,
+  meta: TokenMetaFlags,
+  lineIndent: number,
+  lineNumber?: number,
+  sourceLocation?: SourceLocation,
+): void {
+  while (scanState.menuStack.length > 0) {
+    const topMenu = scanState.menuStack[scanState.menuStack.length - 1]!;
+    if (
+      lineNumber !== undefined &&
+      topMenu.lineNum !== undefined &&
+      lineNumber <= topMenu.lineNum
+    ) {
+      break;
+    }
+
+    const isOutOfScope = meta.menuDepth < scanState.menuStack.length ||
+      (topMenu.indent !== undefined && lineIndent <= topMenu.indent);
+
+    if (!isOutOfScope) {
+      break;
+    }
+
+    const closedMenu = scanState.menuStack.pop()!;
+    const fallthroughOptions = closedMenu.options?.filter((o) => !o.hasExit) ??
+      [];
+
+    if (fallthroughOptions.length > 0) {
+      for (const option of fallthroughOptions) {
+        scanState.pendingMenuFallthrough.push({
+          menuId: closedMenu.id,
+          optionText: option.text,
+          sourceLocation: closedMenu.sourceLocation ?? sourceLocation,
+          decisionNodeId: closedMenu.decisionNodeId,
+        });
+      }
+      scanState.labelHasExplicitExit = false;
+    } else if (closedMenu.options && closedMenu.options.length > 0) {
+      const isTopLevelMenu = scanState.currentLabelIndent === null ||
+        topMenu.indent === undefined ||
+        topMenu.indent <= (scanState.currentLabelIndent ?? 0) + 4;
+      if (isTopLevelMenu && scanState.conditionalIndentStack.length === 0) {
+        scanState.labelHasExplicitExit = true;
+      }
+    } else if (menuHasFallthrough(closedMenu)) {
+      scanState.pendingMenuFallthrough.push({
+        menuId: closedMenu.id,
+        optionText: null,
+        sourceLocation: closedMenu.sourceLocation ?? sourceLocation,
+        decisionNodeId: closedMenu.decisionNodeId,
+      });
+      scanState.labelHasExplicitExit = false;
+    }
+  }
+}
+
+/**
+ * Determines whether all execution paths from the current label/scene scope are
+ * guaranteed to pass through the fallthrough menus in `pendingMenuFallthrough`.
+ *
+ * If this returns true, the direct sequence/jump/call edge from the enclosing label
+ * must be suppressed to prevent a phantom bypass edge around the menus.
+ *
+ * If this returns false (e.g. an `if` block has a menu but the `else` block has non-menu
+ * statements, or an `if` block has no `else` block so the false condition falls through),
+ * the enclosing label must still emit its edge so that non-menu paths are not severed.
+ */
+export function areAllPathsCoveredByPendingMenus(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+): boolean {
+  const menuEntries = scanState.pendingMenuFallthrough.filter((e) =>
+    e.menuId.startsWith("menu_")
+  );
+  if (menuEntries.length === 0) {
+    return false;
+  }
+
+  // If there are any non-menu entries (like decision_ nodes) in pendingMenuFallthrough,
+  // there is an explicit non-menu fallthrough path.
+  const hasNonMenuPending = scanState.pendingMenuFallthrough.some(
+    (e) => !e.menuId.startsWith("menu_"),
+  );
+  if (hasNonMenuPending) {
+    return false;
+  }
+
+  // If any fallthrough menu was at the top level of the label/scene (not inside a conditional),
+  // then every execution path reaching that point passed unconditionally through the menu.
+  const hasTopLevelMenu = menuEntries.some((e) => !e.decisionNodeId);
+  if (hasTopLevelMenu) {
+    return true;
+  }
+
+  // All menus are inside conditional decisions.
+  // If there is still an active conditional on the decision stack, the conditional structure is not closed.
+  if (scanState.conditionalDecisionStack.length > 0) {
+    return false;
+  }
+
+  const decisionIds = new Set(
+    menuEntries
+      .map((e) => e.decisionNodeId)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  if (decisionIds.size === 0) {
+    return true;
+  }
+
+  const menuIds = new Set(menuEntries.map((e) => e.menuId));
+
+  for (const decId of decisionIds) {
+    if (!state.graph.hasNode(decId)) {
+      return false;
+    }
+    const outEdges = state.graph.outEdges(decId).map((e) => {
+      const target = state.graph.target(e);
+      const edgeData = state.graph.getEdgeAttributes(e);
+      return {
+        target,
+        branchKind: edgeData.condition?.branchKind ?? edgeData.label,
+      };
+    });
+
+    const hasElseBranch = outEdges.some((e) => e.branchKind === "else");
+    if (!hasElseBranch) {
+      // No else branch means if condition is false, execution falls through past the if without a menu.
+      return false;
+    }
+
+    const allBranchesAreMenus = outEdges.length > 0 &&
+      outEdges.every((e) =>
+        e.target.startsWith("menu_") && menuIds.has(e.target)
+      );
+
+    if (!allBranchesAreMenus) {
+      return false;
+    }
+  }
+
+  return true;
 }

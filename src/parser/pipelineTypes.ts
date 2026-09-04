@@ -20,6 +20,20 @@ import type { MultiDirectedGraph } from "graphology";
 export type { EdgeKind, FlowEdge, FlowNode, TextDocument, TokenTree };
 export type ConditionalBranchKind = DomainConditionBranchKind;
 
+export interface PendingMenuFallthroughEntry {
+  menuId: string;
+  optionText?: string | null;
+  sourceLocation?: SourceLocation;
+  decisionNodeId?: string;
+}
+
+export interface PendingTimedChoice {
+  durationSeconds: number;
+  target: string;
+  lineNum: number;
+  sourceLocation?: SourceLocation;
+}
+
 export interface PendingCallReturn {
   returnTargetId: string;
   callTargetId: string;
@@ -242,14 +256,18 @@ export interface ParseScanState extends ResolveTargetScanState {
     id: string;
     optionText: string | null;
     activeOptionCondition?: ConditionMetadata;
+    decisionNodeId?: string;
     options?: Array<{
       text: string;
       hasExit: boolean;
       condition?: ConditionMetadata;
     }>;
     sourceLocation?: SourceLocation;
+    indent?: number;
+    lineNum?: number;
   }>;
-  pendingMenuFallthroughIds: string[];
+  pendingMenuFallthrough: PendingMenuFallthroughEntry[];
+  pendingTimedChoice?: PendingTimedChoice | null;
   conditionalIndentStack: number[];
   pendingConditionalHeader: PendingConditionalHeader | null;
   conditionalDecisionStack: ConditionalDecisionContext[];

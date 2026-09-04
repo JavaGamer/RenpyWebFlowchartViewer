@@ -5,8 +5,11 @@ import type {
 } from "../pipelineTypes.ts";
 import { type ConditionMetadata, type FlowEdge } from "../../domain/index.ts";
 import { createDecisionConditionMetadata } from "./conditionHandler.ts";
-import { menuHasFallthrough } from "./menuHandler.ts";
-import { edgeIdWithOption, menuAtDepth } from "../scanTransitions.ts";
+import {
+  areAllPathsCoveredByPendingMenus,
+  edgeIdWithOption,
+  menuAtDepth,
+} from "../scanTransitions.ts";
 import {
   addEdge,
   addIncoming,
@@ -305,27 +308,27 @@ export function splitCurrentLabelOnSceneBoundary(
     connectedSources.add(activeMenu.id);
   }
 
-  if (scanState.pendingMenuFallthroughIds.length > 0) {
-    for (const sourceId of scanState.pendingMenuFallthroughIds) {
-      if (!connectedSources.has(sourceId)) {
-        connectSceneSplitFromSource(state, sourceId, nextSceneId, "next");
-        connectedSources.add(sourceId);
+  const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
+    state,
+    scanState,
+  );
+
+  const connectedFallthroughKeys = new Set<string>();
+  if (scanState.pendingMenuFallthrough.length > 0) {
+    for (const entry of scanState.pendingMenuFallthrough) {
+      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+      if (!connectedFallthroughKeys.has(key)) {
+        connectSceneSplitFromSource(
+          state,
+          entry.menuId,
+          nextSceneId,
+          entry.optionText ?? "next",
+        );
+        connectedFallthroughKeys.add(key);
+        connectedSources.add(entry.menuId);
       }
     }
-    scanState.pendingMenuFallthroughIds = [];
-  }
-
-  for (let index = scanState.menuStack.length - 1; index >= 0; index -= 1) {
-    const menu = scanState.menuStack[index];
-    if (menuHasFallthrough(menu) && !connectedSources.has(menu.id)) {
-      connectSceneSplitFromSource(
-        state,
-        menu.id,
-        nextSceneId,
-        "next",
-      );
-      connectedSources.add(menu.id);
-    }
+    scanState.pendingMenuFallthrough = [];
   }
 
   if (connectedSources.size === 0) {
@@ -343,6 +346,74 @@ export function splitCurrentLabelOnSceneBoundary(
       );
     } else {
       connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
+    }
+  } else {
+    // When an if block has a menu that falls through but an else block (or other conditional
+    // branch) has non-menu statements, ensure activeSceneId is still connected to nextSceneId.
+    const hasMenuFallthrough = Array.from(connectedSources).some((id) =>
+      id.startsWith("menu_")
+    );
+    const decisionNodeId = (state.graph.hasNode(activeSceneId) &&
+      state.graph.outEdges(activeSceneId)
+        .map((e) => state.graph.target(e))
+        .find((id) => state.nodeMap.get(id)?.type === "DECISION")) ||
+      (Boolean(currentLabelBaseId) &&
+        state.graph.hasNode(currentLabelBaseId!) &&
+        state.graph.outEdges(currentLabelBaseId!)
+          .map((e) => state.graph.target(e))
+          .find((id) => state.nodeMap.get(id)?.type === "DECISION"));
+
+    const hasConditionalDecision =
+      scanState.conditionalDecisionStack.length > 0 ||
+      Boolean(decisionNodeId);
+
+    if (hasMenuFallthrough && hasConditionalDecision) {
+      let allBranchesAreMenus = allCoveredByMenus;
+      if (decisionNodeId && scanState.conditionalDecisionStack.length === 0) {
+        const outEdges = state.graph.outEdges(decisionNodeId).map((e) => {
+          const target = state.graph.target(e);
+          const edgeData = state.graph.getEdgeAttributes(e);
+          return {
+            target,
+            branchKind: edgeData.condition?.branchKind ?? edgeData.label,
+          };
+        });
+        const hasElseBranch = outEdges.some((e) => e.branchKind === "else");
+        const allTargetsAreMenus = outEdges.length > 0 &&
+          outEdges.every((e) =>
+            e.target.startsWith("menu_") && connectedSources.has(e.target)
+          );
+        if (hasElseBranch && allTargetsAreMenus) {
+          allBranchesAreMenus = true;
+        }
+      }
+
+      if (!allBranchesAreMenus) {
+        const activeDecision = scanState
+          .conditionalDecisionStack[
+            scanState.conditionalDecisionStack.length - 1
+          ];
+        if (activeDecision) {
+          connectSceneSplitFromSource(
+            state,
+            activeDecision.decisionNodeId,
+            nextSceneId,
+            undefined,
+            createDecisionConditionMetadata(activeDecision),
+          );
+        }
+        const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
+        if (
+          !state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)
+        ) {
+          connectSceneSplitFromSource(
+            state,
+            activeSceneId,
+            nextSceneId,
+            "next",
+          );
+        }
+      }
     }
   }
 

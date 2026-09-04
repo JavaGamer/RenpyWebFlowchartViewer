@@ -7,6 +7,10 @@ import {
 } from "../graphMutations.ts";
 import { addParseDiagnostic } from "../diagnostics.ts";
 import { menuHasFallthrough } from "../handlers/menuHandler.ts";
+import {
+  areAllPathsCoveredByPendingMenus,
+  edgeIdWithOption,
+} from "../scanTransitions.ts";
 import { parseLabelParameters } from "../handlers/jumpCallHandler.ts";
 import type { SourceLocation } from "../../domain/index.ts";
 
@@ -16,10 +20,35 @@ export function handleKwLabelToken(
 ): void {
   scanState.waitForLabelName = true;
   scanState.currentLabelStartLoc = sourceLocation ?? null;
-  scanState.pendingMenuFallthroughIds = [];
-  for (const openMenu of scanState.menuStack) {
-    if (menuHasFallthrough(openMenu)) {
-      scanState.pendingMenuFallthroughIds.push(openMenu.id);
+  if (scanState.labelHasExplicitExit) {
+    scanState.pendingMenuFallthrough = [];
+  } else {
+    scanState.pendingMenuFallthrough = scanState.pendingMenuFallthrough.filter(
+      (e) => e.menuId.startsWith("menu_"),
+    );
+    for (const openMenu of scanState.menuStack) {
+      if (menuHasFallthrough(openMenu)) {
+        const fallthroughOptions = openMenu.options?.filter((o) =>
+          !o.hasExit
+        ) ?? [];
+        if (fallthroughOptions.length > 0) {
+          for (const opt of fallthroughOptions) {
+            scanState.pendingMenuFallthrough.push({
+              menuId: openMenu.id,
+              optionText: opt.text,
+              sourceLocation: openMenu.sourceLocation ?? sourceLocation,
+              decisionNodeId: openMenu.decisionNodeId,
+            });
+          }
+        } else {
+          scanState.pendingMenuFallthrough.push({
+            menuId: openMenu.id,
+            optionText: null,
+            sourceLocation: openMenu.sourceLocation ?? sourceLocation,
+            decisionNodeId: openMenu.decisionNodeId,
+          });
+        }
+      }
     }
   }
   scanState.menuStack.length = 0;
@@ -86,10 +115,16 @@ export function handleLabelNameToken(
     chapterLabels.set(declaredLabelName, newLabelId);
   }
 
+  const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
+    state,
+    scanState,
+  );
+
   if (
     scanState.currentLabelId !== null &&
     !scanState.labelHasExplicitExit &&
-    scanState.menuStack.length === 0
+    scanState.menuStack.length === 0 &&
+    !allCoveredByMenus
   ) {
     addEdge(state, {
       id: `seq_${scanState.currentLabelId}__${newLabelId}`,
@@ -115,19 +150,30 @@ export function handleLabelNameToken(
   scanState.labelVariableDictTargets.clear();
   scanState.labelVariableListTargets.clear();
 
-  for (const menuId of scanState.pendingMenuFallthroughIds) {
-    addEdge(state, {
-      id: `seq_${menuId}__${newLabelId}`,
-      source: menuId,
-      target: newLabelId,
-      kind: "sequence",
-      label: "next",
-      sourceLocation,
-    });
-    addOutgoing(state, menuId, "sequence");
-    addIncoming(state, newLabelId, "sequence");
+  if (!scanState.labelHasExplicitExit) {
+    const connectedFallthroughKeys = new Set<string>();
+    for (const entry of scanState.pendingMenuFallthrough) {
+      if (!entry.menuId.startsWith("menu_")) continue;
+      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+      if (!connectedFallthroughKeys.has(key)) {
+        addEdge(state, {
+          id: edgeIdWithOption(
+            `seq_${entry.menuId}__${newLabelId}`,
+            entry.optionText ?? null,
+          ),
+          source: entry.menuId,
+          target: newLabelId,
+          kind: "sequence",
+          label: entry.optionText ?? "next",
+          sourceLocation,
+        });
+        addOutgoing(state, entry.menuId, "sequence");
+        addIncoming(state, newLabelId, "sequence");
+        connectedFallthroughKeys.add(key);
+      }
+    }
   }
-  scanState.pendingMenuFallthroughIds = [];
+  scanState.pendingMenuFallthrough = [];
   state.allLabelIds.add(newLabelId);
   scanState.labelHasExplicitExit = false;
   scanState.waitForLabelName = false;

@@ -347,7 +347,7 @@ describe("parseRenpyFiles", () => {
 
     expect(sceneSplitEdge).toBeDefined();
     expect(sceneSplitEdge?.source).toBe(menuNode?.id);
-    expect(sceneSplitEdge?.label).toBe("next");
+    expect(sceneSplitEdge?.label).toBe("Pick");
   });
 
   it("splits labels when a conditional header appears before a scene boundary", async () => {
@@ -710,7 +710,15 @@ describe("parseRenpyFiles", () => {
         source: menuNode?.id,
         target: "after_menu",
         kind: "sequence",
-        label: "next",
+        label: "Go north",
+      }),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        source: menuNode?.id,
+        target: "after_menu",
+        kind: "sequence",
+        label: "Go south",
       }),
     );
   });
@@ -743,7 +751,7 @@ describe("parseRenpyFiles", () => {
         source: menus[0]?.id,
         target: menus[1]?.id,
         kind: "sequence",
-        label: "next",
+        label: "Talk",
       }),
     );
   });

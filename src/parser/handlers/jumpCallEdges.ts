@@ -9,7 +9,11 @@ import {
   type FlowEdge,
   type SourceLocation,
 } from "../../domain/index.ts";
-import { menuAtDepth } from "../scanTransitions.ts";
+import {
+  areAllPathsCoveredByPendingMenus,
+  edgeIdWithOption,
+  menuAtDepth,
+} from "../scanTransitions.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
 import { addParseDiagnostic } from "../diagnostics.ts";
 import { resolveTargetLabelId } from "./targetResolution.ts";
@@ -98,6 +102,67 @@ export function emitJumpEdge(
   timeout?: FlowEdge["timeout"],
 ) {
   const { isInOption, source, optionText } = context;
+
+  if (!isInOption && scanState.pendingMenuFallthrough.length > 0) {
+    const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
+      state,
+      scanState,
+    );
+    const currentChapter = scanState.currentLabelId
+      ? state.nodeMap.get(scanState.currentLabelId)?.chapter
+      : undefined;
+    const { resolvedTargetId } = resolveTargetLabelId(
+      state,
+      target,
+      currentChapter,
+    );
+    const timeoutSuffix = timeout?.isTimeout === true
+      ? `_timeout_${
+        timeout.durationSeconds === undefined
+          ? "unknown"
+          : String(timeout.durationSeconds)
+      }`
+      : "";
+    const connectedKeys = new Set<string>();
+    for (const entry of scanState.pendingMenuFallthrough) {
+      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+      if (connectedKeys.has(key)) continue;
+      connectedKeys.add(key);
+
+      const edgeId = edgeIdWithOption(
+        `jump_${entry.menuId}__${resolvedTargetId}${timeoutSuffix}`,
+        entry.optionText ?? null,
+      );
+      addEdge(state, {
+        id: edgeId,
+        source: entry.menuId,
+        target: resolvedTargetId,
+        kind: "jump",
+        label: entry.optionText ?? undefined,
+        condition: entry.menuId.startsWith("decision_")
+          ? {
+            branchKind: "else",
+            decisionNodeId: entry.menuId,
+          }
+          : context.condition,
+        timeout,
+        sourceLocation: context.sourceLocation ?? entry.sourceLocation,
+      });
+      addOutgoing(state, entry.menuId, "jump");
+      addIncoming(state, resolvedTargetId, "jump");
+    }
+    scanState.pendingMenuFallthrough = [];
+    if (
+      suppressFallthrough &&
+      scanState.conditionalIndentStack.length === 0
+    ) {
+      scanState.labelHasExplicitExit = true;
+    }
+    if (allCoveredByMenus) {
+      return;
+    }
+  }
+
   if (source) {
     const sourceNode = state.nodeMap.get(source);
     const currentChapter = sourceNode?.chapter ??
@@ -133,11 +198,20 @@ export function emitJumpEdge(
     addIncoming(state, resolvedTargetId, "jump");
 
     if (isInOption) {
-      if (!context.condition) {
-        const menu = menuAtDepth(
-          scanState.menuStack,
-          scanState.menuStack.length,
-        );
+      const menu = menuAtDepth(
+        scanState.menuStack,
+        scanState.menuStack.length,
+      );
+      const decisionContext = scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ];
+      const isInnerConditional = Boolean(
+        context.condition &&
+          menu?.indent !== undefined &&
+          decisionContext !== undefined &&
+          decisionContext.indent > menu.indent,
+      );
+      if (!isInnerConditional) {
         if (menu && menu.options) {
           const lastOpt = menu.options[menu.options.length - 1];
           if (lastOpt) {
@@ -170,6 +244,82 @@ export function emitCallEdge(
   timeout?: FlowEdge["timeout"],
 ) {
   const { isInOption, source, optionText } = context;
+
+  if (!isInOption && scanState.pendingMenuFallthrough.length > 0) {
+    const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
+      state,
+      scanState,
+    );
+    const currentChapter = scanState.currentLabelId
+      ? state.nodeMap.get(scanState.currentLabelId)?.chapter
+      : undefined;
+    const { resolvedTargetId } = resolveTargetLabelId(
+      state,
+      target,
+      currentChapter,
+    );
+    const timeoutSuffix = timeout?.isTimeout === true
+      ? `_timeout_${
+        timeout.durationSeconds === undefined
+          ? "unknown"
+          : String(timeout.durationSeconds)
+      }`
+      : "";
+    const lineSuffix = context.sourceLocation?.start.line !== undefined
+      ? `_L${context.sourceLocation.start.line}`
+      : "";
+    const connectedKeys = new Set<string>();
+    for (const entry of scanState.pendingMenuFallthrough) {
+      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+      if (connectedKeys.has(key)) continue;
+      connectedKeys.add(key);
+
+      const baseEdgeId = `call_${entry.menuId}__${resolvedTargetId}_${
+        entry.optionText ?? ""
+      }${lineSuffix}${timeoutSuffix}`;
+      const edgeId = edgeIdWithOption(baseEdgeId, entry.optionText ?? null);
+      const callContextId = `ctx_${edgeId}`;
+      const callContext = {
+        callContextId,
+        callEdgeId: edgeId,
+        callSiteId: entry.menuId,
+        returnTargetId: scanState.currentLabelId ?? entry.menuId,
+        arguments: callArgs,
+      };
+      addEdge(state, {
+        id: edgeId,
+        source: entry.menuId,
+        target: resolvedTargetId,
+        kind: "call",
+        label: entry.optionText ? `call: ${entry.optionText}` : "call",
+        condition: entry.menuId.startsWith("decision_")
+          ? {
+            branchKind: "else",
+            decisionNodeId: entry.menuId,
+          }
+          : context.condition,
+        timeout,
+        sourceLocation: context.sourceLocation ?? entry.sourceLocation,
+        arguments: callArgs,
+        callContext,
+      });
+      state.calledLabels.add(resolvedTargetId);
+      addOutgoing(state, entry.menuId, "call");
+      addIncoming(state, resolvedTargetId, "call");
+      state.pendingCallReturns.push({
+        returnTargetId: scanState.currentLabelId ?? entry.menuId,
+        callTargetId: resolvedTargetId,
+        callEdgeId: edgeId,
+        callContextId,
+        arguments: callArgs,
+      });
+    }
+    scanState.pendingMenuFallthrough = [];
+    if (allCoveredByMenus) {
+      return;
+    }
+  }
+
   if (!source) return;
   const sourceNode = state.nodeMap.get(source);
   const currentChapter = sourceNode?.chapter ??
@@ -226,8 +376,17 @@ export function emitCallEdge(
   });
   if (isInOption) {
     state.calledFromMenuOptionTargets.add(resolvedTargetId);
-    if (!context.condition) {
-      const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
+    const menu = menuAtDepth(scanState.menuStack, scanState.menuStack.length);
+    const decisionContext = scanState.conditionalDecisionStack[
+      scanState.conditionalDecisionStack.length - 1
+    ];
+    const isInnerConditional = Boolean(
+      context.condition &&
+        menu?.indent !== undefined &&
+        decisionContext !== undefined &&
+        decisionContext.indent > menu.indent,
+    );
+    if (!isInnerConditional) {
       if (menu && menu.options) {
         const lastOpt = menu.options[menu.options.length - 1];
         if (lastOpt) {

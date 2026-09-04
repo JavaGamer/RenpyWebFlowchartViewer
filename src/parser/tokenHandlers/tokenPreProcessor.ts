@@ -10,10 +10,8 @@ import type {
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
-import {
-  emitJumpEdge,
-  resolveCallContext,
-} from "../handlers/jumpCallHandler.ts";
+import { emitJumpEdge } from "../handlers/jumpCallHandler.ts";
+import { menuAtDepth } from "../scanTransitions.ts";
 import {
   evaluatePythonAstExpression,
   type SourceLocation,
@@ -47,6 +45,55 @@ function extractCallScreenExpression(lineText: string): string | null {
   return clean.slice(startIdx).trim();
 }
 
+export function flushPendingTimedChoice(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+): void {
+  if (scanState.pendingTimedChoice) {
+    const pending = scanState.pendingTimedChoice;
+    scanState.pendingTimedChoice = null;
+    if (scanState.currentLabelId) {
+      emitJumpEdge(
+        state,
+        scanState,
+        pending.target,
+        {
+          isInOption: false,
+          source: scanState.currentLabelId,
+          optionText: null,
+          sourceLocation: pending.sourceLocation,
+        },
+        false,
+        {
+          isTimeout: true,
+          durationSeconds: pending.durationSeconds,
+        },
+      );
+    }
+  }
+}
+
+export function isNonBranchingStagingStatement(lineText: string): boolean {
+  const trimmed = lineText.trim();
+  if (!trimmed || trimmed.startsWith("#")) {
+    return true;
+  }
+  if (
+    /^(?:play|queue|stop|voice|show|hide|with|window|scene|pause|camera|nvl|outfit|accessory|pass)\b/i
+      .test(trimmed)
+  ) {
+    return true;
+  }
+  if (trimmed.startsWith("$")) {
+    const pyCode = trimmed.slice(1).trim();
+    const isBranchingPy =
+      /^(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)|gameover|break|continue|return)\b/i
+        .test(pyCode);
+    return !isBranchingPy;
+  }
+  return false;
+}
+
 export function handlePreTokenLineStatements(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -68,6 +115,16 @@ export function handlePreTokenLineStatements(
           end: sourceLocation.end,
         };
       }
+    }
+  }
+
+  if (
+    scanState.pendingTimedChoice &&
+    lineNum !== scanState.pendingTimedChoice.lineNum
+  ) {
+    const isMenu = /^\s*menu\b/i.test(lineText);
+    if (!isMenu && !isNonBranchingStagingStatement(lineText)) {
+      flushPendingTimedChoice(state, scanState);
     }
   }
 
@@ -142,18 +199,29 @@ export function handlePreTokenLineStatements(
         scanState.lastProcessedCustomLineNum = lineNum;
         const durationSeconds = parseFloat(timedChoiceMatch[1]!);
         const target = timedChoiceMatch[2]!;
-        const context = resolveCallContext(scanState, meta, menuDepth);
-        const timeout = {
-          isTimeout: true as const,
+        scanState.pendingTimedChoice = {
           durationSeconds,
+          target,
+          lineNum,
+          sourceLocation,
         };
-        emitJumpEdge(state, scanState, target, context, false, timeout);
       } else if (
         /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
           .test(trimmed)
       ) {
         scanState.lastProcessedCustomLineNum = lineNum;
         scanState.labelHasExplicitExit = true;
+        if (meta.hasMenuOptionBlock) {
+          const menu = menuAtDepth(scanState.menuStack, menuDepth);
+          if (menu && menu.options && menu.options.length > 0) {
+            const lastOpt = menu.options[menu.options.length - 1];
+            if (lastOpt) {
+              lastOpt.hasExit = true;
+            }
+          }
+        } else if (scanState.pendingMenuFallthrough.length > 0) {
+          scanState.pendingMenuFallthrough = [];
+        }
       } else if (BREAK_REGEX.test(trimmed)) {
         scanState.lastProcessedCustomLineNum = lineNum;
       } else if (CONTINUE_REGEX.test(trimmed)) {

@@ -60,6 +60,11 @@ export function handleDialogueStringToken(
   scanState.currentLabelHasContentSinceSceneBoundary = true;
   scanState.currentSceneDialogueCount =
     (scanState.currentSceneDialogueCount ?? 0) + 1;
+  if (
+    !meta.hasMenuOptionBlock && scanState.conditionalIndentStack.length === 0
+  ) {
+    scanState.labelHasExplicitExit = false;
+  }
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   const isInMenuPrompt = menu !== null && !meta.hasMenuOptionBlock;
   const ownerId = (meta.hasMenuOptionBlock && menu) || isInMenuPrompt

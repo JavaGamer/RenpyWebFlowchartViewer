@@ -294,6 +294,8 @@ function dispatchMenuTokens(
       input.chapter,
       input.menuDepth,
       input.sourceLocation,
+      input.lineIndent,
+      input.lineNum,
     );
     return true;
   }

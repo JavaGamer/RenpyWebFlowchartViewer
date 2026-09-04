@@ -2348,7 +2348,7 @@ describe("parseRenpyFiles", () => {
     );
     expect(fallthroughEdge).toBeDefined();
     expect(fallthroughEdge?.target).toBe("start__scene_2");
-    expect(fallthroughEdge?.label).toBe("next");
+    expect(fallthroughEdge?.label).toBe("Deny her.");
   });
 
   // ── Milestone 2 Bug Fix Regressions ──────────────────────────────────────────

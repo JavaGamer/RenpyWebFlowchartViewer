@@ -72,7 +72,7 @@ function serializeCallArguments(args?: CallArgument[]): string {
 function serializeCallContext(ctx?: CallContext): string {
   if (!ctx) return "";
   return `${ctx.callSiteId ?? ""}__${ctx.returnTargetId ?? ""}__${
-    ctx.labelName ?? ""
+    ctx.callContextId ?? ""
   }`;
 }
 

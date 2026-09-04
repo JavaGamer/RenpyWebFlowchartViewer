@@ -11,7 +11,10 @@ import {
   resolveCallContext,
   resolveExpressionTargets,
 } from "../handlers/jumpCallHandler.ts";
-import { menuAtDepth } from "../scanTransitions.ts";
+import {
+  areAllPathsCoveredByPendingMenus,
+  menuAtDepth,
+} from "../scanTransitions.ts";
 import type { SourceLocation } from "../../domain/index.ts";
 
 export function handleScreenKeywordToken(scanState: ParseScanState): void {
@@ -112,7 +115,14 @@ export function handleJumpTargetToken(
     scanState.waitForJumpExpressionTarget = false;
     return;
   }
+  const pendingFallthrough =
+    (!context.isInOption && scanState.pendingMenuFallthrough.length > 0)
+      ? [...scanState.pendingMenuFallthrough]
+      : null;
   for (const target of targets) {
+    if (pendingFallthrough) {
+      scanState.pendingMenuFallthrough = [...pendingFallthrough];
+    }
     emitJumpEdge(
       state,
       scanState,
@@ -120,6 +130,9 @@ export function handleJumpTargetToken(
       { ...context, sourceLocation },
       true,
     );
+  }
+  if (pendingFallthrough) {
+    scanState.pendingMenuFallthrough = [];
   }
   scanState.waitForJumpTarget = false;
   scanState.waitForJumpExpressionTarget = false;
@@ -170,7 +183,14 @@ export function handleCallTargetToken(
     scanState.waitForCallExpressionTarget = false;
     return;
   }
+  const pendingFallthrough =
+    (!context.isInOption && scanState.pendingMenuFallthrough.length > 0)
+      ? [...scanState.pendingMenuFallthrough]
+      : null;
   for (const target of targets) {
+    if (pendingFallthrough) {
+      scanState.pendingMenuFallthrough = [...pendingFallthrough];
+    }
     emitCallEdge(
       state,
       scanState,
@@ -178,6 +198,9 @@ export function handleCallTargetToken(
       { ...context, sourceLocation },
       callArgs,
     );
+  }
+  if (pendingFallthrough) {
+    scanState.pendingMenuFallthrough = [];
   }
   scanState.waitForCallTarget = false;
   scanState.waitForCallExpressionTarget = false;
@@ -202,12 +225,35 @@ export function handleReturnKeywordToken(
   } else {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     const isReliableReturn = scanState.conditionalIndentStack.length === 0;
-    if (isReliableReturn && scanState.currentLabelId !== null) {
-      scanState.labelHasExplicitExit = true;
-      state.hasReliableReturnInLabel.add(scanState.currentLabelId);
-    }
-    if (scanState.currentLabelId !== null) {
-      state.hasReturnInLabel.add(scanState.currentLabelId);
+    if (scanState.pendingMenuFallthrough.length > 0) {
+      const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
+        state,
+        scanState,
+      );
+      for (const entry of scanState.pendingMenuFallthrough) {
+        state.hasReturnInLabel.add(entry.menuId);
+        if (isReliableReturn) {
+          state.hasReliableReturnInLabel.add(entry.menuId);
+        }
+      }
+      scanState.pendingMenuFallthrough = [];
+      if (!allCoveredByMenus && scanState.currentLabelId !== null) {
+        state.hasReturnInLabel.add(scanState.currentLabelId);
+        if (isReliableReturn) {
+          state.hasReliableReturnInLabel.add(scanState.currentLabelId);
+        }
+      }
+      if (isReliableReturn) {
+        scanState.labelHasExplicitExit = true;
+      }
+    } else {
+      if (isReliableReturn && scanState.currentLabelId !== null) {
+        scanState.labelHasExplicitExit = true;
+        state.hasReliableReturnInLabel.add(scanState.currentLabelId);
+      }
+      if (scanState.currentLabelId !== null) {
+        state.hasReturnInLabel.add(scanState.currentLabelId);
+      }
     }
   }
 }

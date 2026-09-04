@@ -7,6 +7,7 @@ import {
 } from "../graphMutations.ts";
 import { assertInvariant } from "../pipelineInvariants.ts";
 import { menuHasFallthrough } from "../handlers/menuHandler.ts";
+import { emitJumpEdge } from "../handlers/jumpCallHandler.ts";
 import { menuAtDepth, parentMenuStackLength } from "../scanTransitions.ts";
 import {
   extractConditionFlagRefs,
@@ -124,6 +125,8 @@ export function handleMenuStatementToken(
   chapter: string,
   menuDepth: number,
   sourceLocation?: SourceLocation,
+  lineIndent?: number,
+  lineNum?: number,
 ): void {
   scanState.currentLabelHasContentSinceSceneBoundary = true;
   const poppedMenus: typeof scanState.menuStack = [];
@@ -144,20 +147,82 @@ export function handleMenuStatementToken(
     parentLabelId: scanState.currentLabelId ?? undefined,
     sourceLocation,
   });
-  let connectedPoppedMenu = false;
+
+  let connectedIncomingMenu = false;
+  if (scanState.pendingMenuFallthrough.length > 0) {
+    const currentDecision = scanState
+      .conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ];
+    const connectedFallthroughKeys = new Set<string>();
+    const remainingPending: typeof scanState.pendingMenuFallthrough = [];
+    for (const entry of scanState.pendingMenuFallthrough) {
+      const isSiblingBranch = Boolean(
+        currentDecision &&
+          entry.decisionNodeId &&
+          currentDecision.decisionNodeId === entry.decisionNodeId,
+      );
+      if (isSiblingBranch) {
+        remainingPending.push(entry);
+        continue;
+      }
+      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+      if (!connectedFallthroughKeys.has(key)) {
+        addEdge(state, {
+          id: edgeIdWithOption(
+            `seq_${entry.menuId}__${newMenuId}`,
+            entry.optionText ?? null,
+          ),
+          source: entry.menuId,
+          target: newMenuId,
+          kind: "sequence",
+          label: entry.optionText ?? "next",
+          sourceLocation: entry.sourceLocation ?? sourceLocation,
+        });
+        addOutgoing(state, entry.menuId, "sequence");
+        addIncoming(state, newMenuId, "sequence");
+        connectedFallthroughKeys.add(key);
+        connectedIncomingMenu = true;
+      }
+    }
+    scanState.pendingMenuFallthrough = remainingPending;
+  }
+
   for (const closedMenu of poppedMenus) {
     if (!menuHasFallthrough(closedMenu)) continue;
-    addEdge(state, {
-      id: `seq_${closedMenu.id}__${newMenuId}`,
-      source: closedMenu.id,
-      target: newMenuId,
-      kind: "sequence",
-      label: "next",
-      sourceLocation,
-    });
-    addOutgoing(state, closedMenu.id, "sequence");
-    addIncoming(state, newMenuId, "sequence");
-    connectedPoppedMenu = true;
+    const fallthroughOptions = closedMenu.options?.filter((o) => !o.hasExit) ??
+      [];
+    if (fallthroughOptions.length > 0) {
+      for (const option of fallthroughOptions) {
+        addEdge(state, {
+          id: edgeIdWithOption(
+            `seq_${closedMenu.id}__${newMenuId}`,
+            option.text ?? null,
+          ),
+          source: closedMenu.id,
+          target: newMenuId,
+          kind: "sequence",
+          label: option.text ?? "next",
+          condition: option.condition,
+          sourceLocation,
+        });
+        addOutgoing(state, closedMenu.id, "sequence");
+        addIncoming(state, newMenuId, "sequence");
+        connectedIncomingMenu = true;
+      }
+    } else {
+      addEdge(state, {
+        id: `seq_${closedMenu.id}__${newMenuId}`,
+        source: closedMenu.id,
+        target: newMenuId,
+        kind: "sequence",
+        label: "next",
+        sourceLocation,
+      });
+      addOutgoing(state, closedMenu.id, "sequence");
+      addIncoming(state, newMenuId, "sequence");
+      connectedIncomingMenu = true;
+    }
   }
 
   const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
@@ -168,7 +233,7 @@ export function handleMenuStatementToken(
   const source = parentMenu
     ? parentMenu.id
     : (decisionContext?.decisionNodeId ??
-      (connectedPoppedMenu ? null : scanState.currentLabelId));
+      (connectedIncomingMenu ? null : scanState.currentLabelId));
   if (source) {
     const condition = decisionContext
       ? {
@@ -194,21 +259,41 @@ export function handleMenuStatementToken(
     addIncoming(state, newMenuId, "sequence");
   }
 
+  if (scanState.pendingTimedChoice) {
+    const pending = scanState.pendingTimedChoice;
+    scanState.pendingTimedChoice = null;
+    emitJumpEdge(
+      state,
+      scanState,
+      pending.target,
+      {
+        isInOption: false,
+        source: newMenuId,
+        optionText: null,
+        sourceLocation: pending.sourceLocation,
+      },
+      false,
+      {
+        isTimeout: true,
+        durationSeconds: pending.durationSeconds,
+      },
+    );
+  }
+
   scanState.menuStack.push({
     id: newMenuId,
     optionText: null,
     activeOptionCondition: undefined,
+    decisionNodeId: decisionContext?.decisionNodeId,
     options: [],
     sourceLocation: sourceLocation ? { ...sourceLocation } : undefined,
+    indent: lineIndent,
+    lineNum,
   });
   assertInvariant(
     scanState.menuStack.length <= menuDepth,
     `menu stack depth exceeded menu meta depth (${scanState.menuStack.length} > ${menuDepth})`,
   );
-
-  if (scanState.conditionalIndentStack.length === 0) {
-    scanState.labelHasExplicitExit = true;
-  }
 }
 
 export function handleMenuNameToken(

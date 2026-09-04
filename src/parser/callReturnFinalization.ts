@@ -16,6 +16,16 @@ function findReturningNodes(
   for (const labelId of state.hasReliableReturnInLabel) {
     if (labelId === baseName || labelId.startsWith(`${baseName}__scene_`)) {
       returnSources.add(labelId);
+    } else {
+      const node = state.nodeMap.get(labelId);
+      if (
+        node &&
+        (node.parentLabelId === baseName ||
+          (node.parentLabelId &&
+            node.parentLabelId.startsWith(`${baseName}__scene_`)))
+      ) {
+        returnSources.add(labelId);
+      }
     }
   }
 

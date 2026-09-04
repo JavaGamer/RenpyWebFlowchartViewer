@@ -6,7 +6,11 @@ import type {
 import type { AudioAssetCue, FlowNode } from "../domain/index.ts";
 import type { ParseGraphState, ParseScanState } from "./pipelineTypes.ts";
 import { analyzeTokenMetaInto, createEmptyTokenMeta } from "./tokenMeta.ts";
-import { maybeUpdateConditionalState } from "./scanTransitions.ts";
+import {
+  maybeUpdateConditionalState,
+  maybeUpdateMenuScope,
+} from "./scanTransitions.ts";
+import { flushPendingTimedChoice } from "./tokenHandlers/tokenPreProcessor.ts";
 import { handleToken } from "./tokenHandling.ts";
 import { PARSER_TOKENS } from "./parserTokens.ts";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
@@ -142,6 +146,15 @@ export function processFlatToken(
     val,
     lineIndent,
     conditionalText,
+    token.startPos.line,
+    sourceLocation,
+  );
+
+  maybeUpdateMenuScope(
+    state,
+    scanState,
+    meta,
+    lineIndent,
     token.startPos.line,
     sourceLocation,
   );
@@ -340,6 +353,15 @@ export function processFlatTokens(
       sourceLocation,
     );
 
+    maybeUpdateMenuScope(
+      state,
+      scanState,
+      meta,
+      lineIndent,
+      token.startPos.line,
+      sourceLocation,
+    );
+
     handleToken(state, scanState, {
       type,
       meta,
@@ -356,6 +378,8 @@ export function processFlatTokens(
       sourceLocation,
     });
   }
+
+  flushPendingTimedChoice(state, scanState);
 }
 
 export function extractNodeDetailsFromTokens(

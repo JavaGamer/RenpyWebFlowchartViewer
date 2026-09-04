@@ -120,7 +120,7 @@ export function processLineState(
 export const PAUSE_TAG_REGEX = /\{[wp]=([0-9]+(?:\.[0-9]*)?|\.[0-9]+)\}/g;
 export const TEXT_TAG_STRIP_REGEX = /\{[^}]*\}/g;
 export const TIMED_CHOICE_REGEX =
-  /^timedchoice\s+([0-9]+(?:\.[0-9]*)?)\s+([A-Za-z0-9_]+)/i;
+  /^(?:\$\s*)?timedchoice(?:\s*\(|\s+)\s*(?:(?:time|duration|timeout)\s*=\s*)?([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:\s*,\s*|\s+)(?:(?:target|label)\s*=\s*)?["']?(\.?[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)["']?\s*\)?/i;
 export const GAMEOVER_REGEX = /^gameover\b/i;
 export const TITLE_REGEX = /^title\b/i;
 export const BREAK_REGEX = /^(?:\$\s*)?break\b/i;
