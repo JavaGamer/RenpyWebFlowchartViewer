@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { type ReactFlowInstance } from "@xyflow/react";
+import { type ReactFlowInstance, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ErrorBoundary } from "react-error-boundary";
 import {
@@ -443,21 +443,23 @@ export default function FlowchartViewer({
           graph-derivation, or ReactFlow rendering are all contained here.
           The toolbar above continues to function after any such error. */
       }
-      <ErrorBoundary FallbackComponent={CanvasErrorFallback}>
-        <FlowchartCanvas
-          flowNodes={flowNodes}
-          flowEdges={flowEdges}
-          flowRef={flowRef}
-          flowInstanceRef={flowInstanceRef}
-          searchInputRef={searchInputRef}
-          canvasCallbacksRef={canvasCallbacksRef}
-          parseService={parseService}
-          dialogueSearchMode={dialogueSearchMode}
-          onDialogueSearchModeChange={onDialogueSearchModeChange}
-          perf={perf}
-          onMetrics={handleMetrics}
-        />
-      </ErrorBoundary>
+      <ReactFlowProvider>
+        <ErrorBoundary FallbackComponent={CanvasErrorFallback}>
+          <FlowchartCanvas
+            flowNodes={flowNodes}
+            flowEdges={flowEdges}
+            flowRef={flowRef}
+            flowInstanceRef={flowInstanceRef}
+            searchInputRef={searchInputRef}
+            canvasCallbacksRef={canvasCallbacksRef}
+            parseService={parseService}
+            dialogueSearchMode={dialogueSearchMode}
+            onDialogueSearchModeChange={onDialogueSearchModeChange}
+            perf={perf}
+            onMetrics={handleMetrics}
+          />
+        </ErrorBoundary>
+      </ReactFlowProvider>
     </div>
   );
 }
