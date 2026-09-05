@@ -16,6 +16,7 @@ import {
   addNode,
   addOutgoing,
 } from "../graphMutations.ts";
+import { updateCallReturnTarget } from "./jumpCallEdges.ts";
 
 /**
  * Determines whether the current scanner position lies within the indentation scope
@@ -28,6 +29,9 @@ export function isWithinCurrentLabelScope(
 ): boolean {
   if (meta.hasLabelStatement) {
     return true;
+  }
+  if (meta.hasPythonBlock || meta.hasScreenBlock) {
+    return false;
   }
   if (
     scanState.currentLabelId === null || scanState.currentLabelIndent === null
@@ -316,6 +320,11 @@ export function splitCurrentLabelOnSceneBoundary(
   const connectedFallthroughKeys = new Set<string>();
   if (scanState.pendingMenuFallthrough.length > 0) {
     for (const entry of scanState.pendingMenuFallthrough) {
+      if (entry.calledTargetId && entry.callContextId) {
+        updateCallReturnTarget(state, entry.callContextId, nextSceneId);
+        connectedSources.add(entry.menuId);
+        continue;
+      }
       const key = `${entry.menuId}__${entry.optionText ?? ""}`;
       if (!connectedFallthroughKeys.has(key)) {
         connectSceneSplitFromSource(

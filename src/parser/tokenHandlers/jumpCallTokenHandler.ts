@@ -225,6 +225,12 @@ export function handleReturnKeywordToken(
   } else {
     scanState.currentLabelHasContentSinceSceneBoundary = true;
     const isReliableReturn = scanState.conditionalIndentStack.length === 0;
+    if (scanState.conditionalDecisionStack.length > 0) {
+      const decCtx = scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]!;
+      decCtx.currentBranchHasExit = true;
+    }
     if (scanState.pendingMenuFallthrough.length > 0) {
       const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
         state,

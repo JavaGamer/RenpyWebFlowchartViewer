@@ -59,11 +59,18 @@ export function createFileGraphFragment(
   const filePath = rawPath.replace(/\\/g, "/");
   const chapter = filePath.replace(/\.rpy$/i, "");
   const fileCanonicalLabelIds = state.nodes
-    .filter((n) => n.type === "LABEL" && !n.id.includes("__scene_"))
-    .map((n): [string, string] => [
-      n.label || n.id.split("__shadow_")[0]!,
-      n.id,
-    ]);
+    .filter(
+      (n) =>
+        n.type === "LABEL" &&
+        (!n.id.includes("__scene_") || n.id.endsWith("__scene_1")),
+    )
+    .map((n): [string, string] => {
+      const isSyntheticScene = Boolean(n.label && /: Scene \d+$/.test(n.label));
+      const name = isSyntheticScene
+        ? n.id.split("__scene_")[0]!
+        : (n.label || n.id.split("__shadow_")[0]!);
+      return [name, n.id];
+    });
 
   return {
     filePath,
@@ -235,44 +242,55 @@ export function linkGraphFragments(
     // First pass over fragment nodes: main labels, menus, decisions
     for (const node of fragment.nodes) {
       if (node.type === "LABEL") {
-        const isSceneSplit = node.id.includes("__scene_");
-        if (!isSceneSplit) {
-          const rawLabel = node.label || node.id.split("__shadow_")[0]!;
-          const currentCount = (seenLabelCounts.get(rawLabel) ?? 0) + 1;
-          seenLabelCounts.set(rawLabel, currentCount);
+        const isSyntheticScene = Boolean(
+          node.label && /: Scene \d+$/.test(node.label),
+        );
+        const rawLabel = isSyntheticScene
+          ? node.id.split("__scene_")[0]!
+          : (node.label || node.id.split("__shadow_")[0]!);
 
-          const expectedId = currentCount === 1
-            ? rawLabel
-            : `${rawLabel}__shadow_${currentCount}`;
+        if (isSyntheticScene && !node.id.endsWith("__scene_1")) {
+          // Scene 2, 3, etc. of the same label: do not increment label definition count
+          continue;
+        }
 
-          if (node.id !== expectedId) {
-            nodeIdRemap.set(node.id, expectedId);
-            node.id = expectedId;
-          }
+        const currentCount = (seenLabelCounts.get(rawLabel) ?? 0) + 1;
+        seenLabelCounts.set(rawLabel, currentCount);
 
-          if (currentCount > 1) {
-            node.isShadowed = true;
-            node.shadowOfId = rawLabel;
-            state.diagnostics.push({
-              code: "shadowed_label",
-              severity: "warning",
-              message:
-                `Label "${rawLabel}" is a duplicate definition and is shadowed by canonical label "${rawLabel}".`,
-              location: {
-                chapter: fragment.chapter,
-                construct: "label",
-                sourceId: node.id,
-                targetId: rawLabel,
-                sourceLocation: node.sourceLocation,
-              },
-              recoveryAction:
-                "Rename duplicate labels or keep one canonical definition.",
-              context: {
-                category: "shadowed_label",
-                detail: rawLabel,
-              },
-            });
-          }
+        const expectedBase = currentCount === 1
+          ? rawLabel
+          : `${rawLabel}__shadow_${currentCount}`;
+        const expectedId = isSyntheticScene
+          ? `${expectedBase}__scene_1`
+          : expectedBase;
+
+        if (node.id !== expectedId) {
+          nodeIdRemap.set(node.id, expectedId);
+          node.id = expectedId;
+        }
+
+        if (currentCount > 1) {
+          node.isShadowed = true;
+          node.shadowOfId = rawLabel;
+          state.diagnostics.push({
+            code: "shadowed_label",
+            severity: "warning",
+            message:
+              `Label "${rawLabel}" is a duplicate definition and is shadowed by canonical label "${rawLabel}".`,
+            location: {
+              chapter: fragment.chapter,
+              construct: "label",
+              sourceId: node.id,
+              targetId: rawLabel,
+              sourceLocation: node.sourceLocation,
+            },
+            recoveryAction:
+              "Rename duplicate labels or keep one canonical definition.",
+            context: {
+              category: "shadowed_label",
+              detail: rawLabel,
+            },
+          });
         }
       } else if (node.type === "MENU") {
         const rawId = node.id.split("__dup_")[0]!;
@@ -472,7 +490,8 @@ export function linkGraphFragments(
 
     for (const [name, id] of fragment.canonicalLabelIds) {
       const finalId = nodeRemap.get(id) ?? id;
-      if (!state.canonicalLabelIdByName.has(name)) {
+      const currentCanonical = state.canonicalLabelIdByName.get(name);
+      if (!currentCanonical || !state.nodeMap.has(currentCanonical)) {
         state.canonicalLabelIdByName.set(name, finalId);
       }
       let chapterMap = state.labelsByChapter.get(fragment.chapter);
@@ -578,6 +597,79 @@ export function linkGraphFragments(
   state.labelDefinitionCountByName.clear();
   for (const [name, count] of seenLabelCounts.entries()) {
     state.labelDefinitionCountByName.set(name, count);
+  }
+
+  // Pass 2.35: Remap cross-file edges and pending call returns to canonical label targets
+  for (const edge of state.edges) {
+    const oldTarget = edge.target;
+    const oldSource = edge.source;
+    let edgeChanged = false;
+    if (
+      !state.nodeMap.has(edge.target) &&
+      state.canonicalLabelIdByName.has(edge.target)
+    ) {
+      edge.target = state.canonicalLabelIdByName.get(edge.target)!;
+      edgeChanged = true;
+    }
+    if (
+      !state.nodeMap.has(edge.source) &&
+      state.canonicalLabelIdByName.has(edge.source)
+    ) {
+      edge.source = state.canonicalLabelIdByName.get(edge.source)!;
+      edgeChanged = true;
+    }
+    if (edge.callContext) {
+      if (
+        !state.nodeMap.has(edge.callContext.returnTargetId) &&
+        state.canonicalLabelIdByName.has(edge.callContext.returnTargetId)
+      ) {
+        edge.callContext.returnTargetId = state.canonicalLabelIdByName.get(
+          edge.callContext.returnTargetId,
+        )!;
+      }
+      if (
+        !state.nodeMap.has(edge.callContext.callSiteId) &&
+        state.canonicalLabelIdByName.has(edge.callContext.callSiteId)
+      ) {
+        edge.callContext.callSiteId = state.canonicalLabelIdByName.get(
+          edge.callContext.callSiteId,
+        )!;
+      }
+    }
+    if (edgeChanged) {
+      const oldId = edge.id;
+      let newId = oldId;
+      if (oldTarget !== edge.target) {
+        newId = newId.replace(`__${oldTarget}`, `__${edge.target}`);
+      }
+      if (oldSource !== edge.source) {
+        newId = newId.replace(`${oldSource}__`, `${edge.source}__`);
+      }
+      if (newId !== oldId) {
+        edge.id = newId;
+        state.edgeMap.delete(oldId);
+        state.edgeMap.set(newId, edge);
+        state.edgeIds.delete(oldId);
+        state.edgeIds.add(newId);
+      }
+    }
+  }
+  for (const pcr of state.pendingCallReturns) {
+    if (
+      !state.nodeMap.has(pcr.callTargetId) &&
+      state.canonicalLabelIdByName.has(pcr.callTargetId)
+    ) {
+      pcr.callTargetId = state.canonicalLabelIdByName.get(pcr.callTargetId)!;
+    }
+    if (
+      pcr.returnTargetId &&
+      !state.nodeMap.has(pcr.returnTargetId) &&
+      state.canonicalLabelIdByName.has(pcr.returnTargetId)
+    ) {
+      pcr.returnTargetId = state.canonicalLabelIdByName.get(
+        pcr.returnTargetId,
+      )!;
+    }
   }
 
   // Pass 2.4: Finalize roles, materialize call-returns, normalize graph, & run CFA

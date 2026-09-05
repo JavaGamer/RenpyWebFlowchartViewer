@@ -1,6 +1,7 @@
 import { PARSER_TOKENS } from "./parserTokens.ts";
 import type {
   ConditionalBranchKind,
+  ConditionalDecisionContext,
   ParseGraphState,
   ParseScanState,
   TokenMetaFlags,
@@ -36,6 +37,107 @@ export function edgeIdWithOption(
   return optionText ? `${base}_${optionText}` : base;
 }
 
+function handlePoppedDecisionScope(
+  scanState: ParseScanState,
+  popped: ConditionalDecisionContext,
+): void {
+  if (!popped.branches) {
+    popped.branches = [];
+  }
+  popped.branches.push({
+    kind: popped.branchKind,
+    hasExit: popped.currentBranchHasExit ?? false,
+    calledTargetId: popped.calledTargetId,
+    callContextId: popped.callContextId,
+    calledSubroutines: popped.calledSubroutines,
+  });
+
+  const parentDec = scanState.conditionalDecisionStack.length > 0
+    ? scanState.conditionalDecisionStack[
+      scanState.conditionalDecisionStack.length - 1
+    ]
+    : undefined;
+  const parentBranchDecisionId = parentDec?.decisionNodeId;
+  const parentBranchIndex = parentDec
+    ? (parentDec.branches ? parentDec.branches.length : 0)
+    : undefined;
+
+  // Re-scope unconsumed entries from popped decision's branches to the parent scope
+  for (const entry of scanState.pendingMenuFallthrough) {
+    if (entry.branchDecisionId === popped.decisionNodeId) {
+      entry.branchDecisionId = parentBranchDecisionId;
+      entry.branchIndex = parentBranchIndex;
+    }
+  }
+
+  const hasElse = popped.branches.some(
+    (b) => b.kind === "else" || b.kind === "case",
+  );
+  const allBranchesExit = hasElse && popped.branches.every((b) => b.hasExit);
+
+  if (allBranchesExit) {
+    if (scanState.conditionalDecisionStack.length === 0) {
+      scanState.labelHasExplicitExit = true;
+    } else {
+      const parent = scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]!;
+      parent.currentBranchHasExit = true;
+    }
+  } else {
+    if (!popped.sourceId?.startsWith("menu_")) {
+      const branchesWithSubroutines = popped.branches.filter(
+        (b) =>
+          !b.hasExit &&
+          (b.calledTargetId ||
+            (b.calledSubroutines && b.calledSubroutines.length > 0)),
+      );
+      for (const b of branchesWithSubroutines) {
+        const lastCall = b.calledSubroutines && b.calledSubroutines.length > 0
+          ? b.calledSubroutines[b.calledSubroutines.length - 1]!
+          : { targetId: b.calledTargetId!, callContextId: b.callContextId! };
+        scanState.pendingMenuFallthrough.push({
+          menuId: popped.decisionNodeId,
+          optionText: b.kind,
+          sourceLocation: popped.sourceLocation,
+          decisionNodeId: popped.decisionNodeId,
+          calledTargetId: lastCall.targetId,
+          callContextId: lastCall.callContextId,
+          branchDecisionId: parentBranchDecisionId,
+          branchIndex: parentBranchIndex,
+        });
+      }
+
+      const menuCountForDecision = scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          e.decisionNodeId === popped.decisionNodeId &&
+          e.menuId.startsWith("menu_"),
+      ).length;
+      const hasNonSubroutineFallthrough = (!hasElse) ||
+        (menuCountForDecision === 0 &&
+          popped.branches.some((b) =>
+            !b.hasExit && !b.calledTargetId &&
+            (!b.calledSubroutines || b.calledSubroutines.length === 0)
+          ));
+      if (
+        hasNonSubroutineFallthrough &&
+        !scanState.pendingMenuFallthrough.some(
+          (e) => e.menuId === popped.decisionNodeId && !e.calledTargetId,
+        )
+      ) {
+        scanState.pendingMenuFallthrough.push({
+          menuId: popped.decisionNodeId,
+          optionText: null,
+          sourceLocation: popped.sourceLocation,
+          decisionNodeId: popped.decisionNodeId,
+          branchDecisionId: parentBranchDecisionId,
+          branchIndex: parentBranchIndex,
+        });
+      }
+    }
+  }
+}
+
 /**
  * Evaluates block indentation changes to manage the conditional logic stack during scanning.
  * Triggers on non-whitespace tokens:
@@ -51,6 +153,7 @@ export function edgeIdWithOption(
  * @param lineText Raw or logical multiline text contents of the line.
  * @param lineNumber Optional 0-indexed line number.
  * @param sourceLocation Optional calculated token source location.
+ * @param meta Optional token metadata flags.
  */
 export function maybeUpdateConditionalState(
   scanState: ParseScanState,
@@ -60,6 +163,7 @@ export function maybeUpdateConditionalState(
   lineText?: string,
   lineNumber?: number,
   sourceLocation?: SourceLocation,
+  meta?: TokenMetaFlags,
 ) {
   if (!scanState.conditionalDecisionStack) {
     scanState.conditionalDecisionStack = [];
@@ -70,6 +174,14 @@ export function maybeUpdateConditionalState(
   // Ignore purely whitespace or newline tokens
   if (
     type === PARSER_TOKENS.charWhitespace || type === PARSER_TOKENS.charNewline
+  ) {
+    return;
+  }
+
+  if (
+    meta?.hasPythonBlock ||
+    meta?.hasScreenBlock ||
+    scanState.currentLabelId === null
   ) {
     return;
   }
@@ -105,20 +217,7 @@ export function maybeUpdateConditionalState(
       .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1]!;
     if (indent < top.indent) {
       const popped = scanState.conditionalDecisionStack.pop()!;
-      if (
-        popped.decisionNodeId &&
-        popped.branchKind !== "else" &&
-        !popped.sourceId?.startsWith("menu_") &&
-        !scanState.pendingMenuFallthrough.some((e) =>
-          e.menuId === popped.decisionNodeId
-        )
-      ) {
-        scanState.pendingMenuFallthrough.push({
-          menuId: popped.decisionNodeId,
-          optionText: null,
-          sourceLocation: popped.sourceLocation,
-        });
-      }
+      handlePoppedDecisionScope(scanState, popped);
       continue;
     }
     if (
@@ -126,20 +225,7 @@ export function maybeUpdateConditionalState(
       !isLineMatchOrCase
     ) {
       const popped = scanState.conditionalDecisionStack.pop()!;
-      if (
-        popped.decisionNodeId &&
-        popped.branchKind !== "else" &&
-        !popped.sourceId?.startsWith("menu_") &&
-        !scanState.pendingMenuFallthrough.some((e) =>
-          e.menuId === popped.decisionNodeId
-        )
-      ) {
-        scanState.pendingMenuFallthrough.push({
-          menuId: popped.decisionNodeId,
-          optionText: null,
-          sourceLocation: popped.sourceLocation,
-        });
-      }
+      handlePoppedDecisionScope(scanState, popped);
       continue;
     }
     break;
@@ -313,13 +399,34 @@ export function maybeUpdateMenuScope(
     const fallthroughOptions = closedMenu.options?.filter((o) => !o.hasExit) ??
       [];
 
+    const curDec = scanState.conditionalDecisionStack.length > 0
+      ? scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]
+      : undefined;
+    const branchDecisionId = curDec?.decisionNodeId;
+    const branchIndex = curDec
+      ? (curDec.branches ? curDec.branches.length : 0)
+      : undefined;
+
     if (fallthroughOptions.length > 0) {
       for (const option of fallthroughOptions) {
+        const lastCall =
+          option.calledSubroutines && option.calledSubroutines.length > 0
+            ? option.calledSubroutines[option.calledSubroutines.length - 1]!
+            : {
+              targetId: option.calledTargetId,
+              callContextId: option.callContextId,
+            };
         scanState.pendingMenuFallthrough.push({
           menuId: closedMenu.id,
           optionText: option.text,
           sourceLocation: closedMenu.sourceLocation ?? sourceLocation,
           decisionNodeId: closedMenu.decisionNodeId,
+          calledTargetId: lastCall.targetId,
+          callContextId: lastCall.callContextId,
+          branchDecisionId,
+          branchIndex,
         });
       }
       scanState.labelHasExplicitExit = false;
@@ -336,6 +443,8 @@ export function maybeUpdateMenuScope(
         optionText: null,
         sourceLocation: closedMenu.sourceLocation ?? sourceLocation,
         decisionNodeId: closedMenu.decisionNodeId,
+        branchDecisionId,
+        branchIndex,
       });
       scanState.labelHasExplicitExit = false;
     }
@@ -344,7 +453,7 @@ export function maybeUpdateMenuScope(
 
 /**
  * Determines whether all execution paths from the current label/scene scope are
- * guaranteed to pass through the fallthrough menus in `pendingMenuFallthrough`.
+ * guaranteed to pass through the fallthrough menus or decision nodes in `pendingMenuFallthrough`.
  *
  * If this returns true, the direct sequence/jump/call edge from the enclosing label
  * must be suppressed to prevent a phantom bypass edge around the menus.
@@ -357,21 +466,21 @@ export function areAllPathsCoveredByPendingMenus(
   state: ParseGraphState,
   scanState: ParseScanState,
 ): boolean {
-  const menuEntries = scanState.pendingMenuFallthrough.filter((e) =>
-    e.menuId.startsWith("menu_")
-  );
-  if (menuEntries.length === 0) {
+  if (scanState.pendingMenuFallthrough.length === 0) {
     return false;
   }
 
-  // If there are any non-menu entries (like decision_ nodes) in pendingMenuFallthrough,
-  // there is an explicit non-menu fallthrough path.
-  const hasNonMenuPending = scanState.pendingMenuFallthrough.some(
-    (e) => !e.menuId.startsWith("menu_"),
-  );
-  if (hasNonMenuPending) {
+  // If there is still an active conditional on the decision stack, the conditional structure is not closed.
+  if (scanState.conditionalDecisionStack.length > 0) {
     return false;
   }
+
+  const menuEntries = scanState.pendingMenuFallthrough.filter((e) =>
+    e.menuId.startsWith("menu_") && !e.branchDecisionId
+  );
+  const decisionEntries = scanState.pendingMenuFallthrough.filter((e) =>
+    e.menuId.startsWith("decision_") && !e.branchDecisionId
+  );
 
   // If any fallthrough menu was at the top level of the label/scene (not inside a conditional),
   // then every execution path reaching that point passed unconditionally through the menu.
@@ -380,10 +489,22 @@ export function areAllPathsCoveredByPendingMenus(
     return true;
   }
 
-  // All menus are inside conditional decisions.
-  // If there is still an active conditional on the decision stack, the conditional structure is not closed.
-  if (scanState.conditionalDecisionStack.length > 0) {
-    return false;
+  // If we only have decision entries (conditional with subroutine calls in all branches):
+  if (menuEntries.length === 0 && decisionEntries.length > 0) {
+    const byDecision = new Map<string, string[]>();
+    for (const e of decisionEntries) {
+      let list = byDecision.get(e.menuId);
+      if (!list) {
+        list = [];
+        byDecision.set(e.menuId, list);
+      }
+      if (e.optionText) list.push(e.optionText);
+    }
+    for (const [, branchKinds] of byDecision.entries()) {
+      const hasElse = branchKinds.includes("else");
+      if (!hasElse) return false;
+    }
+    return true;
   }
 
   const decisionIds = new Set(
@@ -393,7 +514,7 @@ export function areAllPathsCoveredByPendingMenus(
   );
 
   if (decisionIds.size === 0) {
-    return true;
+    return false;
   }
 
   const menuIds = new Set(menuEntries.map((e) => e.menuId));
@@ -417,12 +538,13 @@ export function areAllPathsCoveredByPendingMenus(
       return false;
     }
 
-    const allBranchesAreMenus = outEdges.length > 0 &&
+    const allBranchesAccounted = outEdges.length > 0 &&
       outEdges.every((e) =>
-        e.target.startsWith("menu_") && menuIds.has(e.target)
+        (e.target.startsWith("menu_") && menuIds.has(e.target)) ||
+        decisionEntries.some((de) => de.decisionNodeId === decId)
       );
 
-    if (!allBranchesAreMenus) {
+    if (!allBranchesAccounted) {
       return false;
     }
   }

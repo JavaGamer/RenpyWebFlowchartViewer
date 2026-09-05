@@ -23,9 +23,6 @@ export function handleKwLabelToken(
   if (scanState.labelHasExplicitExit) {
     scanState.pendingMenuFallthrough = [];
   } else {
-    scanState.pendingMenuFallthrough = scanState.pendingMenuFallthrough.filter(
-      (e) => e.menuId.startsWith("menu_"),
-    );
     for (const openMenu of scanState.menuStack) {
       if (menuHasFallthrough(openMenu)) {
         const fallthroughOptions = openMenu.options?.filter((o) =>
@@ -38,6 +35,8 @@ export function handleKwLabelToken(
               optionText: opt.text,
               sourceLocation: openMenu.sourceLocation ?? sourceLocation,
               decisionNodeId: openMenu.decisionNodeId,
+              calledTargetId: opt.calledTargetId,
+              callContextId: opt.callContextId,
             });
           }
         } else {
@@ -153,7 +152,7 @@ export function handleLabelNameToken(
   if (!scanState.labelHasExplicitExit) {
     const connectedFallthroughKeys = new Set<string>();
     for (const entry of scanState.pendingMenuFallthrough) {
-      if (!entry.menuId.startsWith("menu_")) continue;
+      if (entry.calledTargetId) continue;
       const key = `${entry.menuId}__${entry.optionText ?? ""}`;
       if (!connectedFallthroughKeys.has(key)) {
         addEdge(state, {
@@ -164,7 +163,14 @@ export function handleLabelNameToken(
           source: entry.menuId,
           target: newLabelId,
           kind: "sequence",
-          label: entry.optionText ?? "next",
+          label: entry.optionText ??
+            (entry.menuId.startsWith("decision_") ? "else" : "next"),
+          condition: entry.menuId.startsWith("decision_")
+            ? {
+              branchKind: "else",
+              decisionNodeId: entry.menuId,
+            }
+            : undefined,
           sourceLocation,
         });
         addOutgoing(state, entry.menuId, "sequence");

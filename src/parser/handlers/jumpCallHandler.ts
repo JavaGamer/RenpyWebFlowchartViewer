@@ -21,4 +21,5 @@ export {
   emitCallEdge,
   emitJumpEdge,
   resolveCallContext,
+  updateCallReturnTarget,
 } from "./jumpCallEdges.ts";

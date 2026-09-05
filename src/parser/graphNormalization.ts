@@ -167,8 +167,21 @@ export function normalizeGraphState(state: ParseGraphState): void {
 
   // Validate, normalize and deduplicate edges
   for (const edge of state.edges) {
-    const normalizedSource = normalizeIdentifier(edge.source);
-    const normalizedTarget = normalizeIdentifier(edge.target);
+    let normalizedSource = normalizeIdentifier(edge.source);
+    let normalizedTarget = normalizeIdentifier(edge.target);
+
+    if (
+      !nodeIds.has(normalizedSource) &&
+      state.canonicalLabelIdByName?.has(normalizedSource)
+    ) {
+      normalizedSource = state.canonicalLabelIdByName.get(normalizedSource)!;
+    }
+    if (
+      !nodeIds.has(normalizedTarget) &&
+      state.canonicalLabelIdByName?.has(normalizedTarget)
+    ) {
+      normalizedTarget = state.canonicalLabelIdByName.get(normalizedTarget)!;
+    }
 
     if (!normalizedSource) {
       addParseDiagnostic(
@@ -236,11 +249,43 @@ export function normalizeGraphState(state: ParseGraphState): void {
       continue;
     }
 
+    let normalizedCallContext = edge.callContext;
+    if (normalizedCallContext) {
+      let siteId = normalizedCallContext.callSiteId;
+      let returnId = normalizedCallContext.returnTargetId;
+      if (!nodeIds.has(siteId) && state.canonicalLabelIdByName?.has(siteId)) {
+        siteId = state.canonicalLabelIdByName.get(siteId)!;
+      }
+      if (
+        !nodeIds.has(returnId) && state.canonicalLabelIdByName?.has(returnId)
+      ) {
+        returnId = state.canonicalLabelIdByName.get(returnId)!;
+      }
+      if (
+        siteId !== normalizedCallContext.callSiteId ||
+        returnId !== normalizedCallContext.returnTargetId
+      ) {
+        normalizedCallContext = {
+          ...normalizedCallContext,
+          callSiteId: siteId,
+          returnTargetId: returnId,
+        };
+      }
+    }
+
     const normalizedKind = normalizeEdgeKind(edge);
-    const normalizedEdgeBase: FlowEdge =
-      normalizedSource === edge.source && normalizedTarget === edge.target
-        ? edge
-        : { ...edge, source: normalizedSource, target: normalizedTarget };
+    const normalizedEdgeBase: FlowEdge = normalizedSource === edge.source &&
+        normalizedTarget === edge.target &&
+        normalizedCallContext === edge.callContext
+      ? edge
+      : {
+        ...edge,
+        source: normalizedSource,
+        target: normalizedTarget,
+        ...(normalizedCallContext
+          ? { callContext: normalizedCallContext }
+          : {}),
+      };
     const normalizedEdgeId = resolveNormalizedEdgeId(
       normalizedEdgeBase,
       normalizedKind,

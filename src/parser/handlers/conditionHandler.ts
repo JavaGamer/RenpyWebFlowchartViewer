@@ -208,6 +208,16 @@ export function handleConditionalHeader(
   const references = extractConditionFlagRefs(
     pending.expression ?? undefined,
   );
+  if (!existing.branches) {
+    existing.branches = [];
+  }
+  existing.branches.push({
+    kind: existing.branchKind,
+    hasExit: existing.currentBranchHasExit ?? false,
+    calledTargetId: existing.calledTargetId,
+    callContextId: existing.callContextId,
+    calledSubroutines: existing.calledSubroutines,
+  });
   // Construct a new context representation for elif/else instead of mutating existing in-place
   scanState
     .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1] = {
@@ -218,6 +228,8 @@ export function handleConditionalHeader(
       expression: pending.expression,
       references,
       sourceLocation: pending.sourceLocation ?? existing.sourceLocation,
+      branches: existing.branches,
+      currentBranchHasExit: false,
     };
   scanState.pendingConditionalHeader = null;
   return true;

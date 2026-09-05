@@ -32,6 +32,10 @@ export interface PendingMenuFallthroughEntry {
   optionText?: string | null;
   sourceLocation?: SourceLocation;
   decisionNodeId?: string;
+  calledTargetId?: string;
+  callContextId?: string;
+  branchDecisionId?: string;
+  branchIndex?: number;
 }
 
 export interface PendingTimedChoice {
@@ -77,6 +81,17 @@ export interface ConditionalDecisionContext {
   expression: string | null;
   references: string[];
   sourceLocation?: SourceLocation;
+  calledTargetId?: string;
+  callContextId?: string;
+  calledSubroutines?: Array<{ targetId: string; callContextId: string }>;
+  currentBranchHasExit?: boolean;
+  branches?: Array<{
+    kind: ConditionalBranchKind;
+    hasExit: boolean;
+    calledTargetId?: string;
+    callContextId?: string;
+    calledSubroutines?: Array<{ targetId: string; callContextId: string }>;
+  }>;
 }
 
 export interface ParseDiagnosticLocation {
@@ -269,6 +284,9 @@ export interface ParseScanState extends ResolveTargetScanState {
       text: string;
       hasExit: boolean;
       condition?: ConditionMetadata;
+      calledTargetId?: string;
+      callContextId?: string;
+      calledSubroutines?: Array<{ targetId: string; callContextId: string }>;
     }>;
     sourceLocation?: SourceLocation;
     indent?: number;

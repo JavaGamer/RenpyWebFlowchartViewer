@@ -87,6 +87,23 @@ export function resolveCallContext(
   };
 }
 
+export function updateCallReturnTarget(
+  state: ParseGraphState,
+  callContextId: string,
+  newReturnTargetId: string,
+): void {
+  for (const pcr of state.pendingCallReturns) {
+    if (pcr.callContextId === callContextId) {
+      pcr.returnTargetId = newReturnTargetId;
+    }
+  }
+  for (const edge of state.edges) {
+    if (edge.callContext && edge.callContext.callContextId === callContextId) {
+      edge.callContext.returnTargetId = newReturnTargetId;
+    }
+  }
+}
+
 export function emitJumpEdge(
   state: ParseGraphState,
   scanState: ParseScanState,
@@ -123,48 +140,82 @@ export function emitJumpEdge(
           : String(timeout.durationSeconds)
       }`
       : "";
-    const connectedKeys = new Set<string>();
-    for (const entry of scanState.pendingMenuFallthrough) {
-      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
-      if (connectedKeys.has(key)) continue;
-      connectedKeys.add(key);
 
-      const edgeId = edgeIdWithOption(
-        `jump_${entry.menuId}__${resolvedTargetId}${timeoutSuffix}`,
-        entry.optionText ?? null,
+    const curDec = scanState.conditionalDecisionStack.length > 0
+      ? scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]
+      : undefined;
+    const curBranchIndex = curDec
+      ? (curDec.branches ? curDec.branches.length : 0)
+      : undefined;
+
+    const matchingEntries = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          e.branchDecisionId === curDec.decisionNodeId &&
+          e.branchIndex === curBranchIndex,
+      )
+      : scanState.pendingMenuFallthrough.filter((e) => !e.branchDecisionId);
+
+    const remainingEntries = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          !(e.branchDecisionId === curDec.decisionNodeId &&
+            e.branchIndex === curBranchIndex),
+      )
+      : scanState.pendingMenuFallthrough.filter((e) =>
+        Boolean(e.branchDecisionId)
       );
-      addEdge(state, {
-        id: edgeId,
-        source: entry.menuId,
-        target: resolvedTargetId,
-        kind: "jump",
-        label: entry.optionText ??
-          (timeout?.isTimeout
-            ? (timeout.durationSeconds !== undefined
-              ? `Timeout (${timeout.durationSeconds}s)`
-              : "Timeout")
-            : undefined),
-        condition: entry.menuId.startsWith("decision_")
-          ? {
-            branchKind: "else",
-            decisionNodeId: entry.menuId,
-          }
-          : context.condition,
-        timeout,
-        sourceLocation: context.sourceLocation ?? entry.sourceLocation,
-      });
-      addOutgoing(state, entry.menuId, "jump");
-      addIncoming(state, resolvedTargetId, "jump");
-    }
-    scanState.pendingMenuFallthrough = [];
-    if (
-      suppressFallthrough &&
-      scanState.conditionalIndentStack.length === 0
-    ) {
-      scanState.labelHasExplicitExit = true;
-    }
-    if (allCoveredByMenus) {
-      return;
+
+    if (matchingEntries.length > 0) {
+      const connectedKeys = new Set<string>();
+      for (const entry of matchingEntries) {
+        if (entry.calledTargetId && entry.callContextId) {
+          updateCallReturnTarget(state, entry.callContextId, resolvedTargetId);
+          continue;
+        }
+        const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+        if (connectedKeys.has(key)) continue;
+        connectedKeys.add(key);
+
+        const edgeId = edgeIdWithOption(
+          `jump_${entry.menuId}__${resolvedTargetId}${timeoutSuffix}`,
+          entry.optionText ?? null,
+        );
+        addEdge(state, {
+          id: edgeId,
+          source: entry.menuId,
+          target: resolvedTargetId,
+          kind: "jump",
+          label: entry.optionText ??
+            (timeout?.isTimeout
+              ? (timeout.durationSeconds !== undefined
+                ? `Timeout (${timeout.durationSeconds}s)`
+                : "Timeout")
+              : undefined),
+          condition: entry.menuId.startsWith("decision_")
+            ? {
+              branchKind: "else",
+              decisionNodeId: entry.menuId,
+            }
+            : context.condition,
+          timeout,
+          sourceLocation: context.sourceLocation ?? entry.sourceLocation,
+        });
+        addOutgoing(state, entry.menuId, "jump");
+        addIncoming(state, resolvedTargetId, "jump");
+      }
+      scanState.pendingMenuFallthrough = remainingEntries;
+      if (
+        suppressFallthrough &&
+        scanState.conditionalIndentStack.length === 0
+      ) {
+        scanState.labelHasExplicitExit = true;
+      }
+      if (allCoveredByMenus) {
+        return;
+      }
     }
   }
 
@@ -226,16 +277,62 @@ export function emitJumpEdge(
           const lastOpt = menu.options[menu.options.length - 1];
           if (lastOpt) {
             lastOpt.hasExit = true;
+            const currentChapter = sourceNode?.chapter ??
+              (scanState.currentLabelId
+                ? state.nodeMap.get(scanState.currentLabelId)?.chapter
+                : undefined);
+            const { resolvedTargetId } = resolveTargetLabelId(
+              state,
+              target,
+              currentChapter,
+            );
+            if (
+              lastOpt.calledSubroutines && lastOpt.calledSubroutines.length > 0
+            ) {
+              const lastCall = lastOpt.calledSubroutines[
+                lastOpt.calledSubroutines.length - 1
+              ]!;
+              updateCallReturnTarget(
+                state,
+                lastCall.callContextId,
+                resolvedTargetId,
+              );
+            } else if (lastOpt.callContextId) {
+              updateCallReturnTarget(
+                state,
+                lastOpt.callContextId,
+                resolvedTargetId,
+              );
+            }
           }
         }
       }
     }
   }
-  if (
-    suppressFallthrough && !isInOption &&
-    scanState.conditionalIndentStack.length === 0
-  ) {
-    scanState.labelHasExplicitExit = true;
+  if (suppressFallthrough && !isInOption) {
+    if (scanState.conditionalIndentStack.length === 0) {
+      scanState.labelHasExplicitExit = true;
+    } else if (scanState.conditionalDecisionStack.length > 0) {
+      const decCtx = scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]!;
+      decCtx.currentBranchHasExit = true;
+      const { resolvedTargetId } = resolveTargetLabelId(
+        state,
+        target,
+        scanState.currentLabelId
+          ? state.nodeMap.get(scanState.currentLabelId)?.chapter
+          : undefined,
+      );
+      if (decCtx.calledSubroutines && decCtx.calledSubroutines.length > 0) {
+        const lastCall = decCtx.calledSubroutines[
+          decCtx.calledSubroutines.length - 1
+        ]!;
+        updateCallReturnTarget(state, lastCall.callContextId, resolvedTargetId);
+      } else if (decCtx.callContextId) {
+        updateCallReturnTarget(state, decCtx.callContextId, resolvedTargetId);
+      }
+    }
   }
 }
 
@@ -278,55 +375,88 @@ export function emitCallEdge(
     const lineSuffix = context.sourceLocation?.start.line !== undefined
       ? `_L${context.sourceLocation.start.line}`
       : "";
-    const connectedKeys = new Set<string>();
-    for (const entry of scanState.pendingMenuFallthrough) {
-      const key = `${entry.menuId}__${entry.optionText ?? ""}`;
-      if (connectedKeys.has(key)) continue;
-      connectedKeys.add(key);
+    const curDec = scanState.conditionalDecisionStack.length > 0
+      ? scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]
+      : undefined;
+    const curBranchIndex = curDec
+      ? (curDec.branches ? curDec.branches.length : 0)
+      : undefined;
 
-      const baseEdgeId = `call_${entry.menuId}__${resolvedTargetId}_${
-        entry.optionText ?? ""
-      }${lineSuffix}${timeoutSuffix}`;
-      const edgeId = edgeIdWithOption(baseEdgeId, entry.optionText ?? null);
-      const callContextId = `ctx_${edgeId}`;
-      const callContext = {
-        callContextId,
-        callEdgeId: edgeId,
-        callSiteId: entry.menuId,
-        returnTargetId: scanState.currentLabelId ?? entry.menuId,
-        arguments: callArgs,
-      };
-      addEdge(state, {
-        id: edgeId,
-        source: entry.menuId,
-        target: resolvedTargetId,
-        kind: "call",
-        label: entry.optionText ? `call: ${entry.optionText}` : "call",
-        condition: entry.menuId.startsWith("decision_")
-          ? {
-            branchKind: "else",
-            decisionNodeId: entry.menuId,
-          }
-          : context.condition,
-        timeout,
-        sourceLocation: context.sourceLocation ?? entry.sourceLocation,
-        arguments: callArgs,
-        callContext,
-      });
-      state.calledLabels.add(resolvedTargetId);
-      addOutgoing(state, entry.menuId, "call");
-      addIncoming(state, resolvedTargetId, "call");
-      state.pendingCallReturns.push({
-        returnTargetId: scanState.currentLabelId ?? entry.menuId,
-        callTargetId: resolvedTargetId,
-        callEdgeId: edgeId,
-        callContextId,
-        arguments: callArgs,
-      });
-    }
-    scanState.pendingMenuFallthrough = [];
-    if (allCoveredByMenus) {
-      return;
+    const matchingEntries = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          e.branchDecisionId === curDec.decisionNodeId &&
+          e.branchIndex === curBranchIndex,
+      )
+      : scanState.pendingMenuFallthrough.filter((e) => !e.branchDecisionId);
+
+    const remainingEntries = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          !(e.branchDecisionId === curDec.decisionNodeId &&
+            e.branchIndex === curBranchIndex),
+      )
+      : scanState.pendingMenuFallthrough.filter((e) =>
+        Boolean(e.branchDecisionId)
+      );
+
+    if (matchingEntries.length > 0) {
+      const connectedKeys = new Set<string>();
+      for (const entry of matchingEntries) {
+        if (entry.calledTargetId && entry.callContextId) {
+          updateCallReturnTarget(state, entry.callContextId, resolvedTargetId);
+          continue;
+        }
+        const key = `${entry.menuId}__${entry.optionText ?? ""}`;
+        if (connectedKeys.has(key)) continue;
+        connectedKeys.add(key);
+
+        const baseEdgeId = `call_${entry.menuId}__${resolvedTargetId}_${
+          entry.optionText ?? ""
+        }${lineSuffix}${timeoutSuffix}`;
+        const edgeId = edgeIdWithOption(baseEdgeId, entry.optionText ?? null);
+        const callContextId = `ctx_${edgeId}`;
+        const callContext = {
+          callContextId,
+          callEdgeId: edgeId,
+          callSiteId: entry.menuId,
+          returnTargetId: scanState.currentLabelId ?? entry.menuId,
+          arguments: callArgs,
+        };
+        addEdge(state, {
+          id: edgeId,
+          source: entry.menuId,
+          target: resolvedTargetId,
+          kind: "call",
+          label: entry.optionText ? `call: ${entry.optionText}` : "call",
+          condition: entry.menuId.startsWith("decision_")
+            ? {
+              branchKind: "else",
+              decisionNodeId: entry.menuId,
+            }
+            : context.condition,
+          timeout,
+          sourceLocation: context.sourceLocation ?? entry.sourceLocation,
+          arguments: callArgs,
+          callContext,
+        });
+        state.calledLabels.add(resolvedTargetId);
+        addOutgoing(state, entry.menuId, "call");
+        addIncoming(state, resolvedTargetId, "call");
+        state.pendingCallReturns.push({
+          returnTargetId: scanState.currentLabelId ?? entry.menuId,
+          callTargetId: resolvedTargetId,
+          callEdgeId: edgeId,
+          callContextId,
+          arguments: callArgs,
+        });
+      }
+      scanState.pendingMenuFallthrough = remainingEntries;
+      if (allCoveredByMenus) {
+        return;
+      }
     }
   }
 
@@ -400,9 +530,46 @@ export function emitCallEdge(
       if (menu && menu.options) {
         const lastOpt = menu.options[menu.options.length - 1];
         if (lastOpt) {
-          lastOpt.hasExit = true;
+          if (!lastOpt.calledSubroutines) {
+            lastOpt.calledSubroutines = [];
+          }
+          if (lastOpt.calledSubroutines.length > 0) {
+            const prevCall = lastOpt.calledSubroutines[
+              lastOpt.calledSubroutines.length - 1
+            ]!;
+            updateCallReturnTarget(
+              state,
+              prevCall.callContextId,
+              resolvedTargetId,
+            );
+          }
+          lastOpt.calledSubroutines.push({
+            targetId: resolvedTargetId,
+            callContextId,
+          });
+          lastOpt.calledTargetId = resolvedTargetId;
+          lastOpt.callContextId = callContextId;
         }
       }
     }
+  } else if (scanState.conditionalDecisionStack.length > 0) {
+    const decCtx = scanState.conditionalDecisionStack[
+      scanState.conditionalDecisionStack.length - 1
+    ]!;
+    if (!decCtx.calledSubroutines) {
+      decCtx.calledSubroutines = [];
+    }
+    if (decCtx.calledSubroutines.length > 0) {
+      const prevCall = decCtx.calledSubroutines[
+        decCtx.calledSubroutines.length - 1
+      ]!;
+      updateCallReturnTarget(state, prevCall.callContextId, resolvedTargetId);
+    }
+    decCtx.calledSubroutines.push({
+      targetId: resolvedTargetId,
+      callContextId,
+    });
+    decCtx.calledTargetId = resolvedTargetId;
+    decCtx.callContextId = callContextId;
   }
 }

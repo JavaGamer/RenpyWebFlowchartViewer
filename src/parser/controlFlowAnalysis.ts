@@ -132,17 +132,38 @@ function analyzeReachability(
   const queue: string[] = [];
 
   const canonicalStart = state.canonicalLabelIdByName.get("start") ?? "start";
-  const startId = state.nodeMap.has("start")
+  let startId = state.nodeMap.has("start")
     ? "start"
     : state.nodeMap.has(canonicalStart)
     ? canonicalStart
     : null;
 
+  if (!startId) {
+    const startRegex = /(?:^|[._])start\d*(?:$|[._]|__|\s*:)/i;
+    const startCandidates = state.nodes.filter(
+      (n) =>
+        n.role === "story" &&
+        (startRegex.test(n.id) || (n.label ? startRegex.test(n.label) : false)),
+    );
+    if (startCandidates.length === 1) {
+      startId = startCandidates[0]!.id;
+    } else if (startCandidates.length > 1) {
+      const roots = startCandidates.filter((n) => {
+        const incoming = state.incomingByLabel.get(n.id);
+        return !incoming ||
+          !Array.from(incoming).some((kind) => kind !== "call_return");
+      });
+      if (roots.length === 1) {
+        startId = roots[0]!.id;
+      }
+    }
+  }
+
   if (startId) {
     queue.push(startId);
     visited.add(startId);
   } else {
-    // If no "start" label exists, start from all nodes with 0 incoming edges
+    // If no "start" label exists, start from all story nodes with 0 incoming edges
     for (const node of state.nodes) {
       if (
         node.role === "story" &&
@@ -1204,11 +1225,10 @@ function analyzeCallStackDepth(
   }
 
   for (const node of state.nodes) {
-    if (
-      node.role === "story" &&
-      (!state.incomingByLabel.has(node.id) ||
-        state.incomingByLabel.get(node.id)!.size === 0)
-    ) {
+    const incoming = state.incomingByLabel.get(node.id);
+    const hasIncomingForwardFlow = incoming &&
+      Array.from(incoming).some((kind) => kind !== "call_return");
+    if (node.role === "story" && !hasIncomingForwardFlow) {
       entryNodes.add(node.id);
     }
   }

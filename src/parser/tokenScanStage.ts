@@ -153,6 +153,7 @@ export function processFlatToken(
     conditionalText,
     token.startPos.line,
     sourceLocation,
+    meta,
   );
 
   maybeUpdateMenuScope(
@@ -361,6 +362,7 @@ export function processFlatTokens(
       conditionalText,
       token.startPos.line,
       sourceLocation,
+      meta,
     );
 
     maybeUpdateMenuScope(

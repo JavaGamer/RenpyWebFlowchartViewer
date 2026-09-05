@@ -34,13 +34,22 @@ function findReturningNodes(
 
 export function materializeCallReturnEdges(state: ParseGraphState): void {
   for (const item of state.pendingCallReturns) {
+    const rawReturnTargetId = item.returnTargetId;
+    const rawCallTargetId = item.callTargetId;
     const {
-      returnTargetId,
-      callTargetId,
       callEdgeId,
       callContextId,
       arguments: callArgs,
     } = item;
+    const callTargetId = (!state.nodeMap.has(rawCallTargetId) &&
+        state.canonicalLabelIdByName?.has(rawCallTargetId))
+      ? state.canonicalLabelIdByName.get(rawCallTargetId)!
+      : rawCallTargetId;
+    const returnTargetId = (rawReturnTargetId &&
+        !state.nodeMap.has(rawReturnTargetId) &&
+        state.canonicalLabelIdByName?.has(rawReturnTargetId))
+      ? state.canonicalLabelIdByName.get(rawReturnTargetId)!
+      : rawReturnTargetId;
     const returningNodes = findReturningNodes(
       state,
       callTargetId,
