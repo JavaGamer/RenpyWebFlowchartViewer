@@ -1,11 +1,13 @@
 import {
   BREAK_REGEX,
   CONTINUE_REGEX,
+  PLACEHOLDER_REGEX,
   TIMED_CHOICE_REGEX,
 } from "../utils/lineUtils.ts";
 import { handleCallScreenStatement } from "../handlers/screenFlowHandler.ts";
 import type {
   ParseGraphState,
+  ParserVariant,
   ParseScanState,
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
@@ -60,7 +62,7 @@ export function flushPendingTimedChoice(
         {
           isInOption: false,
           source: scanState.currentLabelId,
-          optionText: null,
+          optionText: pending.title ?? null,
           sourceLocation: pending.sourceLocation,
         },
         false,
@@ -73,7 +75,10 @@ export function flushPendingTimedChoice(
   }
 }
 
-export function isNonBranchingStagingStatement(lineText: string): boolean {
+export function isNonBranchingStagingStatement(
+  lineText: string,
+  variant?: ParserVariant,
+): boolean {
   const trimmed = lineText.trim();
   if (!trimmed || trimmed.startsWith("#")) {
     return true;
@@ -81,6 +86,12 @@ export function isNonBranchingStagingStatement(lineText: string): boolean {
   if (
     /^(?:play|queue|stop|voice|show|hide|with|window|scene|pause|camera|nvl|outfit|accessory|pass)\b/i
       .test(trimmed)
+  ) {
+    return true;
+  }
+  if (
+    variant === "st" &&
+    /^(?:swap|morph|clone|body|exspirit|possess|scry)\b/i.test(trimmed)
   ) {
     return true;
   }
@@ -123,7 +134,10 @@ export function handlePreTokenLineStatements(
     lineNum !== scanState.pendingTimedChoice.lineNum
   ) {
     const isMenu = /^\s*menu\b/i.test(lineText);
-    if (!isMenu && !isNonBranchingStagingStatement(lineText)) {
+    if (
+      !isMenu &&
+      !isNonBranchingStagingStatement(lineText, scanState.parserVariant)
+    ) {
       flushPendingTimedChoice(state, scanState);
     }
   }
@@ -199,18 +213,35 @@ export function handlePreTokenLineStatements(
         scanState.lastProcessedCustomLineNum = lineNum;
         const durationSeconds = parseFloat(timedChoiceMatch[1]!);
         const target = timedChoiceMatch[2]!;
+        const rawTitle = timedChoiceMatch[3] ?? timedChoiceMatch[4] ??
+          timedChoiceMatch[5];
+        const title = rawTitle
+          ? rawTitle.replace(/\\(["'\\])/g, "$1").trim() || undefined
+          : undefined;
         scanState.pendingTimedChoice = {
           durationSeconds,
           target,
+          title,
           lineNum,
           sourceLocation,
         };
       } else if (
         /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
-          .test(trimmed)
+          .test(trimmed) ||
+        (scanState.parserVariant === "st" && PLACEHOLDER_REGEX.test(trimmed))
       ) {
         scanState.lastProcessedCustomLineNum = lineNum;
         scanState.labelHasExplicitExit = true;
+        if (
+          scanState.parserVariant === "st" && PLACEHOLDER_REGEX.test(trimmed)
+        ) {
+          const activeNode = scanState.currentLabelId
+            ? state.nodeMap.get(scanState.currentLabelId)
+            : undefined;
+          if (activeNode) {
+            activeNode.isTerminalOutcome = true;
+          }
+        }
         if (meta.hasMenuOptionBlock) {
           const menu = menuAtDepth(scanState.menuStack, menuDepth);
           if (menu && menu.options && menu.options.length > 0) {

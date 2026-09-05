@@ -47,7 +47,7 @@ export async function parseRenpyFiles(
 
   const perf = createPerfTracker("parser");
   perf.mark("total");
-  const state = createGraphState();
+  const state = createGraphState(options.parserVariant);
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
   }

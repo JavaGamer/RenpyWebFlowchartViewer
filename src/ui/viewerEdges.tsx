@@ -115,7 +115,12 @@ export const LabeledEdge = memo(function LabeledEdge({
   const activeLanguage = useViewerStore((s) => s.activeLanguage);
   const translations = useAppStore((s) => s.translations);
 
-  const rawLabel = data?.label;
+  const rawLabel = data?.label ??
+    (data?.timeout?.isTimeout
+      ? (data.timeout.durationSeconds !== undefined
+        ? `Timeout (${data.timeout.durationSeconds}s)`
+        : "Timeout")
+      : undefined);
   const displayLabel = (rawLabel && activeLanguage &&
       translations?.translationsByLanguage[activeLanguage]?.strings[rawLabel])
     ? translations.translationsByLanguage[activeLanguage].strings[rawLabel]!

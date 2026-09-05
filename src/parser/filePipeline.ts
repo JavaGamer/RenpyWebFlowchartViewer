@@ -106,7 +106,9 @@ export function processTokenizedFile(
 ) {
   const { file, chapter, document, tokenTree } = tokenizedFile;
   parserPerf?.mark("scan");
-  const scanState = createScanState();
+  const scanState = createScanState(
+    options.parserVariant ?? state.parserVariant,
+  );
   processTokenTreeStream(
     state,
     scanState,

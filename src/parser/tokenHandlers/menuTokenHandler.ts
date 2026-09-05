@@ -269,7 +269,7 @@ export function handleMenuStatementToken(
       {
         isInOption: false,
         source: newMenuId,
-        optionText: null,
+        optionText: pending.title ?? null,
         sourceLocation: pending.sourceLocation,
       },
       false,

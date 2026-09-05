@@ -138,7 +138,12 @@ export function emitJumpEdge(
         source: entry.menuId,
         target: resolvedTargetId,
         kind: "jump",
-        label: entry.optionText ?? undefined,
+        label: entry.optionText ??
+          (timeout?.isTimeout
+            ? (timeout.durationSeconds !== undefined
+              ? `Timeout (${timeout.durationSeconds}s)`
+              : "Timeout")
+            : undefined),
         condition: entry.menuId.startsWith("decision_")
           ? {
             branchKind: "else",
@@ -189,7 +194,12 @@ export function emitJumpEdge(
       source,
       target: resolvedTargetId,
       kind: "jump",
-      label: isInOption ? (optionText ?? undefined) : undefined,
+      label: isInOption ? (optionText ?? undefined) : (optionText ??
+        (timeout?.isTimeout
+          ? (timeout.durationSeconds !== undefined
+            ? `Timeout (${timeout.durationSeconds}s)`
+            : "Timeout")
+          : undefined)),
       condition: context.condition,
       timeout,
       sourceLocation: context.sourceLocation,

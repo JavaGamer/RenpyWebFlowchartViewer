@@ -3,10 +3,13 @@ import { MultiDirectedGraph } from "graphology";
 import type {
   EdgeKind,
   ParseGraphState,
+  ParserVariant,
   ParseScanState,
 } from "./pipelineTypes.ts";
 
-export function createGraphState(): ParseGraphState {
+export function createGraphState(
+  parserVariant?: ParserVariant,
+): ParseGraphState {
   return {
     graph: new MultiDirectedGraph<FlowNode, FlowEdge>(),
     nodes: [],
@@ -38,10 +41,11 @@ export function createGraphState(): ParseGraphState {
     diagnostics: [],
     diagnosticIds: new Set<string>(),
     dynamicJumpRules: [],
+    parserVariant,
   };
 }
 
-export function createScanState(): ParseScanState {
+export function createScanState(parserVariant?: ParserVariant): ParseScanState {
   return {
     currentLabelId: null,
     currentLabelIndent: null,
@@ -71,5 +75,6 @@ export function createScanState(): ParseScanState {
     waitForMenuNameForId: null,
     lastConditionalLine: undefined,
     lastProcessedCustomLineNum: undefined,
+    parserVariant,
   };
 }

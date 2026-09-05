@@ -120,8 +120,9 @@ export function processLineState(
 export const PAUSE_TAG_REGEX = /\{[wp]=([0-9]+(?:\.[0-9]*)?|\.[0-9]+)\}/g;
 export const TEXT_TAG_STRIP_REGEX = /\{[^}]*\}/g;
 export const TIMED_CHOICE_REGEX =
-  /^(?:\$\s*)?timedchoice(?:\s*\(|\s+)\s*(?:(?:time|duration|timeout)\s*=\s*)?([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:\s*,\s*|\s+)(?:(?:target|label)\s*=\s*)?["']?(\.?[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)["']?\s*\)?/i;
+  /^(?:\$\s*)?timedchoice(?:\s*\(|\s+)\s*(?:(?:time|duration|timeout)\s*=\s*)?([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:\s*,\s*|\s+)(?:(?:target|label)\s*=\s*)?["']?(\.?[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)["']?(?:(?:\s*,\s*|\s+)(?:(?:title|label_text|text)\s*=\s*)?(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^#\r\n\s)]+)))?\s*\)?\s*(?:#.*)?$/i;
 export const GAMEOVER_REGEX = /^gameover\b/i;
 export const TITLE_REGEX = /^title\b/i;
+export const PLACEHOLDER_REGEX = /^\s*placeholder(?:\s+wip)?\s*(?:#.*)?$/i;
 export const BREAK_REGEX = /^(?:\$\s*)?break\b/i;
 export const CONTINUE_REGEX = /^(?:\$\s*)?continue\b/i;

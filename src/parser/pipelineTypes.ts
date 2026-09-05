@@ -17,7 +17,14 @@ import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
 import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
-export type { EdgeKind, FlowEdge, FlowNode, TextDocument, TokenTree };
+export type {
+  EdgeKind,
+  FlowEdge,
+  FlowNode,
+  ParserVariant,
+  TextDocument,
+  TokenTree,
+};
 export type ConditionalBranchKind = DomainConditionBranchKind;
 
 export interface PendingMenuFallthroughEntry {
@@ -32,6 +39,7 @@ export interface PendingTimedChoice {
   target: string;
   lineNum: number;
   sourceLocation?: SourceLocation;
+  title?: string;
 }
 
 export interface PendingCallReturn {
@@ -281,6 +289,7 @@ export interface ParseScanState extends ResolveTargetScanState {
   lastConditionalLine?: number;
   lastProcessedCustomLineNum?: number;
   currentPathState?: PathVariableState;
+  parserVariant?: ParserVariant;
 }
 
 export interface ParseGraphState {
@@ -333,6 +342,7 @@ export interface ParseGraphState {
   screenDefinitions?: Map<string, ScreenDefinition>;
   translations?: ProjectTranslations;
   availableLanguages?: string[];
+  parserVariant?: ParserVariant;
 }
 
 export interface ParseResult {

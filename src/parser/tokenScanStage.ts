@@ -103,8 +103,13 @@ export function processFlatToken(
     token.metaTokens as Iterable<number>,
     createEmptyTokenMeta(),
   );
+  if (parserVariant) {
+    scanState.parserVariant = parserVariant;
+  } else if (!scanState.parserVariant && state.parserVariant) {
+    scanState.parserVariant = state.parserVariant;
+  }
   const screenActionRuleMap = precomputedScreenActionRuleMap ??
-    toScreenActionRuleMap(parserVariant, screenActionRules);
+    toScreenActionRuleMap(scanState.parserVariant, screenActionRules);
   let tokenText: string | undefined;
   const val = (): string => {
     if (tokenText === undefined) {
@@ -291,8 +296,13 @@ export function processFlatTokens(
   deferDetails?: boolean,
 ): void {
   const meta = createEmptyTokenMeta();
+  if (parserVariant) {
+    scanState.parserVariant = parserVariant;
+  } else if (!scanState.parserVariant && state.parserVariant) {
+    scanState.parserVariant = state.parserVariant;
+  }
   const screenActionRuleMap = toScreenActionRuleMap(
-    parserVariant,
+    scanState.parserVariant,
     screenActionRules,
   );
   const lineIndentCache = new Map<number, number>();
