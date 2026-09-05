@@ -1,7 +1,6 @@
 import {
   BREAK_REGEX,
   CONTINUE_REGEX,
-  PLACEHOLDER_REGEX,
   TIMED_CHOICE_REGEX,
 } from "../utils/lineUtils.ts";
 import { handleCallScreenStatement } from "../handlers/screenFlowHandler.ts";
@@ -18,6 +17,31 @@ import {
   evaluatePythonAstExpression,
   type SourceLocation,
 } from "../../domain/index.ts";
+import {
+  getParserVariantPlugin,
+  type TerminalStatementRule,
+} from "../../config/parserRules.ts";
+
+function findMatchingTerminalRule(
+  trimmed: string,
+  variant?: ParserVariant,
+): { matched: boolean; rule?: TerminalStatementRule } | null {
+  if (
+    /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
+      .test(trimmed)
+  ) {
+    return { matched: true };
+  }
+  const plugin = getParserVariantPlugin(variant);
+  const rule = plugin.terminalStatements?.find((r) => {
+    r.pattern.lastIndex = 0;
+    return r.pattern.test(trimmed);
+  });
+  if (rule) {
+    return { matched: true, rule };
+  }
+  return null;
+}
 
 function extractCallScreenExpression(lineText: string): string | null {
   const match = /^call\s+screen\s+expression\s+/i.exec(lineText.trim());
@@ -89,10 +113,8 @@ export function isNonBranchingStagingStatement(
   ) {
     return true;
   }
-  if (
-    variant === "st" &&
-    /^(?:swap|morph|clone|body|exspirit|possess|scry)\b/i.test(trimmed)
-  ) {
+  const plugin = getParserVariantPlugin(variant);
+  if (plugin.stagingRegex?.test(trimmed)) {
     return true;
   }
   if (trimmed.startsWith("$")) {
@@ -225,16 +247,17 @@ export function handlePreTokenLineStatements(
           lineNum,
           sourceLocation,
         };
-      } else if (
-        /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
-          .test(trimmed) ||
-        (scanState.parserVariant === "st" && PLACEHOLDER_REGEX.test(trimmed))
-      ) {
+      } else if (findMatchingTerminalRule(trimmed, scanState.parserVariant)) {
+        const terminalMatch = findMatchingTerminalRule(
+          trimmed,
+          scanState.parserVariant,
+        );
+        const matchedTerminal = terminalMatch?.rule;
         scanState.lastProcessedCustomLineNum = lineNum;
-        scanState.labelHasExplicitExit = true;
-        if (
-          scanState.parserVariant === "st" && PLACEHOLDER_REGEX.test(trimmed)
-        ) {
+        if (matchedTerminal?.labelHasExplicitExit !== false) {
+          scanState.labelHasExplicitExit = true;
+        }
+        if (matchedTerminal?.isTerminalOutcome) {
           const activeNode = scanState.currentLabelId
             ? state.nodeMap.get(scanState.currentLabelId)
             : undefined;

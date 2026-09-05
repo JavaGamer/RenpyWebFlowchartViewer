@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  detectParserVariant,
   getPredefinedScreenActionRules,
   mergeScreenActionRules,
   registerParserVariantPlugin,
+  resolveCustomRulesForVariant,
   toScreenActionRuleMap,
 } from "../../src/config/parserRules";
 
@@ -163,5 +165,114 @@ describe("registerParserVariantPlugin validation", () => {
     });
     const rules = getPredefinedScreenActionRules("testvariant");
     expect(rules).toEqual([{ actionName: "Warp", actionKind: "jump" }]);
+  });
+});
+
+describe("detectParserVariant", () => {
+  it("detects ST variant from placeholder statements", () => {
+    const script = `
+label chapter1:
+    "Hello world"
+    placeholder
+`;
+    const result = detectParserVariant([script]);
+    expect(result.variant).toBe("st");
+  });
+
+  it("detects ST variant from timedchoice statements", () => {
+    const script = `
+label choice_time:
+    timedchoice (5, "timeout_label"):
+        "Option 1":
+            jump next
+`;
+    const result = detectParserVariant([script]);
+    expect(result.variant).toBe("st");
+  });
+
+  it("detects ST variant from staging keywords", () => {
+    const script = `
+label scene_start:
+    swap char1 char2
+    "Swapped!"
+`;
+    const result = detectParserVariant([script]);
+    expect(result.variant).toBe("st");
+  });
+
+  it("falls back to renpy variant when no custom signatures match", () => {
+    const script = `
+label start:
+    scene bg room
+    "Just standard Ren'Py"
+    menu:
+        "Yes":
+            jump yes_label
+        "No":
+            jump no_label
+`;
+    const result = detectParserVariant([script]);
+    expect(result.variant).toBe("renpy");
+  });
+
+  it("returns fallback variant for empty contents", () => {
+    expect(detectParserVariant([]).variant).toBe("renpy");
+    expect(detectParserVariant([""]).variant).toBe("renpy");
+  });
+});
+
+describe("resolveCustomRulesForVariant", () => {
+  it("returns auto rules when variant is auto", () => {
+    const rulesByVariant = {
+      auto: [{ actionName: "QuickSave", actionKind: "call" as const }],
+      renpy: [{ actionName: "Warp", actionKind: "jump" as const }],
+      st: [],
+    };
+    const resolved = resolveCustomRulesForVariant("auto", rulesByVariant);
+    expect(resolved).toEqual([
+      { actionName: "QuickSave", actionKind: "call" },
+    ]);
+  });
+
+  it("variant-specific rules override generic auto rules", () => {
+    const rulesByVariant = {
+      auto: [
+        { actionName: "GlobalNav", actionKind: "call" as const },
+        { actionName: "CustomAction", actionKind: "show_menu" as const },
+      ],
+      renpy: [
+        { actionName: "CustomAction", actionKind: "jump" as const },
+        { actionName: "RenpyNav", actionKind: "jump" as const },
+      ],
+    };
+    const resolved = resolveCustomRulesForVariant("renpy", rulesByVariant);
+    expect(resolved).toEqual(
+      expect.arrayContaining([
+        { actionName: "GlobalNav", actionKind: "call" },
+        { actionName: "RenpyNav", actionKind: "jump" },
+        { actionName: "CustomAction", actionKind: "jump" }, // variant-specific overrides auto
+      ]),
+    );
+  });
+
+  it("returns empty array when rulesByVariant is undefined or empty", () => {
+    expect(resolveCustomRulesForVariant("renpy", undefined)).toEqual([]);
+    expect(resolveCustomRulesForVariant("renpy", {})).toEqual([]);
+  });
+});
+
+describe("detectParserVariant false-positive prevention", () => {
+  it("does not falsely detect standard Python code or dialogue as ST variant", () => {
+    const script = `
+label start:
+    body "I can't move."
+    $ body = "athletic"
+    $ clone = True
+    $ swap(card1, card2)
+    "Normal dialogue continuing"
+    return
+`;
+    const result = detectParserVariant([script]);
+    expect(result.variant).toBe("renpy");
   });
 });

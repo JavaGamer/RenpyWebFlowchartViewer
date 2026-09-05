@@ -183,6 +183,11 @@ describe("createProcessUpload", () => {
       [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
       [],
       [],
+      undefined,
+      {
+        isVariantAutoDetected: true,
+        parsedVariant: "renpy",
+      },
     );
     expect(onParseMeasured).toHaveBeenCalledWith({
       fileCount: 2,
@@ -392,5 +397,75 @@ describe("createProcessUpload", () => {
     await processUpload(toFileList([makeRpy("a.rpy")]));
 
     expect(actions.fail).toHaveBeenCalledWith("Parsing was cancelled.");
+  });
+
+  it("correctly auto-detects ST variant even when ST statement is in a later batch file", async () => {
+    const files: File[] = [];
+    for (let i = 0; i < 30; i++) {
+      const isStFile = i === 28;
+      const content = isStFile
+        ? "label chapter28:\n    swap char1 char2\n    placeholder\n"
+        : "label start:\n    return\n";
+      const file = new File(
+        [content],
+        `chapter_${String(i).padStart(2, "0")}.rpy`,
+        {
+          type: "text/plain",
+        },
+      );
+      Object.defineProperty(file, "webkitRelativePath", {
+        configurable: true,
+        value: `routes/chapter_${String(i).padStart(2, "0")}.rpy`,
+      });
+      files.push(file);
+    }
+
+    vi.mocked(readFileAsText).mockImplementation((file: File) => {
+      if (file.name.includes("28")) {
+        return Promise.resolve(
+          "label chapter28:\n    swap char1 char2\n    placeholder\n",
+        );
+      }
+      return Promise.resolve("label start:\n    return\n");
+    });
+    vi.mocked(readFileAsArrayBuffer).mockImplementation((file: File) => {
+      const text = file.name.includes("28")
+        ? "label chapter28:\n    swap char1 char2\n    placeholder\n"
+        : "label start:\n    return\n";
+      return Promise.resolve(
+        new TextEncoder().encode(text).buffer as ArrayBuffer,
+      );
+    });
+
+    const actions = makeActions();
+    const parse = vi.fn(() =>
+      Promise.resolve({
+        nodes: [{ id: "n1", type: "LABEL", label: "n1", dialogueCount: 0 }],
+        edges: [],
+      })
+    );
+    const parseService: ParseService = {
+      parse,
+      searchDialogueLines: vi.fn(),
+    };
+    const processUpload = createProcessUpload({
+      parseService,
+      actions,
+      activeRunIdRef: { current: 0 },
+      parseAbortControllerRef: { current: null },
+    });
+
+    await processUpload(toFileList(files));
+
+    expect(actions.parseSuccess).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      expect.objectContaining({
+        parsedVariant: "st",
+        isVariantAutoDetected: true,
+      }),
+    );
   });
 });

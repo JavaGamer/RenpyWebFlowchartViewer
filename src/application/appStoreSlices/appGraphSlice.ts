@@ -15,6 +15,8 @@ export interface AppGraphState {
   importRevision: number;
   translations: ProjectTranslations | null;
   availableLanguages: string[];
+  parsedVariant: string | null;
+  isVariantAutoDetected: boolean;
 }
 
 export interface AppGraphActions {
@@ -38,6 +40,7 @@ export interface AppGraphActions {
     edges: FlowEdge[],
     diagnostics?: ParseDiagnosticPayload[],
     translations?: ProjectTranslations | null,
+    meta?: { parsedVariant?: string; isVariantAutoDetected?: boolean },
   ) => void;
   setTranslations: (translations: ProjectTranslations | null) => void;
 }
@@ -51,6 +54,8 @@ export const defaultAppGraphState: AppGraphState = {
   importRevision: 0,
   translations: null,
   availableLanguages: [],
+  parsedVariant: null,
+  isVariantAutoDetected: false,
 };
 
 export const createAppGraphSlice: StateCreator<
@@ -88,7 +93,7 @@ export const createAppGraphSlice: StateCreator<
       }
     }),
 
-  parseSuccess: (nodes, edges, diagnostics, translations) =>
+  parseSuccess: (nodes, edges, diagnostics, translations, meta) =>
     set((draft) => {
       draft.phase = "done";
       draft.flowNodes = nodes;
@@ -98,6 +103,8 @@ export const createAppGraphSlice: StateCreator<
       draft.availableLanguages = translations?.availableLanguages ?? [];
       draft.parseProgress = null;
       draft.importRevision += 1;
+      draft.parsedVariant = meta?.parsedVariant ?? null;
+      draft.isVariantAutoDetected = meta?.isVariantAutoDetected ?? false;
     }),
 
   setTranslations: (translations) =>

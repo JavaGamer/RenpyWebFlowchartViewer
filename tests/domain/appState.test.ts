@@ -171,4 +171,18 @@ describe("useAppStore", () => {
     expect(state.flowNodes).toEqual([]);
     expect(state.importRevision).toBe(0);
   });
+
+  it("reset clears parsedVariant and isVariantAutoDetected metadata", () => {
+    useAppStore.getState().parseSuccess([], [], [], undefined, {
+      parsedVariant: "st",
+      isVariantAutoDetected: true,
+    });
+    expect(useAppStore.getState().parsedVariant).toBe("st");
+    expect(useAppStore.getState().isVariantAutoDetected).toBe(true);
+
+    useAppStore.getState().reset();
+    const state = useAppStore.getState();
+    expect(state.parsedVariant).toBeNull();
+    expect(state.isVariantAutoDetected).toBe(false);
+  });
 });

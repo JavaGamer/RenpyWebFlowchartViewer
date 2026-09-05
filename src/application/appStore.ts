@@ -35,6 +35,8 @@ export interface AppState {
   dialogueSearchMode: DialogueSearchMode;
   translations: import("../domain/index.ts").ProjectTranslations | null;
   availableLanguages: string[];
+  parsedVariant: string | null;
+  isVariantAutoDetected: boolean;
 }
 
 export interface AppActions {
@@ -62,6 +64,7 @@ export interface AppActions {
     edges: FlowEdge[],
     diagnostics?: ParseDiagnosticPayload[],
     translations?: import("../domain/index.ts").ProjectTranslations | null,
+    meta?: { parsedVariant?: string; isVariantAutoDetected?: boolean },
   ) => void;
   setTranslations: (
     translations: import("../domain/index.ts").ProjectTranslations | null,

@@ -93,6 +93,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
         parseAbortControllerRef,
         dialogueSearchMode,
         parserVariant: selectedVariant,
+        customRulesByVariant,
         customScreenActionRules: selectedVariantCustomRules,
         onReadMeasured: (fileCount) => {
           perf.measure("read", "read_files_ms", { files: fileCount });
@@ -122,6 +123,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
       appActions,
       perf,
       selectedVariant,
+      customRulesByVariant,
       selectedVariantCustomRules,
       dialogueSearchMode,
     ],

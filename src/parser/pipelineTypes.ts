@@ -373,6 +373,8 @@ export interface ParseResult {
   screenDefinitions?: Map<string, ScreenDefinition>;
   translations?: ProjectTranslations;
   availableLanguages?: string[];
+  detectedVariant?: string;
+  autoDetected?: boolean;
 }
 
 export interface ParseProgress {

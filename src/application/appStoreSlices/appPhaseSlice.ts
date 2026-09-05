@@ -43,6 +43,8 @@ export const createAppPhaseSlice: StateCreator<
       draft.dialogueSearchMode = "auto";
       draft.translations = null;
       draft.availableLanguages = [];
+      draft.parsedVariant = null;
+      draft.isVariantAutoDetected = false;
     }),
 
   startReading: (fileCount) =>

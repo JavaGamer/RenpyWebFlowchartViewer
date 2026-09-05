@@ -18,6 +18,7 @@ import {
 } from "./ui/index.ts";
 import { preWarmLayoutWorker } from "./infrastructure/index.ts";
 import { useAppStore, useViewerStore } from "./application/index.ts";
+import { getParserVariantPlugin } from "./config/parserRules.ts";
 import { cn } from "./ui/utils/cn.ts";
 
 export default function App() {
@@ -29,6 +30,8 @@ export default function App() {
     parseDiagnostics,
     fileCount,
     importRevision,
+    parsedVariant,
+    isVariantAutoDetected,
   } = useAppStore(
     useShallow((s) => ({
       phase: s.phase,
@@ -37,6 +40,8 @@ export default function App() {
       parseDiagnostics: s.parseDiagnostics,
       fileCount: s.fileCount,
       importRevision: s.importRevision,
+      parsedVariant: s.parsedVariant,
+      isVariantAutoDetected: s.isVariantAutoDetected,
     })),
   );
   const reset = useAppStore((s) => s.reset);
@@ -48,6 +53,9 @@ export default function App() {
 
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
+  const displayVariantName = parsedVariant
+    ? getParserVariantPlugin(parsedVariant).label
+    : null;
 
   return (
     <div
@@ -88,6 +96,27 @@ export default function App() {
                 <strong>{flowNodes.length}</strong> nodes,{" "}
                 <strong>{flowEdges.length}</strong> edges
               </span>
+              {displayVariantName && (
+                <span
+                  data-testid="variant-indicator-badge"
+                  className={cn(
+                    "text-xs font-medium rounded-full px-2.5 py-0.5 border",
+                    isDark
+                      ? "bg-slate-800/80 border-slate-700 text-slate-300"
+                      : "bg-white border-violet-200 text-violet-800 shadow-sm",
+                  )}
+                  title={isVariantAutoDetected
+                    ? `Variant was auto-detected from file signatures (${displayVariantName})`
+                    : `Configured variant: ${displayVariantName}`}
+                >
+                  Variant: {displayVariantName}
+                  {isVariantAutoDetected && (
+                    <span className="ml-1 opacity-75 font-normal">
+                      (auto-detected)
+                    </span>
+                  )}
+                </span>
+              )}
               {parseDiagnostics.length > 0 && (
                 <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
                   {parseDiagnostics.length}{" "}

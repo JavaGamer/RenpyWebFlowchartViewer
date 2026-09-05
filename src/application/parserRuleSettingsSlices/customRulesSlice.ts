@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import {
+  AUTO_PARSER_VARIANT,
   DEFAULT_PARSER_VARIANT,
   getParserVariants,
   type ScreenActionRule,
@@ -28,7 +29,9 @@ export type CustomRulesSlice = CustomRulesState & CustomRulesActions;
 
 export function createEmptyRulesByVariant(): RulesByVariant {
   return Object.fromEntries(
-    getParserVariants().map((variant) => [variant, []] as const),
+    [AUTO_PARSER_VARIANT, ...getParserVariants()].map((variant) =>
+      [variant, []] as const
+    ),
   );
 }
 

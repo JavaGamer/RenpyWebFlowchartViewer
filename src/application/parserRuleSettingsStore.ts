@@ -48,7 +48,17 @@ export const defaultParserRuleSettings: ParserRuleSettings = {
 
 const screenActionRuleSchema = z.object({
   actionName: z.string().transform((s) => s.trim()).pipe(z.string().min(1)),
-  actionKind: z.enum(["jump", "call"]),
+  actionKind: z.enum([
+    "jump",
+    "call",
+    "show",
+    "hide",
+    "set_variable",
+    "toggle_variable",
+    "confirm",
+    "null_action",
+    "show_menu",
+  ]),
 });
 
 const rulesArraySchema = z

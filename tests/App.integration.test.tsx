@@ -1272,6 +1272,45 @@ describe("App – upload → parse → render integration", () => {
     }
   });
 
+  it("displays auto-detected variant badge in subheader and details in advanced controls modal", async () => {
+    const user = userEvent.setup();
+    const stScript = [
+      "label start:",
+      '    "Welcome to ST"',
+      "    swap hero villain",
+      "    placeholder",
+      "",
+    ].join("\n");
+
+    const { container } = render(<App />);
+    const view = within(container);
+    const input = container.querySelector(
+      "#folder-input",
+    ) as HTMLInputElement;
+    await user.upload(input, makeRpyFile("st_story.rpy", stScript));
+
+    await waitFor(() => {
+      expect(view.getByTestId("react-flow")).toBeInTheDocument();
+    });
+
+    const badge = view.getByTestId("variant-indicator-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toContain("Variant: ST");
+    expect(badge.textContent).toContain("(auto-detected)");
+
+    // Open Advanced Controls modal
+    const advancedBtn = view.getByRole("button", {
+      name: /show advanced controls/i,
+    });
+    await user.click(advancedBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Parser Variant & Rules")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Staging Directives")).toBeInTheDocument();
+    expect(screen.getByText("swap")).toBeInTheDocument();
+  });
+
   afterAll(() => {
     vi.doUnmock("../src/infrastructure/parserWorkerClient");
     vi.doUnmock("../src/infrastructure/parserWorkerClient.ts");

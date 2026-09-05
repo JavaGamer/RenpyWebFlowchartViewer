@@ -28,6 +28,8 @@ export interface BuildDebugBundleInput {
   };
   parser: {
     selectedVariant: ParserVariant;
+    detectedVariant?: string;
+    isVariantAutoDetected?: boolean;
     customScreenActionRules: ScreenActionRule[];
   };
   graph: {
@@ -287,6 +289,12 @@ export function buildDebugBundle(input: BuildDebugBundleInput) {
     },
     parser: {
       selectedVariant: input.parser.selectedVariant,
+      ...(input.parser.detectedVariant
+        ? { detectedVariant: input.parser.detectedVariant }
+        : {}),
+      ...(input.parser.isVariantAutoDetected !== undefined
+        ? { isVariantAutoDetected: input.parser.isVariantAutoDetected }
+        : {}),
       customScreenActionRules: input.parser.customScreenActionRules,
     },
     privacy: input.privacy,
@@ -323,15 +331,20 @@ interface BuildIssueDraftUrlInput {
     phase: "idle" | "reading" | "parsing" | "done" | "error";
     dialogueSearchMode: DialogueSearchMode;
     selectedVariant: ParserVariant;
+    detectedVariant?: string;
     fileCount: number;
     warningCount: number;
   };
 }
 
 export function buildIssueDraftUrl(input: BuildIssueDraftUrlInput): string {
+  const variantDisplay = input.state.selectedVariant === "auto" &&
+      input.state.detectedVariant
+    ? `auto (detected: ${input.state.detectedVariant})`
+    : input.state.selectedVariant;
   const metadata = [
     `- App phase: ${input.state.phase}`,
-    `- Parser variant: ${input.state.selectedVariant}`,
+    `- Parser variant: ${variantDisplay}`,
     `- Dialogue search mode: ${input.state.dialogueSearchMode}`,
     `- Imported .rpy file count: ${input.state.fileCount}`,
     `- Parser warning count: ${input.state.warningCount}`,

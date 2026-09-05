@@ -10,6 +10,12 @@ import { createGraphState } from "./pipelineState.ts";
 import { preParseInitialization } from "./initMapper.ts";
 import { linkGraphFragments, parseFileToFragment } from "./mapReduceLinker.ts";
 import { RENPY_TL_PATH_REGEX, scanTranslations } from "./translationScanner.ts";
+import {
+  AUTO_PARSER_VARIANT,
+  DEFAULT_PARSER_VARIANT,
+  detectParserVariant,
+  FALLBACK_PARSER_VARIANT,
+} from "../config/parserRules.ts";
 import type {
   ParseInputFile,
   ParseOptions,
@@ -104,6 +110,29 @@ export async function parseRenpyFiles(
 
   const orderedFiles = [...scriptFiles].sort(compareFiles);
 
+  const rawVariant = options.parserVariant ?? DEFAULT_PARSER_VARIANT;
+  const isAutoVariant = rawVariant === AUTO_PARSER_VARIANT;
+
+  function* getFileContentStrings(): Iterable<string> {
+    for (const f of orderedFiles) {
+      if (typeof f.content === "string") {
+        yield f.content;
+      } else if (f.content) {
+        yield new TextDecoder("utf-8").decode(f.content);
+      }
+    }
+  }
+
+  const effectiveVariant = isAutoVariant
+    ? detectParserVariant(getFileContentStrings()).variant
+    : rawVariant ?? FALLBACK_PARSER_VARIANT;
+  state.parserVariant = effectiveVariant;
+
+  const effectiveOptions: ParseOptions = {
+    ...options,
+    parserVariant: effectiveVariant,
+  };
+
   perf.mark("pre-parse");
   preParseInitialization(orderedFiles, state);
   perf.measure("pre-parse", "pre_parse_init_ms", {
@@ -131,7 +160,12 @@ export async function parseRenpyFiles(
           lastYieldTime = performance.now();
         }
         perf.mark(`file:${idx}:map`);
-        const fragment = await parseFileToFragment(file, options, state, idx);
+        const fragment = await parseFileToFragment(
+          file,
+          effectiveOptions,
+          state,
+          idx,
+        );
         perf.measure(`file:${idx}:map`, "parse_file_map_ms", {
           file: file.name,
         });
@@ -150,7 +184,7 @@ export async function parseRenpyFiles(
 
   // Pass 2: Fast Linker (Merge symbol tables, graph fragments, & finalize roles)
   perf.mark("finalize");
-  linkGraphFragments(fragments, state, options);
+  linkGraphFragments(fragments, state, effectiveOptions);
   perf.measure("finalize", "finalize_roles_ms", { nodes: state.nodes.length });
   perf.measure("total", "parse_total_ms", {
     files: orderedFiles.length,
@@ -177,6 +211,12 @@ export async function parseRenpyFiles(
     ...(state.translations ? { translations: state.translations } : {}),
     ...(state.availableLanguages
       ? { availableLanguages: state.availableLanguages }
+      : {}),
+    ...(orderedFiles.length > 0
+      ? {
+        detectedVariant: effectiveVariant,
+        autoDetected: isAutoVariant,
+      }
       : {}),
   };
 }

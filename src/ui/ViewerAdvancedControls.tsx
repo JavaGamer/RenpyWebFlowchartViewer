@@ -8,6 +8,7 @@ import {
   type ChapterStats,
 } from "./components/ChapterFiltersSettings.tsx";
 import { ReadingSettings } from "./components/ReadingSettings.tsx";
+import { ParserVariantInfoSettings } from "./components/ParserVariantInfoSettings.tsx";
 
 export interface ViewerAdvancedControlsProps {
   onRelayout: () => void;
@@ -80,6 +81,8 @@ export function ViewerAdvancedControls({
         setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
         chapterStats={chapterStats}
       />
+
+      <ParserVariantInfoSettings />
     </div>
   );
 }

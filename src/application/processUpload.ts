@@ -25,7 +25,15 @@ import {
   toParseErrorMessage,
 } from "./errorMessages.ts";
 import type { ParseService } from "./parseService.ts";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import {
+  AUTO_PARSER_VARIANT,
+  detectParserVariant,
+  FALLBACK_PARSER_VARIANT,
+  type ParserVariant,
+  resolveCustomRulesForVariant,
+  type RulesByVariant,
+  type ScreenActionRule,
+} from "../config/parserRules.ts";
 import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
 import { extractRpyFilesFromZip } from "./zipExtractor.ts";
 
@@ -57,6 +65,7 @@ export interface ProcessUploadDeps {
   ) => void;
   dialogueSearchMode?: DialogueSearchMode;
   parserVariant?: ParserVariant;
+  customRulesByVariant?: RulesByVariant;
   customScreenActionRules?: ScreenActionRule[];
 
   // Real-time status callbacks
@@ -105,7 +114,8 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     onParseStarted,
     onParseMeasured,
     dialogueSearchMode = "auto",
-    parserVariant = "renpy",
+    parserVariant = AUTO_PARSER_VARIANT,
+    customRulesByVariant,
     customScreenActionRules = [],
     onFilesDiscovered,
     onFileStatusUpdate,
@@ -124,6 +134,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
 
     parseAbortControllerRef.current?.abort();
     parseAbortControllerRef.current = null;
+
+    let effectiveVariant = parserVariant ?? AUTO_PARSER_VARIANT;
+    const isAutoDetected = effectiveVariant === AUTO_PARSER_VARIANT;
 
     // Transition to reading early to show zip extraction/scanning status
     actions.startReading(0);
@@ -172,6 +185,30 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     parseAbortControllerRef.current = controller;
 
     actions.startReading(orderedRpyFiles.length);
+
+    if (isAutoDetected) {
+      for (const f of orderedRpyFiles) {
+        if (!isActiveRun()) return;
+        try {
+          let sample = "";
+          if (f.file && typeof f.file.slice === "function") {
+            sample = await f.file.slice(0, 65536).text();
+          } else {
+            sample = (await f.text()).slice(0, 65536);
+          }
+          const detection = detectParserVariant([sample], AUTO_PARSER_VARIANT);
+          if (detection.variant !== AUTO_PARSER_VARIANT) {
+            effectiveVariant = detection.variant;
+            break;
+          }
+        } catch {
+          // Non-fatal if sample sniff fails; actual file reading below will handle errors
+        }
+      }
+      if (effectiveVariant === AUTO_PARSER_VARIANT) {
+        effectiveVariant = FALLBACK_PARSER_VARIANT;
+      }
+    }
 
     // Broadcast discovered files to the UI
     const getFileId = (f: UploadedFile, index: number) =>
@@ -288,6 +325,15 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             const isLastChunk = isLastReadBatch && isLastParseChunkInBatch;
             const baseCount = parsedFileCount;
 
+            const effectiveScreenActionRules = customRulesByVariant
+              ? resolveCustomRulesForVariant(
+                effectiveVariant === AUTO_PARSER_VARIANT
+                  ? "renpy"
+                  : effectiveVariant,
+                customRulesByVariant,
+              )
+              : customScreenActionRules;
+
             const result = await parseService.parse({
               files: parseChunk,
               projectMediaFiles: mediaFiles,
@@ -297,8 +343,10 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               captureDialogueLines: shouldCaptureDialogueLines,
               deferDetails: shouldUseChunking ||
                 effectiveDialogueMode === "countOnly",
-              parserVariant,
-              screenActionRules: customScreenActionRules,
+              parserVariant: effectiveVariant === AUTO_PARSER_VARIANT
+                ? "renpy"
+                : effectiveVariant,
+              screenActionRules: effectiveScreenActionRules,
               signal: controller.signal,
               maxParallelFiles: typeof navigator !== "undefined"
                 ? navigator.hardwareConcurrency
@@ -384,15 +432,31 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       edgeCount: parsedEdges.length,
     });
     useViewerStore.getState().resetSession();
+    const finalVariant = effectiveVariant === AUTO_PARSER_VARIANT
+      ? "renpy"
+      : effectiveVariant;
     if (parsedTranslations) {
       actions.parseSuccess(
         parsedNodes,
         parsedEdges,
         parsedDiagnostics,
         parsedTranslations,
+        {
+          parsedVariant: finalVariant,
+          isVariantAutoDetected: isAutoDetected,
+        },
       );
     } else {
-      actions.parseSuccess(parsedNodes, parsedEdges, parsedDiagnostics);
+      actions.parseSuccess(
+        parsedNodes,
+        parsedEdges,
+        parsedDiagnostics,
+        undefined,
+        {
+          parsedVariant: finalVariant,
+          isVariantAutoDetected: isAutoDetected,
+        },
+      );
     }
   };
 }

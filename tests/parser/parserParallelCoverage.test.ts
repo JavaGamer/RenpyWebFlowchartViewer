@@ -121,7 +121,7 @@ describe("parseRenpyFiles coverage gaps", () => {
       parseRenpyFiles([{ name: "a.rpy", content: "label a:\n    return\n" }], {
         maxParallelFiles: NaN,
       }),
-    ).resolves.toEqual({ nodes: [], edges: [] });
+    ).resolves.toMatchObject({ nodes: [], edges: [] });
 
     expect(tokenizeOneFile).toHaveBeenCalledTimes(1);
     expect(processTokenizedFile).toHaveBeenCalledTimes(1);
@@ -181,7 +181,7 @@ describe("parseRenpyFiles coverage gaps", () => {
       parseRenpyFiles([{ name: "a.rpy", content: "label a:\n    return\n" }], {
         maxParallelFiles: 1,
       }),
-    ).resolves.toEqual({ nodes: [], edges: [] });
+    ).resolves.toMatchObject({ nodes: [], edges: [] });
 
     expect(tokenizeOneFile).toHaveBeenCalledTimes(1);
     expect(processTokenizedFile).toHaveBeenCalledTimes(1);
@@ -206,10 +206,10 @@ describe("parseRenpyFiles coverage gaps", () => {
     });
 
     await expect(
-      parseRenpyFiles([{ name: "a.rpy", content: "label a:\n" }], {
+      parseRenpyFiles([{ name: "a.rpy", content: "label a:\n    return\n" }], {
         maxParallelFiles: 0,
       }),
-    ).resolves.toEqual({ nodes: [], edges: [] });
+    ).resolves.toMatchObject({ nodes: [], edges: [] });
 
     expect(tokenizeOneFile).toHaveBeenCalledTimes(1);
     expect(processTokenizedFile).toHaveBeenCalledTimes(1);
@@ -275,7 +275,7 @@ describe("parseRenpyFiles coverage gaps", () => {
         ],
         { maxParallelFiles: 1 },
       ),
-    ).resolves.toEqual({ nodes: [], edges: [] });
+    ).resolves.toMatchObject({ nodes: [], edges: [] });
 
     expect(tokenizeOneFile).toHaveBeenCalledTimes(2);
     expect(
@@ -314,7 +314,7 @@ describe("parseRenpyFiles coverage gaps", () => {
           progressFiles.push(progress.currentFile);
         },
       }),
-    ).resolves.toEqual({ nodes: [], edges: [] });
+    ).resolves.toMatchObject({ nodes: [], edges: [] });
 
     expect(progressFiles).toEqual(["a.rpy"]);
   });
@@ -351,7 +351,7 @@ describe("parseRenpyFiles coverage gaps", () => {
           },
         },
       ),
-    ).resolves.toEqual({ nodes: [], edges: [] });
+    ).resolves.toMatchObject({ nodes: [], edges: [] });
 
     expect(progressFiles).toEqual(["a.rpy", "b.rpy"]);
     expect(tokenizeOneFile).toHaveBeenCalledTimes(2);

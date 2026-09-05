@@ -39,14 +39,14 @@ describe("useParserRuleSettingsStore persistence", () => {
       actionKind: "call",
     });
     let state = useParserRuleSettingsStore.getState();
-    expect(state.customRulesByVariant.renpy).toEqual([{
+    expect(state.customRulesByVariant.auto).toEqual([{
       actionName: "Warp",
       actionKind: "call",
     }]);
 
     useParserRuleSettingsStore.getState().removeCustomRule(0);
     state = useParserRuleSettingsStore.getState();
-    expect(state.customRulesByVariant.renpy).toEqual([]);
+    expect(state.customRulesByVariant.auto).toEqual([]);
   });
 
   it("resets to defaults", () => {
@@ -54,7 +54,7 @@ describe("useParserRuleSettingsStore persistence", () => {
     useParserRuleSettingsStore.getState().addCustomRule();
     useParserRuleSettingsStore.getState().resetSettings();
     const state = useParserRuleSettingsStore.getState();
-    expect(state.selectedVariant).toBe("renpy");
+    expect(state.selectedVariant).toBe("auto");
     expect(state.customRulesByVariant).toEqual(
       defaultParserRuleSettings.customRulesByVariant,
     );
@@ -82,7 +82,7 @@ describe("useParserRuleSettingsStore persistence", () => {
     await useParserRuleSettingsStore.persist.rehydrate();
     const state = useParserRuleSettingsStore.getState();
     // Invalid variant falls back to default.
-    expect(state.selectedVariant).toBe("renpy");
+    expect(state.selectedVariant).toBe("auto");
     // Valid rule is kept, empty actionName rule is filtered.
     expect(state.customRulesByVariant.renpy).toEqual([{
       actionName: "Warp",
@@ -93,12 +93,12 @@ describe("useParserRuleSettingsStore persistence", () => {
   it("updateCustomRule with an out-of-bounds index is a no-op", () => {
     useParserRuleSettingsStore.getState().addCustomRule();
     const before =
-      useParserRuleSettingsStore.getState().customRulesByVariant.renpy[0];
+      useParserRuleSettingsStore.getState().customRulesByVariant.auto[0];
     useParserRuleSettingsStore.getState().updateCustomRule(99, {
       actionName: "Ghost",
     });
     // The existing rule should be unchanged.
-    expect(useParserRuleSettingsStore.getState().customRulesByVariant.renpy[0])
+    expect(useParserRuleSettingsStore.getState().customRulesByVariant.auto[0])
       .toEqual(before);
   });
 
@@ -111,8 +111,9 @@ describe("useParserRuleSettingsStore persistence", () => {
       actionName: "",
       actionKind: "jump",
     });
-    // Rules for the other variant should be unaffected.
+    // Rules for the other variants should be unaffected.
     expect(state.customRulesByVariant.renpy).toHaveLength(0);
+    expect(state.customRulesByVariant.auto).toHaveLength(0);
   });
 
   it("updateCustomRule only patches the provided fields", () => {
@@ -121,7 +122,7 @@ describe("useParserRuleSettingsStore persistence", () => {
       actionName: "Teleport",
     });
     const rule =
-      useParserRuleSettingsStore.getState().customRulesByVariant.renpy[0];
+      useParserRuleSettingsStore.getState().customRulesByVariant.auto[0];
     expect(rule?.actionName).toBe("Teleport");
     expect(rule?.actionKind).toBe("jump"); // default, unchanged
   });
@@ -142,5 +143,43 @@ describe("useParserRuleSettingsStore persistence", () => {
     // 'teleport' is not a valid actionKind so the rule should be filtered.
     expect(useParserRuleSettingsStore.getState().customRulesByVariant.renpy)
       .toHaveLength(0);
+  });
+
+  it("supports all expanded ScreenActionKind variants in custom rules", async () => {
+    const kinds = [
+      "jump",
+      "call",
+      "show",
+      "hide",
+      "set_variable",
+      "toggle_variable",
+      "confirm",
+      "null_action",
+      "show_menu",
+    ] as const;
+
+    const raw = JSON.stringify({
+      state: {
+        selectedVariant: "auto",
+        customRulesByVariant: {
+          auto: kinds.map((k) => ({
+            actionName: `Action_${k}`,
+            actionKind: k,
+          })),
+          renpy: [],
+          st: [],
+        },
+      },
+      version: 0,
+    });
+    globalThis.localStorage.setItem(STORAGE_KEYS.parserSettings, raw);
+    await useParserRuleSettingsStore.persist.rehydrate();
+
+    const rules =
+      useParserRuleSettingsStore.getState().customRulesByVariant.auto;
+    expect(rules).toHaveLength(kinds.length);
+    for (let i = 0; i < kinds.length; i++) {
+      expect(rules[i].actionKind).toBe(kinds[i]);
+    }
   });
 });

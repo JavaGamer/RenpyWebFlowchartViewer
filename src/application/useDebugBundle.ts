@@ -32,6 +32,8 @@ export function useDebugBundle(): UseDebugBundleResult {
     flowNodes,
     flowEdges,
     parseDiagnostics,
+    parsedVariant,
+    isVariantAutoDetected,
   } = useAppStore(
     useShallow((s) => ({
       phase: s.phase,
@@ -43,6 +45,8 @@ export function useDebugBundle(): UseDebugBundleResult {
       flowNodes: s.flowNodes,
       flowEdges: s.flowEdges,
       parseDiagnostics: s.parseDiagnostics,
+      parsedVariant: s.parsedVariant,
+      isVariantAutoDetected: s.isVariantAutoDetected,
     })),
   );
 
@@ -92,6 +96,8 @@ export function useDebugBundle(): UseDebugBundleResult {
         },
         parser: {
           selectedVariant,
+          detectedVariant: parsedVariant ?? undefined,
+          isVariantAutoDetected,
           customScreenActionRules: selectedVariantCustomRules,
         },
         graph: {
@@ -127,6 +133,8 @@ export function useDebugBundle(): UseDebugBundleResult {
       flowEdges,
       parseDiagnostics,
       selectedVariant,
+      parsedVariant,
+      isVariantAutoDetected,
       selectedVariantCustomRules,
     ],
   );
@@ -141,6 +149,7 @@ export function useDebugBundle(): UseDebugBundleResult {
           phase,
           dialogueSearchMode,
           selectedVariant,
+          detectedVariant: parsedVariant ?? undefined,
           fileCount,
           warningCount: parseDiagnostics.length,
         },
@@ -150,6 +159,7 @@ export function useDebugBundle(): UseDebugBundleResult {
     },
     [
       selectedVariant,
+      parsedVariant,
       dialogueSearchMode,
       fileCount,
       parseDiagnostics.length,
