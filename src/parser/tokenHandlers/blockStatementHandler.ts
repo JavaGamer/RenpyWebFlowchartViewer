@@ -11,8 +11,12 @@ import {
   processDirectScreenActionCalls,
   stripInlineComment,
 } from "../handlers/screen/screenHandlerEntry.ts";
+import {
+  isVariableNegationOf,
+  type MutationOperator,
+  parsePythonBlock,
+} from "../../domain/index.ts";
 import type { ScreenActionKind } from "../../config/parserRules.ts";
-import { type MutationOperator, parsePythonBlock } from "../../domain/index.ts";
 
 export function parseAndRecordVariableMutation(
   state: ParseGraphState,
@@ -51,6 +55,7 @@ export function parseAndRecordVariableMutation(
       }
 
       const op = assign.operator ?? "=";
+      const isLiteral = assign.valueLiteral !== undefined;
       const mutation: VariableMutation = {
         variableName: varName,
         operator: op,
@@ -59,6 +64,7 @@ export function parseAndRecordVariableMutation(
         nodeId: targetNodeId,
         lineNum,
         isPersistent: isPersist,
+        isLiteral,
       };
       nodeMutList.push(mutation);
 
@@ -93,17 +99,13 @@ export function parseAndRecordVariableMutation(
   let op = assignMatch[2]! as MutationOperator;
   const rawRhs = assignMatch[3]!.trim();
   const isPersist = varName.startsWith("persistent.");
-  if (op === "=") {
-    const toggleRegex = new RegExp(
-      `^not\\s+(?:\\(\\s*)?${varName.replace(/\./g, "\\.")}(?:\\s*\\))?$`,
-    );
-    if (toggleRegex.test(rawRhs)) {
-      op = "toggle";
-    }
+  if (op === "=" && isVariableNegationOf(rawRhs, varName)) {
+    op = "toggle";
   }
 
   const literalVal = extractLiteralTarget(rawRhs);
   let parsedValue: VariableValue = literalVal;
+  const isLiteral = literalVal !== null;
   if (literalVal === null) {
     const lower = rawRhs.toLowerCase();
     if (lower === "true") parsedValue = true;
@@ -123,6 +125,7 @@ export function parseAndRecordVariableMutation(
     nodeId: targetNodeId,
     lineNum,
     isPersistent: isPersist,
+    isLiteral,
   };
 
   if (!state.nodeMutations) {

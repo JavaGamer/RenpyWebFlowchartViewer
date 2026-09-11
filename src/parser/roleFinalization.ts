@@ -50,6 +50,7 @@ function decisionTreeHasExit(
   state: ParseGraphState,
   decisionId: string,
   visited: Set<string>,
+  originatingLabelId?: string,
 ): boolean {
   if (visited.has(decisionId)) return false;
   visited.add(decisionId);
@@ -58,9 +59,14 @@ function decisionTreeHasExit(
   for (const edge of outEdges) {
     if (edge.kind === "jump" || edge.kind === "call") return true;
     if (edge.kind === "sequence") {
+      if (originatingLabelId && edge.target === originatingLabelId) continue;
       const targetNode = state.nodeMap.get(edge.target);
       if (!targetNode || targetNode.type !== "DECISION") return true;
-      if (decisionTreeHasExit(state, edge.target, visited)) return true;
+      if (
+        decisionTreeHasExit(state, edge.target, visited, originatingLabelId)
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -76,9 +82,10 @@ function labelHasForwardFlow(state: ParseGraphState, labelId: string): boolean {
   for (const edge of outEdges) {
     if (edge.kind === "jump" || edge.kind === "call") return true;
     if (edge.kind === "sequence") {
+      if (edge.target === labelId) continue;
       const targetNode = state.nodeMap.get(edge.target);
       if (!targetNode || targetNode.type !== "DECISION") return true;
-      if (decisionTreeHasExit(state, edge.target, new Set<string>())) {
+      if (decisionTreeHasExit(state, edge.target, new Set<string>(), labelId)) {
         return true;
       }
     }

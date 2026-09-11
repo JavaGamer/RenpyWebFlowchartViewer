@@ -75,6 +75,8 @@ export {
   extractListLiteral,
   extractNodeText,
   extractStringLiteral,
+  isPythonTruthy,
+  isVariableNegationOf,
   parsePythonBlock,
   unquoteString,
 } from "./pythonAstEvaluator.ts";

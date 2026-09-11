@@ -554,4 +554,107 @@ describe("flowchart topology and control flow hardening regressions", () => {
     expect(scarletHorseMut).toBeDefined();
     expect(scarletHorseMut?.operator).toBe("=");
   });
+
+  it("preserves string literal assignments like 'not ready' without boolean poisoning in control flow analysis", async () => {
+    const script = [
+      "label quest_hub:",
+      '    $ quest_status = "not ready"',
+      '    $ battle_cry = "honor and glory"',
+      "    if quest_status == 'not ready':",
+      '        "The quest has not started yet."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "quest.rpy", content: script },
+    ]);
+
+    const node = result.nodes.find((n) => n.id === "quest_hub");
+    expect(node).toBeDefined();
+    const statusMut = node?.mutations?.find((m) =>
+      m.variableName === "quest_status"
+    );
+    expect(statusMut).toBeDefined();
+    expect(statusMut?.value).toBe("not ready");
+    expect(statusMut?.isLiteral).toBe(true);
+
+    const battleCryMut = node?.mutations?.find((m) =>
+      m.variableName === "battle_cry"
+    );
+    expect(battleCryMut).toBeDefined();
+    expect(battleCryMut?.value).toBe("honor and glory");
+    expect(battleCryMut?.isLiteral).toBe(true);
+  });
+
+  it("accurately recognizes various Python variable negation toggle patterns", async () => {
+    const script = [
+      "label toggle_tests:",
+      "    $ flag_a = not (flag_a)",
+      "    $ flag_b = (not flag_b)",
+      "    $ flag_c = not flag_c # trailing comment",
+      "    $ flag_d = not not flag_d",
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "toggles.rpy", content: script },
+    ]);
+
+    const node = result.nodes.find((n) => n.id === "toggle_tests");
+    expect(node).toBeDefined();
+    const mutA = node?.mutations?.find((m) => m.variableName === "flag_a");
+    const mutB = node?.mutations?.find((m) => m.variableName === "flag_b");
+    const mutC = node?.mutations?.find((m) => m.variableName === "flag_c");
+    const mutD = node?.mutations?.find((m) => m.variableName === "flag_d");
+
+    expect(mutA?.operator).toBe("toggle");
+    expect(mutB?.operator).toBe("toggle");
+    expect(mutC?.operator).toBe("toggle");
+    expect(mutD?.operator).toBe("=");
+  });
+
+  it("properly updates subroutine returns inside conditional branches followed by dialogue", async () => {
+    const script = [
+      "label caller_scene:",
+      "    if flag:",
+      "        call helper_subroutine",
+      '    "Dialogue immediately following conditional helper."',
+      "    return",
+      "",
+      "label helper_subroutine:",
+      '    "Doing helper work."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "sub_dialogue.rpy", content: script },
+    ]);
+
+    const returnEdges = result.edges.filter(
+      (e) => e.kind === "call_return" && e.source === "helper_subroutine",
+    );
+    expect(returnEdges).toHaveLength(1);
+    expect(returnEdges[0]?.target).toBe("caller_scene");
+  });
+
+  it("resets lastSpeaker on label boundaries and ignores reserved keywords", async () => {
+    const script = [
+      "label chapter1:",
+      '    alice "Hello from Alice."',
+      "    jump chapter2",
+      "",
+      "label chapter2:",
+      '    extend "Continuation should not be Alice."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "speaker_bleed.rpy", content: script },
+    ]);
+
+    const ch2 = result.nodes.find((n) => n.id === "chapter2");
+    expect(ch2).toBeDefined();
+    expect(ch2?.characterDialogue?.["alice"]).toBeUndefined();
+    expect(ch2?.characterDialogue?.["narrator"]).toBeDefined();
+  });
 });

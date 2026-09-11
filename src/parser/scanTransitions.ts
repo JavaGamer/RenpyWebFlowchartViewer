@@ -225,11 +225,17 @@ export function maybeUpdateConditionalState(
       const isContinuingConditional =
         (type === PARSER_TOKENS.kwConditional || isLineMatchOrCase) &&
         (() => {
-          const parsed = parseConditionalHeader(lineText ?? tokenVal);
-          if (!parsed) return false;
-          if (parsed.kind === "elif" || parsed.kind === "else") return true;
-          if (parsed.kind === "case") return true;
-          return false;
+          const rawCandidate = lineText ?? tokenVal;
+          const parsed = parseConditionalHeader(rawCandidate);
+          if (parsed) {
+            return (
+              parsed.kind === "elif" ||
+              parsed.kind === "else" ||
+              parsed.kind === "case"
+            );
+          }
+          const trimmed = rawCandidate.trim();
+          return /^(?:elif|else|case)\b/.test(trimmed);
         })();
       if (!isContinuingConditional) {
         const popped = scanState.conditionalDecisionStack.pop()!;

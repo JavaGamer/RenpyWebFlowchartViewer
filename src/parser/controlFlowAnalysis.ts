@@ -10,6 +10,7 @@ import {
   evaluateConditionExpression,
   extractConditionFlagRefs,
   type FlowEdge,
+  isPythonTruthy,
 } from "../domain/index.ts";
 import { splitBalancedArguments } from "./handlers/jumpCallArgs.ts";
 
@@ -679,13 +680,15 @@ function propagateVariableMutationsAndEvaluateConditions(
           : nextState.variables;
         if (mut.operator === "=") {
           if (
+            !mut.isLiteral &&
             typeof mut.value === "string" &&
-            /^(?:not\s+|[a-zA-Z_]\w*\s*(?:==|!=|<|>|<=|>=|and|or)\s*)/.test(
-              mut.value.trim(),
-            )
+            /^(?:not\b|[a-zA-Z_][a-zA-Z0-9_.]*\s*(?:==|!=|<|>|<=|>=|and|or)\s*)/
+              .test(
+                mut.value.trim(),
+              )
           ) {
             const mockFlags = buildMockFlagsFromVariableState(
-              store,
+              nextState.variables,
               nextState.persistent,
             );
             const res = evaluateConditionExpression(mut.value, mockFlags);
@@ -749,7 +752,7 @@ function propagateVariableMutationsAndEvaluateConditions(
           store.set(mut.variableName, Math.pow(prev, mut.value));
         } else if (mut.operator === "toggle") {
           const raw = store.get(mut.variableName);
-          const currentBool = raw === true || raw === "true" || raw === "True";
+          const currentBool = isPythonTruthy(raw);
           store.set(mut.variableName, !currentBool);
         }
       }

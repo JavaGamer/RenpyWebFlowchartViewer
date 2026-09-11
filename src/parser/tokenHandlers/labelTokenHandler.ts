@@ -145,6 +145,7 @@ export function handleLabelNameToken(
   scanState.currentLabelHasContentSinceSceneBoundary = false;
   scanState.currentLabelIndent = lineIndent;
   scanState.currentSceneDialogueCount = 0;
+  scanState.lastSpeaker = undefined;
   scanState.labelVariableLiteralTargets.clear();
   scanState.labelVariableDictTargets.clear();
   scanState.labelVariableListTargets.clear();

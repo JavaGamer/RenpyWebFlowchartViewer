@@ -4,8 +4,38 @@ import type {
   ParseScanState,
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
-import { menuAtDepth } from "../scanTransitions.ts";
+import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
+import { edgeIdWithOption, menuAtDepth } from "../scanTransitions.ts";
+import { updateCallReturnTarget } from "../handlers/jumpCallEdges.ts";
 import type { SourceLocation } from "../../domain/index.ts";
+
+const RESERVED_SPEAKER_KEYWORDS = new Set([
+  "if",
+  "elif",
+  "else",
+  "while",
+  "for",
+  "match",
+  "case",
+  "scene",
+  "show",
+  "play",
+  "stop",
+  "queue",
+  "voice",
+  "with",
+  "call",
+  "jump",
+  "return",
+  "pass",
+  "menu",
+  "label",
+  "python",
+  "init",
+  "default",
+  "define",
+  "hide",
+]);
 
 export function computeTextStats(
   text: string,
@@ -60,15 +90,7 @@ export function handleDialogueStringToken(
   scanState.currentLabelHasContentSinceSceneBoundary = true;
   scanState.currentSceneDialogueCount =
     (scanState.currentSceneDialogueCount ?? 0) + 1;
-  if (!meta.hasMenuOptionBlock) {
-    if (scanState.conditionalIndentStack.length === 0) {
-      scanState.labelHasExplicitExit = false;
-    }
-    if (scanState.pendingMenuFallthrough.length > 0) {
-      scanState.pendingMenuFallthrough = scanState.pendingMenuFallthrough
-        .filter((e) => !e.menuId.startsWith("decision_"));
-    }
-  }
+
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   const isInMenuPrompt = menu !== null && !meta.hasMenuOptionBlock;
   const ownerId = (meta.hasMenuOptionBlock && menu) || isInMenuPrompt
@@ -79,6 +101,46 @@ export function handleDialogueStringToken(
 
   const ownerNode = state.nodeMap.get(ownerId);
   if (!ownerNode) return;
+
+  if (!meta.hasMenuOptionBlock) {
+    if (scanState.conditionalIndentStack.length === 0) {
+      scanState.labelHasExplicitExit = false;
+    }
+    if (scanState.pendingMenuFallthrough.length > 0) {
+      const remainingPending: typeof scanState.pendingMenuFallthrough = [];
+      for (const entry of scanState.pendingMenuFallthrough) {
+        if (entry.menuId.startsWith("decision_")) {
+          if (entry.calledTargetId && entry.callContextId) {
+            updateCallReturnTarget(state, entry.callContextId, ownerId);
+          } else {
+            const baseEdgeId = `seq_${entry.menuId}__${ownerId}`;
+            if (
+              !state.edgeIds.has(baseEdgeId) &&
+              !state.graph.hasEdge(baseEdgeId)
+            ) {
+              addEdge(state, {
+                id: edgeIdWithOption(baseEdgeId, entry.optionText ?? null),
+                source: entry.menuId,
+                target: ownerId,
+                kind: "sequence",
+                label: entry.optionText ?? "else",
+                condition: {
+                  branchKind: "else",
+                  decisionNodeId: entry.menuId,
+                },
+                sourceLocation: entry.sourceLocation ?? sourceLocation,
+              });
+              addOutgoing(state, entry.menuId, "sequence");
+              addIncoming(state, ownerId, "sequence");
+            }
+          }
+        } else {
+          remainingPending.push(entry);
+        }
+      }
+      scanState.pendingMenuFallthrough = remainingPending;
+    }
+  }
 
   ownerNode.dialogueCount += 1;
   const line = val();
@@ -95,7 +157,7 @@ export function handleDialogueStringToken(
     speaker = quotedSpeakerMatch[1]!;
   } else {
     const charMatch = /^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\b/.exec(lineText);
-    if (charMatch) {
+    if (charMatch && !RESERVED_SPEAKER_KEYWORDS.has(charMatch[1]!)) {
       speaker = charMatch[1]!;
     }
   }

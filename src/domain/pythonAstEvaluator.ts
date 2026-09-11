@@ -54,6 +54,22 @@ export function isPythonTruthy(val: unknown): boolean {
   return Boolean(val);
 }
 
+/**
+ * Tests whether an expression is a direct boolean negation of a specific variable name
+ * (e.g. `not x`, `not (x)`, `not(x)`, `(not x)`).
+ */
+export function isVariableNegationOf(
+  rawExpr: string,
+  varName: string,
+): boolean {
+  const clean = rawExpr.replace(/#.*$/, "").trim();
+  const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `^(?:\\(\\s*not\\s+${escaped}\\s*\\)|not\\s*\\(\\s*${escaped}\\s*\\)|not\\s+${escaped})$`,
+  );
+  return pattern.test(clean);
+}
+
 function isOpNode(name: string): boolean {
   return (
     name === "ArithOp" ||
@@ -383,15 +399,10 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
                 | "//="
                 | "**="
                 | "toggle" = detectedOp;
-              if (op === "=") {
-                const toggleRegex = new RegExp(
-                  `^not\\s+(?:\\(\\s*)?${
-                    varName.replace(/\./g, "\\.")
-                  }(?:\\s*\\))?$`,
-                );
-                if (toggleRegex.test(valueExpression.trim())) {
-                  op = "toggle";
-                }
+              if (
+                op === "=" && isVariableNegationOf(valueExpression, varName)
+              ) {
+                op = "toggle";
               }
 
               assignments.push({
@@ -426,15 +437,10 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
                 | "//="
                 | "**="
                 | "toggle" = detectedOp;
-              if (op === "=") {
-                const toggleRegex = new RegExp(
-                  `^not\\s+(?:\\(\\s*)?${
-                    variableName.replace(/\./g, "\\.")
-                  }(?:\\s*\\))?$`,
-                );
-                if (toggleRegex.test(rawRhsExpr)) {
-                  op = "toggle";
-                }
+              if (
+                op === "=" && isVariableNegationOf(rawRhsExpr, variableName)
+              ) {
+                op = "toggle";
               }
               assignments.push({
                 variable: variableName,

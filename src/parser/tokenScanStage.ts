@@ -114,7 +114,6 @@ export function processFlatToken(
   const val = (): string => {
     if (tokenText === undefined) {
       const raw = token.getValue(document);
-      console.log("DEBUG val(): raw=", JSON.stringify(raw), "type=", type);
       tokenText = type === PARSER_TOKENS.literalString
         ? normalizeLiteralString(raw)
         : raw;

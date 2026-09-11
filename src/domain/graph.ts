@@ -154,6 +154,7 @@ export interface VariableMutation {
   nodeId: string;
   lineNum: number;
   isPersistent: boolean;
+  isLiteral?: boolean;
 }
 
 export interface LanguageTranslationData {

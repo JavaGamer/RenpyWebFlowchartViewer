@@ -346,19 +346,22 @@ export function splitCurrentLabelOnSceneBoundary(
         scanState.conditionalDecisionStack.length - 1
       ];
     if (activeDecision) {
-      connectSceneSplitFromSource(
-        state,
-        activeDecision.decisionNodeId,
-        nextSceneId,
-        undefined,
-        createDecisionConditionMetadata(activeDecision),
-      );
-      activeDecision.connectedSceneId = nextSceneId;
-      activeDecision.connectedBranchKind = activeDecision.branchKind;
-      const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
-      if (!state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)) {
+      if (
+        activeDecision.connectedSceneId === undefined ||
+        activeDecision.connectedBranchKind !== activeDecision.branchKind
+      ) {
+        connectSceneSplitFromSource(
+          state,
+          activeDecision.decisionNodeId,
+          nextSceneId,
+          undefined,
+          createDecisionConditionMetadata(activeDecision),
+        );
+      } else {
         connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
       }
+      activeDecision.connectedSceneId = nextSceneId;
+      activeDecision.connectedBranchKind = activeDecision.branchKind;
     } else {
       connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
     }
@@ -373,11 +376,12 @@ export function splitCurrentLabelOnSceneBoundary(
     }
 
     // When an if block has a menu that falls through but an else block (or other conditional
-    // branch) has non-menu statements, ensure activeSceneId is still connected to nextSceneId.
+    // branch) has non-menu statements, ensure activeSceneId is still connected to nextSceneId
+    // only if there is no active conditional decision guarding execution.
     const hasMenuFallthrough = Array.from(connectedSources).some((id) =>
       id.startsWith("menu_")
     );
-    if (!hasMenuFallthrough) {
+    if (!hasMenuFallthrough && !activeDecision) {
       const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
       if (!state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)) {
         connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
@@ -434,16 +438,18 @@ export function splitCurrentLabelOnSceneBoundary(
           activeDecision.connectedSceneId = nextSceneId;
           activeDecision.connectedBranchKind = activeDecision.branchKind;
         }
-        const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
-        if (
-          !state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)
-        ) {
-          connectSceneSplitFromSource(
-            state,
-            activeSceneId,
-            nextSceneId,
-            "next",
-          );
+        if (!activeDecision) {
+          const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
+          if (
+            !state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)
+          ) {
+            connectSceneSplitFromSource(
+              state,
+              activeSceneId,
+              nextSceneId,
+              "next",
+            );
+          }
         }
       }
     }

@@ -36,6 +36,7 @@ export function handleSceneToken(
     menuDepth,
     sceneSplitDialogueThreshold,
   );
+  scanState.lastSpeaker = undefined;
   if (scanState.currentLabelId && !deferDetails) {
     const ownerNode = state.nodeMap.get(scanState.currentLabelId);
     if (ownerNode) {
