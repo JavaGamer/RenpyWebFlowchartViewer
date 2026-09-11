@@ -60,10 +60,14 @@ export function handleDialogueStringToken(
   scanState.currentLabelHasContentSinceSceneBoundary = true;
   scanState.currentSceneDialogueCount =
     (scanState.currentSceneDialogueCount ?? 0) + 1;
-  if (
-    !meta.hasMenuOptionBlock && scanState.conditionalIndentStack.length === 0
-  ) {
-    scanState.labelHasExplicitExit = false;
+  if (!meta.hasMenuOptionBlock) {
+    if (scanState.conditionalIndentStack.length === 0) {
+      scanState.labelHasExplicitExit = false;
+    }
+    if (scanState.pendingMenuFallthrough.length > 0) {
+      scanState.pendingMenuFallthrough = scanState.pendingMenuFallthrough
+        .filter((e) => !e.menuId.startsWith("decision_"));
+    }
   }
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   const isInMenuPrompt = menu !== null && !meta.hasMenuOptionBlock;
@@ -94,6 +98,11 @@ export function handleDialogueStringToken(
     if (charMatch) {
       speaker = charMatch[1]!;
     }
+  }
+  if (speaker === "extend") {
+    speaker = scanState.lastSpeaker ?? "narrator";
+  } else {
+    scanState.lastSpeaker = speaker;
   }
   if (!ownerNode.characterDialogue) {
     ownerNode.characterDialogue = {};

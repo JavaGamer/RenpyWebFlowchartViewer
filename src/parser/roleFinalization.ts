@@ -46,6 +46,46 @@ function emitShadowedTargetResolutionDiagnostics(state: ParseGraphState): void {
   }
 }
 
+function decisionTreeHasExit(
+  state: ParseGraphState,
+  decisionId: string,
+  visited: Set<string>,
+): boolean {
+  if (visited.has(decisionId)) return false;
+  visited.add(decisionId);
+
+  const outEdges = state.edges.filter((e) => e.source === decisionId);
+  for (const edge of outEdges) {
+    if (edge.kind === "jump" || edge.kind === "call") return true;
+    if (edge.kind === "sequence") {
+      const targetNode = state.nodeMap.get(edge.target);
+      if (!targetNode || targetNode.type !== "DECISION") return true;
+      if (decisionTreeHasExit(state, edge.target, visited)) return true;
+    }
+  }
+  return false;
+}
+
+function labelHasForwardFlow(state: ParseGraphState, labelId: string): boolean {
+  const outgoing = state.outgoingByLabel.get(labelId);
+  if (!outgoing) return false;
+  if (outgoing.has("jump") || outgoing.has("call")) return true;
+  if (!outgoing.has("sequence")) return false;
+
+  const outEdges = state.edges.filter((e) => e.source === labelId);
+  for (const edge of outEdges) {
+    if (edge.kind === "jump" || edge.kind === "call") return true;
+    if (edge.kind === "sequence") {
+      const targetNode = state.nodeMap.get(edge.target);
+      if (!targetNode || targetNode.type !== "DECISION") return true;
+      if (decisionTreeHasExit(state, edge.target, new Set<string>())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function finalizeRoles(state: ParseGraphState) {
   materializeCallReturnEdges(state);
   normalizeGraphState(state);
@@ -66,12 +106,7 @@ export function finalizeRoles(state: ParseGraphState) {
       node.isTerminalOutcome = false;
       continue;
     }
-    const outgoing = state.outgoingByLabel.get(node.id);
-    const hasForwardFlow = Boolean(
-      outgoing?.has("sequence") ||
-        outgoing?.has("jump") ||
-        outgoing?.has("call"),
-    );
+    const hasForwardFlow = labelHasForwardFlow(state, node.id);
     node.isTerminalOutcome = node.role === "story" && !hasForwardFlow;
   }
 

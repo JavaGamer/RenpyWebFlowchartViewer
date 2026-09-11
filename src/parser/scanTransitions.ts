@@ -121,6 +121,7 @@ function handlePoppedDecisionScope(
           ));
       if (
         hasNonSubroutineFallthrough &&
+        !popped.connectedSceneId &&
         !scanState.pendingMenuFallthrough.some(
           (e) => e.menuId === popped.decisionNodeId && !e.calledTargetId,
         )
@@ -220,13 +221,21 @@ export function maybeUpdateConditionalState(
       handlePoppedDecisionScope(scanState, popped);
       continue;
     }
-    if (
-      indent === top.indent && type !== PARSER_TOKENS.kwConditional &&
-      !isLineMatchOrCase
-    ) {
-      const popped = scanState.conditionalDecisionStack.pop()!;
-      handlePoppedDecisionScope(scanState, popped);
-      continue;
+    if (indent === top.indent) {
+      const isContinuingConditional =
+        (type === PARSER_TOKENS.kwConditional || isLineMatchOrCase) &&
+        (() => {
+          const parsed = parseConditionalHeader(lineText ?? tokenVal);
+          if (!parsed) return false;
+          if (parsed.kind === "elif" || parsed.kind === "else") return true;
+          if (parsed.kind === "case") return true;
+          return false;
+        })();
+      if (!isContinuingConditional) {
+        const popped = scanState.conditionalDecisionStack.pop()!;
+        handlePoppedDecisionScope(scanState, popped);
+        continue;
+      }
     }
     break;
   }

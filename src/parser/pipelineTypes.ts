@@ -98,6 +98,8 @@ export interface ConditionalDecisionContext {
     callContextId?: string;
     calledSubroutines?: Array<{ targetId: string; callContextId: string }>;
   }>;
+  connectedSceneId?: string;
+  connectedBranchKind?: ConditionalBranchKind;
 }
 
 export interface ParseDiagnosticLocation {
@@ -328,6 +330,7 @@ export interface ParseScanState extends ResolveTargetScanState {
   lastProcessedCustomLineNum?: number;
   currentPathState?: PathVariableState;
   parserVariant?: ParserVariant;
+  lastSpeaker?: string;
 }
 
 export interface ParseGraphState {

@@ -678,7 +678,27 @@ function propagateVariableMutationsAndEvaluateConditions(
           ? nextState.persistent
           : nextState.variables;
         if (mut.operator === "=") {
-          store.set(mut.variableName, mut.value);
+          if (
+            typeof mut.value === "string" &&
+            /^(?:not\s+|[a-zA-Z_]\w*\s*(?:==|!=|<|>|<=|>=|and|or)\s*)/.test(
+              mut.value.trim(),
+            )
+          ) {
+            const mockFlags = buildMockFlagsFromVariableState(
+              store,
+              nextState.persistent,
+            );
+            const res = evaluateConditionExpression(mut.value, mockFlags);
+            if (res === "true") {
+              store.set(mut.variableName, true);
+            } else if (res === "false") {
+              store.set(mut.variableName, false);
+            } else {
+              store.set(mut.variableName, mut.value);
+            }
+          } else {
+            store.set(mut.variableName, mut.value);
+          }
         } else if (mut.operator === "+=" && typeof mut.value === "number") {
           const raw = store.get(mut.variableName);
           const prev = typeof raw === "number"

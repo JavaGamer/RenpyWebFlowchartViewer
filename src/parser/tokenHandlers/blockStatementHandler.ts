@@ -93,8 +93,13 @@ export function parseAndRecordVariableMutation(
   let op = assignMatch[2]! as MutationOperator;
   const rawRhs = assignMatch[3]!.trim();
   const isPersist = varName.startsWith("persistent.");
-  if (op === "=" && /^not\s+/.test(rawRhs)) {
-    op = "toggle";
+  if (op === "=") {
+    const toggleRegex = new RegExp(
+      `^not\\s+(?:\\(\\s*)?${varName.replace(/\./g, "\\.")}(?:\\s*\\))?$`,
+    );
+    if (toggleRegex.test(rawRhs)) {
+      op = "toggle";
+    }
   }
 
   const literalVal = extractLiteralTarget(rawRhs);

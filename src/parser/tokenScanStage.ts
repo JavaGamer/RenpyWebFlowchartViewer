@@ -114,6 +114,7 @@ export function processFlatToken(
   const val = (): string => {
     if (tokenText === undefined) {
       const raw = token.getValue(document);
+      console.log("DEBUG val(): raw=", JSON.stringify(raw), "type=", type);
       tokenText = type === PARSER_TOKENS.literalString
         ? normalizeLiteralString(raw)
         : raw;
@@ -186,19 +187,14 @@ export function processFlatToken(
  * stripping prefix modifiers and surrounding quote markers.
  */
 function normalizeLiteralString(raw: string): string {
-  let start = 0;
-  const len = raw.length;
-  while (start < len) {
-    const char = raw[start];
-    if (char === '"' || char === "'") {
-      break;
-    }
-    start++;
+  const match = /^[ \t]*([rufRUFbB]{0,2}|_)?(["'])/.exec(raw);
+  if (!match) {
+    return raw;
   }
+  const quoteChar = match[2]!;
+  const start = match[0].length - 1;
+  const len = raw.length;
 
-  if (start >= len) return raw;
-
-  const quoteChar = raw[start]!;
   const isTriple = start + 2 < len && raw[start + 1] === quoteChar &&
     raw[start + 2] === quoteChar;
   const quoteLen = isTriple ? 3 : 1;

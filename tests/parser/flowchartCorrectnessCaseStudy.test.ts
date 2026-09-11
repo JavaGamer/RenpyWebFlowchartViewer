@@ -232,4 +232,326 @@ describe("flowchart topology and control flow hardening regressions", () => {
     expect(deadNode).toBeDefined();
     expect(deadNode?.isOrphan).toBe(true);
   });
+
+  it("accurately captures dialogue strings containing nested quotes", async () => {
+    const script = [
+      "label start:",
+      "    katrina \"I said, 'I wish John were back to normal.'\"",
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "quotes.rpy", content: script },
+    ], { captureDialogueLines: true });
+
+    const startNode = result.nodes.find((n) => n.id === "start");
+    expect(startNode?.dialogueLines?.[0]).toBe(
+      "I said, 'I wish John were back to normal.'",
+    );
+  });
+
+  it("handles sequential if statements without treating subsequent if as an else branch", async () => {
+    const script = [
+      "label test_sequential_if:",
+      "    if cond_a:",
+      '        "Branch A"',
+      "    else:",
+      '        "Branch A Else"',
+      "    if cond_b:",
+      '        "Branch B"',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "seq_if.rpy", content: script },
+    ]);
+
+    const decisions = result.nodes.filter((n) => n.type === "DECISION");
+    expect(decisions).toHaveLength(2);
+    const [decA, decB] = decisions;
+    expect(decA?.label).toBe("if cond_a");
+    expect(decB?.label).toBe("if cond_b");
+
+    // decA must NOT have an "else" sequence edge to decB
+    const elseToB = result.edges.find(
+      (e) => e.source === decA?.id && e.target === decB?.id,
+    );
+    expect(elseToB).toBeUndefined();
+
+    // decB must be connected directly from the label
+    const labelToB = result.edges.find(
+      (e) => e.source === "test_sequential_if" && e.target === decB?.id,
+    );
+    expect(labelToB).toBeDefined();
+  });
+
+  it("preserves scene continuity and avoids dead-end scenes when splitting inside conditionals", async () => {
+    // Generate enough dialogue to exceed scene split threshold (threshold = 2)
+    const script = [
+      "label branch_story:",
+      "    if outer_flag:",
+      '        "Scene 1 Line 1"',
+      '        "Scene 1 Line 2"',
+      '        "Scene 1 Line 3"',
+      "        scene bg yard",
+      '        "Scene 2 Line 1"',
+      '        "Scene 2 Line 2"',
+      '        "Scene 2 Line 3"',
+      "        scene bg livingroom",
+      '        "Scene 3 Line 1"',
+      "        jump destination",
+      "    else:",
+      '        "Else line"',
+      "        jump destination",
+      "",
+      "label destination:",
+      '        "Arrived."',
+      "        return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles(
+      [{ name: "branch_story.rpy", content: script }],
+      { sceneSplitDialogueThreshold: 2 },
+    );
+
+    const scene1 = result.nodes.find((n) => n.id === "branch_story__scene_1");
+    const scene2 = result.nodes.find((n) => n.id === "branch_story__scene_2");
+    const scene3 = result.nodes.find((n) => n.id === "branch_story__scene_3");
+
+    expect(scene1).toBeDefined();
+    expect(scene2).toBeDefined();
+    expect(scene3).toBeDefined();
+
+    // scene2 must have outgoing edges (NOT a dead end)
+    const scene2OutEdges = result.edges.filter((e) => e.source === scene2?.id);
+    expect(scene2OutEdges.length).toBeGreaterThan(0);
+    expect(scene2OutEdges.some((e) => e.target === scene3?.id)).toBe(true);
+
+    // scene3 must have outgoing edges to destination
+    const scene3OutEdges = result.edges.filter((e) => e.source === scene3?.id);
+    expect(scene3OutEdges.length).toBeGreaterThan(0);
+    expect(scene3OutEdges.some((e) => e.target === "destination")).toBe(true);
+  });
+
+  it("clears completed inline decisions on subsequent linear dialogue preventing edge explosion", async () => {
+    const script = [
+      "label call_explosion_check:",
+      "    if flag1:",
+      '        "F1"',
+      "    if flag2:",
+      '        "F2"',
+      '    "Linear dialogue re-merging all previous paths."',
+      "    call subroutine_target",
+      "    jump downstream_target",
+      "",
+      "label subroutine_target:",
+      '    "In subroutine."',
+      "    return",
+      "",
+      "label downstream_target:",
+      '    "In downstream."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "calls.rpy", content: script },
+    ]);
+
+    // Exactly one call edge from caller to subroutine_target
+    const callEdges = result.edges.filter(
+      (e) => e.kind === "call" && e.target === "subroutine_target",
+    );
+    expect(callEdges).toHaveLength(1);
+    expect(callEdges[0]?.source).toBe("call_explosion_check");
+
+    // Exactly one jump edge to downstream_target (from subroutine return or caller)
+    const jumpEdges = result.edges.filter(
+      (e) => e.kind === "jump" && e.target === "downstream_target",
+    );
+    expect(jumpEdges.length).toBeGreaterThanOrEqual(1);
+    // Subroutine return handles continuation or direct jump
+    const directBypassJumps = result.edges.filter(
+      (e) =>
+        e.kind === "jump" &&
+        e.target === "downstream_target" &&
+        e.source.startsWith("decision_"),
+    );
+    expect(directBypassJumps).toHaveLength(0);
+  });
+
+  it("parses dollar assignments without spaces and evaluates variable negation correctly", async () => {
+    const script = [
+      "label var_test:",
+      "    $fMichelleWitch = True",
+      "    $ fScarletHorse = not fKatrinaMean",
+      "    $ fCounter = not fCounter",
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "vars.rpy", content: script },
+    ]);
+
+    const varNode = result.nodes.find((n) => n.id === "var_test");
+    expect(varNode).toBeDefined();
+    const mutations = varNode?.mutations ?? [];
+
+    const michelleMut = mutations.find((m) =>
+      m.variableName === "fMichelleWitch"
+    );
+    expect(michelleMut).toBeDefined();
+    expect(michelleMut?.operator).toBe("=");
+    expect(michelleMut?.value).toBe(true);
+
+    const scarletMut = mutations.find((m) =>
+      m.variableName === "fScarletHorse"
+    );
+    expect(scarletMut).toBeDefined();
+    expect(scarletMut?.operator).toBe("=");
+
+    const counterMut = mutations.find((m) => m.variableName === "fCounter");
+    expect(counterMut).toBeDefined();
+    expect(counterMut?.operator).toBe("toggle");
+  });
+
+  it("marks terminal story scenes ending with return as isTerminalOutcome even with internal decision nodes", async () => {
+    const script = [
+      "label story_end_scene:",
+      '    "Reflecting on life."',
+      "    if flag_nerd:",
+      '        "Nerd reflection."',
+      "    else:",
+      '        "Other reflection."',
+      '    "Final thought."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "story_end.rpy", content: script },
+    ]);
+
+    const endNode = result.nodes.find((n) => n.id === "story_end_scene");
+    expect(endNode).toBeDefined();
+    expect(endNode?.role).toBe("story");
+    expect(endNode?.isTerminalOutcome).toBe(true);
+  });
+
+  it("attributes extend dialogue to the previous speaker", async () => {
+    const script = [
+      "label dialogue_extend_test:",
+      '    john "First part of dialogue..."',
+      '    extend " and the continuation."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "extend.rpy", content: script },
+    ]);
+
+    const node = result.nodes.find((n) => n.id === "dialogue_extend_test");
+    expect(node).toBeDefined();
+    expect(node?.characterDialogue).toBeDefined();
+    expect(node?.characterDialogue?.["john"]).toBeDefined();
+    expect(node?.characterDialogue?.["john"]?.lineCount).toBe(2);
+    expect(node?.characterDialogue?.["extend"]).toBeUndefined();
+  });
+
+  it("verifies the Wish You Were Her case study end-to-end", async () => {
+    const caseStudyPath =
+      "C:\\Users\\gamin\\Downloads\\Games\\StudentTransfer-9.2-pc-arm\\game\\scenario\\wishyouwereher\\story\\Wish You Were Her.rpy";
+    let scriptContent: string;
+    try {
+      scriptContent = await Deno.readTextFile(caseStudyPath);
+    } catch {
+      return; // Skip if file not present on another environment
+    }
+
+    const result = await parseRenpyFiles([
+      { name: "Wish You Were Her.rpy", content: scriptContent },
+    ], { captureDialogueLines: true });
+
+    // 1. Check michelle scenes: none should be dead ends
+    for (
+      const id of [
+        "michelle__scene_1",
+        "michelle__scene_2",
+        "michelle__scene_3",
+        "michelle__scene_4",
+      ]
+    ) {
+      const node = result.nodes.find((n) => n.id === id);
+      expect(node).toBeDefined();
+      const outEdges = result.edges.filter((e) => e.source === id);
+      expect(outEdges.length).toBeGreaterThan(0);
+    }
+
+    // 2. Check scarlet scenes: none should be dead ends
+    for (
+      const id of [
+        "scarlet__scene_1",
+        "scarlet__scene_2",
+        "scarlet__scene_3",
+      ]
+    ) {
+      const node = result.nodes.find((n) => n.id === id);
+      expect(node).toBeDefined();
+      const outEdges = result.edges.filter((e) => e.source === id);
+      expect(outEdges.length).toBeGreaterThan(0);
+    }
+
+    // 3. Check day2__scene_3 is marked terminal outcome
+    const day2Scene3 = result.nodes.find((n) => n.id === "day2__scene_3");
+    expect(day2Scene3).toBeDefined();
+    expect(day2Scene3?.isTerminalOutcome).toBe(true);
+
+    // 4. Sequential if in kyoko: no else edge between decision_30 and decision_32
+    const dec30 = result.nodes.find((n) => n.label === "if fCalledKyoko");
+    const dec32 = result.nodes.find((n) =>
+      n.label === "if fScarletHorse or fMichelleWitch"
+    );
+    expect(dec30).toBeDefined();
+    expect(dec32).toBeDefined();
+    const elseEdge = result.edges.find((e) =>
+      e.source === dec30?.id && e.target === dec32?.id
+    );
+    expect(elseEdge).toBeUndefined();
+
+    // 5. Calls to walkToFriendDescription: exactly 1 from kyoko and 1 from michelle
+    const callsFromKyoko = result.edges.filter(
+      (e) =>
+        e.kind === "call" && e.target === "walkToFriendDescription" &&
+        e.source.startsWith("kyoko"),
+    );
+    expect(callsFromKyoko).toHaveLength(1);
+    const callsFromMichelle = result.edges.filter(
+      (e) =>
+        e.kind === "call" && e.target === "walkToFriendDescription" &&
+        e.source.startsWith("michelle"),
+    );
+    expect(callsFromMichelle).toHaveLength(1);
+
+    // 6. Jumps from dream to day2: exactly 1 jump edge
+    const jumpsDreamToDay2 = result.edges.filter(
+      (e) =>
+        e.kind === "jump" && e.target.startsWith("day2") &&
+        (e.source === "dream" || e.source.startsWith("decision_")),
+    );
+    expect(jumpsDreamToDay2).toHaveLength(1);
+
+    // 7. fMichelleWitch = True recorded on michelle__scene_1
+    const michelle1 = result.nodes.find((n) => n.id === "michelle__scene_1");
+    const michelleWitchMut = michelle1?.mutations?.find((m) =>
+      m.variableName === "fMichelleWitch"
+    );
+    expect(michelleWitchMut).toBeDefined();
+    expect(michelleWitchMut?.value).toBe(true);
+
+    // 8. fScarletHorse = not fKatrinaMean has operator "="
+    const scarlet1 = result.nodes.find((n) => n.id === "scarlet__scene_1");
+    const scarletHorseMut = scarlet1?.mutations?.find((m) =>
+      m.variableName === "fScarletHorse"
+    );
+    expect(scarletHorseMut).toBeDefined();
+    expect(scarletHorseMut?.operator).toBe("=");
+  });
 });

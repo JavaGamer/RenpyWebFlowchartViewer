@@ -66,9 +66,17 @@ export function resolveCallContext(
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   const decisionContext = scanState
     .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
-  const source = isInOption
+  let source = isInOption
     ? (menu ? menu.id : null)
     : (decisionContext?.decisionNodeId ?? scanState.currentLabelId);
+  if (
+    !isInOption &&
+    decisionContext &&
+    decisionContext.connectedSceneId === scanState.currentLabelId &&
+    decisionContext.connectedBranchKind === decisionContext.branchKind
+  ) {
+    source = scanState.currentLabelId;
+  }
   const condition: ConditionMetadata | undefined = decisionContext
     ? {
       branchKind: decisionContext.branchKind,

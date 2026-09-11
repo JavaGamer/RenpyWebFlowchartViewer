@@ -353,15 +353,36 @@ export function splitCurrentLabelOnSceneBoundary(
         undefined,
         createDecisionConditionMetadata(activeDecision),
       );
+      activeDecision.connectedSceneId = nextSceneId;
+      activeDecision.connectedBranchKind = activeDecision.branchKind;
+      const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
+      if (!state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)) {
+        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
+      }
     } else {
       connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
     }
   } else {
+    const activeDecision = scanState
+      .conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ];
+    if (activeDecision) {
+      activeDecision.connectedSceneId = nextSceneId;
+      activeDecision.connectedBranchKind = activeDecision.branchKind;
+    }
+
     // When an if block has a menu that falls through but an else block (or other conditional
     // branch) has non-menu statements, ensure activeSceneId is still connected to nextSceneId.
     const hasMenuFallthrough = Array.from(connectedSources).some((id) =>
       id.startsWith("menu_")
     );
+    if (!hasMenuFallthrough) {
+      const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
+      if (!state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)) {
+        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
+      }
+    }
     const decisionNodeId = (state.graph.hasNode(activeSceneId) &&
       state.graph.outEdges(activeSceneId)
         .map((e) => state.graph.target(e))
@@ -410,6 +431,8 @@ export function splitCurrentLabelOnSceneBoundary(
             undefined,
             createDecisionConditionMetadata(activeDecision),
           );
+          activeDecision.connectedSceneId = nextSceneId;
+          activeDecision.connectedBranchKind = activeDecision.branchKind;
         }
         const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
         if (

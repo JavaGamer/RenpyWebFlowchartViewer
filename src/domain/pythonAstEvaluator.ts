@@ -383,8 +383,15 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
                 | "//="
                 | "**="
                 | "toggle" = detectedOp;
-              if (op === "=" && /^not\s+/.test(valueExpression)) {
-                op = "toggle";
+              if (op === "=") {
+                const toggleRegex = new RegExp(
+                  `^not\\s+(?:\\(\\s*)?${
+                    varName.replace(/\./g, "\\.")
+                  }(?:\\s*\\))?$`,
+                );
+                if (toggleRegex.test(valueExpression.trim())) {
+                  op = "toggle";
+                }
               }
 
               assignments.push({
@@ -406,23 +413,29 @@ export function parsePythonBlock(rawCode: string): PythonParsedBlock {
             const valueList = extractListLiteral(code, lastRhs);
             const valueDict = extractDictLiteral(code, lastRhs);
 
-            let op:
-              | "="
-              | "+="
-              | "-="
-              | "*="
-              | "/="
-              | "%="
-              | "//="
-              | "**="
-              | "toggle" = detectedOp;
-            if (op === "=" && /^not\s+/.test(rawRhsExpr)) {
-              op = "toggle";
-            }
-
             for (const varNode of lhsVars) {
               const variableName = extractNodeText(code, varNode);
               const valueExpression = rawRhsExpr;
+              let op:
+                | "="
+                | "+="
+                | "-="
+                | "*="
+                | "/="
+                | "%="
+                | "//="
+                | "**="
+                | "toggle" = detectedOp;
+              if (op === "=") {
+                const toggleRegex = new RegExp(
+                  `^not\\s+(?:\\(\\s*)?${
+                    variableName.replace(/\./g, "\\.")
+                  }(?:\\s*\\))?$`,
+                );
+                if (toggleRegex.test(rawRhsExpr)) {
+                  op = "toggle";
+                }
+              }
               assignments.push({
                 variable: variableName,
                 operator: op,

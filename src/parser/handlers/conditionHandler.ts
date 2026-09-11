@@ -37,6 +37,12 @@ export function resolveConditionalSource(
   const decisionContext = scanState
     .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
   if (decisionContext) {
+    if (
+      decisionContext.connectedSceneId === scanState.currentLabelId &&
+      decisionContext.connectedBranchKind === decisionContext.branchKind
+    ) {
+      return scanState.currentLabelId;
+    }
     return decisionContext.decisionNodeId;
   }
   if (meta.hasMenuOptionBlock) {
