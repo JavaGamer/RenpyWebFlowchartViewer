@@ -40,6 +40,16 @@ export const defaultCustomRulesState: CustomRulesState = {
   customRulesByVariant: createEmptyRulesByVariant(),
 };
 
+const DANGEROUS_OBJECT_KEYS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+function isUnsafeObjectKey(key: string): boolean {
+  return DANGEROUS_OBJECT_KEYS.has(key);
+}
+
 export const createCustomRulesSlice: StateCreator<
   ParserRuleSettingsStore,
   [["zustand/immer", never]],
@@ -55,7 +65,11 @@ export const createCustomRulesSlice: StateCreator<
         : (draft.selectedVariant === AUTO_PARSER_VARIANT
           ? DEFAULT_PARSER_VARIANT
           : draft.selectedVariant);
-      if (!draft.customRulesByVariant[target]) {
+      if (isUnsafeObjectKey(target)) return;
+      if (
+        !Object.hasOwn(draft.customRulesByVariant, target) ||
+        !Array.isArray(draft.customRulesByVariant[target])
+      ) {
         draft.customRulesByVariant[target] = [];
       }
       draft.customRulesByVariant[target].push({
@@ -71,8 +85,12 @@ export const createCustomRulesSlice: StateCreator<
         : (draft.selectedVariant === AUTO_PARSER_VARIANT
           ? DEFAULT_PARSER_VARIANT
           : draft.selectedVariant);
+      if (isUnsafeObjectKey(target)) return;
+      if (
+        !Object.hasOwn(draft.customRulesByVariant, target) ||
+        !Array.isArray(draft.customRulesByVariant[target])
+      ) return;
       const variantRules = draft.customRulesByVariant[target];
-      if (!variantRules) return;
       const rule = variantRules[idx];
       if (!rule) return;
       if (patch.actionName !== undefined) {
@@ -90,8 +108,13 @@ export const createCustomRulesSlice: StateCreator<
         : (draft.selectedVariant === AUTO_PARSER_VARIANT
           ? DEFAULT_PARSER_VARIANT
           : draft.selectedVariant);
+      if (isUnsafeObjectKey(target)) return;
+      if (
+        !Object.hasOwn(draft.customRulesByVariant, target) ||
+        !Array.isArray(draft.customRulesByVariant[target])
+      ) return;
       const rules = draft.customRulesByVariant[target];
-      if (!rules || idx < 0 || idx >= rules.length) return;
+      if (idx < 0 || idx >= rules.length) return;
       rules.splice(idx, 1);
     }),
 

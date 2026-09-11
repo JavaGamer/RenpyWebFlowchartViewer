@@ -6,6 +6,7 @@ import {
   RESERVED_VARIANT_IDS,
   unregisterParserVariantPlugin,
 } from "../../config/parserRules.ts";
+import { customVariantDefinitionSchema } from "../parserRuleSettingsSchemas.ts";
 import type { ParserRuleSettingsStore } from "../parserRuleSettingsStore.ts";
 
 function validateVariantId(id: string): void {
@@ -123,32 +124,34 @@ export const createCustomVariantsSlice: StateCreator<
       };
     }
     try {
-      const parsed = JSON.parse(jsonStr) as CustomVariantDefinition;
+      const parsed = JSON.parse(jsonStr);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         return { success: false, error: "Invalid JSON object." };
       }
-      validateVariantId(parsed.id);
-      if (
-        !parsed.label ||
-        typeof parsed.label !== "string" ||
-        !parsed.label.trim()
-      ) {
+      const validation = customVariantDefinitionSchema.safeParse(parsed);
+      if (!validation.success) {
+        const firstIssue = validation.error.issues[0];
+        const path = firstIssue?.path.join(".") || "definition";
         return {
           success: false,
-          error: "Variant must have a non-empty display label.",
+          error: `Validation error at ${path}: ${
+            firstIssue?.message ?? "invalid structure"
+          }`,
         };
       }
-      const plugin = compileCustomVariant(parsed);
+      const validDef = validation.data as CustomVariantDefinition;
+      validateVariantId(validDef.id);
+      const plugin = compileCustomVariant(validDef);
       registerParserVariantPlugin(plugin);
       set((draft) => {
-        const idx = draft.customVariants.findIndex((v) => v.id === parsed.id);
+        const idx = draft.customVariants.findIndex((v) => v.id === validDef.id);
         if (idx >= 0) {
-          draft.customVariants[idx] = parsed;
+          draft.customVariants[idx] = validDef;
         } else {
-          draft.customVariants.push(parsed);
+          draft.customVariants.push(validDef);
         }
       });
-      return { success: true, id: parsed.id };
+      return { success: true, id: validDef.id };
     } catch (err) {
       return { success: false, error: (err as Error).message };
     }

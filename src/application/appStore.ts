@@ -37,6 +37,9 @@ export interface AppState {
   availableLanguages: string[];
   parsedVariant: string | null;
   isVariantAutoDetected: boolean;
+  variantDetectionResult:
+    | import("../config/parserRules.ts").VariantDetectionResult
+    | null;
   isReparsing: boolean;
 }
 
@@ -69,6 +72,8 @@ export interface AppActions {
     meta?: {
       parsedVariant?: string;
       isVariantAutoDetected?: boolean;
+      variantDetectionResult?:
+        import("../config/parserRules.ts").VariantDetectionResult;
       preserveSession?: boolean;
     },
   ) => void;

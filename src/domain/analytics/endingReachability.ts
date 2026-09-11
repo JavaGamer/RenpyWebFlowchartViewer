@@ -8,10 +8,20 @@ import type {
 export function classifyEndingTypeHeuristic(
   label?: string,
   node?: FlowNode,
+  variantEndingRules?: readonly { pattern: RegExp; endingType: EndingType }[],
 ): EndingType {
   const safeLabel = label ?? node?.label ?? "";
   const text = `${safeLabel} ${node?.dialogueLines?.join(" ") ?? ""}`
     .toLowerCase();
+
+  if (variantEndingRules && variantEndingRules.length > 0) {
+    for (const rule of variantEndingRules) {
+      rule.pattern.lastIndex = 0;
+      if (rule.pattern.test(safeLabel) || rule.pattern.test(text)) {
+        return rule.endingType;
+      }
+    }
+  }
 
   if (
     /(?:^|_|\b)(true|best|perfect|golden)(?:_|\b|$)/i.test(safeLabel) ||
@@ -61,6 +71,7 @@ export function discoverTerminalEndings(
   nodes: FlowNode[],
   edges: FlowEdge[],
   customTags: Record<string, EndingType> = {},
+  variantEndingRules?: readonly { pattern: RegExp; endingType: EndingType }[],
 ): {
   endingMap: Map<string, EndingSummary>;
   reachableEndings: EndingSummary[];
@@ -90,13 +101,14 @@ export function discoverTerminalEndings(
     );
 
     const isTerminal = node.isTerminalOutcome === true ||
-      (!hasForwardFlow && node.role === "story") ||
-      (outgoing.length === 0);
+      (node.role === "story" && (!hasForwardFlow || outgoing.length === 0));
 
     if (isTerminal) {
-      const customTag = customTags[node.id];
+      const customTag = typeof customTags[node.id] === "string"
+        ? customTags[node.id]
+        : undefined;
       const endingType = customTag ??
-        classifyEndingTypeHeuristic(node.label, node);
+        classifyEndingTypeHeuristic(node.label, node, variantEndingRules);
 
       const summary: EndingSummary = {
         nodeId: node.id,

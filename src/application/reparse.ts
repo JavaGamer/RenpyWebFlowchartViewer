@@ -46,13 +46,21 @@ export async function reparseUploadedFiles(
   const parseAbortControllerRef = { current: null as AbortController | null };
 
   const selectedVariant = ruleSettings.selectedVariant;
-  const customRulesByVariant = ruleSettings.customRulesByVariant;
+  const customRulesByVariant = ruleSettings.customRulesByVariant ?? {};
   const effectiveKey = selectedVariant === "auto"
     ? (store.parsedVariant ?? "renpy")
     : selectedVariant;
+  const autoRules = Object.hasOwn(customRulesByVariant, "auto") &&
+      Array.isArray(customRulesByVariant["auto"])
+    ? customRulesByVariant["auto"]
+    : [];
+  const variantRules = Object.hasOwn(customRulesByVariant, effectiveKey) &&
+      Array.isArray(customRulesByVariant[effectiveKey])
+    ? customRulesByVariant[effectiveKey]
+    : [];
   const selectedVariantCustomRules = [
-    ...(customRulesByVariant["auto"] ?? []),
-    ...(customRulesByVariant[effectiveKey] ?? []),
+    ...autoRules,
+    ...variantRules,
   ];
 
   const parseService = options.parseService ?? workerParseService;

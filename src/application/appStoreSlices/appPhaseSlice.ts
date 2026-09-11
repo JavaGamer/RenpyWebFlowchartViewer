@@ -51,6 +51,7 @@ export const createAppPhaseSlice: StateCreator<
       draft.availableLanguages = [];
       draft.parsedVariant = null;
       draft.isVariantAutoDetected = false;
+      draft.variantDetectionResult = null;
     });
   },
 

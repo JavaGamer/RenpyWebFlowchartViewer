@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -70,12 +71,14 @@ export function ParserVariantInfoSettings() {
   const {
     parsedVariant,
     isVariantAutoDetected,
+    variantDetectionResult,
     parseDiagnostics,
     isReparsing,
   } = useAppStore(
     useShallow((s) => ({
       parsedVariant: s.parsedVariant,
       isVariantAutoDetected: s.isVariantAutoDetected,
+      variantDetectionResult: s.variantDetectionResult,
       parseDiagnostics: s.parseDiagnostics,
       isReparsing: s.isReparsing,
     })),
@@ -98,6 +101,7 @@ export function ParserVariantInfoSettings() {
 
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [editorExpanded, setEditorExpanded] = useState(false);
+  const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState<
     CustomVariantDefinition | null
@@ -121,7 +125,11 @@ export function ParserVariantInfoSettings() {
   );
 
   const activeVariantRules = useMemo(
-    () => customRulesByVariant[effectiveVariant] ?? [],
+    () =>
+      Object.hasOwn(customRulesByVariant, effectiveVariant) &&
+        Array.isArray(customRulesByVariant[effectiveVariant])
+        ? customRulesByVariant[effectiveVariant]
+        : [],
     [customRulesByVariant, effectiveVariant],
   );
 
@@ -186,7 +194,10 @@ export function ParserVariantInfoSettings() {
   ) => {
     if (isReparsing || !hasUploadedFilesCache()) return;
     const variantKey = effectiveVariant;
-    const existingRules = customRulesByVariant[variantKey] ?? [];
+    const existingRules = Object.hasOwn(customRulesByVariant, variantKey) &&
+        Array.isArray(customRulesByVariant[variantKey])
+      ? customRulesByVariant[variantKey]
+      : [];
     const existingIdx = existingRules.findIndex(
       (r) => r.actionName.toLowerCase() === actionName.toLowerCase(),
     );
@@ -196,7 +207,10 @@ export function ParserVariantInfoSettings() {
     } else {
       // Add new rule
       useParserRuleSettingsStore.setState((state) => {
-        if (!state.customRulesByVariant[variantKey]) {
+        if (
+          !Object.hasOwn(state.customRulesByVariant, variantKey) ||
+          !Array.isArray(state.customRulesByVariant[variantKey])
+        ) {
           state.customRulesByVariant[variantKey] = [];
         }
         state.customRulesByVariant[variantKey].push({
@@ -348,10 +362,37 @@ export function ParserVariantInfoSettings() {
             </span>
           </div>
 
-          <p className="text-[11px] leading-relaxed opacity-90">
-            The parser detected unrecognized screen actions. Map them with
-            1-click to connect missing flowchart branches instantly:
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] leading-relaxed opacity-90">
+              The parser detected unrecognized screen actions. Map them with
+              1-click to connect missing flowchart branches instantly:
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                const initialDef: CustomVariantDefinition = {
+                  id: `${effectiveVariant}-custom`,
+                  label: `${plugin.label} (Customized)`,
+                  baseVariant: effectiveVariant,
+                  screenActionRules: unmappedActions.map((u) => ({
+                    actionName: u.actionName,
+                    actionKind: "jump",
+                  })),
+                };
+                setEditingVariant(initialDef);
+                setIsModalOpen(true);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors shrink-0",
+                isDark
+                  ? "bg-amber-900/60 border-amber-700 text-amber-200 hover:bg-amber-900"
+                  : "bg-white border-amber-300 text-amber-900 hover:bg-amber-100/50 shadow-xs",
+              )}
+            >
+              <Plus size={12} />
+              <span>Create Custom Variant from Diagnostics</span>
+            </button>
+          </div>
 
           <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
             {unmappedActions.map((unmapped) => (
@@ -508,6 +549,22 @@ export function ParserVariantInfoSettings() {
             >
               {isVariantAutoDetected ? "Auto" : "Manual"}
             </span>
+
+            {isVariantAutoDetected &&
+              variantDetectionResult?.confidence != null && (
+              <span
+                data-testid="detection-confidence-pill"
+                className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+                  isDark
+                    ? "bg-emerald-950/60 border-emerald-700 text-emerald-300"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-800",
+                )}
+                title={variantDetectionResult.summary}
+              >
+                {variantDetectionResult.confidence}% Confidence
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 ml-auto">
@@ -608,6 +665,120 @@ export function ParserVariantInfoSettings() {
           >
             {plugin.description}
           </p>
+        )}
+
+        {/* Detection Evidence Breakdown Collapsible */}
+        {variantDetectionResult && (
+          <div className="pt-2 border-t border-dashed border-gray-200 dark:border-slate-700">
+            <button
+              type="button"
+              data-testid="detection-evidence-toggle"
+              onClick={() => setEvidenceExpanded((prev) => !prev)}
+              className={cn(
+                "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none",
+                isDark
+                  ? "text-slate-300 hover:text-slate-100"
+                  : "text-gray-700 hover:text-gray-900",
+              )}
+            >
+              <span className="flex items-center gap-1.5">
+                <Sparkles size={12} className="text-violet-500 shrink-0" />
+                <span>Detection Evidence &amp; Signals</span>
+              </span>
+              {evidenceExpanded
+                ? <ChevronUp size={12} />
+                : <ChevronDown size={12} />}
+            </button>
+
+            {evidenceExpanded && (
+              <div
+                data-testid="detection-evidence-panel"
+                className="mt-2 space-y-2 p-2.5 rounded-lg border bg-gray-50/70 dark:bg-slate-900/60 dark:border-slate-800 text-[11px]"
+              >
+                <p className="italic text-gray-600 dark:text-slate-400">
+                  {variantDetectionResult.summary}
+                </p>
+
+                {variantDetectionResult.evidence.matchedPragma && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-violet-600 dark:text-violet-400">
+                      Pragma Directive:
+                    </span>
+                    <span className="font-mono bg-violet-100 dark:bg-violet-950/80 px-1.5 py-0.5 rounded border border-violet-200 dark:border-violet-800">
+                      # @variant:{" "}
+                      {variantDetectionResult.evidence.matchedPragma}
+                    </span>
+                  </div>
+                )}
+
+                {variantDetectionResult.evidence.matchedPathPatterns.length >
+                    0 && (
+                  <div>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Matched File Heuristics:
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {variantDetectionResult.evidence.matchedPathPatterns.map((
+                        pat,
+                        i,
+                      ) => (
+                        <span
+                          key={i}
+                          className="font-mono text-[10px] px-1.5 py-0.5 rounded border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700"
+                        >
+                          {pat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {variantDetectionResult.evidence.matchedKeywords.length > 0 && (
+                  <div>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Script Keyword Signals:
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {variantDetectionResult.evidence.matchedKeywords.map((
+                        kw,
+                        i,
+                      ) => (
+                        <span
+                          key={i}
+                          className="font-mono text-[10px] px-1.5 py-0.5 rounded border bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
+                        >
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {variantDetectionResult.scores.length > 0 && (
+                  <div className="pt-1.5 border-t border-gray-200 dark:border-slate-800">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Scored Candidates:
+                    </span>
+                    <div className="space-y-1 mt-1">
+                      {variantDetectionResult.scores.map((cand) => (
+                        <div
+                          key={cand.variant}
+                          className="flex items-center justify-between text-[10px]"
+                        >
+                          <span className="font-mono">
+                            {cand.label} ({cand.variant})
+                          </span>
+                          <span className="font-semibold text-violet-600 dark:text-violet-400">
+                            Score {cand.score} ({cand.confidence}%)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Staging Directives */}

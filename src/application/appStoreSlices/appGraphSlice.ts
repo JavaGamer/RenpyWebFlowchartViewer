@@ -6,6 +6,7 @@ import type {
   ProjectTranslations,
 } from "../../domain/index.ts";
 import type { ParseDiagnosticPayload } from "../../infrastructure/index.ts";
+import type { VariantDetectionResult } from "../../config/parserRules.ts";
 import type { AppStore } from "../appStore.ts";
 
 export interface AppGraphState {
@@ -17,6 +18,7 @@ export interface AppGraphState {
   availableLanguages: string[];
   parsedVariant: string | null;
   isVariantAutoDetected: boolean;
+  variantDetectionResult: VariantDetectionResult | null;
 }
 
 export interface AppGraphActions {
@@ -43,6 +45,7 @@ export interface AppGraphActions {
     meta?: {
       parsedVariant?: string;
       isVariantAutoDetected?: boolean;
+      variantDetectionResult?: VariantDetectionResult;
       preserveSession?: boolean;
     },
   ) => void;
@@ -60,6 +63,7 @@ export const defaultAppGraphState: AppGraphState = {
   availableLanguages: [],
   parsedVariant: null,
   isVariantAutoDetected: false,
+  variantDetectionResult: null,
 };
 
 export const createAppGraphSlice: StateCreator<
@@ -112,6 +116,7 @@ export const createAppGraphSlice: StateCreator<
       }
       draft.parsedVariant = meta?.parsedVariant ?? null;
       draft.isVariantAutoDetected = meta?.isVariantAutoDetected ?? false;
+      draft.variantDetectionResult = meta?.variantDetectionResult ?? null;
     }),
 
   setTranslations: (translations) =>

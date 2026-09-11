@@ -14,6 +14,7 @@ import {
   AUTO_PARSER_VARIANT,
   DEFAULT_PARSER_VARIANT,
   detectParserVariant,
+  type DetectVariantInput,
   FALLBACK_PARSER_VARIANT,
   toScreenActionRuleMap,
 } from "../config/parserRules.ts";
@@ -116,19 +117,28 @@ export async function parseRenpyFiles(
   const rawVariant = options.parserVariant ?? DEFAULT_PARSER_VARIANT;
   const isAutoVariant = rawVariant === AUTO_PARSER_VARIANT;
 
-  function* getFileContentStrings(): Iterable<string> {
+  function* getDetectionInputs(): Iterable<DetectVariantInput> {
     for (const f of orderedFiles) {
+      let text = "";
       if (typeof f.content === "string") {
-        yield f.content;
+        text = f.content;
       } else if (f.content) {
-        yield new TextDecoder("utf-8").decode(f.content);
+        text = new TextDecoder("utf-8").decode(f.content);
       }
+      yield {
+        name: f.name,
+        path: f.relativePath ?? f.name,
+        content: text,
+      };
     }
   }
 
-  const effectiveVariant = isAutoVariant
-    ? detectParserVariant(getFileContentStrings()).variant
-    : rawVariant ?? FALLBACK_PARSER_VARIANT;
+  const detectionResult = isAutoVariant
+    ? detectParserVariant(getDetectionInputs(), FALLBACK_PARSER_VARIANT)
+    : undefined;
+  const effectiveVariant = detectionResult
+    ? detectionResult.variant
+    : (rawVariant ?? FALLBACK_PARSER_VARIANT);
   state.parserVariant = effectiveVariant;
   state.screenActionRuleMap = toScreenActionRuleMap(
     effectiveVariant,
@@ -223,6 +233,7 @@ export async function parseRenpyFiles(
       ? {
         detectedVariant: effectiveVariant,
         autoDetected: isAutoVariant,
+        ...(detectionResult ? { variantDetectionResult: detectionResult } : {}),
       }
       : {}),
   };

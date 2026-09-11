@@ -18,6 +18,7 @@ import type {
   ParserVariant,
   ScreenActionKind,
   ScreenActionRule,
+  VariantDetectionResult,
 } from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
@@ -395,6 +396,7 @@ export interface ParseResult {
   availableLanguages?: string[];
   detectedVariant?: string;
   autoDetected?: boolean;
+  variantDetectionResult?: VariantDetectionResult;
 }
 
 export interface ParseProgress {

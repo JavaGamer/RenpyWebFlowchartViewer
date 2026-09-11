@@ -1,5 +1,6 @@
 import type { FlowNode } from "../domain/index.ts";
 import type { ParseGraphState } from "./pipelineTypes.ts";
+import { getParserVariantPlugin } from "../config/parserRules.ts";
 
 /**
  * Assigns a specific semantic role to a flowchart node based on its AST type and graph topology.
@@ -9,7 +10,8 @@ import type { ParseGraphState } from "./pipelineTypes.ts";
  *    - `state_toggle`: A label that returns without any linear narrative sequence or jump traffic,
  *      typically representing side-effect logic (e.g. setting variables, updating state).
  *    - `detour`: An optional story branch called from menu options that returns flow to the menu caller.
- *    - `utility`: A reusable subroutine (e.g. a shared cutscene or system helper) called from multiple locations.
+ *    - `utility`: A reusable subroutine (e.g. a shared cutscene or system helper) called from multiple locations,
+ *      or explicitly matched by the variant's utilityLabelPatterns.
  *    - `story`: Standard sequential blocks in the main storyline.
  *
  * @param state The global parser graph assembly state containing incoming/outgoing traffic collections.
@@ -25,6 +27,19 @@ export function classifyNodeRole(
     if (node.condition?.branchKind === "while") return "while_loop";
     if (node.condition?.branchKind === "for") return "for_loop";
     return "decision";
+  }
+
+  // Check variant utilityLabelPatterns
+  if (state.parserVariant) {
+    const plugin = getParserVariantPlugin(state.parserVariant);
+    if (plugin.utilityLabelPatterns && plugin.utilityLabelPatterns.length > 0) {
+      for (const pattern of plugin.utilityLabelPatterns) {
+        pattern.lastIndex = 0;
+        if (pattern.test(node.label)) {
+          return "utility";
+        }
+      }
+    }
   }
 
   const incoming = state.incomingByLabel.get(node.id);

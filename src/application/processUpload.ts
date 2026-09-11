@@ -29,6 +29,7 @@ import {
   AUTO_PARSER_VARIANT,
   compileCustomVariant,
   detectParserVariant,
+  type DetectVariantInput,
   FALLBACK_PARSER_VARIANT,
   type ParserVariant,
   resolveCustomRulesForVariant,
@@ -36,6 +37,7 @@ import {
   type ScreenActionRule,
   type SerializableParserVariantPlugin,
   serializeVariantPlugin,
+  type VariantDetectionResult,
 } from "../config/parserRules.ts";
 import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
 import { extractRpyFilesFromZip } from "./zipExtractor.ts";
@@ -222,28 +224,46 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       actions.startReading(orderedRpyFiles.length);
     }
 
+    let variantDetectionResult: VariantDetectionResult | undefined;
     if (isAutoDetected) {
+      const samples: DetectVariantInput[] = [];
       for (const f of orderedRpyFiles) {
         if (!isActiveRun()) return;
         try {
           let sample = "";
           if (f.file && typeof f.file.slice === "function") {
-            sample = await f.file.slice(0, 2048).text();
+            sample = await f.file.slice(0, 4096).text();
           } else {
-            sample = (await f.text()).slice(0, 2048);
+            sample = (await f.text()).slice(0, 4096);
           }
-          const detection = detectParserVariant([sample], AUTO_PARSER_VARIANT);
-          if (detection.variant !== AUTO_PARSER_VARIANT) {
-            effectiveVariant = detection.variant;
-            break;
-          }
+          samples.push({
+            name: f.name,
+            path: f.webkitRelativePath || f.name,
+            contentSample: sample,
+          });
         } catch {
           // Non-fatal if sample sniff fails; actual file reading below will handle errors
         }
       }
-      if (effectiveVariant === AUTO_PARSER_VARIANT) {
-        effectiveVariant = FALLBACK_PARSER_VARIANT;
-      }
+      variantDetectionResult = detectParserVariant(
+        samples,
+        FALLBACK_PARSER_VARIANT,
+      );
+      effectiveVariant = variantDetectionResult.variant;
+    } else {
+      variantDetectionResult = {
+        variant: effectiveVariant,
+        isAutoDetected: false,
+        confidencePercent: 100,
+        confidence: 100,
+        summary: `Manually configured variant: ${effectiveVariant}`,
+        evidenceSummary: `Manually configured variant: ${effectiveVariant}`,
+        scores: [],
+        evidence: {
+          matchedPathPatterns: [],
+          matchedKeywords: [],
+        },
+      };
     }
 
     // Broadcast discovered files to the UI
@@ -512,6 +532,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         {
           parsedVariant: finalVariant,
           isVariantAutoDetected: isAutoDetected,
+          variantDetectionResult,
           ...(shouldPreserveSession ? { preserveSession: true } : {}),
         },
       );
@@ -524,6 +545,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         {
           parsedVariant: finalVariant,
           isVariantAutoDetected: isAutoDetected,
+          variantDetectionResult,
           ...(shouldPreserveSession ? { preserveSession: true } : {}),
         },
       );

@@ -194,10 +194,10 @@ describe("createProcessUpload", () => {
       [],
       [],
       undefined,
-      {
+      expect.objectContaining({
         isVariantAutoDetected: true,
         parsedVariant: "renpy",
-      },
+      }),
     );
     expect(onParseMeasured).toHaveBeenCalledWith({
       fileCount: 2,

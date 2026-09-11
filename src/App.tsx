@@ -33,6 +33,7 @@ export default function App() {
     importRevision,
     parsedVariant,
     isVariantAutoDetected,
+    variantDetectionResult,
     isReparsing,
   } = useAppStore(
     useShallow((s) => ({
@@ -44,6 +45,7 @@ export default function App() {
       importRevision: s.importRevision,
       parsedVariant: s.parsedVariant,
       isVariantAutoDetected: s.isVariantAutoDetected,
+      variantDetectionResult: s.variantDetectionResult,
       isReparsing: s.isReparsing,
     })),
   );
@@ -122,13 +124,20 @@ export default function App() {
                       : "bg-white border-violet-200 text-violet-800 shadow-sm hover:bg-violet-50",
                   )}
                   title={isVariantAutoDetected
-                    ? `Variant was auto-detected (${displayVariantName}). Click to view or change settings.`
+                    ? `Variant was auto-detected (${displayVariantName}${
+                      variantDetectionResult?.confidence != null
+                        ? ` • ${variantDetectionResult.confidence}% confidence`
+                        : ""
+                    }). Click to view or change settings.`
                     : `Configured variant: ${displayVariantName}. Click to view or change settings.`}
                 >
                   Variant: {displayVariantName}
                   {isVariantAutoDetected && (
                     <span className="ml-1 opacity-75 font-normal">
                       (auto-detected)
+                      {variantDetectionResult?.confidence != null
+                        ? ` • ${variantDetectionResult.confidence}%`
+                        : ""}
                     </span>
                   )}
                 </button>

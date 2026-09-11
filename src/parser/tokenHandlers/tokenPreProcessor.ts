@@ -5,10 +5,12 @@ import {
 } from "../utils/lineUtils.ts";
 import { handleCallScreenStatement } from "../handlers/screenFlowHandler.ts";
 import type {
+  MutationOperator,
   ParseGraphState,
   ParserVariant,
   ParseScanState,
   TokenMetaFlags,
+  VariableValue,
 } from "../pipelineTypes.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
 import {
@@ -70,6 +72,116 @@ function findMatchingBranchRule(
       const rawTarget = raw?.replace(/^["']|["']$/g, "").trim();
       if (rawTarget && /^(\.)?[A-Za-z_][A-Za-z0-9_.]*$/.test(rawTarget)) {
         return { rule, target: rawTarget };
+      }
+    }
+  }
+  return null;
+}
+
+function findMatchingChoiceDirective(
+  trimmed: string,
+  variant?: ParserVariant,
+): { target: string; durationSeconds?: number; title?: string } | null {
+  const plugin = getParserVariantPlugin(variant);
+  if (plugin.choiceDirectives && plugin.choiceDirectives.length > 0) {
+    for (const rule of plugin.choiceDirectives) {
+      const pattern = typeof rule.pattern === "string"
+        ? ((rule as unknown as { pattern: RegExp }).pattern = new RegExp(
+          rule.pattern,
+          "i",
+        ))
+        : rule.pattern;
+      pattern.lastIndex = 0;
+      const match = pattern.exec(trimmed);
+      if (match) {
+        const target = match[rule.targetGroup]?.trim();
+        if (target) {
+          const cleanTarget = target.replace(/^["']|["']$/g, "").trim();
+          const duration = rule.durationGroup && match[rule.durationGroup]
+            ? parseFloat(match[rule.durationGroup]!)
+            : undefined;
+          const rawTitle = rule.captionGroup
+            ? match[rule.captionGroup]
+            : undefined;
+          const title = rawTitle
+            ? rawTitle
+              .replace(/\s*#.*$/, "")
+              .trim()
+              .replace(/^["']|["']$/g, "")
+              .replace(/\\(["'\\])/g, "$1")
+              .trim() || undefined
+            : undefined;
+          return {
+            target: cleanTarget,
+            durationSeconds: Number.isFinite(duration) ? duration : undefined,
+            title,
+          };
+        }
+      }
+    }
+  }
+  TIMED_CHOICE_REGEX.lastIndex = 0;
+  const timedChoiceMatch = TIMED_CHOICE_REGEX.exec(trimmed);
+  if (timedChoiceMatch) {
+    const durationSeconds = parseFloat(timedChoiceMatch[1]!);
+    const target = timedChoiceMatch[2]!;
+    const rawTitle = timedChoiceMatch[3] ?? timedChoiceMatch[4] ??
+      timedChoiceMatch[5];
+    const title = rawTitle
+      ? rawTitle.replace(/\\(["'\\])/g, "$1").trim() || undefined
+      : undefined;
+    return { durationSeconds, target, title };
+  }
+  return null;
+}
+
+function findMatchingVariableMutation(
+  trimmed: string,
+  variant?: ParserVariant,
+):
+  | { variableName: string; operator: MutationOperator; value: VariableValue }
+  | null {
+  const plugin = getParserVariantPlugin(variant);
+  if (!plugin.variableMutations || plugin.variableMutations.length === 0) {
+    return null;
+  }
+  for (const rule of plugin.variableMutations) {
+    const pattern = typeof rule.pattern === "string"
+      ? ((rule as unknown as { pattern: RegExp }).pattern = new RegExp(
+        rule.pattern,
+        "i",
+      ))
+      : rule.pattern;
+    pattern.lastIndex = 0;
+    const match = pattern.exec(trimmed);
+    if (match) {
+      const varName = rule.variableName ??
+        (rule as unknown as { targetVariable?: string }).targetVariable ??
+        (rule.variableGroup !== undefined
+          ? match[rule.variableGroup]?.trim()
+          : undefined);
+      if (varName) {
+        let val: VariableValue = rule.constantValue ?? true;
+        if (
+          rule.valueGroup !== undefined && match[rule.valueGroup] !== undefined
+        ) {
+          const rawVal = match[rule.valueGroup]!.trim();
+          if (rawVal.toLowerCase() === "true") val = true;
+          else if (rawVal.toLowerCase() === "false") val = false;
+          else if (!isNaN(Number(rawVal)) && rawVal !== "") {
+            val = Number(rawVal);
+          } else val = rawVal.replace(/^["']|["']$/g, "");
+        }
+        const legacyType =
+          (rule as unknown as { mutationType?: string }).mutationType;
+        let op: MutationOperator = rule.operator ?? "=";
+        if (legacyType === "add") op = "+=";
+        else if (legacyType === "subtract") op = "-=";
+        return {
+          variableName: varName,
+          operator: op,
+          value: val,
+        };
       }
     }
   }
@@ -274,21 +386,16 @@ export function handlePreTokenLineStatements(
         sourceLocation,
       );
     } else {
-      TIMED_CHOICE_REGEX.lastIndex = 0;
-      const timedChoiceMatch = TIMED_CHOICE_REGEX.exec(trimmed);
-      if (timedChoiceMatch) {
+      const choiceMatch = findMatchingChoiceDirective(
+        trimmed,
+        scanState.parserVariant,
+      );
+      if (choiceMatch) {
         scanState.lastProcessedCustomLineNum = lineNum;
-        const durationSeconds = parseFloat(timedChoiceMatch[1]!);
-        const target = timedChoiceMatch[2]!;
-        const rawTitle = timedChoiceMatch[3] ?? timedChoiceMatch[4] ??
-          timedChoiceMatch[5];
-        const title = rawTitle
-          ? rawTitle.replace(/\\(["'\\])/g, "$1").trim() || undefined
-          : undefined;
         scanState.pendingTimedChoice = {
-          durationSeconds,
-          target,
-          title,
+          durationSeconds: choiceMatch.durationSeconds ?? 0,
+          target: choiceMatch.target,
+          title: choiceMatch.title,
           lineNum,
           sourceLocation,
         };
@@ -372,6 +479,31 @@ export function handlePreTokenLineStatements(
               });
               addOutgoing(state, scanState.currentLabelId, "sequence");
               addIncoming(state, loopContext.decisionNodeId, "sequence");
+            }
+          } else {
+            const varMut = findMatchingVariableMutation(
+              trimmed,
+              scanState.parserVariant,
+            );
+            if (varMut && scanState.currentLabelId) {
+              scanState.lastProcessedCustomLineNum = lineNum;
+              if (!state.nodeMutations) {
+                state.nodeMutations = new Map();
+              }
+              let muts = state.nodeMutations.get(scanState.currentLabelId);
+              if (!muts) {
+                muts = [];
+                state.nodeMutations.set(scanState.currentLabelId, muts);
+              }
+              muts.push({
+                variableName: varMut.variableName,
+                operator: varMut.operator,
+                value: varMut.value,
+                rawExpression: trimmed,
+                nodeId: scanState.currentLabelId,
+                lineNum,
+                isPersistent: varMut.variableName.startsWith("persistent."),
+              });
             }
           }
         }
