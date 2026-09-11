@@ -10,12 +10,18 @@ import {
   workerParseService,
 } from "../infrastructure/index.ts";
 import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
+import { hasUploadedFilesCache, reparseUploadedFiles } from "./reparse.ts";
 
 export interface UseUploadOrchestratorResult {
   uploadedFiles: UploadFileStatus[];
   setUploadedFiles: React.Dispatch<React.SetStateAction<UploadFileStatus[]>>;
-  processFiles: (files: FileList | UploadedFile[] | null) => Promise<void>;
+  processFiles: (
+    files: FileList | UploadedFile[] | null,
+    options?: { preserveSession?: boolean },
+  ) => Promise<void>;
+  reparse: () => Promise<boolean>;
   cancelParsing: () => void;
+  hasCachedFiles: boolean;
 }
 
 export function useUploadOrchestrator(): UseUploadOrchestratorResult {
@@ -53,6 +59,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
       reset: s.reset,
       startReading: s.startReading,
       startParsing: s.startParsing,
+      setIsReparsing: s.setIsReparsing,
       setProgress: s.setProgress,
       partialParseSuccess: s.partialParseSuccess,
       parseSuccess: s.parseSuccess,
@@ -82,7 +89,10 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
   }, []);
 
   const processFiles = useCallback(
-    async (files: FileList | UploadedFile[] | null) => {
+    async (
+      files: FileList | UploadedFile[] | null,
+      options?: { preserveSession?: boolean },
+    ) => {
       useTelemetryStore.getState().reset();
       preWarmLayoutWorker();
       perf.mark("read");
@@ -95,6 +105,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
         parserVariant: selectedVariant,
         customRulesByVariant,
         customScreenActionRules: selectedVariantCustomRules,
+        preserveSession: options?.preserveSession,
         onReadMeasured: (fileCount) => {
           perf.measure("read", "read_files_ms", { files: fileCount });
         },
@@ -117,7 +128,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
           );
         },
       });
-      await process(files);
+      await process(files, options);
     },
     [
       appActions,
@@ -133,6 +144,8 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
     uploadedFiles,
     setUploadedFiles,
     processFiles,
+    reparse: reparseUploadedFiles,
     cancelParsing,
+    hasCachedFiles: hasUploadedFilesCache(),
   };
 }

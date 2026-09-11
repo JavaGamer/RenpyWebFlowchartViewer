@@ -40,7 +40,11 @@ export interface AppGraphActions {
     edges: FlowEdge[],
     diagnostics?: ParseDiagnosticPayload[],
     translations?: ProjectTranslations | null,
-    meta?: { parsedVariant?: string; isVariantAutoDetected?: boolean },
+    meta?: {
+      parsedVariant?: string;
+      isVariantAutoDetected?: boolean;
+      preserveSession?: boolean;
+    },
   ) => void;
   setTranslations: (translations: ProjectTranslations | null) => void;
 }
@@ -96,13 +100,16 @@ export const createAppGraphSlice: StateCreator<
   parseSuccess: (nodes, edges, diagnostics, translations, meta) =>
     set((draft) => {
       draft.phase = "done";
+      draft.isReparsing = false;
       draft.flowNodes = nodes;
       draft.flowEdges = edges;
       draft.parseDiagnostics = diagnostics ?? [];
       draft.translations = translations ?? null;
       draft.availableLanguages = translations?.availableLanguages ?? [];
       draft.parseProgress = null;
-      draft.importRevision += 1;
+      if (!meta?.preserveSession) {
+        draft.importRevision += 1;
+      }
       draft.parsedVariant = meta?.parsedVariant ?? null;
       draft.isVariantAutoDetected = meta?.isVariantAutoDetected ?? false;
     }),

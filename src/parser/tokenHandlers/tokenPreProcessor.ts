@@ -11,13 +11,18 @@ import type {
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
 import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
-import { emitJumpEdge } from "../handlers/jumpCallHandler.ts";
+import {
+  emitCallEdge,
+  emitJumpEdge,
+  resolveCallContext,
+} from "../handlers/jumpCallHandler.ts";
 import { menuAtDepth } from "../scanTransitions.ts";
 import {
   evaluatePythonAstExpression,
   type SourceLocation,
 } from "../../domain/index.ts";
 import {
+  type BranchStatementRule,
   getParserVariantPlugin,
   type TerminalStatementRule,
 } from "../../config/parserRules.ts";
@@ -39,6 +44,34 @@ function findMatchingTerminalRule(
   });
   if (rule) {
     return { matched: true, rule };
+  }
+  return null;
+}
+
+function findMatchingBranchRule(
+  trimmed: string,
+  variant?: ParserVariant,
+): { rule: BranchStatementRule; target: string } | null {
+  const plugin = getParserVariantPlugin(variant);
+  if (!plugin.branchStatements) return null;
+  // Cap length to prevent ReDoS on massive lines
+  const bounded = trimmed.slice(0, 512);
+  for (const rule of plugin.branchStatements) {
+    const pattern = typeof rule.pattern === "string"
+      ? ((rule as unknown as { pattern: RegExp }).pattern = new RegExp(
+        rule.pattern,
+      ))
+      : rule.pattern;
+    pattern.lastIndex = 0;
+    const match = pattern.exec(bounded);
+    if (match && match.index === 0) {
+      const groupIdx = rule.targetGroup ?? 1;
+      const raw = match[groupIdx]?.trim();
+      const rawTarget = raw?.replace(/^["']|["']$/g, "").trim();
+      if (rawTarget && /^(\.)?[A-Za-z_][A-Za-z0-9_.]*$/.test(rawTarget)) {
+        return { rule, target: rawTarget };
+      }
+    }
   }
   return null;
 }
@@ -107,13 +140,21 @@ export function isNonBranchingStagingStatement(
   if (!trimmed || trimmed.startsWith("#")) {
     return true;
   }
+  const plugin = getParserVariantPlugin(variant);
+  if (plugin.branchStatements) {
+    for (const rule of plugin.branchStatements) {
+      rule.pattern.lastIndex = 0;
+      if (rule.pattern.test(trimmed)) {
+        return false;
+      }
+    }
+  }
   if (
     /^(?:play|queue|stop|voice|show|hide|with|window|scene|pause|camera|nvl|outfit|accessory|pass)\b/i
       .test(trimmed)
   ) {
     return true;
   }
-  const plugin = getParserVariantPlugin(variant);
   if (plugin.stagingRegex?.test(trimmed)) {
     return true;
   }
@@ -137,6 +178,10 @@ export function handlePreTokenLineStatements(
   menuDepth: number,
   sourceLocation?: SourceLocation,
 ): void {
+  if (meta.hasLabelStatement || /^\s*label\b/i.test(lineText)) {
+    return;
+  }
+
   if (scanState.currentLabelId && sourceLocation) {
     const activeNode = state.nodeMap.get(scanState.currentLabelId);
     if (activeNode) {
@@ -247,54 +292,88 @@ export function handlePreTokenLineStatements(
           lineNum,
           sourceLocation,
         };
-      } else if (findMatchingTerminalRule(trimmed, scanState.parserVariant)) {
-        const terminalMatch = findMatchingTerminalRule(
-          trimmed,
-          scanState.parserVariant,
-        );
-        const matchedTerminal = terminalMatch?.rule;
-        scanState.lastProcessedCustomLineNum = lineNum;
-        if (matchedTerminal?.labelHasExplicitExit !== false) {
-          scanState.labelHasExplicitExit = true;
-        }
-        if (matchedTerminal?.isTerminalOutcome) {
-          const activeNode = scanState.currentLabelId
-            ? state.nodeMap.get(scanState.currentLabelId)
-            : undefined;
-          if (activeNode) {
-            activeNode.isTerminalOutcome = true;
+      } else {
+        const isExcludedFromTerminal = trimmed.startsWith("#") ||
+          meta.hasSayStatement ||
+          meta.hasSayCharacter ||
+          meta.hasSayNarrator ||
+          meta.hasPythonBlock ||
+          meta.hasMenuOption;
+
+        const terminalMatch = !isExcludedFromTerminal
+          ? findMatchingTerminalRule(trimmed, scanState.parserVariant)
+          : null;
+
+        if (terminalMatch) {
+          const matchedTerminal = terminalMatch.rule;
+          scanState.lastProcessedCustomLineNum = lineNum;
+          if (matchedTerminal?.labelHasExplicitExit !== false) {
+            scanState.labelHasExplicitExit = true;
           }
-        }
-        if (meta.hasMenuOptionBlock) {
-          const menu = menuAtDepth(scanState.menuStack, menuDepth);
-          if (menu && menu.options && menu.options.length > 0) {
-            const lastOpt = menu.options[menu.options.length - 1];
-            if (lastOpt) {
-              lastOpt.hasExit = true;
+          if (matchedTerminal?.isTerminalOutcome) {
+            const activeNode = scanState.currentLabelId
+              ? state.nodeMap.get(scanState.currentLabelId)
+              : undefined;
+            if (activeNode) {
+              activeNode.isTerminalOutcome = true;
             }
           }
-        } else if (scanState.pendingMenuFallthrough.length > 0) {
-          scanState.pendingMenuFallthrough = [];
-        }
-      } else if (BREAK_REGEX.test(trimmed)) {
-        scanState.lastProcessedCustomLineNum = lineNum;
-      } else if (CONTINUE_REGEX.test(trimmed)) {
-        scanState.lastProcessedCustomLineNum = lineNum;
-        const loopContext = [...scanState.conditionalDecisionStack]
-          .reverse()
-          .find((c) => c.branchKind === "while" || c.branchKind === "for");
-        if (loopContext && scanState.currentLabelId) {
-          addEdge(state, {
-            id:
-              `seq_${scanState.currentLabelId}__${loopContext.decisionNodeId}_continue`,
-            source: scanState.currentLabelId,
-            target: loopContext.decisionNodeId,
-            kind: "sequence",
-            label: "continue",
-            sourceLocation,
-          });
-          addOutgoing(state, scanState.currentLabelId, "sequence");
-          addIncoming(state, loopContext.decisionNodeId, "sequence");
+          if (meta.hasMenuOptionBlock) {
+            const menu = menuAtDepth(scanState.menuStack, menuDepth);
+            if (menu && menu.options && menu.options.length > 0) {
+              const lastOpt = menu.options[menu.options.length - 1];
+              if (lastOpt) {
+                lastOpt.hasExit = true;
+              }
+            }
+          } else if (scanState.pendingMenuFallthrough.length > 0) {
+            scanState.pendingMenuFallthrough = [];
+          }
+        } else {
+          const isExcludedFromBranch = trimmed.startsWith("#") ||
+            trimmed.startsWith("$") ||
+            trimmed.startsWith('"') ||
+            trimmed.startsWith("'") ||
+            meta.hasPythonBlock ||
+            meta.hasSayNarrator ||
+            meta.hasMenuOption;
+
+          const branchMatch = !isExcludedFromBranch
+            ? findMatchingBranchRule(trimmed, scanState.parserVariant)
+            : null;
+
+          if (branchMatch) {
+            const { rule, target } = branchMatch;
+            scanState.lastProcessedCustomLineNum = lineNum;
+            const context = resolveCallContext(scanState, meta, menuDepth);
+            const suppress = rule.suppressFallthrough ??
+              (rule.branchKind === "jump");
+            if (rule.branchKind === "call") {
+              emitCallEdge(state, scanState, target, context);
+            } else {
+              emitJumpEdge(state, scanState, target, context, suppress);
+            }
+          } else if (BREAK_REGEX.test(trimmed)) {
+            scanState.lastProcessedCustomLineNum = lineNum;
+          } else if (CONTINUE_REGEX.test(trimmed)) {
+            scanState.lastProcessedCustomLineNum = lineNum;
+            const loopContext = [...scanState.conditionalDecisionStack]
+              .reverse()
+              .find((c) => c.branchKind === "while" || c.branchKind === "for");
+            if (loopContext && scanState.currentLabelId) {
+              addEdge(state, {
+                id:
+                  `seq_${scanState.currentLabelId}__${loopContext.decisionNodeId}_continue`,
+                source: scanState.currentLabelId,
+                target: loopContext.decisionNodeId,
+                kind: "sequence",
+                label: "continue",
+                sourceLocation,
+              });
+              addOutgoing(state, scanState.currentLabelId, "sequence");
+              addIncoming(state, loopContext.decisionNodeId, "sequence");
+            }
+          }
         }
       }
     }

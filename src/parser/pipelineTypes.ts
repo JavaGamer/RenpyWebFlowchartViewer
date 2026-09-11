@@ -14,7 +14,11 @@ import type {
 } from "../domain/index.ts";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import type {
+  ParserVariant,
+  ScreenActionKind,
+  ScreenActionRule,
+} from "../config/parserRules.ts";
 import type { MultiDirectedGraph } from "graphology";
 
 export type {
@@ -22,6 +26,7 @@ export type {
   FlowEdge,
   FlowNode,
   ParserVariant,
+  ScreenActionKind,
   TextDocument,
   TokenTree,
 };
@@ -130,6 +135,7 @@ export interface ParseDiagnosticContext {
 }
 
 interface ParseDiagnosticBase {
+  id?: string;
   severity: "warning" | "error";
   message: string;
   location?: ParseDiagnosticLocation;
@@ -193,12 +199,25 @@ export interface MissingAssetParseDiagnostic extends ParseDiagnosticBase {
   location?: ParseDiagnosticLocation;
 }
 
+export interface UnmappedScreenActionParseDiagnostic
+  extends ParseDiagnosticBase {
+  code: "unmapped_screen_action";
+  location: {
+    chapter: string;
+    construct: string;
+    actionName: string;
+    targetExpression?: string;
+    lineNum?: number;
+  };
+}
+
 export type ParseDiagnostic =
   | DynamicTargetParseDiagnostic
   | NormalizationParseDiagnostic
   | UnresolvedTargetParseDiagnostic
   | ShadowedLabelParseDiagnostic
-  | MissingAssetParseDiagnostic;
+  | MissingAssetParseDiagnostic
+  | UnmappedScreenActionParseDiagnostic;
 
 export type VariableValue = string | boolean | number | null;
 
@@ -361,6 +380,7 @@ export interface ParseGraphState {
   translations?: ProjectTranslations;
   availableLanguages?: string[];
   parserVariant?: ParserVariant;
+  screenActionRuleMap?: Map<string, ScreenActionKind>;
 }
 
 export interface ParseResult {

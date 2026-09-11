@@ -15,6 +15,7 @@ import {
   DEFAULT_PARSER_VARIANT,
   detectParserVariant,
   FALLBACK_PARSER_VARIANT,
+  toScreenActionRuleMap,
 } from "../config/parserRules.ts";
 import type {
   ParseInputFile,
@@ -52,8 +53,10 @@ export async function parseRenpyFiles(
   });
 
   const perf = createPerfTracker("parser");
-  perf.mark("total");
-  const state = createGraphState(options.parserVariant);
+  const state = createGraphState(
+    options.parserVariant,
+    options.screenActionRules,
+  );
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
   }
@@ -127,6 +130,10 @@ export async function parseRenpyFiles(
     ? detectParserVariant(getFileContentStrings()).variant
     : rawVariant ?? FALLBACK_PARSER_VARIANT;
   state.parserVariant = effectiveVariant;
+  state.screenActionRuleMap = toScreenActionRuleMap(
+    effectiveVariant,
+    options.screenActionRules,
+  );
 
   const effectiveOptions: ParseOptions = {
     ...options,

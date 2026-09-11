@@ -7,6 +7,8 @@ import type {
 } from "../../pipelineTypes.ts";
 import type { FlowEdge } from "../../../domain/index.ts";
 import { resolveExpressionTargets } from "../jumpCallHandler.ts";
+import { addParseDiagnostic } from "../../diagnostics.ts";
+import type { ScreenActionKind } from "../../../config/parserRules.ts";
 import {
   buildIgnoredPositionMask,
   findTopLevelDelimiterIndex,
@@ -279,12 +281,64 @@ export function isRecursiveScreenActionWrapper(construct: string): boolean {
   return RECURSIVE_SCREEN_ACTION_WRAPPER_NAMES.has(construct.toLowerCase());
 }
 
+function splitTopLevelTernary(
+  expr: string,
+): { trueBranch: string; falseBranch: string } | null {
+  let depth = 0;
+  let inQuote: string | null = null;
+  let ifIndex = -1;
+  let elseIndex = -1;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i]!;
+    if (inQuote) {
+      if (ch === inQuote && expr[i - 1] !== "\\") inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === ")" || ch === "]" || ch === "}") {
+      if (depth > 0) depth--;
+    } else if (depth === 0) {
+      if (expr.startsWith(" if ", i) || expr.startsWith("\tif\t", i)) {
+        if (ifIndex === -1) {
+          ifIndex = i;
+        }
+      } else if (
+        ifIndex > -1 &&
+        (expr.startsWith(" else ", i) || expr.startsWith("\telse\t", i))
+      ) {
+        elseIndex = i;
+        break;
+      }
+    }
+  }
+  if (ifIndex > 0 && elseIndex > ifIndex) {
+    const trueBranch = expr.slice(0, ifIndex).trim();
+    const falseBranch = expr.slice(elseIndex + 6).trim();
+    if (trueBranch && falseBranch) {
+      return { trueBranch, falseBranch };
+    }
+  }
+  return null;
+}
+
 export function walkScreenActionExpression(
   expression: string,
   visitCall: (construct: string, argumentList: string) => void,
 ): void {
   const trimmed = expression.trim();
   if (!trimmed) return;
+
+  const ternary = splitTopLevelTernary(
+    trimmed.startsWith("(") && trimmed.endsWith(")")
+      ? trimmed.slice(1, -1).trim()
+      : trimmed,
+  );
+  if (ternary) {
+    walkScreenActionExpression(ternary.trueBranch, visitCall);
+    walkScreenActionExpression(ternary.falseBranch, visitCall);
+    return;
+  }
 
   const balancedRoot = readScreenActionExpression(trimmed, 0);
   if (!balancedRoot) return;
@@ -316,6 +370,15 @@ export function walkScreenActionExpression(
   }
   const construct = trimmed.slice(0, identifierEnd);
   const afterIdentifier = skipWhitespace(trimmed, identifierEnd);
+  if (
+    afterIdentifier >= len ||
+    trimmed[afterIdentifier] === "#" ||
+    trimmed[afterIdentifier] === ","
+  ) {
+    visitCall(construct, "");
+    return;
+  }
+  if (trimmed[afterIdentifier] !== "(") return;
   const parsedArguments = readParenthesizedArgument(
     trimmed,
     afterIdentifier + 1,
@@ -362,11 +425,69 @@ export function walkScreenActionExpression(
   }
 }
 
+const BUILTIN_IGNORED_ACTIONS = new Set([
+  "confirm",
+  "if",
+  "selectedif",
+  "sensitiveif",
+  "showif",
+  "nullaction",
+  "start",
+  "play",
+  "stop",
+  "queue",
+  "voice",
+  "with",
+  "notify",
+  "help",
+  "preference",
+  "function",
+  "setdict",
+  "setfield",
+  "rollback",
+  "screenshot",
+  "quit",
+  "hide",
+  "show",
+  "showtransient",
+  "togglescreen",
+  "setvariable",
+  "togglevariable",
+  "setscreenvariable",
+  "togglescreenvariable",
+  "setlocalvariable",
+  "togglelocalvariable",
+  "mainmenu",
+  "fileaction",
+  "filesave",
+  "fileload",
+  "filedelete",
+  "filepage",
+  "filepagenext",
+  "filepageprevious",
+  "filetakescreenshot",
+  "filepagetotals",
+  "filepageempty",
+  "quicksave",
+  "quickload",
+  "skip",
+  "rollforward",
+  "setmute",
+  "togglemute",
+  "pauseaudio",
+  "hideinterface",
+  "openurl",
+  "mousemovescaling",
+  "return",
+]);
+
 export function parseScreenDefinition(
   name: string,
   filePath: string,
   lineIndex: number,
   rawBody: string,
+  screenActionRuleMap?: Map<string, ScreenActionKind>,
+  state?: ParseGraphState,
 ): ScreenDefinition {
   const actions: ScreenActionTarget[] = [];
   let hasReturnAction = false;
@@ -376,7 +497,9 @@ export function parseScreenDefinition(
   for (const { expression, timeout } of extracted) {
     walkScreenActionExpression(expression, (construct, argumentList) => {
       const lower = construct.toLowerCase();
-      if (lower === "jump") {
+      const mappedKind = screenActionRuleMap?.get(lower);
+
+      if (lower === "jump" || mappedKind === "jump") {
         const rawTarget = extractScreenActionTarget(argumentList);
         const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
         actions.push({
@@ -385,7 +508,7 @@ export function parseScreenDefinition(
           target: cleanTarget,
           timeout,
         });
-      } else if (lower === "call") {
+      } else if (lower === "call" || mappedKind === "call") {
         const rawTarget = extractScreenActionTarget(argumentList);
         const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
         actions.push({
@@ -394,7 +517,7 @@ export function parseScreenDefinition(
           target: cleanTarget,
           timeout,
         });
-      } else if (lower === "showmenu") {
+      } else if (lower === "showmenu" || mappedKind === "show_menu") {
         const rawTarget = extractScreenActionTarget(argumentList);
         const cleanTarget = rawTarget.replace(/^["']|["']$/g, "").trim();
         actions.push({
@@ -410,7 +533,7 @@ export function parseScreenDefinition(
           targetExpression: argumentList,
           timeout,
         });
-      } else if (lower === "setvariable") {
+      } else if (lower === "setvariable" || mappedKind === "set_variable") {
         const parts = splitTopLevelArguments(argumentList);
         if (parts.length >= 2) {
           const varName = parts[0].replace(/^["']|["']$/g, "").trim();
@@ -423,7 +546,9 @@ export function parseScreenDefinition(
             timeout,
           });
         }
-      } else if (lower === "togglevariable") {
+      } else if (
+        lower === "togglevariable" || mappedKind === "toggle_variable"
+      ) {
         const varName = extractNestedExpressionValue(argumentList).replace(
           /^["']|["']$/g,
           "",
@@ -434,6 +559,33 @@ export function parseScreenDefinition(
           variableName: varName,
           timeout,
         });
+      } else if (
+        mappedKind === "null_action" || BUILTIN_IGNORED_ACTIONS.has(lower)
+      ) {
+        // Ignored action or null_action, no-op
+      } else if (!mappedKind) {
+        // Unmapped screen action!
+        if (state && construct && /^[A-Za-z_][A-Za-z0-9_]*$/.test(construct)) {
+          addParseDiagnostic(
+            state,
+            {
+              code: "unmapped_screen_action",
+              severity: "warning",
+              message:
+                `Screen action "${construct}" is not mapped to any control flow behavior.`,
+              recoveryAction:
+                `Map "${construct}" to jump or call in Parser Variant Settings.`,
+              location: {
+                chapter: filePath,
+                lineNum: lineIndex,
+                construct: "screen_action",
+                actionName: construct,
+                targetExpression: argumentList || undefined,
+              },
+            },
+            `unmapped_screen_action|${construct.toLowerCase()}`,
+          );
+        }
       }
     });
   }

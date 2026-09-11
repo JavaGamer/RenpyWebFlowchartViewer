@@ -39,6 +39,7 @@ export type {
   PendingCallReturn,
   TextDocument,
   TokenTree,
+  UnmappedScreenActionParseDiagnostic,
   VariableMutation,
   VariableValue,
 } from "./pipelineTypes.ts";

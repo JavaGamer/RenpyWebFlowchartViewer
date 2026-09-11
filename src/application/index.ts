@@ -82,5 +82,12 @@ export { fetchFilesFromUrl, resolveGithubUrl } from "./urlImporter.ts";
 export { useUploadOrchestrator } from "./useUploadOrchestrator.ts";
 export { useDebugBundle } from "./useDebugBundle.ts";
 export { downloadBlob } from "./downloadHelper.ts";
+export {
+  clearUploadedFilesCache,
+  getUploadedFilesCache,
+  hasUploadedFilesCache,
+  setUploadedFilesCache,
+} from "./uploadCache.ts";
+export { reparseUploadedFiles } from "./reparse.ts";
 
 export * from "./exporters/index.ts";

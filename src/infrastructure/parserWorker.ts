@@ -30,7 +30,15 @@ import {
   type DialogueSearchDocument,
 } from "../config/searchConfig.ts";
 import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import {
+  deserializeVariantPlugin,
+  getParserVariantPlugins,
+  type ParserVariant,
+  registerParserVariantPlugin,
+  type ScreenActionRule,
+  type SerializableParserVariantPlugin,
+  unregisterParserVariantPlugin,
+} from "../config/parserRules.ts";
 import {
   compareFiles,
   type FlowAsset,
@@ -312,6 +320,7 @@ export const parserApi = {
       captureDialogueLines?: boolean;
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
+      customVariantPlugins?: SerializableParserVariantPlugin[];
       screenActionRules?: ScreenActionRule[];
       sceneSplitDialogueThreshold?: number;
       projectMediaFiles?:
@@ -325,6 +334,17 @@ export const parserApi = {
     } = {},
     onProgress?: (progress: ProgressPayload) => void,
   ): Promise<ParseWorkerClientResult> {
+    if (
+      options.customVariantPlugins && options.customVariantPlugins.length > 0
+    ) {
+      for (const def of options.customVariantPlugins) {
+        try {
+          registerParserVariantPlugin(deserializeVariantPlugin(def));
+        } catch {
+          // ignore if already registered
+        }
+      }
+    }
     const sessionId = options.sessionId || "default";
     const session = getSession(sessionId);
     activeRequestId = requestId;
@@ -354,10 +374,16 @@ export const parserApi = {
       let result;
       if (resetActiveGraph) {
         pruneOldSessions(sessionId);
+        for (const plugin of getParserVariantPlugins()) {
+          if (plugin.isCustom) unregisterParserVariantPlugin(plugin.id);
+        }
       }
       if (appendToActiveGraph) {
         if (resetActiveGraph) {
-          session.accumulatedState = createGraphState();
+          session.accumulatedState = createGraphState(
+            options.parserVariant,
+            options.screenActionRules,
+          );
           session.rawFilesByChapter.clear();
           session.dialogueSearchDocs = [];
           session.dialogueSearchMiniSearch = null;
@@ -510,7 +536,10 @@ export const parserApi = {
             }
           },
         });
-        session.accumulatedState = createGraphState();
+        session.accumulatedState = createGraphState(
+          options.parserVariant,
+          options.screenActionRules,
+        );
         session.accumulatedState.nodes = result.nodes;
         session.accumulatedState.edges = result.edges;
         if (result.initVariables) {
@@ -574,6 +603,7 @@ export const parserApi = {
       captureDialogueLines?: boolean;
       deferDetails?: boolean;
       parserVariant?: ParserVariant;
+      customVariantPlugins?: SerializableParserVariantPlugin[];
       screenActionRules?: ScreenActionRule[];
       sceneSplitDialogueThreshold?: number;
       maxCallStackDepth?: number;
@@ -594,6 +624,17 @@ export const parserApi = {
       };
     },
   ): Promise<InternalChunkResult> {
+    if (
+      options.customVariantPlugins && options.customVariantPlugins.length > 0
+    ) {
+      for (const def of options.customVariantPlugins) {
+        try {
+          registerParserVariantPlugin(deserializeVariantPlugin(def));
+        } catch {
+          // ignore if already registered
+        }
+      }
+    }
     // Decode files if they are in Uint8Array format
     for (const file of files) {
       if (file.content instanceof Uint8Array) {
@@ -601,7 +642,10 @@ export const parserApi = {
       }
     }
     try {
-      const chunkState = createGraphState();
+      const chunkState = createGraphState(
+        options.parserVariant,
+        options.screenActionRules,
+      );
       if (options.prePassState) {
         if (options.prePassState.globalLabelVariableLiteralTargets) {
           for (
@@ -935,11 +979,25 @@ export const parserApi = {
       isFinalChunk?: boolean;
       deferDetails?: boolean;
       captureDialogueLines?: boolean;
+      parserVariant?: ParserVariant;
+      customVariantPlugins?: SerializableParserVariantPlugin[];
+      screenActionRules?: ScreenActionRule[];
     },
   ): Promise<ParseWorkerClientResult> {
     if (cancelledRequests.has(requestId)) {
       cancelledRequests.delete(requestId);
       throw new Error("Finalize cancelled");
+    }
+    if (
+      options.customVariantPlugins && options.customVariantPlugins.length > 0
+    ) {
+      for (const def of options.customVariantPlugins) {
+        try {
+          registerParserVariantPlugin(deserializeVariantPlugin(def));
+        } catch {
+          // ignore if already registered
+        }
+      }
     }
     const sessionId = options.sessionId || "default";
     const session = getSession(sessionId);
@@ -963,10 +1021,16 @@ export const parserApi = {
     try {
       if (options.resetActiveGraph) {
         pruneOldSessions(sessionId);
+        for (const plugin of getParserVariantPlugins()) {
+          if (plugin.isCustom) unregisterParserVariantPlugin(plugin.id);
+        }
       }
       if (appendToActiveGraph) {
         if (options.resetActiveGraph) {
-          session.accumulatedState = createGraphState();
+          session.accumulatedState = createGraphState(
+            options.parserVariant,
+            options.screenActionRules,
+          );
           session.rawFilesByChapter.clear();
           session.dialogueSearchDocs = [];
           session.dialogueSearchMiniSearch = null;
@@ -1186,7 +1250,10 @@ export const parserApi = {
           availableLanguages: session.accumulatedState.availableLanguages,
         };
       } else {
-        const state = createGraphState();
+        const state = createGraphState(
+          options.parserVariant,
+          options.screenActionRules,
+        );
         state.nodes = options.nodes;
         state.edges = options.edges;
         state.labelsByChapter = new Map();

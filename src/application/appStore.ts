@@ -37,6 +37,7 @@ export interface AppState {
   availableLanguages: string[];
   parsedVariant: string | null;
   isVariantAutoDetected: boolean;
+  isReparsing: boolean;
 }
 
 export interface AppActions {
@@ -53,6 +54,7 @@ export interface AppActions {
   reset: () => void;
   startReading: (fileCount: number) => void;
   startParsing: () => void;
+  setIsReparsing: (isReparsing: boolean) => void;
   setProgress: (progress: ParseProgress) => void;
   partialParseSuccess: (
     nodes: FlowNode[],
@@ -64,7 +66,11 @@ export interface AppActions {
     edges: FlowEdge[],
     diagnostics?: ParseDiagnosticPayload[],
     translations?: import("../domain/index.ts").ProjectTranslations | null,
-    meta?: { parsedVariant?: string; isVariantAutoDetected?: boolean },
+    meta?: {
+      parsedVariant?: string;
+      isVariantAutoDetected?: boolean;
+      preserveSession?: boolean;
+    },
   ) => void;
   setTranslations: (
     translations: import("../domain/index.ts").ProjectTranslations | null,

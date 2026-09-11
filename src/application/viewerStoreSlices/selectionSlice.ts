@@ -31,6 +31,7 @@ export interface SelectionSliceState {
 export interface SelectionSliceActions {
   fetchNodeDetails: (nodeIds: string[]) => Promise<void>;
   markNodesHydrated: (ids: string[]) => void;
+  invalidateHydratedNodeDetails: () => void;
   setFocusNodeId: (id: string) => void;
   setSelectedNodeId: (id: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
@@ -125,6 +126,12 @@ export const createSelectionSlice: StateCreator<
       const nextHydrated = new Set(draft.hydratedNodeDetailIds);
       ids.forEach((id) => nextHydrated.add(id));
       draft.hydratedNodeDetailIds = nextHydrated;
+    }),
+
+  invalidateHydratedNodeDetails: () =>
+    set((draft) => {
+      draft.hydratedNodeDetailIds = new Set<string>();
+      draft.loadingNodeDetailIds = new Set<string>();
     }),
 
   setFocusNodeId: (id) =>

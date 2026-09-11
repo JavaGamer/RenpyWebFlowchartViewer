@@ -26,6 +26,12 @@ import {
   DIALOGUE_MINISEARCH_OPTIONS,
   type DialogueSearchDocument,
 } from "../config/searchConfig.ts";
+import {
+  deserializeVariantPlugin,
+  type ParserVariant,
+  registerParserVariantPlugin,
+  type ScreenActionRule,
+} from "../config/parserRules.ts";
 import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
 import type { ParserWorkerApi } from "./parserWorker.ts";
 import {
@@ -228,10 +234,14 @@ interface FallbackState {
 let activeSessionId: string | null = null;
 let activeFallbackState: FallbackState | null = null;
 
-function getActiveFallbackState(reset = false): FallbackState {
+function getActiveFallbackState(
+  reset = false,
+  parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
+): FallbackState {
   if (reset || !activeFallbackState) {
     activeFallbackState = {
-      graphState: createGraphState(),
+      graphState: createGraphState(parserVariant, screenActionRules),
       rawFilesByChapter: new Map(),
       docs: [],
       miniSearch: null,
@@ -316,6 +326,7 @@ async function parseRenpyFilesFallback(
     captureDialogueLines,
     deferDetails,
     parserVariant,
+    customVariantPlugins,
     screenActionRules,
     onProgress,
     onPartialResult,
@@ -326,7 +337,21 @@ async function parseRenpyFilesFallback(
     throw new DOMException("Parsing cancelled", "AbortError");
   }
 
-  const currentFallback = getActiveFallbackState(resetActiveGraph);
+  if (customVariantPlugins && customVariantPlugins.length > 0) {
+    for (const def of customVariantPlugins) {
+      try {
+        registerParserVariantPlugin(deserializeVariantPlugin(def));
+      } catch {
+        // Safe to ignore if already registered
+      }
+    }
+  }
+
+  const currentFallback = getActiveFallbackState(
+    resetActiveGraph,
+    parserVariant,
+    screenActionRules,
+  );
   if (request.projectMediaFiles) {
     currentFallback.graphState.projectMediaFiles = request.projectMediaFiles;
   }
@@ -417,6 +442,7 @@ export function parseRenpyFilesInWorker(
     captureDialogueLines,
     deferDetails,
     parserVariant,
+    customVariantPlugins,
     screenActionRules,
     onProgress,
     onPartialResult,
@@ -434,6 +460,7 @@ export function parseRenpyFilesInWorker(
       captureDialogueLines,
       deferDetails,
       parserVariant,
+      customVariantPlugins,
       screenActionRules,
       projectMediaFiles: request.projectMediaFiles,
       signal,
@@ -519,6 +546,7 @@ export function parseRenpyFilesInWorker(
             captureDialogueLines,
             deferDetails,
             parserVariant,
+            customVariantPlugins,
             screenActionRules,
             projectMediaFiles: request.projectMediaFiles,
             maxCallStackDepth: request.maxCallStackDepth,
@@ -642,6 +670,7 @@ export interface ParseChunkRequest {
   captureDialogueLines?: boolean;
   deferDetails?: boolean;
   parserVariant?: ParseWorkerClientRequest["parserVariant"];
+  customVariantPlugins?: ParseWorkerClientRequest["customVariantPlugins"];
   screenActionRules?: ParseWorkerClientRequest["screenActionRules"];
   projectMediaFiles?: ParseWorkerClientRequest["projectMediaFiles"];
   maxCallStackDepth?: number;
@@ -687,6 +716,7 @@ export function parseChunksInParallel({
   captureDialogueLines,
   deferDetails,
   parserVariant,
+  customVariantPlugins,
   screenActionRules,
   projectMediaFiles,
   maxCallStackDepth,
@@ -749,7 +779,19 @@ export function parseChunksInParallel({
       throw new DOMException("Parsing cancelled", "AbortError");
     }
 
-    const prePassStateGraph = createGraphState();
+    if (customVariantPlugins && customVariantPlugins.length > 0) {
+      for (const def of customVariantPlugins) {
+        try {
+          registerParserVariantPlugin(deserializeVariantPlugin(def));
+        } catch {
+          // ignore if already registered
+        }
+      }
+    }
+    const prePassStateGraph = createGraphState(
+      parserVariant,
+      screenActionRules,
+    );
     preParseInitialization(effectiveScriptFiles, prePassStateGraph);
 
     const chunkPromises = chunks.map((chunkFiles, chunkIdx) => {
@@ -791,6 +833,7 @@ export function parseChunksInParallel({
             captureDialogueLines,
             deferDetails,
             parserVariant,
+            customVariantPlugins,
             screenActionRules,
             maxCallStackDepth,
             prePassState: {
@@ -1018,7 +1061,10 @@ export function parseChunksInParallel({
         chunkRemapMaps.push(idRemapForChunk);
         chunkEdgeRemapMaps.push(edgeIdRemapForChunk);
       }
-      const mergedDiagnostics = results.flatMap((r) => r.diagnostics ?? []);
+      const mergedDiagnostics = [
+        ...(prePassStateGraph.diagnostics ?? []),
+        ...results.flatMap((r) => r.diagnostics ?? []),
+      ];
       const mergedPendingCallReturns: PendingCallReturn[] = [];
       const mergedHasReliableReturnInLabelSet = new Set<string>();
       const mergedHasReturnInLabelSet = new Set<string>();
@@ -1290,6 +1336,9 @@ export function parseChunksInParallel({
           appendToActiveGraph,
           resetActiveGraph,
           isFinalChunk,
+          parserVariant,
+          customVariantPlugins,
+          screenActionRules,
         })
           .then((finalResult) => {
             signal?.removeEventListener("abort", onAbortFinalize);

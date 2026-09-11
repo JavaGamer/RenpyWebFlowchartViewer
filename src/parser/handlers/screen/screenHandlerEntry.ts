@@ -26,6 +26,34 @@ import { extractLiteralTarget } from "../../tokenHandling.ts";
 import { splitTopLevelArguments } from "./bracketMatcher.ts";
 
 import { parsePythonBlock } from "../python/pythonAstParser.ts";
+import { addParseDiagnostic } from "../../diagnostics.ts";
+
+const BUILTIN_IGNORED_ACTIONS = new Set([
+  "confirm",
+  "if",
+  "selectedif",
+  "sensitiveif",
+  "showif",
+  "nullaction",
+  "play",
+  "stop",
+  "queue",
+  "voice",
+  "with",
+  "notify",
+  "help",
+  "preference",
+  "function",
+  "setdict",
+  "setfield",
+  "rollback",
+  "screenshot",
+  "quit",
+  "fileload",
+  "filesave",
+  "quickload",
+  "quicksave",
+]);
 
 export function stripInlineComment(value: string): string {
   let result = "";
@@ -419,15 +447,37 @@ export function processDirectScreenActionCalls(
       return;
     }
 
-    if (
-      lower === "confirm" || lower === "if" ||
-      lower === "selectedif" || lower === "sensitiveif" || lower === "showif"
-    ) {
+    if (BUILTIN_IGNORED_ACTIONS.has(lower)) {
       return;
     }
 
     const callType = screenActionRuleMap.get(lower);
-    if (!callType) return;
+    if (!callType) {
+      if (
+        construct &&
+        /^[A-Za-z_][A-Za-z0-9_]*$/.test(construct)
+      ) {
+        addParseDiagnostic(
+          state,
+          {
+            code: "unmapped_screen_action",
+            severity: "warning",
+            message:
+              `Screen action "${construct}" is not mapped to any control flow behavior.`,
+            recoveryAction:
+              `Map "${construct}" to jump or call in Parser Variant Settings.`,
+            location: {
+              chapter,
+              construct: "screen_action",
+              actionName: construct,
+              targetExpression: targetExpression || undefined,
+            },
+          },
+          `unmapped_screen_action|${chapter}|${construct}`,
+        );
+      }
+      return;
+    }
 
     const context = resolveCallContext(scanState, meta, menuDepth);
     const targets = extractStaticTargetsFromArgumentList(

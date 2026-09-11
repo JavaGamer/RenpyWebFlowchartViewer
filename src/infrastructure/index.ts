@@ -6,6 +6,7 @@ export {
   type ParseDiagnosticPayload,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
+  type UnmappedScreenActionParseDiagnosticPayload,
 } from "./workerProtocol.ts";
 export {
   areWorkersSupported,

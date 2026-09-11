@@ -27,30 +27,42 @@ import {
 import type { ParseService } from "./parseService.ts";
 import {
   AUTO_PARSER_VARIANT,
+  compileCustomVariant,
   detectParserVariant,
   FALLBACK_PARSER_VARIANT,
   type ParserVariant,
   resolveCustomRulesForVariant,
   type RulesByVariant,
   type ScreenActionRule,
+  type SerializableParserVariantPlugin,
+  serializeVariantPlugin,
 } from "../config/parserRules.ts";
 import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
 import { extractRpyFilesFromZip } from "./zipExtractor.ts";
+import {
+  clearUploadedFilesCache,
+  setUploadedFilesCache,
+} from "./uploadCache.ts";
+import { useParserRuleSettingsStore } from "./parserRuleSettingsStore.ts";
 
 /**
  * Dependency bag injected into `createProcessUpload`.
  */
 export interface ProcessUploadDeps {
   parseService: ParseService;
-  actions: Pick<
-    AppActions,
-    | "startReading"
-    | "startParsing"
-    | "setProgress"
-    | "partialParseSuccess"
-    | "parseSuccess"
-    | "fail"
-  >;
+  actions:
+    & Pick<
+      AppActions,
+      | "startReading"
+      | "startParsing"
+      | "setProgress"
+      | "partialParseSuccess"
+      | "parseSuccess"
+      | "fail"
+    >
+    & {
+      setIsReparsing?: (isReparsing: boolean) => void;
+    };
   /** Active run ID ref used to abort stale upload sequences when a new upload begins. */
   activeRunIdRef: RefObject<number>;
   /** Ref holding the AbortController passed to the parse worker so it can be cancelled. */
@@ -67,6 +79,8 @@ export interface ProcessUploadDeps {
   parserVariant?: ParserVariant;
   customRulesByVariant?: RulesByVariant;
   customScreenActionRules?: ScreenActionRule[];
+  customVariantPlugins?: SerializableParserVariantPlugin[];
+  preserveSession?: boolean;
 
   // Real-time status callbacks
   onFilesDiscovered?: (files: UploadFileStatus[]) => void;
@@ -117,16 +131,22 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     parserVariant = AUTO_PARSER_VARIANT,
     customRulesByVariant,
     customScreenActionRules = [],
+    customVariantPlugins: injectedCustomVariantPlugins,
+    preserveSession: defaultPreserveSession = false,
     onFilesDiscovered,
     onFileStatusUpdate,
   } = deps;
 
   return async function processUpload(
     files: FileList | UploadedFile[] | null,
+    options?: { preserveSession?: boolean },
   ): Promise<void> {
     if (!files || files.length === 0) {
       return;
     }
+
+    const shouldPreserveSession = options?.preserveSession ??
+      defaultPreserveSession;
 
     const runId = (activeRunIdRef.current ?? 0) + 1;
     activeRunIdRef.current = runId;
@@ -139,7 +159,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     const isAutoDetected = effectiveVariant === AUTO_PARSER_VARIANT;
 
     // Transition to reading early to show zip extraction/scanning status
-    actions.startReading(0);
+    if (!shouldPreserveSession) {
+      actions.startReading(0);
+    }
 
     const initialFiles: UploadedFile[] = Array.isArray(files)
       ? files
@@ -164,7 +186,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         }
       }
     } catch (err: unknown) {
+      clearUploadedFilesCache();
       if (!isActiveRun()) return;
+      if (shouldPreserveSession) {
+        actions.setIsReparsing?.(false);
+      }
       actions.fail(toFileReadErrorMessage(err));
       return;
     }
@@ -175,16 +201,26 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       consolidatedFiles,
     );
     if (errorMessage) {
+      clearUploadedFilesCache();
       const err = new UploadValidationError(errorMessage);
+      if (shouldPreserveSession) {
+        actions.setIsReparsing?.(false);
+        throw err;
+      }
       actions.fail(err.message);
       return;
     }
+
+    // Cache consolidated files for instant in-viewer reparses only after validation succeeds
+    setUploadedFilesCache(consolidatedFiles);
 
     const orderedRpyFiles = [...rpyFiles].sort(compareUploadFiles);
     const controller = new AbortController();
     parseAbortControllerRef.current = controller;
 
-    actions.startReading(orderedRpyFiles.length);
+    if (!shouldPreserveSession) {
+      actions.startReading(orderedRpyFiles.length);
+    }
 
     if (isAutoDetected) {
       for (const f of orderedRpyFiles) {
@@ -192,9 +228,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         try {
           let sample = "";
           if (f.file && typeof f.file.slice === "function") {
-            sample = await f.file.slice(0, 65536).text();
+            sample = await f.file.slice(0, 2048).text();
           } else {
-            sample = (await f.text()).slice(0, 65536);
+            sample = (await f.text()).slice(0, 2048);
           }
           const detection = detectParserVariant([sample], AUTO_PARSER_VARIANT);
           if (detection.variant !== AUTO_PARSER_VARIANT) {
@@ -309,7 +345,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
             if (!hasStartedParsing) {
               hasStartedParsing = true;
               onParseStarted?.();
-              actions.startParsing();
+              if (!shouldPreserveSession) {
+                actions.startParsing();
+              }
             }
 
             const parseChunk = inputs.slice(
@@ -334,6 +372,12 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               )
               : customScreenActionRules;
 
+            const customVariantPlugins = injectedCustomVariantPlugins ??
+              useParserRuleSettingsStore
+                .getState()
+                .customVariants.map(compileCustomVariant)
+                .map(serializeVariantPlugin);
+
             const result = await parseService.parse({
               files: parseChunk,
               projectMediaFiles: mediaFiles,
@@ -346,6 +390,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               parserVariant: effectiveVariant === AUTO_PARSER_VARIANT
                 ? "renpy"
                 : effectiveVariant,
+              customVariantPlugins,
               screenActionRules: effectiveScreenActionRules,
               signal: controller.signal,
               maxParallelFiles: typeof navigator !== "undefined"
@@ -379,11 +424,13 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 parsedNodes = partial.nodes;
                 parsedEdges = partial.edges;
                 parsedDiagnostics = partial.diagnostics ?? parsedDiagnostics;
-                actions.partialParseSuccess(
-                  parsedNodes,
-                  parsedEdges,
-                  parsedDiagnostics,
-                );
+                if (!shouldPreserveSession) {
+                  actions.partialParseSuccess(
+                    parsedNodes,
+                    parsedEdges,
+                    parsedDiagnostics,
+                  );
+                }
               },
             });
 
@@ -394,7 +441,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               parsedTranslations = result.translations;
             }
             parsedFileCount += parseChunk.length;
-            if (!shouldUseChunking) {
+            if (!shouldUseChunking && !shouldPreserveSession) {
               actions.partialParseSuccess(
                 parsedNodes,
                 parsedEdges,
@@ -410,6 +457,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
           }
         } catch (err: unknown) {
           if (!isActiveRun()) return;
+          if (shouldPreserveSession) {
+            actions.setIsReparsing?.(false);
+            console.error("Preserved session reparse failed:", err);
+            throw err;
+          }
           // Mark files currently in batch as error
           batch.forEach((f, bIdx) => {
             const id = getFileId(f, offset + bIdx);
@@ -421,6 +473,11 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       }
     } catch (err: unknown) {
       if (!isActiveRun()) return;
+      if (shouldPreserveSession) {
+        actions.setIsReparsing?.(false);
+        console.error("Preserved session reparse read error:", err);
+        throw err;
+      }
       actions.fail(toFileReadErrorMessage(err));
       return;
     }
@@ -431,7 +488,18 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       nodeCount: parsedNodes.length,
       edgeCount: parsedEdges.length,
     });
-    useViewerStore.getState().resetSession();
+    if (!shouldPreserveSession) {
+      useViewerStore.getState().resetSession();
+    } else {
+      const viewer = useViewerStore.getState();
+      viewer.invalidateHydratedNodeDetails?.();
+      if (
+        viewer.selectedNodeId &&
+        !parsedNodes.some((n) => n.id === viewer.selectedNodeId)
+      ) {
+        viewer.setSelectedNodeId("");
+      }
+    }
     const finalVariant = effectiveVariant === AUTO_PARSER_VARIANT
       ? "renpy"
       : effectiveVariant;
@@ -444,6 +512,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         {
           parsedVariant: finalVariant,
           isVariantAutoDetected: isAutoDetected,
+          ...(shouldPreserveSession ? { preserveSession: true } : {}),
         },
       );
     } else {
@@ -455,6 +524,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
         {
           parsedVariant: finalVariant,
           isVariantAutoDetected: isAutoDetected,
+          ...(shouldPreserveSession ? { preserveSession: true } : {}),
         },
       );
     }

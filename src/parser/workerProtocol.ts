@@ -6,7 +6,11 @@ import type {
   ProjectTranslations,
   SourceLocation,
 } from "../domain/index.ts";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
+import type {
+  ParserVariant,
+  ScreenActionRule,
+  SerializableParserVariantPlugin,
+} from "../config/parserRules.ts";
 import type {
   InitVariableDescriptor,
   ParseInputFile,
@@ -38,6 +42,7 @@ export interface ParseWorkerClientRequest {
   captureDialogueLines?: boolean;
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
+  customVariantPlugins?: SerializableParserVariantPlugin[];
   screenActionRules?: ScreenActionRule[];
   sceneSplitDialogueThreshold?: number;
   projectMediaFiles?:
@@ -74,6 +79,7 @@ export interface ParseRequestMessage {
   captureDialogueLines?: boolean;
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
+  customVariantPlugins?: SerializableParserVariantPlugin[];
   screenActionRules?: ScreenActionRule[];
   sceneSplitDialogueThreshold?: number;
   projectMediaFiles?:
@@ -155,6 +161,7 @@ export interface ParseChunkRequestMessage {
   captureDialogueLines?: boolean;
   deferDetails?: boolean;
   parserVariant?: ParserVariant;
+  customVariantPlugins?: SerializableParserVariantPlugin[];
   screenActionRules?: ScreenActionRule[];
   sceneSplitDialogueThreshold?: number;
   projectMediaFiles?:
@@ -247,17 +254,21 @@ export interface ResultResponseMessage {
 }
 
 export interface ParseDiagnosticPayload {
+  id?: string;
   code:
     | "dynamic_target"
     | "normalization"
     | "unresolved_target"
     | "shadowed_label"
-    | "missing_asset";
+    | "missing_asset"
+    | "unmapped_screen_action";
   severity: "warning" | "error";
   message: string;
   location?: {
     chapter?: string;
     construct?: string;
+    actionName?: string;
+    lineNum?: number;
     targetExpression?: string;
     edgeId?: string;
     sourceId?: string;
@@ -351,12 +362,25 @@ export interface MissingAssetParseDiagnosticPayload
   code: "missing_asset";
 }
 
+export interface UnmappedScreenActionParseDiagnosticPayload
+  extends ParseDiagnosticPayload {
+  code: "unmapped_screen_action";
+  location: {
+    chapter: string;
+    construct: string;
+    actionName: string;
+    targetExpression?: string;
+    lineNum?: number;
+  };
+}
+
 export type StrictParseDiagnosticPayload =
   | DynamicTargetParseDiagnosticPayload
   | UnresolvedTargetParseDiagnosticPayload
   | NormalizationParseDiagnosticPayload
   | ShadowedLabelParseDiagnosticPayload
-  | MissingAssetParseDiagnosticPayload;
+  | MissingAssetParseDiagnosticPayload
+  | UnmappedScreenActionParseDiagnosticPayload;
 
 export interface ErrorResponseMessage {
   protocolVersion: typeof PARSER_WORKER_PROTOCOL_VERSION;

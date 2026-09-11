@@ -324,6 +324,8 @@ export function executeInitItemsPass(
           item.filePath,
           item.lineIndex,
           item.body,
+          state.screenActionRuleMap,
+          state,
         );
         state.screenDefinitions.set(item.variableName, screenDef);
         stateChanged = true;

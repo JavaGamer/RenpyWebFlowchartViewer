@@ -14,14 +14,15 @@ export interface CustomRulesState {
 }
 
 export interface CustomRulesActions {
-  addCustomRule: () => void;
+  addCustomRule: (variantKey?: string) => void;
   updateCustomRule: (
     idx: number,
     patch: Partial<
       { actionName: string; actionKind: ScreenActionRule["actionKind"] }
     >,
+    variantKey?: string,
   ) => void;
-  removeCustomRule: (idx: number) => void;
+  removeCustomRule: (idx: number, variantKey?: string) => void;
   resetSettings: () => void;
 }
 
@@ -47,20 +48,30 @@ export const createCustomRulesSlice: StateCreator<
 > = (set) => ({
   ...defaultCustomRulesState,
 
-  addCustomRule: () =>
+  addCustomRule: (variantKey) =>
     set((draft) => {
-      if (!draft.customRulesByVariant[draft.selectedVariant]) {
-        draft.customRulesByVariant[draft.selectedVariant] = [];
+      const target = typeof variantKey === "string"
+        ? variantKey
+        : (draft.selectedVariant === AUTO_PARSER_VARIANT
+          ? DEFAULT_PARSER_VARIANT
+          : draft.selectedVariant);
+      if (!draft.customRulesByVariant[target]) {
+        draft.customRulesByVariant[target] = [];
       }
-      draft.customRulesByVariant[draft.selectedVariant].push({
+      draft.customRulesByVariant[target].push({
         actionName: "",
         actionKind: "jump",
       });
     }),
 
-  updateCustomRule: (idx, patch) =>
+  updateCustomRule: (idx, patch, variantKey) =>
     set((draft) => {
-      const variantRules = draft.customRulesByVariant[draft.selectedVariant];
+      const target = typeof variantKey === "string"
+        ? variantKey
+        : (draft.selectedVariant === AUTO_PARSER_VARIANT
+          ? DEFAULT_PARSER_VARIANT
+          : draft.selectedVariant);
+      const variantRules = draft.customRulesByVariant[target];
       if (!variantRules) return;
       const rule = variantRules[idx];
       if (!rule) return;
@@ -72,9 +83,14 @@ export const createCustomRulesSlice: StateCreator<
       }
     }),
 
-  removeCustomRule: (idx) =>
+  removeCustomRule: (idx, variantKey) =>
     set((draft) => {
-      const rules = draft.customRulesByVariant[draft.selectedVariant];
+      const target = typeof variantKey === "string"
+        ? variantKey
+        : (draft.selectedVariant === AUTO_PARSER_VARIANT
+          ? DEFAULT_PARSER_VARIANT
+          : draft.selectedVariant);
+      const rules = draft.customRulesByVariant[target];
       if (!rules || idx < 0 || idx >= rules.length) return;
       rules.splice(idx, 1);
     }),

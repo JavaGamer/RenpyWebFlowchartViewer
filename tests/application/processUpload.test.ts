@@ -18,6 +18,16 @@ vi.mock("../../src/infrastructure", async (importOriginal) => {
     readFileAsArrayBuffer: vi.fn(),
   };
 });
+vi.mock("../../src/infrastructure/index.ts", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../src/infrastructure/index.ts")
+  >();
+  return {
+    ...actual,
+    readFileAsText: vi.fn(),
+    readFileAsArrayBuffer: vi.fn(),
+  };
+});
 vi.mock("../../src/infrastructure/fileReader", () => ({
   readFileAsText: vi.fn(),
   readFileAsArrayBuffer: vi.fn(),

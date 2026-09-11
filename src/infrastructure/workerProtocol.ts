@@ -27,6 +27,7 @@ export {
   type StrictParseDiagnosticPayload,
   type TokenizeRequestMessage,
   type TokenizeResponseMessage,
+  type UnmappedScreenActionParseDiagnosticPayload,
   type UnresolvedTargetParseDiagnosticPayload,
   type WorkerRequestMessage,
   type WorkerResponseMessage,

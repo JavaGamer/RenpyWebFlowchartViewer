@@ -10,6 +10,7 @@
 
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { Loader2 } from "lucide-react";
 import {
   DiagnosticsSection,
   FlowchartViewer,
@@ -32,6 +33,7 @@ export default function App() {
     importRevision,
     parsedVariant,
     isVariantAutoDetected,
+    isReparsing,
   } = useAppStore(
     useShallow((s) => ({
       phase: s.phase,
@@ -42,6 +44,7 @@ export default function App() {
       importRevision: s.importRevision,
       parsedVariant: s.parsedVariant,
       isVariantAutoDetected: s.isVariantAutoDetected,
+      isReparsing: s.isReparsing,
     })),
   );
   const reset = useAppStore((s) => s.reset);
@@ -74,6 +77,16 @@ export default function App() {
 
       <Header />
 
+      {isReparsing && (
+        <div
+          data-testid="reparsing-indicator"
+          className="fixed top-14 right-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-600 text-white text-xs font-semibold shadow-lg backdrop-blur-sm animate-pulse"
+        >
+          <Loader2 size={13} className="animate-spin" />
+          <span>Re-parsing flowchart...</span>
+        </div>
+      )}
+
       {phase === "done" && flowNodes.length > 0
         ? (
           <main
@@ -97,17 +110,20 @@ export default function App() {
                 <strong>{flowEdges.length}</strong> edges
               </span>
               {displayVariantName && (
-                <span
+                <button
+                  type="button"
                   data-testid="variant-indicator-badge"
+                  onClick={() =>
+                    useViewerStore.getState().setShowAdvancedControls(true)}
                   className={cn(
-                    "text-xs font-medium rounded-full px-2.5 py-0.5 border",
+                    "text-xs font-medium rounded-full px-2.5 py-0.5 border cursor-pointer transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-violet-500",
                     isDark
-                      ? "bg-slate-800/80 border-slate-700 text-slate-300"
-                      : "bg-white border-violet-200 text-violet-800 shadow-sm",
+                      ? "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700"
+                      : "bg-white border-violet-200 text-violet-800 shadow-sm hover:bg-violet-50",
                   )}
                   title={isVariantAutoDetected
-                    ? `Variant was auto-detected from file signatures (${displayVariantName})`
-                    : `Configured variant: ${displayVariantName}`}
+                    ? `Variant was auto-detected (${displayVariantName}). Click to view or change settings.`
+                    : `Configured variant: ${displayVariantName}. Click to view or change settings.`}
                 >
                   Variant: {displayVariantName}
                   {isVariantAutoDetected && (
@@ -115,7 +131,7 @@ export default function App() {
                       (auto-detected)
                     </span>
                   )}
-                </span>
+                </button>
               )}
               {parseDiagnostics.length > 0 && (
                 <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">

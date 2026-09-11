@@ -6,9 +6,16 @@ import type {
   ParserVariant,
   ParseScanState,
 } from "./pipelineTypes.ts";
+import {
+  type ScreenActionRule,
+  toScreenActionRuleMap,
+} from "../config/parserRules.ts";
+
+export { toScreenActionRuleMap };
 
 export function createGraphState(
   parserVariant?: ParserVariant,
+  screenActionRules?: ScreenActionRule[],
 ): ParseGraphState {
   return {
     graph: new MultiDirectedGraph<FlowNode, FlowEdge>(),
@@ -42,6 +49,10 @@ export function createGraphState(
     diagnosticIds: new Set<string>(),
     dynamicJumpRules: [],
     parserVariant,
+    screenActionRuleMap: toScreenActionRuleMap(
+      parserVariant ?? "renpy",
+      screenActionRules,
+    ),
   };
 }
 

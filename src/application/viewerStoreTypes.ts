@@ -84,6 +84,7 @@ export interface ViewerActions {
   setActiveLanguage: (language: string | null) => void;
   fetchNodeDetails: (nodeIds: string[]) => Promise<void>;
   markNodesHydrated: (ids: string[]) => void;
+  invalidateHydratedNodeDetails: () => void;
   // Persisted setters
   setTheme: (theme: ThemeName) => void;
   setLayoutDensity: (density: LayoutDensity) => void;
