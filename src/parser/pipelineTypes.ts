@@ -97,6 +97,7 @@ export interface ConditionalDecisionContext {
     calledTargetId?: string;
     callContextId?: string;
     calledSubroutines?: Array<{ targetId: string; callContextId: string }>;
+    expression?: string | null;
   }>;
   connectedSceneId?: string;
   connectedBranchKind?: ConditionalBranchKind;

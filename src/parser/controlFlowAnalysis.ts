@@ -583,6 +583,12 @@ function mergePathStates(
       }
     }
   }
+  for (const [k, v] of existing.variables.entries()) {
+    if (!incoming.variables.has(k) && v !== "unknown") {
+      newVars.set(k, "unknown");
+      changed = true;
+    }
+  }
   const newPersist = new Map(existing.persistent);
   for (const [k, v] of incoming.persistent.entries()) {
     if (!newPersist.has(k)) {
@@ -596,6 +602,12 @@ function mergePathStates(
       }
     }
   }
+  for (const [k, v] of existing.persistent.entries()) {
+    if (!incoming.persistent.has(k) && v !== "unknown") {
+      newPersist.set(k, "unknown");
+      changed = true;
+    }
+  }
   return {
     merged: { variables: newVars, persistent: newPersist },
     changed,
@@ -606,10 +618,27 @@ function propagateVariableMutationsAndEvaluateConditions(
   state: ParseGraphState,
   outgoingMap: Map<string, FlowEdge[]>,
 ): void {
+  const entryIds: string[] = [];
   const startCanonicalId = state.canonicalLabelIdByName?.get("start");
-  const entryId = (state.nodeMap.has("start") ? "start" : startCanonicalId) ??
-    state.nodes[0]?.id;
-  if (!entryId) return;
+  const primaryStart = state.nodeMap.has("start") ? "start" : startCanonicalId;
+  if (primaryStart) {
+    entryIds.push(primaryStart);
+  }
+  for (const node of state.nodes) {
+    if (node.type === "LABEL") {
+      const incoming = state.incomingByLabel.get(node.id);
+      const hasIncomingStory = Boolean(
+        incoming?.has("sequence") || incoming?.has("jump"),
+      );
+      if (!hasIncomingStory && !entryIds.includes(node.id)) {
+        entryIds.push(node.id);
+      }
+    }
+  }
+  if (entryIds.length === 0 && state.nodes[0]?.id) {
+    entryIds.push(state.nodes[0].id);
+  }
+  if (entryIds.length === 0) return;
 
   const initialVars = new Map<string, VariableValue>();
   const initialPersist = new Map<string, VariableValue>();
@@ -642,12 +671,14 @@ function propagateVariableMutationsAndEvaluateConditions(
   }
 
   const nodeStates = new Map<string, PathVariableState>();
-  nodeStates.set(entryId, {
-    variables: initialVars,
-    persistent: initialPersist,
-  });
+  for (const id of entryIds) {
+    nodeStates.set(id, {
+      variables: new Map(initialVars),
+      persistent: new Map(initialPersist),
+    });
+  }
 
-  const queue: string[] = [entryId];
+  const queue: string[] = [...entryIds];
   const visitCounts = new Map<string, number>();
 
   while (queue.length > 0) {
@@ -704,56 +735,88 @@ function propagateVariableMutationsAndEvaluateConditions(
           }
         } else if (mut.operator === "+=" && typeof mut.value === "number") {
           const raw = store.get(mut.variableName);
-          const prev = typeof raw === "number"
-            ? raw
-            : (!isNaN(Number(raw)) ? Number(raw) : 0);
-          store.set(mut.variableName, prev + mut.value);
-        } else if (mut.operator === "-=" && typeof mut.value === "number") {
-          const raw = store.get(mut.variableName);
-          const prev = typeof raw === "number"
-            ? raw
-            : (!isNaN(Number(raw)) ? Number(raw) : 0);
-          store.set(mut.variableName, prev - mut.value);
-        } else if (mut.operator === "*=" && typeof mut.value === "number") {
-          const raw = store.get(mut.variableName);
-          const prev = typeof raw === "number"
-            ? raw
-            : (!isNaN(Number(raw)) ? Number(raw) : 0);
-          store.set(mut.variableName, prev * mut.value);
-        } else if (mut.operator === "/=" && typeof mut.value === "number") {
-          if (mut.value !== 0) {
-            const raw = store.get(mut.variableName);
+          if (raw === "unknown") {
+            store.set(mut.variableName, "unknown");
+          } else {
             const prev = typeof raw === "number"
               ? raw
               : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, prev / mut.value);
+            store.set(mut.variableName, prev + mut.value);
+          }
+        } else if (mut.operator === "-=" && typeof mut.value === "number") {
+          const raw = store.get(mut.variableName);
+          if (raw === "unknown") {
+            store.set(mut.variableName, "unknown");
+          } else {
+            const prev = typeof raw === "number"
+              ? raw
+              : (!isNaN(Number(raw)) ? Number(raw) : 0);
+            store.set(mut.variableName, prev - mut.value);
+          }
+        } else if (mut.operator === "*=" && typeof mut.value === "number") {
+          const raw = store.get(mut.variableName);
+          if (raw === "unknown") {
+            store.set(mut.variableName, "unknown");
+          } else {
+            const prev = typeof raw === "number"
+              ? raw
+              : (!isNaN(Number(raw)) ? Number(raw) : 0);
+            store.set(mut.variableName, prev * mut.value);
+          }
+        } else if (mut.operator === "/=" && typeof mut.value === "number") {
+          if (mut.value !== 0) {
+            const raw = store.get(mut.variableName);
+            if (raw === "unknown") {
+              store.set(mut.variableName, "unknown");
+            } else {
+              const prev = typeof raw === "number"
+                ? raw
+                : (!isNaN(Number(raw)) ? Number(raw) : 0);
+              store.set(mut.variableName, prev / mut.value);
+            }
           }
         } else if (mut.operator === "%=" && typeof mut.value === "number") {
           if (mut.value !== 0) {
             const raw = store.get(mut.variableName);
-            const prev = typeof raw === "number"
-              ? raw
-              : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, prev % mut.value);
+            if (raw === "unknown") {
+              store.set(mut.variableName, "unknown");
+            } else {
+              const prev = typeof raw === "number"
+                ? raw
+                : (!isNaN(Number(raw)) ? Number(raw) : 0);
+              store.set(mut.variableName, prev % mut.value);
+            }
           }
         } else if (mut.operator === "//=" && typeof mut.value === "number") {
           if (mut.value !== 0) {
             const raw = store.get(mut.variableName);
-            const prev = typeof raw === "number"
-              ? raw
-              : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, Math.floor(prev / mut.value));
+            if (raw === "unknown") {
+              store.set(mut.variableName, "unknown");
+            } else {
+              const prev = typeof raw === "number"
+                ? raw
+                : (!isNaN(Number(raw)) ? Number(raw) : 0);
+              store.set(mut.variableName, Math.floor(prev / mut.value));
+            }
           }
         } else if (mut.operator === "**=" && typeof mut.value === "number") {
           const raw = store.get(mut.variableName);
-          const prev = typeof raw === "number"
-            ? raw
-            : (!isNaN(Number(raw)) ? Number(raw) : 0);
-          store.set(mut.variableName, Math.pow(prev, mut.value));
+          if (raw === "unknown") {
+            store.set(mut.variableName, "unknown");
+          } else {
+            const prev = typeof raw === "number"
+              ? raw
+              : (!isNaN(Number(raw)) ? Number(raw) : 0);
+            store.set(mut.variableName, Math.pow(prev, mut.value));
+          }
         } else if (mut.operator === "toggle") {
           const raw = store.get(mut.variableName);
-          const currentBool = isPythonTruthy(raw);
-          store.set(mut.variableName, !currentBool);
+          if (raw === "unknown") {
+            store.set(mut.variableName, "unknown");
+          } else {
+            const currentBool = isPythonTruthy(raw);
+            store.set(mut.variableName, !currentBool);
+          }
         }
       }
     }
@@ -770,44 +833,7 @@ function propagateVariableMutationsAndEvaluateConditions(
           mockFlags,
         );
         if (res === "false") {
-          edge.conditionIsStaticallyFalse = true;
-          const sourceNode = state.nodeMap.get(currId);
-          const isMenu = sourceNode?.type === "MENU" || Boolean(edge.label);
-          const targetNode = state.nodeMap.get(edge.target);
-          const construct = isMenu ? "menu_option" : "condition";
-          const optName = edge.label ? ` "${edge.label}"` : "";
-          const exprStr = edge.condition.expression;
-          addParseDiagnostic(
-            state,
-            {
-              code: "normalization",
-              severity: "warning",
-              location: {
-                chapter: sourceNode?.chapter,
-                construct,
-                sourceId: currId,
-                targetId: edge.target,
-                edgeId: edge.id,
-                targetExpression: exprStr,
-                sourceLocation: edge.sourceLocation ??
-                  sourceNode?.sourceLocation,
-              },
-              context: {
-                category: isMenu ? "dead_menu_option" : "dead_branch",
-                detail: edge.label || exprStr,
-              },
-              message: isMenu
-                ? `Menu option${optName} has a statically false condition (${exprStr}) and cannot be chosen.`
-                : `Condition "${exprStr}" evaluates to statically false; branch to "${
-                  targetNode?.label ?? edge.target
-                }" is unreachable.`,
-              recoveryAction: isMenu
-                ? "Remove the unreachable menu option or update variable initializations/conditions."
-                : "Verify condition expression or update variable assignments.",
-            },
-            `dead_branch|${edge.id}|${currId}|${edge.target}|${exprStr}`,
-          );
-          continue; // Do not propagate along statically false branch
+          continue; // Do not propagate along statically false branch in this iteration
         }
       }
 
@@ -866,6 +892,61 @@ function propagateVariableMutationsAndEvaluateConditions(
           queue.push(edge.target);
         }
       }
+    }
+  }
+
+  // Post-convergence pass: evaluate statically false conditions on finalized merged states
+  for (const edge of state.edges) {
+    if (!edge.condition?.expression) continue;
+    const sourceState = nodeStates.get(edge.source);
+    if (!sourceState) continue;
+
+    const mockFlags = buildMockFlagsFromVariableState(
+      sourceState.variables,
+      sourceState.persistent,
+    );
+    const res = evaluateConditionExpression(
+      edge.condition.expression,
+      mockFlags,
+    );
+    if (res === "false") {
+      edge.conditionIsStaticallyFalse = true;
+      const sourceNode = state.nodeMap.get(edge.source);
+      const isMenu = sourceNode?.type === "MENU";
+      const targetNode = state.nodeMap.get(edge.target);
+      const construct = isMenu ? "menu_option" : "condition";
+      const optName = isMenu && edge.label ? ` "${edge.label}"` : "";
+      const exprStr = edge.condition.expression;
+      addParseDiagnostic(
+        state,
+        {
+          code: "normalization",
+          severity: "warning",
+          location: {
+            chapter: sourceNode?.chapter,
+            construct,
+            sourceId: edge.source,
+            targetId: edge.target,
+            edgeId: edge.id,
+            targetExpression: exprStr,
+            sourceLocation: edge.sourceLocation ??
+              sourceNode?.sourceLocation,
+          },
+          context: {
+            category: isMenu ? "dead_menu_option" : "dead_branch",
+            detail: isMenu ? (edge.label || exprStr) : exprStr,
+          },
+          message: isMenu
+            ? `Menu option${optName} has a statically false condition (${exprStr}) and cannot be chosen.`
+            : `Condition "${exprStr}" evaluates to statically false; branch to "${
+              targetNode?.label ?? edge.target
+            }" is unreachable.`,
+          recoveryAction: isMenu
+            ? "Remove the unreachable menu option or update variable initializations/conditions."
+            : "Verify condition expression or update variable assignments.",
+        },
+        `dead_branch|${edge.id}|${edge.source}|${edge.target}|${exprStr}`,
+      );
     }
   }
 }

@@ -467,7 +467,7 @@ describe("flowchart topology and control flow hardening regressions", () => {
     }
 
     const result = await parseRenpyFiles([
-      { name: "Wish You Were Her.rpy", content: scriptContent },
+      { name: "story/Wish You Were Her.rpy", content: scriptContent },
     ], { captureDialogueLines: true });
 
     // 1. Check michelle scenes: none should be dead ends
@@ -499,10 +499,21 @@ describe("flowchart topology and control flow hardening regressions", () => {
       expect(outEdges.length).toBeGreaterThan(0);
     }
 
-    // 3. Check day2__scene_3 is marked terminal outcome
+    // 3. Check day2__scene_3 is marked terminal outcome and is the ONLY terminal outcome
     const day2Scene3 = result.nodes.find((n) => n.id === "day2__scene_3");
     expect(day2Scene3).toBeDefined();
     expect(day2Scene3?.isTerminalOutcome).toBe(true);
+
+    const terminalNodes = result.nodes.filter((n) => n.isTerminalOutcome);
+    expect(terminalNodes.map((n) => n.id)).toEqual(["day2__scene_3"]);
+
+    // walkToFriendDescription is a utility subroutine, not a terminal outcome
+    const walkNode = result.nodes.find((n) =>
+      n.id === "walkToFriendDescription"
+    );
+    expect(walkNode).toBeDefined();
+    expect(walkNode?.role).toBe("utility");
+    expect(walkNode?.isTerminalOutcome).toBeFalsy();
 
     // 4. Sequential if in kyoko: no else edge between decision_30 and decision_32
     const dec30 = result.nodes.find((n) => n.label === "if fCalledKyoko");
@@ -516,7 +527,7 @@ describe("flowchart topology and control flow hardening regressions", () => {
     );
     expect(elseEdge).toBeUndefined();
 
-    // 5. Calls to walkToFriendDescription: exactly 1 from kyoko and 1 from michelle
+    // 5. Calls and returns for walkToFriendDescription: exactly 2 calls and 2 returns
     const callsFromKyoko = result.edges.filter(
       (e) =>
         e.kind === "call" && e.target === "walkToFriendDescription" &&
@@ -529,6 +540,32 @@ describe("flowchart topology and control flow hardening regressions", () => {
         e.source.startsWith("michelle"),
     );
     expect(callsFromMichelle).toHaveLength(1);
+
+    const totalCalls = result.edges.filter(
+      (e) => e.kind === "call" && e.target === "walkToFriendDescription",
+    );
+    expect(totalCalls).toHaveLength(2);
+
+    const totalReturns = result.edges.filter(
+      (e) => e.kind === "call_return" && e.source === "walkToFriendDescription",
+    );
+    expect(totalReturns).toHaveLength(2);
+
+    // 5b. No sequence 2-cycles exist
+    const seqEdges = result.edges.filter((e) => e.kind === "sequence");
+    const seqPairSet = new Set(
+      seqEdges.map((e) => `${e.source}-->${e.target}`),
+    );
+    const seqTwoCycles = seqEdges.filter((e) =>
+      seqPairSet.has(`${e.target}-->${e.source}`)
+    );
+    expect(seqTwoCycles).toHaveLength(0);
+
+    // 5c. No statically false edges exist
+    const staticallyFalseEdges = result.edges.filter(
+      (e) => e.conditionIsStaticallyFalse,
+    );
+    expect(staticallyFalseEdges).toHaveLength(0);
 
     // 6. Jumps from dream to day2: exactly 1 jump edge
     const jumpsDreamToDay2 = result.edges.filter(

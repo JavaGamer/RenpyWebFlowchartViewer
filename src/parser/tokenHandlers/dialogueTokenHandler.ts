@@ -4,8 +4,7 @@ import type {
   ParseScanState,
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
-import { addEdge, addIncoming, addOutgoing } from "../graphMutations.ts";
-import { edgeIdWithOption, menuAtDepth } from "../scanTransitions.ts";
+import { menuAtDepth } from "../scanTransitions.ts";
 import { updateCallReturnTarget } from "../handlers/jumpCallEdges.ts";
 import type { SourceLocation } from "../../domain/index.ts";
 
@@ -112,27 +111,6 @@ export function handleDialogueStringToken(
         if (entry.menuId.startsWith("decision_")) {
           if (entry.calledTargetId && entry.callContextId) {
             updateCallReturnTarget(state, entry.callContextId, ownerId);
-          } else {
-            const baseEdgeId = `seq_${entry.menuId}__${ownerId}`;
-            if (
-              !state.edgeIds.has(baseEdgeId) &&
-              !state.graph.hasEdge(baseEdgeId)
-            ) {
-              addEdge(state, {
-                id: edgeIdWithOption(baseEdgeId, entry.optionText ?? null),
-                source: entry.menuId,
-                target: ownerId,
-                kind: "sequence",
-                label: entry.optionText ?? "else",
-                condition: {
-                  branchKind: "else",
-                  decisionNodeId: entry.menuId,
-                },
-                sourceLocation: entry.sourceLocation ?? sourceLocation,
-              });
-              addOutgoing(state, entry.menuId, "sequence");
-              addIncoming(state, ownerId, "sequence");
-            }
           }
         } else {
           remainingPending.push(entry);

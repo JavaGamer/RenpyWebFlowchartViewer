@@ -50,6 +50,7 @@ function handlePoppedDecisionScope(
     calledTargetId: popped.calledTargetId,
     callContextId: popped.callContextId,
     calledSubroutines: popped.calledSubroutines,
+    expression: popped.expression,
   });
 
   const parentDec = scanState.conditionalDecisionStack.length > 0
@@ -70,9 +71,11 @@ function handlePoppedDecisionScope(
     }
   }
 
-  const hasElse = popped.branches.some(
-    (b) => b.kind === "else" || b.kind === "case",
+  const hasWildcardCase = popped.branches.some(
+    (b) => b.kind === "case" && (!b.expression || b.expression.trim() === "_"),
   );
+  const hasElse = popped.branches.some((b) => b.kind === "else") ||
+    hasWildcardCase;
   const allBranchesExit = hasElse && popped.branches.every((b) => b.hasExit);
 
   if (allBranchesExit) {
@@ -113,12 +116,22 @@ function handlePoppedDecisionScope(
           e.decisionNodeId === popped.decisionNodeId &&
           e.menuId.startsWith("menu_"),
       ).length;
+      const hasExitingBranch = popped.branches.some((b) => b.hasExit);
+      const hasSubroutineBranch = popped.branches.some(
+        (b) =>
+          Boolean(b.calledTargetId) ||
+          Boolean(b.calledSubroutines && b.calledSubroutines.length > 0),
+      );
+      const hasLinearFallthroughBranch = popped.branches.some(
+        (b) =>
+          !b.hasExit &&
+          !b.calledTargetId &&
+          (!b.calledSubroutines || b.calledSubroutines.length === 0),
+      );
+      const hasDivergentExit = hasExitingBranch || hasSubroutineBranch ||
+        menuCountForDecision > 0;
       const hasNonSubroutineFallthrough = (!hasElse) ||
-        (menuCountForDecision === 0 &&
-          popped.branches.some((b) =>
-            !b.hasExit && !b.calledTargetId &&
-            (!b.calledSubroutines || b.calledSubroutines.length === 0)
-          ));
+        (hasDivergentExit && hasLinearFallthroughBranch);
       if (
         hasNonSubroutineFallthrough &&
         !popped.connectedSceneId &&

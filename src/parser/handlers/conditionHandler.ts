@@ -223,6 +223,7 @@ export function handleConditionalHeader(
     calledTargetId: existing.calledTargetId,
     callContextId: existing.callContextId,
     calledSubroutines: existing.calledSubroutines,
+    expression: existing.expression,
   });
   // Construct a new context representation for elif/else instead of mutating existing in-place
   scanState
