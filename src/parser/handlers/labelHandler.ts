@@ -345,7 +345,7 @@ export function splitCurrentLabelOnSceneBoundary(
       .conditionalDecisionStack[
         scanState.conditionalDecisionStack.length - 1
       ];
-    if (activeDecision && state.pruneDeadEndDecisions !== true) {
+    if (activeDecision) {
       if (
         activeDecision.connectedSceneId === undefined ||
         activeDecision.connectedBranchKind !== activeDecision.branchKind
@@ -364,10 +364,6 @@ export function splitCurrentLabelOnSceneBoundary(
       activeDecision.connectedBranchKind = activeDecision.branchKind;
     } else {
       connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
-      if (activeDecision) {
-        activeDecision.connectedSceneId = nextSceneId;
-        activeDecision.connectedBranchKind = activeDecision.branchKind;
-      }
     }
   } else {
     const activeDecision = scanState

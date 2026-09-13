@@ -91,7 +91,6 @@ export interface ConditionalDecisionContext {
   callContextId?: string;
   calledSubroutines?: Array<{ targetId: string; callContextId: string }>;
   currentBranchHasExit?: boolean;
-  materialized?: boolean;
   branches?: Array<{
     kind: ConditionalBranchKind;
     hasExit: boolean;

@@ -127,7 +127,9 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
       node?.condition?.branchKind === "while" ||
       node?.condition?.branchKind === "for" ||
       node?.role === "while_loop" ||
-      node?.role === "for_loop"
+      node?.role === "for_loop" ||
+      node?.isTerminalOutcome ||
+      state.hasReturnInLabel.has(id)
     ) {
       return false;
     }
@@ -147,6 +149,7 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
       if (
         targetNode.type !== "DECISION" ||
         targetNode.isTerminalOutcome ||
+        state.hasReturnInLabel.has(targetNode.id) ||
         targetNode.condition?.branchKind === "while" ||
         targetNode.condition?.branchKind === "for" ||
         targetNode.role === "while_loop" ||
@@ -163,6 +166,7 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
     if (
       node.type === "DECISION" &&
       !node.isTerminalOutcome &&
+      !state.hasReturnInLabel.has(node.id) &&
       node.condition?.branchKind !== "while" &&
       node.condition?.branchKind !== "for" &&
       node.role !== "while_loop" &&
@@ -186,6 +190,14 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
   );
   state.edgeMap = new Map(state.edges.map((edge) => [edge.id, edge]));
   state.edgeIds = new Set(state.edges.map((edge) => edge.id));
+
+  if (state.graph) {
+    for (const id of deadDecisionIds) {
+      if (state.graph.hasNode(id)) {
+        state.graph.dropNode(id);
+      }
+    }
+  }
 }
 
 /**

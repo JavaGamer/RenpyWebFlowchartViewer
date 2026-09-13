@@ -183,6 +183,13 @@ export function emitJumpEdge(
           updateCallReturnTarget(state, entry.callContextId, resolvedTargetId);
           continue;
         }
+        if (
+          state.pruneDeadEndDecisions === true &&
+          entry.menuId.startsWith("decision_") &&
+          !entry.calledTargetId
+        ) {
+          continue;
+        }
         const key = `${entry.menuId}__${entry.optionText ?? ""}`;
         if (connectedKeys.has(key)) continue;
         connectedKeys.add(key);
@@ -415,6 +422,13 @@ export function emitCallEdge(
       for (const entry of matchingEntries) {
         if (entry.calledTargetId && entry.callContextId) {
           updateCallReturnTarget(state, entry.callContextId, resolvedTargetId);
+          continue;
+        }
+        if (
+          state.pruneDeadEndDecisions === true &&
+          entry.menuId.startsWith("decision_") &&
+          !entry.calledTargetId
+        ) {
           continue;
         }
         const key = `${entry.menuId}__${entry.optionText ?? ""}`;

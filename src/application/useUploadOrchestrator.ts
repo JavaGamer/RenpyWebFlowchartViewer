@@ -140,6 +140,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
       customRulesByVariant,
       selectedVariantCustomRules,
       dialogueSearchMode,
+      pruneDeadEndDecisions,
     ],
   );
 

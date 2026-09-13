@@ -230,6 +230,11 @@ export function handleReturnKeywordToken(
         scanState.conditionalDecisionStack.length - 1
       ]!;
       decCtx.currentBranchHasExit = true;
+      state.hasReturnInLabel.add(decCtx.decisionNodeId);
+      const decNode = state.nodeMap.get(decCtx.decisionNodeId);
+      if (decNode) {
+        decNode.isTerminalOutcome = true;
+      }
     }
     if (scanState.pendingMenuFallthrough.length > 0) {
       const allCoveredByMenus = areAllPathsCoveredByPendingMenus(

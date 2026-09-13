@@ -272,4 +272,81 @@ label path_b:
       ),
     ).toBe(true);
   });
+
+  it("preserves decisions that guard early game-over/return branches", async () => {
+    const script = `
+label start:
+    "Story begins"
+    if gives_up:
+        "You gave up."
+        return
+    "Continuing on..."
+    jump chapter2
+
+label chapter2:
+    return
+`;
+
+    const result = await parseRenpyFiles(
+      [{ name: "script.rpy", content: script }],
+      { pruneDeadEndDecisions: true },
+    );
+
+    const decision = result.nodes.find((n) => n.type === "DECISION");
+    expect(decision).toBeDefined();
+  });
+
+  it("preserves decisions branching to mutually exclusive scene splits without linear chain", async () => {
+    const script = `
+label start:
+    scene bg room
+    if choice == 1:
+        scene bg beach
+        "Beach"
+    else:
+        scene bg mountain
+        "Mountain"
+    scene bg evening
+    "Together"
+    return
+`;
+
+    const result = await parseRenpyFiles(
+      [{ name: "script.rpy", content: script }],
+      { pruneDeadEndDecisions: true, sceneSplitDialogueThreshold: 0 },
+    );
+
+    const decisions = result.nodes.filter((n) => n.type === "DECISION");
+    expect(decisions.length).toBeGreaterThanOrEqual(1);
+
+    // Verify beach and mountain do NOT connect to each other in a false linear sequence
+    const beachToMountain = result.edges.find(
+      (e) => e.source === "start__scene_2" && e.target === "start__scene_3",
+    );
+    expect(beachToMountain).toBeUndefined();
+  });
+
+  it("prunes cosmetic decision immediately preceding a jump without duplicate edges", async () => {
+    const script = `
+label start:
+    if cosmetic_flag:
+        "Looking sharp!"
+    jump chapter2
+
+label chapter2:
+    return
+`;
+
+    const result = await parseRenpyFiles(
+      [{ name: "script.rpy", content: script }],
+      { pruneDeadEndDecisions: true },
+    );
+
+    const decisions = result.nodes.filter((n) => n.type === "DECISION");
+    expect(decisions).toHaveLength(0);
+
+    const jumpEdges = result.edges.filter((e) => e.target === "chapter2");
+    expect(jumpEdges).toHaveLength(1);
+    expect(jumpEdges[0]!.source).toBe("start");
+  });
 });

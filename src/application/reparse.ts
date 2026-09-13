@@ -82,6 +82,7 @@ export async function reparseUploadedFiles(
     parserVariant: selectedVariant,
     customRulesByVariant,
     customScreenActionRules: selectedVariantCustomRules,
+    pruneDeadEndDecisions: ruleSettings.pruneDeadEndDecisions,
     preserveSession,
   });
 

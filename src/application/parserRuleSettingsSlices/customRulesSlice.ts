@@ -122,5 +122,6 @@ export const createCustomRulesSlice: StateCreator<
     set((draft) => {
       draft.selectedVariant = DEFAULT_PARSER_VARIANT;
       draft.customRulesByVariant = createEmptyRulesByVariant();
+      draft.pruneDeadEndDecisions = true;
     }),
 });

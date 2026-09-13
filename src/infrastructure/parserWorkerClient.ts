@@ -322,7 +322,7 @@ async function parseRenpyFilesFallback(
   const {
     files,
     resetActiveGraph,
-    isFinalChunk,
+    isFinalChunk = true,
     captureDialogueLines,
     deferDetails,
     parserVariant,
