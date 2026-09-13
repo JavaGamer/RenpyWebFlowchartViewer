@@ -27,10 +27,12 @@ export interface ParserRuleSettings {
   selectedVariant: ParserVariant;
   customRulesByVariant: RulesByVariant;
   customVariants: CustomVariantDefinition[];
+  pruneDeadEndDecisions: boolean;
 }
 
 export interface ParserRuleSettingsActions {
   setSelectedVariant: (variant: ParserVariant) => void;
+  setPruneDeadEndDecisions?: (enabled: boolean) => void;
   addCustomRule: (variantKey?: string) => void;
   updateCustomRule: (
     idx: number,
@@ -52,6 +54,7 @@ export const defaultParserRuleSettings: ParserRuleSettings = {
   selectedVariant: DEFAULT_PARSER_VARIANT,
   customRulesByVariant: createEmptyRulesByVariant(),
   customVariants: [],
+  pruneDeadEndDecisions: true,
 };
 
 export {
@@ -99,11 +102,16 @@ function mergePersistedState(
   const selectedVariant = isParserVariant(parsed.selectedVariant)
     ? parsed.selectedVariant
     : defaultParserRuleSettings.selectedVariant;
+  const pruneDeadEndDecisions =
+    typeof parsed.pruneDeadEndDecisions === "boolean"
+      ? parsed.pruneDeadEndDecisions
+      : true;
   return {
     ...current,
     selectedVariant,
     customRulesByVariant: normalizedRules,
     customVariants: registeredCustomVariants,
+    pruneDeadEndDecisions,
   };
 }
 
@@ -144,6 +152,7 @@ export const useParserRuleSettingsStore = create<ParserRuleSettingsStore>()(
         selectedVariant: state.selectedVariant,
         customRulesByVariant: state.customRulesByVariant,
         customVariants: state.customVariants,
+        pruneDeadEndDecisions: state.pruneDeadEndDecisions,
       }),
     },
   ),

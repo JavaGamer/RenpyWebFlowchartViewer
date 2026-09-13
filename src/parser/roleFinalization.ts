@@ -1,4 +1,4 @@
-import type { ParseGraphState } from "./pipelineTypes.ts";
+import type { ParseGraphState, ParseOptions } from "./pipelineTypes.ts";
 import { materializeCallReturnEdges } from "./callReturnFinalization.ts";
 import { classifyNodeRole } from "./roleClassification.ts";
 import { normalizeGraphState } from "./graphNormalization.ts";
@@ -93,9 +93,12 @@ function labelHasForwardFlow(state: ParseGraphState, labelId: string): boolean {
   return false;
 }
 
-export function finalizeRoles(state: ParseGraphState) {
+export function finalizeRoles(
+  state: ParseGraphState,
+  options?: ParseOptions,
+) {
   materializeCallReturnEdges(state);
-  normalizeGraphState(state);
+  normalizeGraphState(state, options);
   emitShadowedTargetResolutionDiagnostics(state);
 
   if (state.nodeMutations && state.nodeMutations.size > 0) {

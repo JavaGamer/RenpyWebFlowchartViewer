@@ -126,6 +126,11 @@ export async function parseFileToFragment(
   if (options.dynamicJumpRules) {
     state.dynamicJumpRules = options.dynamicJumpRules;
   }
+  if (options.pruneDeadEndDecisions !== undefined) {
+    state.pruneDeadEndDecisions = options.pruneDeadEndDecisions;
+  } else if (prePassState?.pruneDeadEndDecisions !== undefined) {
+    state.pruneDeadEndDecisions = prePassState.pruneDeadEndDecisions;
+  }
   if (prePassState) {
     if (prePassState.dynamicJumpRules) {
       state.dynamicJumpRules = prePassState.dynamicJumpRules;
@@ -189,6 +194,7 @@ export async function parseFileToFragment(
     parserVariant: options.parserVariant,
     screenActionRules: options.screenActionRules,
     sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
+    pruneDeadEndDecisions: options.pruneDeadEndDecisions,
   });
 
   return createFileGraphFragment(state, file, fileIndex);
@@ -221,6 +227,9 @@ export function linkGraphFragments(
   }
   if (options.projectMediaFiles && !state.projectMediaFiles) {
     state.projectMediaFiles = options.projectMediaFiles;
+  }
+  if (options.pruneDeadEndDecisions !== undefined) {
+    state.pruneDeadEndDecisions = options.pruneDeadEndDecisions;
   }
 
   // Sort fragments deterministically by fileIndex then filePath (using deterministic string comparison)
@@ -673,7 +682,7 @@ export function linkGraphFragments(
   }
 
   // Pass 2.4: Finalize roles, materialize call-returns, normalize graph, & run CFA
-  finalizeRoles(state);
+  finalizeRoles(state, options);
 
   return state;
 }

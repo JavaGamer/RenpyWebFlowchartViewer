@@ -82,6 +82,7 @@ export interface ProcessUploadDeps {
   customRulesByVariant?: RulesByVariant;
   customScreenActionRules?: ScreenActionRule[];
   customVariantPlugins?: SerializableParserVariantPlugin[];
+  pruneDeadEndDecisions?: boolean;
   preserveSession?: boolean;
 
   // Real-time status callbacks
@@ -134,6 +135,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     customRulesByVariant,
     customScreenActionRules = [],
     customVariantPlugins: injectedCustomVariantPlugins,
+    pruneDeadEndDecisions: configuredPruneDeadEndDecisions,
     preserveSession: defaultPreserveSession = false,
     onFilesDiscovered,
     onFileStatusUpdate,
@@ -412,6 +414,10 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 : effectiveVariant,
               customVariantPlugins,
               screenActionRules: effectiveScreenActionRules,
+              pruneDeadEndDecisions: configuredPruneDeadEndDecisions ??
+                useParserRuleSettingsStore?.getState?.()
+                  ?.pruneDeadEndDecisions ??
+                true,
               signal: controller.signal,
               maxParallelFiles: typeof navigator !== "undefined"
                 ? navigator.hardwareConcurrency

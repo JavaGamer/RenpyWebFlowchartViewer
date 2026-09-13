@@ -62,6 +62,8 @@ export default function ParserSettingsSection({
     removeCustomVariant,
     exportCustomVariant,
     importCustomVariant,
+    pruneDeadEndDecisions,
+    setPruneDeadEndDecisions,
   } = useParserRuleSettingsStore();
 
   const currentPlugin = parserVariantPlugins.find(
@@ -314,6 +316,42 @@ export default function ParserSettingsSection({
         <Info size={13} className="shrink-0 mt-0.5 text-violet-500" />
         <span>{variantDescription}</span>
       </p>
+
+      {/* Prune cosmetic decisions toggle */}
+      <div className="mt-3 flex items-start gap-2 pt-2.5 border-t border-slate-700/20">
+        <input
+          id="prune-dead-end-decisions"
+          type="checkbox"
+          checked={pruneDeadEndDecisions}
+          onChange={(e) => setPruneDeadEndDecisions?.(e.target.checked)}
+          className={cn(
+            "mt-0.5 rounded border text-violet-600 focus:ring-violet-500",
+            isDark ? "border-slate-700 bg-slate-800" : "border-gray-300",
+          )}
+        />
+        <label
+          htmlFor="prune-dead-end-decisions"
+          className="cursor-pointer select-none"
+        >
+          <span
+            className={cn(
+              "font-medium block",
+              isDark ? "text-slate-200" : "text-gray-800",
+            )}
+          >
+            Prune cosmetic / non-branching decisions (Recommended)
+          </span>
+          <span
+            className={cn(
+              "text-[11px] block mt-0.5",
+              isDark ? "text-slate-400" : "text-gray-500",
+            )}
+          >
+            Hides inline conditional statements that only change cosmetic
+            sprites or dialogue flavor without branching the storyline.
+          </span>
+        </label>
+      </div>
 
       {/* Built-in rules disclosure */}
       {activePlugin && (

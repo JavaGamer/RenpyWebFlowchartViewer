@@ -323,6 +323,7 @@ export const parserApi = {
       customVariantPlugins?: SerializableParserVariantPlugin[];
       screenActionRules?: ScreenActionRule[];
       sceneSplitDialogueThreshold?: number;
+      pruneDeadEndDecisions?: boolean;
       projectMediaFiles?:
         | Array<{ relativePath: string; fileName: string }>
         | Set<string>
@@ -458,6 +459,7 @@ export const parserApi = {
             parserVariant: options.parserVariant,
             screenActionRules: options.screenActionRules,
             sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
+            pruneDeadEndDecisions: options.pruneDeadEndDecisions,
           });
 
           if (wantsProgress) {
@@ -485,7 +487,9 @@ export const parserApi = {
             options.projectMediaFiles;
         }
         if (isFinalChunk) {
-          finalizeRoles(session.accumulatedState);
+          finalizeRoles(session.accumulatedState, {
+            pruneDeadEndDecisions: options.pruneDeadEndDecisions,
+          });
           buildDialogueSearchIndex(
             session,
             session.accumulatedState.nodes,
@@ -606,6 +610,7 @@ export const parserApi = {
       customVariantPlugins?: SerializableParserVariantPlugin[];
       screenActionRules?: ScreenActionRule[];
       sceneSplitDialogueThreshold?: number;
+      pruneDeadEndDecisions?: boolean;
       maxCallStackDepth?: number;
       prePassState?: {
         globalLabelVariableLiteralTargets?: Array<[string, string]>;
@@ -741,6 +746,7 @@ export const parserApi = {
           parserVariant: options.parserVariant,
           screenActionRules: options.screenActionRules,
           sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
+          pruneDeadEndDecisions: options.pruneDeadEndDecisions,
         });
       }
       if (cancelledRequests.has(requestId)) {
@@ -808,6 +814,7 @@ export const parserApi = {
       parserVariant?: ParserVariant;
       screenActionRules?: ScreenActionRule[];
       sceneSplitDialogueThreshold?: number;
+      pruneDeadEndDecisions?: boolean;
     },
     fileIndex: number = 0,
   ): Promise<FileGraphFragment> {
@@ -835,6 +842,7 @@ export const parserApi = {
         parserVariant: options.parserVariant,
         screenActionRules: options.screenActionRules,
         sceneSplitDialogueThreshold: options.sceneSplitDialogueThreshold,
+        pruneDeadEndDecisions: options.pruneDeadEndDecisions,
       });
       return createFileGraphFragment(state, file, fileIndex);
     } finally {
@@ -982,6 +990,7 @@ export const parserApi = {
       parserVariant?: ParserVariant;
       customVariantPlugins?: SerializableParserVariantPlugin[];
       screenActionRules?: ScreenActionRule[];
+      pruneDeadEndDecisions?: boolean;
     },
   ): Promise<ParseWorkerClientResult> {
     if (cancelledRequests.has(requestId)) {
@@ -1221,7 +1230,9 @@ export const parserApi = {
         }
 
         if (isFinalChunk) {
-          finalizeRoles(session.accumulatedState);
+          finalizeRoles(session.accumulatedState, {
+            pruneDeadEndDecisions: options.pruneDeadEndDecisions,
+          });
           materializeCallReturnEdges(session.accumulatedState);
           runControlFlowAnalysis(
             session.accumulatedState,
@@ -1389,7 +1400,9 @@ export const parserApi = {
 
         session.accumulatedState = state;
 
-        finalizeRoles(state);
+        finalizeRoles(state, {
+          pruneDeadEndDecisions: options.pruneDeadEndDecisions,
+        });
         materializeCallReturnEdges(state);
         runControlFlowAnalysis(state, options.projectMediaFiles);
         buildDialogueSearchIndex(session, state.nodes);

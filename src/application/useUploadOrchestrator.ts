@@ -68,12 +68,14 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
     })),
   );
 
-  const { selectedVariant, customRulesByVariant } = useParserRuleSettingsStore(
-    useShallow((s) => ({
-      selectedVariant: s.selectedVariant,
-      customRulesByVariant: s.customRulesByVariant,
-    })),
-  );
+  const { selectedVariant, customRulesByVariant, pruneDeadEndDecisions } =
+    useParserRuleSettingsStore(
+      useShallow((s) => ({
+        selectedVariant: s.selectedVariant,
+        customRulesByVariant: s.customRulesByVariant,
+        pruneDeadEndDecisions: s.pruneDeadEndDecisions,
+      })),
+    );
 
   const selectedVariantCustomRules = useMemo(
     () => customRulesByVariant[selectedVariant] ?? [],
@@ -105,6 +107,7 @@ export function useUploadOrchestrator(): UseUploadOrchestratorResult {
         parserVariant: selectedVariant,
         customRulesByVariant,
         customScreenActionRules: selectedVariantCustomRules,
+        pruneDeadEndDecisions,
         preserveSession: options?.preserveSession,
         onReadMeasured: (fileCount) => {
           perf.measure("read", "read_files_ms", { files: fileCount });

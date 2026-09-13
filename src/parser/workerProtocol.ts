@@ -50,6 +50,7 @@ export interface ParseWorkerClientRequest {
     | Set<string>
     | string[];
   maxCallStackDepth?: number;
+  pruneDeadEndDecisions?: boolean;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -87,6 +88,7 @@ export interface ParseRequestMessage {
     | Set<string>
     | string[];
   maxCallStackDepth?: number;
+  pruneDeadEndDecisions?: boolean;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;
@@ -169,6 +171,7 @@ export interface ParseChunkRequestMessage {
     | Set<string>
     | string[];
   maxCallStackDepth?: number;
+  pruneDeadEndDecisions?: boolean;
 }
 
 export interface FinalizeRequestMessage {
@@ -212,6 +215,7 @@ export interface FinalizeRequestMessage {
   translations?: ProjectTranslations;
   availableLanguages?: string[];
   screenDefinitions?: Array<[string, ScreenDefinition]>;
+  pruneDeadEndDecisions?: boolean;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
   isFinalChunk?: boolean;

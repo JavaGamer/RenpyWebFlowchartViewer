@@ -1,5 +1,9 @@
 import type { FlowEdge, FlowNode } from "../domain/index.ts";
-import type { EdgeKind, ParseGraphState } from "./pipelineTypes.ts";
+import type {
+  EdgeKind,
+  ParseGraphState,
+  ParseOptions,
+} from "./pipelineTypes.ts";
 import { addParseDiagnostic } from "./diagnostics.ts";
 import { MultiDirectedGraph } from "graphology";
 
@@ -97,6 +101,94 @@ function rebuildReturnTrackingSet(
 }
 
 /**
+ * Prunes DECISION nodes that have no forward story exits and lead only to dead ends.
+ * Preserves nodes with isTerminalOutcome, jumps, calls, or paths reaching LABEL/MENU nodes.
+ */
+export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
+  const outEdgesBySource = new Map<string, FlowEdge[]>();
+  for (const edge of state.edges) {
+    let list = outEdgesBySource.get(edge.source);
+    if (!list) {
+      list = [];
+      outEdgesBySource.set(edge.source, list);
+    }
+    list.push(edge);
+  }
+
+  const isDeadEndDecision = (
+    id: string,
+    visited = new Set<string>(),
+  ): boolean => {
+    if (visited.has(id)) return true;
+    visited.add(id);
+
+    const node = state.nodeMap.get(id);
+    if (
+      node?.condition?.branchKind === "while" ||
+      node?.condition?.branchKind === "for" ||
+      node?.role === "while_loop" ||
+      node?.role === "for_loop"
+    ) {
+      return false;
+    }
+
+    const outs = outEdgesBySource.get(id) || [];
+    if (outs.length === 0) return true;
+
+    return outs.every((edge) => {
+      if (
+        edge.kind === "jump" || edge.kind === "call" ||
+        edge.kind === "call_return"
+      ) {
+        return false;
+      }
+      const targetNode = state.nodeMap.get(edge.target);
+      if (!targetNode) return true;
+      if (
+        targetNode.type !== "DECISION" ||
+        targetNode.isTerminalOutcome ||
+        targetNode.condition?.branchKind === "while" ||
+        targetNode.condition?.branchKind === "for" ||
+        targetNode.role === "while_loop" ||
+        targetNode.role === "for_loop"
+      ) {
+        return false;
+      }
+      return isDeadEndDecision(targetNode.id, visited);
+    });
+  };
+
+  const deadDecisionIds = new Set<string>();
+  for (const node of state.nodes) {
+    if (
+      node.type === "DECISION" &&
+      !node.isTerminalOutcome &&
+      node.condition?.branchKind !== "while" &&
+      node.condition?.branchKind !== "for" &&
+      node.role !== "while_loop" &&
+      node.role !== "for_loop"
+    ) {
+      if (isDeadEndDecision(node.id)) {
+        deadDecisionIds.add(node.id);
+      }
+    }
+  }
+
+  if (deadDecisionIds.size === 0) return;
+
+  state.nodes = state.nodes.filter((node) => !deadDecisionIds.has(node.id));
+  state.nodeMap = new Map(state.nodes.map((node) => [node.id, node]));
+  state.nodeIds = new Set(state.nodes.map((node) => node.id));
+
+  state.edges = state.edges.filter(
+    (edge) =>
+      !deadDecisionIds.has(edge.source) && !deadDecisionIds.has(edge.target),
+  );
+  state.edgeMap = new Map(state.edges.map((edge) => [edge.id, edge]));
+  state.edgeIds = new Set(state.edges.map((edge) => edge.id));
+}
+
+/**
  * Standardizes the compiled parser graph state.
  * Performs critical validation, validation repair, and semantic mapping:
  * 1. Sanitizes, validates, and deduplicates all nodes; drops empty IDs.
@@ -108,8 +200,12 @@ function rebuildReturnTrackingSet(
  * 7. Constructs a fresh Graphology MultiDirectedGraph representing the processed network.
  *
  * @param state The global parser graph state containing raw scanned elements.
+ * @param options Optional parse options controlling normalization behaviors.
  */
-export function normalizeGraphState(state: ParseGraphState): void {
+export function normalizeGraphState(
+  state: ParseGraphState,
+  options?: ParseOptions,
+): void {
   const normalizedNodes: FlowNode[] = [];
   const nodeMap = new Map<string, FlowNode>();
 
@@ -380,10 +476,16 @@ export function normalizeGraphState(state: ParseGraphState): void {
   state.edgeMap = new Map(normalizedEdges.map((edge) => [edge.id, edge]));
   state.nodeIds = new Set(normalizedNodes.map((node) => node.id));
   state.edgeIds = new Set(normalizedEdges.map((edge) => edge.id));
+
+  if (
+    options?.pruneDeadEndDecisions === true ||
+    state.pruneDeadEndDecisions === true
+  ) {
+    pruneDeadEndDecisionNodes(state);
+  }
+
   state.allLabelIds = new Set(
-    normalizedNodes.filter((node) => node.type === "LABEL").map((node) =>
-      node.id
-    ),
+    state.nodes.filter((node) => node.type === "LABEL").map((node) => node.id),
   );
 
   // Initialize and populate traffic trackers
@@ -402,7 +504,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
     );
   }
 
-  for (const edge of normalizedEdges) {
+  for (const edge of state.edges) {
     const edgeKind = edge.kind ?? "sequence";
     if (state.nodeIds.has(edge.source)) {
       addLabelTraffic(state.outgoingByLabel, edge.source, edgeKind);
@@ -422,10 +524,10 @@ export function normalizeGraphState(state: ParseGraphState): void {
   // Re-instantiate Graphology instance representation
   state.graph = new MultiDirectedGraph<FlowNode, FlowEdge>();
   state.pendingGraphEdgeIds = new Set();
-  for (const node of normalizedNodes) {
+  for (const node of state.nodes) {
     state.graph.addNode(node.id, node);
   }
-  for (const edge of normalizedEdges) {
+  for (const edge of state.edges) {
     if (state.graph.hasNode(edge.source) && state.graph.hasNode(edge.target)) {
       state.graph.addDirectedEdgeWithKey(
         edge.id,
@@ -442,7 +544,7 @@ export function normalizeGraphState(state: ParseGraphState): void {
     string,
     { name: string; type: "image" | "scene" | "audio"; nodeIds?: string[] }
   >();
-  for (const node of normalizedNodes) {
+  for (const node of state.nodes) {
     if (node.audioAssetCues) {
       for (const cue of node.audioAssetCues) {
         if (!cue.asset || !cue.asset.trim()) continue;

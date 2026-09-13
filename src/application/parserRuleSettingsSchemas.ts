@@ -106,4 +106,5 @@ export const parserRuleSettingsSchema = z.object({
     .record(z.string(), rulesArraySchema)
     .catch({}),
   customVariants: customVariantsArraySchema,
+  pruneDeadEndDecisions: z.boolean().catch(true),
 });

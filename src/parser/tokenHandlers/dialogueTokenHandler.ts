@@ -108,10 +108,11 @@ export function handleDialogueStringToken(
     if (scanState.pendingMenuFallthrough.length > 0) {
       const remainingPending: typeof scanState.pendingMenuFallthrough = [];
       for (const entry of scanState.pendingMenuFallthrough) {
-        if (entry.menuId.startsWith("decision_")) {
-          if (entry.calledTargetId && entry.callContextId) {
-            updateCallReturnTarget(state, entry.callContextId, ownerId);
-          }
+        if (entry.calledTargetId && entry.callContextId) {
+          updateCallReturnTarget(state, entry.callContextId, ownerId);
+        } else if (entry.menuId.startsWith("decision_")) {
+          // Skip non-call decision fallthrough - decisions fall through to the next statement
+          // in the label, not necessarily creating an edge to the current dialogue owner
         } else {
           remainingPending.push(entry);
         }

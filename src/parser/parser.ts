@@ -64,6 +64,9 @@ export async function parseRenpyFiles(
   if (options.maxCallStackDepth !== undefined) {
     state.maxCallStackDepth = options.maxCallStackDepth;
   }
+  if (options.pruneDeadEndDecisions !== undefined) {
+    state.pruneDeadEndDecisions = options.pruneDeadEndDecisions;
+  }
 
   const mediaFileExtensions = new Set([
     ".png",

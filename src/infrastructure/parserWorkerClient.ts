@@ -388,6 +388,7 @@ async function parseRenpyFilesFallback(
         deferDetails,
         parserVariant,
         screenActionRules,
+        pruneDeadEndDecisions: request.pruneDeadEndDecisions,
       });
 
       onProgress?.({
@@ -398,7 +399,9 @@ async function parseRenpyFilesFallback(
     }
 
     if (isFinalChunk) {
-      finalizeRoles(currentFallback.graphState);
+      finalizeRoles(currentFallback.graphState, {
+        pruneDeadEndDecisions: request.pruneDeadEndDecisions,
+      });
       await fallbackBuildDialogueSearchIndex(
         currentFallback,
         currentFallback.graphState.nodes,
@@ -463,6 +466,8 @@ export function parseRenpyFilesInWorker(
       customVariantPlugins,
       screenActionRules,
       projectMediaFiles: request.projectMediaFiles,
+      maxCallStackDepth: request.maxCallStackDepth,
+      pruneDeadEndDecisions: request.pruneDeadEndDecisions,
       signal,
       appendToActiveGraph,
       resetActiveGraph,
@@ -550,6 +555,7 @@ export function parseRenpyFilesInWorker(
             screenActionRules,
             projectMediaFiles: request.projectMediaFiles,
             maxCallStackDepth: request.maxCallStackDepth,
+            pruneDeadEndDecisions: request.pruneDeadEndDecisions,
             appendToActiveGraph,
             resetActiveGraph,
             isFinalChunk,
@@ -674,6 +680,7 @@ export interface ParseChunkRequest {
   screenActionRules?: ParseWorkerClientRequest["screenActionRules"];
   projectMediaFiles?: ParseWorkerClientRequest["projectMediaFiles"];
   maxCallStackDepth?: number;
+  pruneDeadEndDecisions?: boolean;
   signal?: AbortSignal;
   appendToActiveGraph?: boolean;
   resetActiveGraph?: boolean;
@@ -720,6 +727,7 @@ export function parseChunksInParallel({
   screenActionRules,
   projectMediaFiles,
   maxCallStackDepth,
+  pruneDeadEndDecisions,
   signal,
   appendToActiveGraph,
   resetActiveGraph,
@@ -836,6 +844,7 @@ export function parseChunksInParallel({
             customVariantPlugins,
             screenActionRules,
             maxCallStackDepth,
+            pruneDeadEndDecisions,
             prePassState: {
               globalLabelVariableLiteralTargets: Array.from(
                 prePassStateGraph.globalLabelVariableLiteralTargets.entries(),
@@ -1339,6 +1348,7 @@ export function parseChunksInParallel({
           parserVariant,
           customVariantPlugins,
           screenActionRules,
+          pruneDeadEndDecisions,
         })
           .then((finalResult) => {
             signal?.removeEventListener("abort", onAbortFinalize);

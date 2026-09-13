@@ -166,6 +166,13 @@ export function handleMenuStatementToken(
         remainingPending.push(entry);
         continue;
       }
+      if (
+        state.pruneDeadEndDecisions === true &&
+        entry.menuId.startsWith("decision_") &&
+        !entry.calledTargetId
+      ) {
+        continue;
+      }
       const key = `${entry.menuId}__${entry.optionText ?? ""}`;
       if (!connectedFallthroughKeys.has(key)) {
         addEdge(state, {

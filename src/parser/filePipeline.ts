@@ -52,6 +52,7 @@ type ParseFileOptions = Pick<
   | "parserVariant"
   | "screenActionRules"
   | "sceneSplitDialogueThreshold"
+  | "pruneDeadEndDecisions"
 >;
 
 export async function tokenizeOneFile(
@@ -106,8 +107,12 @@ export function processTokenizedFile(
     | "parserVariant"
     | "screenActionRules"
     | "sceneSplitDialogueThreshold"
+    | "pruneDeadEndDecisions"
   > = {},
 ) {
+  if (options.pruneDeadEndDecisions !== undefined) {
+    state.pruneDeadEndDecisions = options.pruneDeadEndDecisions;
+  }
   const { file, chapter, document, tokenTree } = tokenizedFile;
   parserPerf?.mark("scan");
   const scanState = createScanState(
