@@ -233,6 +233,7 @@ export function NarrativeAnalyticsModal({
       onOpenChange={setAnalyticsModalOpen}
       variant="centered"
       isDark={isDark}
+      className="max-w-[min(96vw,1100px)]"
       title="Narrative & Ending Analytics"
       description="Choice matrix, route reachability, pacing density, and reading times."
     >
