@@ -10,8 +10,8 @@
     "npm:@radix-ui/react-tooltip@^1.2.12": "1.2.12_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.2.8_react-dom@19.2.8",
     "npm:@renpy/ast@0.1": "0.1.0",
     "npm:@tailwindcss/vite@^4.3.3": "4.3.3_vite@8.1.5_@types+node@26.1.1",
-    "npm:@tanstack/react-virtual@^3.14.6": "3.14.6_react@19.2.8_react-dom@19.2.8",
-    "npm:@testing-library/jest-dom@^7.0.1": "7.0.1_vitest@5.0.0__@types+node@26.1.1__@vitest+coverage-v8@5.0.0__jsdom@30.0.1__vite@8.1.5_@vitest+coverage-v8@5.0.0",
+    "npm:@tanstack/react-virtual@^3.14.13": "3.14.13_react@19.2.8_react-dom@19.2.8",
+    "npm:@testing-library/jest-dom@^7.0.1": "7.0.1_vitest@5.0.0_@vitest+coverage-v8@5.0.0",
     "npm:@testing-library/react@^16.3.2": "16.3.2_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.2.8_react-dom@19.2.8",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/dagre@~0.7.54": "0.7.54",
@@ -992,16 +992,16 @@
         "vite"
       ]
     },
-    "@tanstack/react-virtual@3.14.6_react@19.2.8_react-dom@19.2.8": {
-      "integrity": "sha512-4+Uq8m0/gzO4kMCHUEpTtGX1RnONK0C+g88b2ltwPMWUBiaVarBuWKoPJaz7gj1cKCVRAdyu+U8GcKhwCc2beA==",
+    "@tanstack/react-virtual@3.14.13_react@19.2.8_react-dom@19.2.8": {
+      "integrity": "sha512-JbDTAwtzZ99aOeCrAfW5EsE5KSq5RWh6Af2dtFwyLIIk48Ja7vm6n4axu/43T3vfjFnEGJalxJ1wyYjSQD6bSg==",
       "dependencies": [
         "@tanstack/virtual-core",
         "react",
         "react-dom"
       ]
     },
-    "@tanstack/virtual-core@3.17.4": {
-      "integrity": "sha512-nGm5KteqxasUdThLc2izl6dHUqLv0LQj7Nuyo5gYalTPf/U8a9ermvsl7reT+6ioBW1l8WfpP/mcU338nLXpqw=="
+    "@tanstack/virtual-core@3.17.11": {
+      "integrity": "sha512-+ILjvtHup6Y2hzQ6YzwMgX1Q+oQpxEGOXCEsCNaPoIP0VxMbizIBTmYTDtkerkIQS8/CbP1BRuyt8V/8BCsy1g=="
     },
     "@testing-library/dom@10.4.1": {
       "integrity": "sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==",
@@ -1016,7 +1016,7 @@
         "pretty-format"
       ]
     },
-    "@testing-library/jest-dom@7.0.1_vitest@5.0.0__@types+node@26.1.1__@vitest+coverage-v8@5.0.0__jsdom@30.0.1__vite@8.1.5_@vitest+coverage-v8@5.0.0": {
+    "@testing-library/jest-dom@7.0.1_vitest@5.0.0_@vitest+coverage-v8@5.0.0": {
       "integrity": "sha512-oMDTC3oA+6CXSO2JZnvOI7CA6oVub6kij5ggk9ohwye5slmkwxYDXcPOVxgMw/RQlticjtO0C1RZkR97HgrWMw==",
       "dependencies": [
         "@adobe/css-tools",
@@ -3579,7 +3579,7 @@
         "npm:@radix-ui/react-tooltip@^1.2.12",
         "npm:@renpy/ast@0.1",
         "npm:@tailwindcss/vite@^4.3.3",
-        "npm:@tanstack/react-virtual@^3.14.6",
+        "npm:@tanstack/react-virtual@^3.14.13",
         "npm:@testing-library/jest-dom@^7.0.1",
         "npm:@testing-library/react@^16.3.2",
         "npm:@testing-library/user-event@^14.6.1",
