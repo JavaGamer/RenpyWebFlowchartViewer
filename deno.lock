@@ -11,7 +11,7 @@
     "npm:@renpy/ast@0.1": "0.1.0",
     "npm:@tailwindcss/vite@^4.3.3": "4.3.3_vite@8.1.5_@types+node@26.1.1",
     "npm:@tanstack/react-virtual@^3.14.6": "3.14.6_react@19.2.8_react-dom@19.2.8",
-    "npm:@testing-library/jest-dom@^7.0.1": "7.0.1_vitest@5.0.0__@types+node@26.1.1__@vitest+coverage-v8@5.0.0__jsdom@30.0.1__vite@8.1.5_@vitest+coverage-v8@5.0.0",
+    "npm:@testing-library/jest-dom@^7.0.1": "7.0.1_vitest@5.0.0_@vitest+coverage-v8@5.0.0",
     "npm:@testing-library/react@^16.3.2": "16.3.2_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.2.8_react-dom@19.2.8",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/dagre@~0.7.54": "0.7.54",
@@ -59,7 +59,7 @@
     "npm:vitest@*": "5.0.0_@types+node@26.1.1_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5",
     "npm:vitest@5": "5.0.0_@types+node@26.1.1_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5",
     "npm:vscode-languageserver-textdocument@^1.0.12": "1.0.12",
-    "npm:zod@^4.4.3": "4.4.3",
+    "npm:zod@^4.6.5": "4.6.5",
     "npm:zundo@^2.3.0": "2.3.0_zustand@5.0.14_react@19.2.8",
     "npm:zustand@^5.0.14": "5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.8"
   },
@@ -1016,7 +1016,7 @@
         "pretty-format"
       ]
     },
-    "@testing-library/jest-dom@7.0.1_vitest@5.0.0__@types+node@26.1.1__@vitest+coverage-v8@5.0.0__jsdom@30.0.1__vite@8.1.5_@vitest+coverage-v8@5.0.0": {
+    "@testing-library/jest-dom@7.0.1_vitest@5.0.0_@vitest+coverage-v8@5.0.0": {
       "integrity": "sha512-oMDTC3oA+6CXSO2JZnvOI7CA6oVub6kij5ggk9ohwye5slmkwxYDXcPOVxgMw/RQlticjtO0C1RZkR97HgrWMw==",
       "dependencies": [
         "@adobe/css-tools",
@@ -3455,14 +3455,14 @@
     "yocto-queue@1.2.2": {
       "integrity": "sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ=="
     },
-    "zod-validation-error@4.0.2_zod@4.4.3": {
+    "zod-validation-error@4.0.2_zod@4.6.5": {
       "integrity": "sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==",
       "dependencies": [
         "zod"
       ]
     },
-    "zod@4.4.3": {
-      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
+    "zod@4.6.5": {
+      "integrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q=="
     },
     "zundo@2.3.0_zustand@5.0.14_react@19.2.8": {
       "integrity": "sha512-4GXYxXA17SIKYhVbWHdSEU04P697IMyVGXrC2TnzoyohEAWytFNOKqOp5gTGvaW93F/PM5Y0evbGtOPF0PWQwQ==",
@@ -3621,7 +3621,7 @@
         "npm:vite@^8.1.5",
         "npm:vitest@5",
         "npm:vscode-languageserver-textdocument@^1.0.12",
-        "npm:zod@^4.4.3",
+        "npm:zod@^4.6.5",
         "npm:zundo@^2.3.0",
         "npm:zustand@^5.0.14"
       ]
