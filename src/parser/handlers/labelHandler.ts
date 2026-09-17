@@ -3,7 +3,11 @@ import type {
   ParseScanState,
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
-import { type ConditionMetadata, type FlowEdge } from "../../domain/index.ts";
+import {
+  type ConditionMetadata,
+  type FlowEdge,
+  type SourceLocation,
+} from "../../domain/index.ts";
 import { createDecisionConditionMetadata } from "./conditionHandler.ts";
 import {
   areAllPathsCoveredByPendingMenus,
@@ -235,6 +239,7 @@ export function connectSceneSplitFromSource(
   nextSceneId: string,
   label?: string,
   condition?: ConditionMetadata,
+  sourceLocation?: SourceLocation,
 ): void {
   const baseEdgeId = `seq_${sourceId}__${nextSceneId}`;
   addEdge(state, {
@@ -244,23 +249,19 @@ export function connectSceneSplitFromSource(
     kind: "sequence",
     label,
     condition,
+    sourceLocation,
   });
   addOutgoing(state, sourceId, "sequence");
   addIncoming(state, nextSceneId, "sequence");
 }
 
-/**
- * Automatically splits a label into consecutive scenes (e.g. "LabelName: Scene 2")
- * if the dialogue line count within the scene boundaries exceeds the specified threshold.
- * This ensures large linear label blocks are broken down into digestible nodes.
- */
-export function splitCurrentLabelOnSceneBoundary(
+export function performLabelSceneSplit(
   state: ParseGraphState,
   scanState: ParseScanState,
   chapter: string,
   meta: TokenMetaFlags,
   menuDepth: number,
-  sceneSplitDialogueThreshold?: number,
+  sourceLocation?: SourceLocation,
 ): void {
   const currentLabelId = scanState.currentLabelId;
   const currentLabelBaseId = scanState.currentLabelBaseId;
@@ -268,9 +269,6 @@ export function splitCurrentLabelOnSceneBoundary(
   if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) {
     return;
   }
-  if (!scanState.currentLabelHasContentSinceSceneBoundary) return;
-  const threshold = sceneSplitDialogueThreshold ?? 16;
-  if ((scanState.currentSceneDialogueCount ?? 0) < threshold) return;
 
   let activeSceneId = currentLabelId;
   if (!scanState.currentLabelHasSplit) {
@@ -294,6 +292,7 @@ export function splitCurrentLabelOnSceneBoundary(
     label: `${currentLabelDeclaredName}: Scene ${sceneIndex}`,
     dialogueCount: 0,
     chapter,
+    sourceLocation,
   });
 
   const connectedSources = new Set<string>();
@@ -308,6 +307,8 @@ export function splitCurrentLabelOnSceneBoundary(
       activeMenu.id,
       nextSceneId,
       activeMenu.optionText ?? undefined,
+      undefined,
+      sourceLocation,
     );
     connectedSources.add(activeMenu.id);
   }
@@ -332,6 +333,8 @@ export function splitCurrentLabelOnSceneBoundary(
           entry.menuId,
           nextSceneId,
           entry.optionText ?? "next",
+          undefined,
+          sourceLocation,
         );
         connectedFallthroughKeys.add(key);
         connectedSources.add(entry.menuId);
@@ -356,14 +359,29 @@ export function splitCurrentLabelOnSceneBoundary(
           nextSceneId,
           undefined,
           createDecisionConditionMetadata(activeDecision),
+          sourceLocation,
         );
       } else {
-        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
+        connectSceneSplitFromSource(
+          state,
+          activeSceneId,
+          nextSceneId,
+          "next",
+          undefined,
+          sourceLocation,
+        );
       }
       activeDecision.connectedSceneId = nextSceneId;
       activeDecision.connectedBranchKind = activeDecision.branchKind;
     } else {
-      connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
+      connectSceneSplitFromSource(
+        state,
+        activeSceneId,
+        nextSceneId,
+        "next",
+        undefined,
+        sourceLocation,
+      );
     }
   } else {
     const activeDecision = scanState
@@ -384,7 +402,14 @@ export function splitCurrentLabelOnSceneBoundary(
     if (!hasMenuFallthrough && !activeDecision) {
       const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
       if (!state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)) {
-        connectSceneSplitFromSource(state, activeSceneId, nextSceneId, "next");
+        connectSceneSplitFromSource(
+          state,
+          activeSceneId,
+          nextSceneId,
+          "next",
+          undefined,
+          sourceLocation,
+        );
       }
     }
     const decisionNodeId = (state.graph.hasNode(activeSceneId) &&
@@ -434,6 +459,7 @@ export function splitCurrentLabelOnSceneBoundary(
             nextSceneId,
             undefined,
             createDecisionConditionMetadata(activeDecision),
+            sourceLocation,
           );
           activeDecision.connectedSceneId = nextSceneId;
           activeDecision.connectedBranchKind = activeDecision.branchKind;
@@ -448,6 +474,8 @@ export function splitCurrentLabelOnSceneBoundary(
               activeSceneId,
               nextSceneId,
               "next",
+              undefined,
+              sourceLocation,
             );
           }
         }
@@ -459,4 +487,67 @@ export function splitCurrentLabelOnSceneBoundary(
   scanState.currentLabelSceneIndex = sceneIndex;
   scanState.currentSceneDialogueCount = 0;
   scanState.currentLabelHasContentSinceSceneBoundary = false;
+}
+
+/**
+ * Automatically splits a label into consecutive scenes (e.g. "LabelName: Scene 2")
+ * if the dialogue line count within the scene boundaries exceeds the specified threshold.
+ * This ensures large linear label blocks are broken down into digestible nodes.
+ */
+export function splitCurrentLabelOnSceneBoundary(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  chapter: string,
+  meta: TokenMetaFlags,
+  menuDepth: number,
+  sceneSplitDialogueThreshold?: number,
+  sourceLocation?: SourceLocation,
+): void {
+  const currentLabelId = scanState.currentLabelId;
+  const currentLabelBaseId = scanState.currentLabelBaseId;
+  const currentLabelDeclaredName = scanState.currentLabelDeclaredName;
+  if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) {
+    return;
+  }
+  if (!scanState.currentLabelHasContentSinceSceneBoundary) return;
+  const threshold = sceneSplitDialogueThreshold ?? 16;
+  if ((scanState.currentSceneDialogueCount ?? 0) < threshold) return;
+
+  performLabelSceneSplit(
+    state,
+    scanState,
+    chapter,
+    meta,
+    menuDepth,
+    sourceLocation,
+  );
+}
+
+/**
+ * Splits the current label on a menu fallthrough boundary when story continuation
+ * statements follow a menu block. This ensures statements after the menu belong to
+ * a subsequent scene node, correctly routing fallthrough menu options into the continuation.
+ */
+export function splitCurrentLabelOnMenuFallthrough(
+  state: ParseGraphState,
+  scanState: ParseScanState,
+  chapter: string,
+  meta: TokenMetaFlags,
+  menuDepth: number,
+  sourceLocation?: SourceLocation,
+): void {
+  const currentLabelId = scanState.currentLabelId;
+  const currentLabelBaseId = scanState.currentLabelBaseId;
+  const currentLabelDeclaredName = scanState.currentLabelDeclaredName;
+  if (!currentLabelId || !currentLabelBaseId || !currentLabelDeclaredName) {
+    return;
+  }
+  performLabelSceneSplit(
+    state,
+    scanState,
+    chapter,
+    meta,
+    menuDepth,
+    sourceLocation,
+  );
 }

@@ -306,3 +306,117 @@ export function buildFilletedOrthogonalPath(
 
   return { path: d, labelX, labelY };
 }
+
+export interface ParallelForwardSplineParams {
+  sourceX: number;
+  sourceY: number;
+  targetX: number;
+  targetY: number;
+  sourcePosition?: Position;
+  targetPosition?: Position;
+  direction?: LayoutDirection;
+  parallelIndex?: number;
+  parallelCount?: number;
+}
+
+/**
+ * Calculates smooth divergent cubic bezier curves for parallel forward edges
+ * connecting the exact same source and target nodes.
+ *
+ * Staggers lateral control point offsets and longitudinal label t-parameters
+ * so multiple edges and their text labels never overlap.
+ */
+export function calculateParallelForwardSpline(
+  params: ParallelForwardSplineParams,
+): SplineResult {
+  const {
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    direction = "TB",
+    parallelIndex = 0,
+    parallelCount = 1,
+  } = params;
+
+  if (parallelCount <= 1) {
+    const midX = (sourceX + targetX) / 2;
+    const midY = (sourceY + targetY) / 2;
+    if (direction === "TB") {
+      const cp1X = sourceX;
+      const cp1Y = sourceY + (targetY - sourceY) * 0.5;
+      const cp2X = targetX;
+      const cp2Y = sourceY + (targetY - sourceY) * 0.5;
+      return {
+        path:
+          `M ${sourceX} ${sourceY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${targetX} ${targetY}`,
+        labelX: midX,
+        labelY: midY,
+      };
+    } else {
+      const cp1X = sourceX + (targetX - sourceX) * 0.5;
+      const cp1Y = sourceY;
+      const cp2X = sourceX + (targetX - sourceX) * 0.5;
+      const cp2Y = targetY;
+      return {
+        path:
+          `M ${sourceX} ${sourceY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${targetX} ${targetY}`,
+        labelX: midX,
+        labelY: midY,
+      };
+    }
+  }
+
+  // Centered index around 0 (e.g. for count=2: -0.5, +0.5; for count=3: -1, 0, +1)
+  const centeredIndex = parallelIndex - (parallelCount - 1) / 2;
+  const bowSpacing = 42;
+  const bowOffset = centeredIndex * bowSpacing;
+
+  // Longitudinal label staggering: shift t away from 0.5 along the curve
+  const t = Math.max(0.2, Math.min(0.8, 0.5 + centeredIndex * 0.12));
+  const mt = 1 - t;
+
+  if (direction === "TB") {
+    const deltaY = targetY - sourceY;
+    const cp1X = sourceX + bowOffset;
+    const cp1Y = sourceY + deltaY * 0.35;
+    const cp2X = targetX + bowOffset;
+    const cp2Y = sourceY + deltaY * 0.65;
+
+    const path =
+      `M ${sourceX} ${sourceY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${targetX} ${targetY}`;
+
+    // Cubic bezier evaluation at parameter t
+    const labelX = mt * mt * mt * sourceX +
+      3 * mt * mt * t * cp1X +
+      3 * mt * t * t * cp2X +
+      t * t * t * targetX;
+    const labelY = mt * mt * mt * sourceY +
+      3 * mt * mt * t * cp1Y +
+      3 * mt * t * t * cp2Y +
+      t * t * t * targetY;
+
+    return { path, labelX, labelY };
+  } else {
+    // "LR" direction
+    const deltaX = targetX - sourceX;
+    const cp1X = sourceX + deltaX * 0.35;
+    const cp1Y = sourceY + bowOffset;
+    const cp2X = sourceX + deltaX * 0.65;
+    const cp2Y = targetY + bowOffset;
+
+    const path =
+      `M ${sourceX} ${sourceY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${targetX} ${targetY}`;
+
+    const labelX = mt * mt * mt * sourceX +
+      3 * mt * mt * t * cp1X +
+      3 * mt * t * t * cp2X +
+      t * t * t * targetX;
+    const labelY = mt * mt * mt * sourceY +
+      3 * mt * mt * t * cp1Y +
+      3 * mt * t * t * cp2Y +
+      t * t * t * targetY;
+
+    return { path, labelX, labelY };
+  }
+}

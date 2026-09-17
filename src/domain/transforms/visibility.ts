@@ -417,6 +417,8 @@ export function buildVisibleEdges(params: {
       previousData?.isBackEdge === edgeData.isBackEdge &&
       previousData?.isSelfLoop === edgeData.isSelfLoop &&
       previousData?.laneIndex === edgeData.laneIndex &&
+      previousData?.parallelIndex === edgeData.parallelIndex &&
+      previousData?.parallelCount === edgeData.parallelCount &&
       previousData?.svgPath === edgeData.svgPath &&
       previousData?.labelPosition?.x === edgeData.labelPosition?.x &&
       previousData?.labelPosition?.y === edgeData.labelPosition?.y &&

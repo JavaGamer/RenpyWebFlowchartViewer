@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 import {
   calculateBackEdgeSpline,
+  calculateParallelForwardSpline,
   calculateSelfLoopArc,
   detectBackEdge,
   type LabeledEdgeType,
@@ -91,6 +92,25 @@ export const LabeledEdge = memo(function LabeledEdge({
         (layoutDirection === "LR" ? Position.Bottom : Position.Right),
       direction: layoutDirection,
       laneIndex: data?.laneIndex ?? 0,
+    });
+    edgePath = res.path;
+    labelX = res.labelX;
+    labelY = res.labelY;
+  } else if (
+    data?.parallelCount !== undefined &&
+    data.parallelCount > 1 &&
+    data.parallelIndex !== undefined
+  ) {
+    const res = calculateParallelForwardSpline({
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
+      sourcePosition,
+      targetPosition,
+      direction: layoutDirection,
+      parallelIndex: data.parallelIndex,
+      parallelCount: data.parallelCount,
     });
     edgePath = res.path;
     labelX = res.labelX;

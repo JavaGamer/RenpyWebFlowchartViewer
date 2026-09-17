@@ -6,7 +6,10 @@ import type {
 } from "../pipelineTypes.ts";
 import type { SourceLocation } from "../../domain/index.ts";
 import type { ScreenActionKind } from "../../config/parserRules.ts";
-import { isWithinCurrentLabelScope } from "../handlers/labelHandler.ts";
+import {
+  isWithinCurrentLabelScope,
+  splitCurrentLabelOnMenuFallthrough,
+} from "../handlers/labelHandler.ts";
 import { handleConditionalHeader } from "../handlers/conditionHandler.ts";
 
 import { handlePreTokenLineStatements } from "./tokenPreProcessor.ts";
@@ -445,6 +448,47 @@ export function dispatchToken(
   // 4. Scope guard
   if (!isWithinCurrentLabelScope(scanState, meta, input.lineIndent)) {
     return;
+  }
+
+  // 4b. Menu fallthrough label splitting check
+  const isExitOrMenuToken = type === PARSER_TOKENS.kwJump ||
+    type === PARSER_TOKENS.kwReturn ||
+    type === PARSER_TOKENS.kwCall ||
+    (PARSER_TOKENS.kwScreen !== undefined && type === PARSER_TOKENS.kwScreen) ||
+    scanState.waitForJumpTarget ||
+    scanState.waitForCallTarget ||
+    scanState.waitForMenuNameForId !== null ||
+    isMenuKeywordTokenType(type) ||
+    meta.hasMenuStatement ||
+    /^\s*(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)|gameover)\b/i
+      .test(input.lineText ?? "");
+
+  const isContinuingBranch = /^\s*(?:elif|else|case)\b/.test(
+    input.lineText ?? "",
+  );
+
+  const hasPreMenuDialogue = (scanState.currentSceneDialogueCount ?? 0) > 0;
+
+  if (
+    !isExitOrMenuToken &&
+    !isContinuingBranch &&
+    !meta.hasMenuOptionBlock &&
+    scanState.menuStack.length === 0 &&
+    scanState.conditionalDecisionStack.length === 0 &&
+    !scanState.pendingTimedChoice &&
+    hasPreMenuDialogue &&
+    scanState.pendingMenuFallthrough.some((e) =>
+      e.menuId.startsWith("menu_") && !e.calledTargetId
+    )
+  ) {
+    splitCurrentLabelOnMenuFallthrough(
+      state,
+      scanState,
+      input.chapter,
+      meta,
+      input.menuDepth,
+      input.sourceLocation,
+    );
   }
 
   // 5. Voice check if kwOther

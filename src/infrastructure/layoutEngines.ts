@@ -3,6 +3,7 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import {
   buildFilletedOrthogonalPath,
   calculateBackEdgeSpline,
+  calculateParallelForwardSpline,
   calculateSelfLoopArc,
   type CanvasEdge,
   type CanvasNode,
@@ -133,149 +134,225 @@ function buildCanvasEdges(
   // Track parallel back-edges to assign laneIndex
   const corridorCounts = new Map<string, number>();
 
-  return normalizedEdges
-    .filter((e) => nodeById.has(e.source) && nodeById.has(e.target))
-    .map((e) => {
-      const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
-      const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
-      const isSelfLoop = e.source === e.target;
-      const isBackEdge = detectBackEdge(
-        sourcePos,
-        targetPos,
-        direction,
-        isSelfLoop,
-      );
+  const validEdges = normalizedEdges.filter(
+    (e) => nodeById.has(e.source) && nodeById.has(e.target),
+  );
 
-      let laneIndex = 0;
-      if (isSelfLoop || isBackEdge) {
-        const corridorKey = `${direction}_${e.target}`;
-        laneIndex = corridorCounts.get(corridorKey) ?? 0;
-        corridorCounts.set(corridorKey, laneIndex + 1);
-      }
-
-      const sourceNode = nodeById.get(e.source);
-      const targetNode = nodeById.get(e.target);
-
-      const sourceIsDecision = sourceNode?.data?.nodeType === "DECISION";
-      const targetIsDecision = targetNode?.data?.nodeType === "DECISION";
-
-      const sourceHeight = sourceNode?.height ?? 80;
-      const targetHeight = targetNode?.height ?? 80;
-
-      // Determine handle IDs
-      let sourceHandle: string | undefined;
-      let targetHandle: string | undefined;
-
-      if (isSelfLoop) {
-        sourceHandle = direction === "TB" ? "source-right" : "source-bottom";
-        targetHandle = direction === "TB" ? "target-top" : "target-left";
-      } else if (isBackEdge) {
-        if (direction === "TB") {
-          sourceHandle = "source-right";
-          targetHandle = "target-right";
-        } else {
-          sourceHandle = "source-bottom";
-          targetHandle = "target-bottom";
-        }
+  // Group forward edges to compute parallelCount and parallelIndex
+  const forwardEdgeGroups = new Map<string, FlowEdge[]>();
+  for (const e of validEdges) {
+    const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+    const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
+    const isSelfLoop = e.source === e.target;
+    const isBackEdge = detectBackEdge(
+      sourcePos,
+      targetPos,
+      direction,
+      isSelfLoop,
+    );
+    if (!isSelfLoop && !isBackEdge) {
+      const key = `${e.source}__${e.target}`;
+      const group = forwardEdgeGroups.get(key);
+      if (group) {
+        group.push(e);
       } else {
-        sourceHandle = direction === "TB" ? "source-bottom" : "source-right";
-        targetHandle = direction === "TB" ? "target-top" : "target-left";
+        forwardEdgeGroups.set(key, [e]);
       }
+    }
+  }
 
-      let svgPath: string | undefined;
-      let labelPosition: { x: number; y: number } | undefined;
-      let bendPoints: Array<{ x: number; y: number }> | undefined;
-      let sections: ElkEdgeSection[] | undefined;
-
-      const elkEdge = elkEdgeMap?.get(e.id);
-      if (elkEdge?.sections && elkEdge.sections.length > 0) {
-        sections = elkEdge.sections;
-        const section = elkEdge.sections[0]!;
-        const pts = [
-          section.startPoint,
-          ...(section.bendPoints ?? []),
-          section.endPoint,
-        ];
-        bendPoints = pts;
-        const filleted = buildFilletedOrthogonalPath(pts);
-        svgPath = filleted.path;
-        labelPosition = { x: filleted.labelX, y: filleted.labelY };
-      } else if (isSelfLoop) {
-        const sX = direction === "TB"
-          ? sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH)
-          : sourcePos.x + NODE_WIDTH / 2;
-        const sY = direction === "TB"
-          ? sourcePos.y + sourceHeight / 2
-          : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
-        const tX = direction === "TB"
-          ? targetPos.x + NODE_WIDTH / 2
-          : targetPos.x + (targetIsDecision ? 30 : 0);
-        const tY = direction === "TB"
-          ? targetPos.y + (targetIsDecision ? 8 : 0)
-          : targetPos.y + targetHeight / 2;
-
-        const loopRes = calculateSelfLoopArc({
-          sourceX: sX,
-          sourceY: sY,
-          targetX: tX,
-          targetY: tY,
-          direction,
-          laneIndex,
+  const parallelMetaByEdgeId = new Map<
+    string,
+    { parallelIndex: number; parallelCount: number }
+  >();
+  for (const group of forwardEdgeGroups.values()) {
+    if (group.length > 1) {
+      group.forEach((edge, idx) => {
+        parallelMetaByEdgeId.set(edge.id, {
+          parallelIndex: idx,
+          parallelCount: group.length,
         });
-        svgPath = loopRes.path;
-        labelPosition = { x: loopRes.labelX, y: loopRes.labelY };
-      } else if (isBackEdge) {
-        const sX = direction === "TB"
-          ? sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH)
-          : sourcePos.x + NODE_WIDTH / 2;
-        const sY = direction === "TB"
-          ? sourcePos.y + sourceHeight / 2
-          : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
-        const tX = direction === "TB"
-          ? targetPos.x + (targetIsDecision ? 190 : NODE_WIDTH)
-          : targetPos.x + NODE_WIDTH / 2;
-        const tY = direction === "TB"
-          ? targetPos.y + targetHeight / 2
-          : targetPos.y + (targetIsDecision ? targetHeight - 8 : targetHeight);
+      });
+    }
+  }
 
-        const splineRes = calculateBackEdgeSpline({
-          sourceX: sX,
-          sourceY: sY,
-          targetX: tX,
-          targetY: tY,
-          direction,
-          laneIndex,
-        });
-        svgPath = splineRes.path;
-        labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
+  return validEdges.map((e) => {
+    const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+    const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
+    const isSelfLoop = e.source === e.target;
+    const isBackEdge = detectBackEdge(
+      sourcePos,
+      targetPos,
+      direction,
+      isSelfLoop,
+    );
+
+    let laneIndex = 0;
+    if (isSelfLoop || isBackEdge) {
+      const corridorKey = `${direction}_${e.target}`;
+      laneIndex = corridorCounts.get(corridorKey) ?? 0;
+      corridorCounts.set(corridorKey, laneIndex + 1);
+    }
+
+    const parallelMeta = parallelMetaByEdgeId.get(e.id);
+    const parallelIndex = parallelMeta?.parallelIndex;
+    const parallelCount = parallelMeta?.parallelCount;
+
+    const sourceNode = nodeById.get(e.source);
+    const targetNode = nodeById.get(e.target);
+
+    const sourceIsDecision = sourceNode?.data?.nodeType === "DECISION";
+    const targetIsDecision = targetNode?.data?.nodeType === "DECISION";
+
+    const sourceHeight = sourceNode?.height ?? 80;
+    const targetHeight = targetNode?.height ?? 80;
+
+    // Determine handle IDs
+    let sourceHandle: string | undefined;
+    let targetHandle: string | undefined;
+
+    if (isSelfLoop) {
+      sourceHandle = direction === "TB" ? "source-right" : "source-bottom";
+      targetHandle = direction === "TB" ? "target-top" : "target-left";
+    } else if (isBackEdge) {
+      if (direction === "TB") {
+        sourceHandle = "source-right";
+        targetHandle = "target-right";
+      } else {
+        sourceHandle = "source-bottom";
+        targetHandle = "target-bottom";
       }
+    } else {
+      sourceHandle = direction === "TB" ? "source-bottom" : "source-right";
+      targetHandle = direction === "TB" ? "target-top" : "target-left";
+    }
 
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        type: "labeled",
-        sourceHandle,
-        targetHandle,
-        data: {
-          label: e.label ?? "",
-          conditionState: "reachable",
-          kind: e.kind,
-          condition: e.condition,
-          timeout: e.timeout,
-          callContext: e.callContext,
-          isBackEdge,
-          isSelfLoop,
-          laneIndex,
-          svgPath,
-          labelPosition,
-          bendPoints,
-          sections,
-        },
-        markerEnd: { type: "arrowclosed" as const },
-        style: { stroke: edgeColor, strokeWidth: 1.5 },
-      };
-    });
+    let svgPath: string | undefined;
+    let labelPosition: { x: number; y: number } | undefined;
+    let bendPoints: Array<{ x: number; y: number }> | undefined;
+    let sections: ElkEdgeSection[] | undefined;
+
+    const elkEdge = elkEdgeMap?.get(e.id);
+    if (elkEdge?.sections && elkEdge.sections.length > 0) {
+      sections = elkEdge.sections;
+      const section = elkEdge.sections[0]!;
+      const pts = [
+        section.startPoint,
+        ...(section.bendPoints ?? []),
+        section.endPoint,
+      ];
+      bendPoints = pts;
+      const filleted = buildFilletedOrthogonalPath(pts);
+      svgPath = filleted.path;
+      labelPosition = { x: filleted.labelX, y: filleted.labelY };
+    } else if (isSelfLoop) {
+      const sX = direction === "TB"
+        ? sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH)
+        : sourcePos.x + NODE_WIDTH / 2;
+      const sY = direction === "TB"
+        ? sourcePos.y + sourceHeight / 2
+        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
+      const tX = direction === "TB"
+        ? targetPos.x + NODE_WIDTH / 2
+        : targetPos.x + (targetIsDecision ? 30 : 0);
+      const tY = direction === "TB"
+        ? targetPos.y + (targetIsDecision ? 8 : 0)
+        : targetPos.y + targetHeight / 2;
+
+      const loopRes = calculateSelfLoopArc({
+        sourceX: sX,
+        sourceY: sY,
+        targetX: tX,
+        targetY: tY,
+        direction,
+        laneIndex,
+      });
+      svgPath = loopRes.path;
+      labelPosition = { x: loopRes.labelX, y: loopRes.labelY };
+    } else if (isBackEdge) {
+      const sX = direction === "TB"
+        ? sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH)
+        : sourcePos.x + NODE_WIDTH / 2;
+      const sY = direction === "TB"
+        ? sourcePos.y + sourceHeight / 2
+        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
+      const tX = direction === "TB"
+        ? targetPos.x + (targetIsDecision ? 190 : NODE_WIDTH)
+        : targetPos.x + NODE_WIDTH / 2;
+      const tY = direction === "TB"
+        ? targetPos.y + targetHeight / 2
+        : targetPos.y + (targetIsDecision ? targetHeight - 8 : targetHeight);
+
+      const splineRes = calculateBackEdgeSpline({
+        sourceX: sX,
+        sourceY: sY,
+        targetX: tX,
+        targetY: tY,
+        direction,
+        laneIndex,
+      });
+      svgPath = splineRes.path;
+      labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
+    } else if (
+      !elkEdge?.sections &&
+      parallelCount !== undefined &&
+      parallelCount > 1 &&
+      parallelIndex !== undefined
+    ) {
+      const sX = direction === "TB"
+        ? sourcePos.x + (sourceIsDecision ? 100 : NODE_WIDTH / 2)
+        : sourcePos.x + (sourceIsDecision ? 200 : NODE_WIDTH);
+      const sY = direction === "TB"
+        ? sourcePos.y + sourceHeight
+        : sourcePos.y + sourceHeight / 2;
+      const tX = direction === "TB"
+        ? targetPos.x + (targetIsDecision ? 100 : NODE_WIDTH / 2)
+        : targetPos.x;
+      const tY = direction === "TB"
+        ? targetPos.y
+        : targetPos.y + targetHeight / 2;
+
+      const forwardRes = calculateParallelForwardSpline({
+        sourceX: sX,
+        sourceY: sY,
+        targetX: tX,
+        targetY: tY,
+        direction,
+        parallelIndex,
+        parallelCount,
+      });
+      svgPath = forwardRes.path;
+      labelPosition = { x: forwardRes.labelX, y: forwardRes.labelY };
+    }
+
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: "labeled",
+      sourceHandle,
+      targetHandle,
+      data: {
+        label: e.label ?? "",
+        conditionState: "reachable",
+        kind: e.kind,
+        condition: e.condition,
+        timeout: e.timeout,
+        callContext: e.callContext,
+        isBackEdge,
+        isSelfLoop,
+        laneIndex,
+        parallelIndex,
+        parallelCount,
+        svgPath,
+        labelPosition,
+        bendPoints,
+        sections,
+      },
+      markerEnd: { type: "arrowclosed" as const },
+      style: { stroke: edgeColor, strokeWidth: 1.5 },
+    };
+  });
 }
 
 /**

@@ -148,11 +148,13 @@ export {
 export {
   buildFilletedOrthogonalPath,
   calculateBackEdgeSpline,
+  calculateParallelForwardSpline,
   calculateSelfLoopArc,
   detectBackEdge,
 } from "./splineRouting.ts";
 export type {
   BackEdgeSplineParams,
+  ParallelForwardSplineParams,
   SelfLoopArcParams,
   SplineResult,
 } from "./splineRouting.ts";
