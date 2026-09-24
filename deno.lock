@@ -43,7 +43,7 @@
     "npm:lucide-react@^1.47.0": "1.47.0_react@19.3.0",
     "npm:minisearch@^7.1.1": "7.2.0",
     "npm:npm@*": "11.17.0",
-    "npm:p-limit@^7.3.0": "7.3.0",
+    "npm:p-limit@^7.3.3": "7.3.3",
     "npm:playwright@*": "1.61.1",
     "npm:react-dom@19.3.0": "19.3.0_react@19.3.0",
     "npm:react-error-boundary@^6.1.2": "6.1.2_react@19.3.0",
@@ -2729,8 +2729,8 @@
         "yocto-queue@0.1.0"
       ]
     },
-    "p-limit@7.3.0": {
-      "integrity": "sha512-7cIXg/Z0M5WZRblrsOla88S4wAK+zOQQWeBYfV3qJuJXMr+LnbYjaadrFaS0JILfEDPVqHyKnZ1Z/1d6J9VVUw==",
+    "p-limit@7.3.3": {
+      "integrity": "sha512-SKgVvDU5TNIxQ4r30U75BNLC6a+6GOEjngrk/ysM5+Zu3oJuk1SC5ApzIzY/7PjCEjoVPMWJ0zho/4QUiEB7TQ==",
       "dependencies": [
         "yocto-queue@1.2.2"
       ]
@@ -3610,7 +3610,7 @@
         "npm:jsdom@^30.0.1",
         "npm:lucide-react@^1.47.0",
         "npm:minisearch@^7.1.1",
-        "npm:p-limit@^7.3.0",
+        "npm:p-limit@^7.3.3",
         "npm:react-dom@19.3.0",
         "npm:react-error-boundary@^6.1.2",
         "npm:react@19.3.0",
