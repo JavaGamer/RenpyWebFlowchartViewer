@@ -9,20 +9,20 @@
     "npm:@radix-ui/react-dialog@^1.1.19": "1.1.19_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.3.0_react-dom@19.3.0",
     "npm:@radix-ui/react-tooltip@^1.2.12": "1.2.12_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.3.0_react-dom@19.3.0",
     "npm:@renpy/ast@0.1": "0.1.0",
-    "npm:@tailwindcss/vite@^4.3.3": "4.3.3_vite@8.1.5_@types+node@26.1.1",
+    "npm:@tailwindcss/vite@^4.3.3": "4.3.3_vite@8.1.5__@types+node@26.6.2_@types+node@26.6.2",
     "npm:@tanstack/react-virtual@^3.14.6": "3.14.6_react@19.3.0_react-dom@19.3.0",
-    "npm:@testing-library/jest-dom@^7.0.1": "7.0.1_vitest@5.0.0_@vitest+coverage-v8@5.0.0",
+    "npm:@testing-library/jest-dom@^7.0.1": "7.0.1_vitest@5.0.0__@types+node@26.6.2__@vitest+coverage-v8@5.0.0__jsdom@30.0.1__vite@8.1.5___@types+node@26.6.2_@types+node@26.6.2",
     "npm:@testing-library/react@^16.3.2": "16.3.2_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.3.0_react-dom@19.3.0",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/dagre@~0.7.54": "0.7.54",
     "npm:@types/file-saver@^2.0.7": "2.0.7",
-    "npm:@types/node@^26.1.0": "26.1.1",
+    "npm:@types/node@^26.6.2": "26.6.2",
     "npm:@types/react-dom@^19.2.3": "19.2.3_@types+react@19.2.17",
     "npm:@types/react@^19.2.17": "19.2.17",
     "npm:@typescript-eslint/eslint-plugin@^8.66.0": "8.70.0_@typescript-eslint+parser@8.70.0_eslint@10.7.0_typescript@5.7.3",
     "npm:@typescript-eslint/parser@^8.66.0": "8.70.0_eslint@10.7.0_typescript@5.7.3",
-    "npm:@vitejs/plugin-react@^6.0.3": "6.0.3_vite@8.1.5_@types+node@26.1.1",
-    "npm:@vitest/coverage-v8@5": "5.0.0_vitest@5.0.0_@types+node@26.1.1_jsdom@30.0.1_vite@8.1.5",
+    "npm:@vitejs/plugin-react@^6.0.3": "6.0.3_vite@8.1.5__@types+node@26.6.2_@types+node@26.6.2",
+    "npm:@vitest/coverage-v8@5": "5.0.0_vitest@5.0.0_@types+node@26.6.2_jsdom@30.0.1_vite@8.1.5__@types+node@26.1.1",
     "npm:@xyflow/react@^12.11.2": "12.11.2_@types+react@19.2.17_@types+react-dom@19.2.3_react@19.3.0_react-dom@19.3.0",
     "npm:clsx@^2.1.1": "2.1.1",
     "npm:comlink@^4.4.2": "4.4.2",
@@ -54,10 +54,10 @@
     "npm:typescript-eslint@8.70.0": "8.70.0_eslint@10.7.0_typescript@5.7.3",
     "npm:typescript@*": "5.7.3",
     "npm:typescript@~5.7.3": "5.7.3",
-    "npm:vite@*": "8.1.5_@types+node@26.1.1",
-    "npm:vite@^8.1.5": "8.1.5_@types+node@26.1.1",
-    "npm:vitest@*": "5.0.0_@types+node@26.1.1_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5",
-    "npm:vitest@5": "5.0.0_@types+node@26.1.1_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5",
+    "npm:vite@*": "8.1.5_@types+node@26.6.2",
+    "npm:vite@^8.1.5": "8.1.5_@types+node@26.6.2",
+    "npm:vitest@*": "5.0.0_@types+node@26.6.2_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5__@types+node@26.6.2",
+    "npm:vitest@5": "5.0.0_@types+node@26.6.2_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5__@types+node@26.6.2",
     "npm:vscode-languageserver-textdocument@^1.0.12": "1.0.12",
     "npm:zod@^4.6.5": "4.6.5",
     "npm:zundo@^2.3.0": "2.3.0_zustand@5.0.14_react@19.3.0",
@@ -983,7 +983,7 @@
         "@tailwindcss/oxide-win32-x64-msvc"
       ]
     },
-    "@tailwindcss/vite@4.3.3_vite@8.1.5_@types+node@26.1.1": {
+    "@tailwindcss/vite@4.3.3_vite@8.1.5__@types+node@26.6.2_@types+node@26.6.2": {
       "integrity": "sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw==",
       "dependencies": [
         "@tailwindcss/node",
@@ -1016,7 +1016,7 @@
         "pretty-format"
       ]
     },
-    "@testing-library/jest-dom@7.0.1_vitest@5.0.0_@vitest+coverage-v8@5.0.0": {
+    "@testing-library/jest-dom@7.0.1_vitest@5.0.0__@types+node@26.6.2__@vitest+coverage-v8@5.0.0__jsdom@30.0.1__vite@8.1.5___@types+node@26.6.2_@types+node@26.6.2": {
       "integrity": "sha512-oMDTC3oA+6CXSO2JZnvOI7CA6oVub6kij5ggk9ohwye5slmkwxYDXcPOVxgMw/RQlticjtO0C1RZkR97HgrWMw==",
       "dependencies": [
         "@adobe/css-tools",
@@ -1118,8 +1118,8 @@
     "@types/json-schema@7.0.15": {
       "integrity": "sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA=="
     },
-    "@types/node@26.1.1": {
-      "integrity": "sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw==",
+    "@types/node@26.6.2": {
+      "integrity": "sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==",
       "dependencies": [
         "undici-types"
       ]
@@ -1234,14 +1234,14 @@
         "eslint-visitor-keys@5.0.1"
       ]
     },
-    "@vitejs/plugin-react@6.0.3_vite@8.1.5_@types+node@26.1.1": {
+    "@vitejs/plugin-react@6.0.3_vite@8.1.5__@types+node@26.6.2_@types+node@26.6.2": {
       "integrity": "sha512-vmFvco5/QuC2f9Oj+wTk0+9XeDFkHxSamwZKYc7MxYwKICfvUvlMhqKI0VuICPltGqh1neqBKDvO4kes1ya8vg==",
       "dependencies": [
         "@rolldown/pluginutils",
         "vite"
       ]
     },
-    "@vitest/coverage-v8@5.0.0_vitest@5.0.0_@types+node@26.1.1_jsdom@30.0.1_vite@8.1.5": {
+    "@vitest/coverage-v8@5.0.0_vitest@5.0.0_@types+node@26.6.2_jsdom@30.0.1_vite@8.1.5__@types+node@26.1.1": {
       "integrity": "sha512-toMg6PZGCIa/lQNCDoASrfb1ly4hsUKXFtFYC9kD4t78o5Y6LyNJU7AENt8eHPr3quYdxaxK7hj2mnbFfUk9NA==",
       "dependencies": [
         "@bcoe/v8-coverage",
@@ -1264,7 +1264,7 @@
         "@vitest/istanbul-lib-coverage"
       ]
     },
-    "@vitest/mocker@5.0.0_vite@8.1.5": {
+    "@vitest/mocker@5.0.0_vite@8.1.5__@types+node@26.6.2_@types+node@26.6.2": {
       "integrity": "sha512-66PGTMIiVJP3t4a5yxU9qPtf7MdTBs8jmToMvy+HVflB3Yy13WJZTtPePdvU+wjRV02SKK5doLbSA6o9pwOmiA==",
       "dependencies": [
         "@jridgewell/trace-mapping",
@@ -3246,8 +3246,8 @@
         "which-boxed-primitive"
       ]
     },
-    "undici-types@8.3.0": {
-      "integrity": "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="
+    "undici-types@8.9.0": {
+      "integrity": "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="
     },
     "undici@8.10.0": {
       "integrity": "sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ=="
@@ -3296,7 +3296,7 @@
         "react"
       ]
     },
-    "vite@8.1.5_@types+node@26.1.1": {
+    "vite@8.1.5_@types+node@26.6.2": {
       "integrity": "sha512-7ULLwsCdYx/nRyrpiEwvqb5TFHrMVZyBt+rg/OAXT7rgj/z+DtTDyKFeLAdDkubDVDKD8jOsndmy7m55XcfUsw==",
       "dependencies": [
         "@types/node",
@@ -3314,7 +3314,7 @@
       ],
       "bin": true
     },
-    "vitest@5.0.0_@types+node@26.1.1_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5": {
+    "vitest@5.0.0_@types+node@26.6.2_@vitest+coverage-v8@5.0.0_jsdom@30.0.1_vite@8.1.5__@types+node@26.6.2": {
       "integrity": "sha512-gpsMNoRhMjMktVxPtstOH4/PJuPyovVaMDr4oDilXaGH1EcqM2OE96SoHT2VIQ6fTGtTjqmHDrEu2X9RQiXf8Q==",
       "dependencies": [
         "@types/chai",
@@ -3585,7 +3585,7 @@
         "npm:@testing-library/user-event@^14.6.1",
         "npm:@types/dagre@~0.7.54",
         "npm:@types/file-saver@^2.0.7",
-        "npm:@types/node@^26.1.0",
+        "npm:@types/node@^26.6.2",
         "npm:@types/react-dom@^19.2.3",
         "npm:@types/react@^19.2.17",
         "npm:@typescript-eslint/eslint-plugin@^8.66.0",
