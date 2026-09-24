@@ -54,7 +54,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/dagre": "^0.7.54",
     "@types/file-saver": "^2.0.7",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.6.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.66.0",
