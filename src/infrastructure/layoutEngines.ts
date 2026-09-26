@@ -3,6 +3,7 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import {
   buildFilletedOrthogonalPath,
   calculateBackEdgeSpline,
+  calculateObstructedForwardSpline,
   calculateParallelForwardSpline,
   calculateSelfLoopArc,
   type CanvasEdge,
@@ -23,6 +24,7 @@ import {
   type LayoutDensity,
   NODE_WIDTH,
   normalizeChildPosition,
+  type ObstacleRect,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   redirectEdgesForCollapsedChapters,
   resolveGraphIntegrity,
@@ -176,6 +178,192 @@ function buildCanvasEdges(
     }
   }
 
+  const nodeObstacles: ObstacleRect[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    if (node.type === "chapterNode" || node.data?.isChapterContainer) continue;
+    const pos = absolutePositions.get(node.id) ?? node.position;
+    nodeObstacles.push({
+      id: node.id,
+      x: pos.x,
+      y: pos.y,
+      width: node.width ?? NODE_WIDTH,
+      height: node.height ?? 80,
+    });
+  }
+
+  interface PrecomputedForwardBypass {
+    detourSide: "left" | "right" | "top" | "bottom";
+    hitObstacles: ObstacleRect[];
+    detourLaneIndex: number;
+    detourLaneCount: number;
+    path: string;
+    labelPosition: { x: number; y: number };
+    bendPoints: Array<{ x: number; y: number }>;
+    sections?: ElkEdgeSection[];
+  }
+
+  const getForwardCoords = (e: FlowEdge) => {
+    const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+    const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
+    const sourceNode = nodeById.get(e.source);
+    const targetNode = nodeById.get(e.target);
+    const sourceIsDecision = sourceNode?.data?.nodeType === "DECISION";
+    const targetIsDecision = targetNode?.data?.nodeType === "DECISION";
+    const sourceHeight = sourceNode?.height ?? 80;
+    const targetHeight = targetNode?.height ?? 80;
+
+    const forwardSX = direction === "TB"
+      ? sourcePos.x + NODE_WIDTH / 2
+      : sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH);
+    const forwardSY = direction === "TB"
+      ? sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight)
+      : sourcePos.y + sourceHeight / 2;
+    const forwardTX = direction === "TB"
+      ? targetPos.x + NODE_WIDTH / 2
+      : targetPos.x + (targetIsDecision ? 30 : 0);
+    const forwardTY = direction === "TB"
+      ? targetPos.y + (targetIsDecision ? 8 : 0)
+      : targetPos.y + targetHeight / 2;
+
+    let existingPts: Array<{ x: number; y: number }> | undefined;
+    let sections: ElkEdgeSection[] | undefined;
+    const elkEdge = elkEdgeMap?.get(e.id);
+    if (elkEdge?.sections && elkEdge.sections.length > 0) {
+      sections = elkEdge.sections;
+      const section = elkEdge.sections[0]!;
+      let offsetX = 0;
+      let offsetY = 0;
+      if (
+        sourceNode?.parentId &&
+        sourceNode.parentId === targetNode?.parentId
+      ) {
+        const parentNode = nodeById.get(sourceNode.parentId);
+        if (
+          parentNode &&
+          (parentNode.position.x !== 0 || parentNode.position.y !== 0)
+        ) {
+          const distToAbs = Math.hypot(
+            section.startPoint.x - (sourcePos.x + NODE_WIDTH / 2),
+            section.startPoint.y - (sourcePos.y + sourceHeight / 2),
+          );
+          const distToRel = Math.hypot(
+            section.startPoint.x - (sourceNode.position.x + NODE_WIDTH / 2),
+            section.startPoint.y - (sourceNode.position.y + sourceHeight / 2),
+          );
+          if (distToRel + 4 < distToAbs) {
+            offsetX = parentNode.position.x;
+            offsetY = parentNode.position.y;
+          }
+        }
+      }
+      const rawPts = [
+        section.startPoint,
+        ...(section.bendPoints ?? []),
+        section.endPoint,
+      ];
+      existingPts = (offsetX !== 0 || offsetY !== 0)
+        ? rawPts.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }))
+        : rawPts;
+    }
+
+    return {
+      forwardSX,
+      forwardSY,
+      forwardTX,
+      forwardTY,
+      existingPts,
+      sections,
+    };
+  };
+
+  // Pre-pass: detect obstructed forward edges and group them by shared detour corridor
+  const bypassCorridorGroups = new Map<
+    string,
+    Array<{
+      edge: FlowEdge;
+      coords: ReturnType<typeof getForwardCoords>;
+      candidateObstacles: ObstacleRect[];
+      initialBypass: NonNullable<
+        ReturnType<typeof calculateObstructedForwardSpline>
+      >;
+    }>
+  >();
+
+  for (const e of validEdges) {
+    const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+    const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
+    const isSelfLoop = e.source === e.target;
+    const isBackEdge = detectBackEdge(
+      sourcePos,
+      targetPos,
+      direction,
+      isSelfLoop,
+    );
+    if (isSelfLoop || isBackEdge) continue;
+
+    const coords = getForwardCoords(e);
+    const candidateObstacles = nodeObstacles.filter(
+      (obs) => obs.id !== e.source && obs.id !== e.target,
+    );
+    const initialBypass = calculateObstructedForwardSpline({
+      sourceX: coords.forwardSX,
+      sourceY: coords.forwardSY,
+      targetX: coords.forwardTX,
+      targetY: coords.forwardTY,
+      direction,
+      obstacles: candidateObstacles,
+      existingPts: coords.existingPts,
+    });
+    if (initialBypass) {
+      const obstacleKey = initialBypass.hitObstacles
+        .map((o) => o.id)
+        .sort()
+        .join(",");
+      const corridorKey =
+        `${direction}_${initialBypass.detourSide}_${obstacleKey}`;
+      const group = bypassCorridorGroups.get(corridorKey);
+      const item = { edge: e, coords, candidateObstacles, initialBypass };
+      if (group) {
+        group.push(item);
+      } else {
+        bypassCorridorGroups.set(corridorKey, [item]);
+      }
+    }
+  }
+
+  const bypassByEdgeId = new Map<string, PrecomputedForwardBypass>();
+  for (const group of bypassCorridorGroups.values()) {
+    const detourLaneCount = group.length;
+    group.forEach((item, detourLaneIndex) => {
+      const finalBypass = detourLaneCount > 1
+        ? (calculateObstructedForwardSpline({
+          sourceX: item.coords.forwardSX,
+          sourceY: item.coords.forwardSY,
+          targetX: item.coords.forwardTX,
+          targetY: item.coords.forwardTY,
+          direction,
+          obstacles: item.candidateObstacles,
+          existingPts: item.coords.existingPts,
+          laneIndex: detourLaneIndex,
+          laneCount: detourLaneCount,
+          preferredSide: item.initialBypass.detourSide,
+        }) ?? item.initialBypass)
+        : item.initialBypass;
+
+      bypassByEdgeId.set(item.edge.id, {
+        detourSide: finalBypass.detourSide,
+        hitObstacles: finalBypass.hitObstacles,
+        detourLaneIndex,
+        detourLaneCount,
+        path: finalBypass.path,
+        labelPosition: { x: finalBypass.labelX, y: finalBypass.labelY },
+        bendPoints: finalBypass.bendPoints,
+        sections: item.coords.sections,
+      });
+    });
+  }
+
   return validEdges.map((e) => {
     const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
     const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
@@ -231,18 +419,25 @@ function buildCanvasEdges(
     let labelPosition: { x: number; y: number } | undefined;
     let bendPoints: Array<{ x: number; y: number }> | undefined;
     let sections: ElkEdgeSection[] | undefined;
+    let detourLaneIndex: number | undefined;
+    let detourLaneCount: number | undefined;
+    let obstacles: ObstacleRect[] | undefined;
 
-    const elkEdge = elkEdgeMap?.get(e.id);
-    if (elkEdge?.sections && elkEdge.sections.length > 0) {
-      sections = elkEdge.sections;
-      const section = elkEdge.sections[0]!;
-      const pts = [
-        section.startPoint,
-        ...(section.bendPoints ?? []),
-        section.endPoint,
-      ];
-      bendPoints = pts;
-      const filleted = buildFilletedOrthogonalPath(pts);
+    const precomputedBypass = bypassByEdgeId.get(e.id);
+    const coords = getForwardCoords(e);
+
+    if (precomputedBypass) {
+      svgPath = precomputedBypass.path;
+      labelPosition = precomputedBypass.labelPosition;
+      bendPoints = precomputedBypass.bendPoints;
+      sections = precomputedBypass.sections;
+      detourLaneIndex = precomputedBypass.detourLaneIndex;
+      detourLaneCount = precomputedBypass.detourLaneCount;
+      obstacles = precomputedBypass.hitObstacles;
+    } else if (coords.existingPts) {
+      sections = coords.sections;
+      bendPoints = coords.existingPts;
+      const filleted = buildFilletedOrthogonalPath(coords.existingPts);
       svgPath = filleted.path;
       labelPosition = { x: filleted.labelX, y: filleted.labelY };
     } else if (isSelfLoop) {
@@ -294,35 +489,27 @@ function buildCanvasEdges(
       svgPath = splineRes.path;
       labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
     } else if (
-      !elkEdge?.sections &&
       parallelCount !== undefined &&
       parallelCount > 1 &&
       parallelIndex !== undefined
     ) {
-      const sX = direction === "TB"
-        ? sourcePos.x + (sourceIsDecision ? 100 : NODE_WIDTH / 2)
-        : sourcePos.x + (sourceIsDecision ? 200 : NODE_WIDTH);
-      const sY = direction === "TB"
-        ? sourcePos.y + sourceHeight
-        : sourcePos.y + sourceHeight / 2;
-      const tX = direction === "TB"
-        ? targetPos.x + (targetIsDecision ? 100 : NODE_WIDTH / 2)
-        : targetPos.x;
-      const tY = direction === "TB"
-        ? targetPos.y
-        : targetPos.y + targetHeight / 2;
+      const { forwardSX, forwardSY, forwardTX, forwardTY } = coords;
 
       const forwardRes = calculateParallelForwardSpline({
-        sourceX: sX,
-        sourceY: sY,
-        targetX: tX,
-        targetY: tY,
+        sourceX: forwardSX,
+        sourceY: forwardSY,
+        targetX: forwardTX,
+        targetY: forwardTY,
         direction,
         parallelIndex,
         parallelCount,
       });
       svgPath = forwardRes.path;
       labelPosition = { x: forwardRes.labelX, y: forwardRes.labelY };
+      bendPoints = [
+        { x: forwardSX, y: forwardSY },
+        { x: forwardTX, y: forwardTY },
+      ];
     }
 
     return {
@@ -344,6 +531,9 @@ function buildCanvasEdges(
         laneIndex,
         parallelIndex,
         parallelCount,
+        detourLaneIndex,
+        detourLaneCount,
+        obstacles,
         svgPath,
         labelPosition,
         bendPoints,
@@ -1179,6 +1369,15 @@ export async function applyElkLayout(
               `[top=${CHAPTER_CONTAINER_PADDING.top},left=${CHAPTER_CONTAINER_PADDING.left},bottom=${CHAPTER_CONTAINER_PADDING.bottom},right=${CHAPTER_CONTAINER_PADDING.right}]`,
             "elk.spacing.nodeNode": String(nodesep),
             "elk.layered.spacing.nodeNodeBetweenLayers": String(ranksep),
+            "org.eclipse.elk.nodePlacement.strategy": "BRANDES_KOEPF",
+            "org.eclipse.elk.layered.nodePlacement.favorStraightEdges": "true",
+            "org.eclipse.elk.edgeRouting": "ORTHOGONAL",
+            "org.eclipse.elk.layered.feedbackEdges": "true",
+            "org.eclipse.elk.layered.cycleBreaking.strategy": "DEPTH_FIRST",
+            "org.eclipse.elk.spacing.edgeEdge": "15",
+            "org.eclipse.elk.spacing.edgeNode": "25",
+            "org.eclipse.elk.layered.spacing.edgeNodeBetweenLayers": "25",
+            "org.eclipse.elk.layered.unnecessaryBendpoints": "false",
           },
           children: childElkNodes,
         });

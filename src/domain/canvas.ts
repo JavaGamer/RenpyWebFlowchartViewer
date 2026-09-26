@@ -55,6 +55,15 @@ export interface EdgeData extends Record<string, unknown> {
   laneIndex?: number;
   parallelIndex?: number;
   parallelCount?: number;
+  detourLaneIndex?: number;
+  detourLaneCount?: number;
+  obstacles?: Array<{
+    id?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
   svgPath?: string;
   labelPosition?: { x: number; y: number };
   bendPoints?: Array<{ x: number; y: number }>;

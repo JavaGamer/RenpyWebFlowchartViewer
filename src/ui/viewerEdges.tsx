@@ -8,10 +8,12 @@ import {
 } from "@xyflow/react";
 import {
   calculateBackEdgeSpline,
+  calculateObstructedForwardSpline,
   calculateParallelForwardSpline,
   calculateSelfLoopArc,
   detectBackEdge,
   type LabeledEdgeType,
+  NODE_WIDTH,
 } from "../domain/index.ts";
 import { useViewerLayoutDirection } from "./viewerContext.tsx";
 import { useAppStore, useViewerStore } from "../application/index.ts";
@@ -53,18 +55,67 @@ export const LabeledEdge = memo(function LabeledEdge({
       isSelf,
     );
 
-  const isCustomPathStale = data?.bendPoints &&
-    data.bendPoints.length >= 2 &&
-    (Math.hypot(
-          safeSourceX - data.bendPoints[0]!.x,
-          safeSourceY - data.bendPoints[0]!.y,
-        ) > 3 ||
-      Math.hypot(
-          safeTargetX - data.bendPoints[data.bendPoints.length - 1]!.x,
-          safeTargetY - data.bendPoints[data.bendPoints.length - 1]!.y,
-        ) > 3);
+  const startPt = data?.bendPoints?.[0];
+  const endPt = data?.bendPoints && data.bendPoints.length >= 2
+    ? data.bendPoints[data.bendPoints.length - 1]
+    : undefined;
+  const maxPrimaryOffset = 84;
+  const maxCrossOffset = NODE_WIDTH / 2 + 12;
+  const isCustomPathStale = Boolean(
+    startPt && endPt && (
+      layoutDirection === "TB"
+        ? (
+          Math.abs(safeSourceY - startPt.y) > maxPrimaryOffset ||
+          Math.abs(safeSourceX - startPt.x) > maxCrossOffset ||
+          Math.abs(safeTargetY - endPt.y) > maxPrimaryOffset ||
+          Math.abs(safeTargetX - endPt.x) > maxCrossOffset
+        )
+        : (
+          Math.abs(safeSourceX - startPt.x) > maxPrimaryOffset ||
+          Math.abs(safeSourceY - startPt.y) > 96 ||
+          Math.abs(safeTargetX - endPt.x) > maxPrimaryOffset ||
+          Math.abs(safeTargetY - endPt.y) > 96
+        )
+    ),
+  );
+  const hasExactEndpoints = Boolean(
+    startPt && endPt &&
+      Math.abs(safeSourceX - startPt.x) <= 1 &&
+      Math.abs(safeSourceY - startPt.y) <= 1 &&
+      Math.abs(safeTargetX - endPt.x) <= 1 &&
+      Math.abs(safeTargetY - endPt.y) <= 1,
+  );
 
-  if (data?.svgPath && data?.labelPosition && !isCustomPathStale) {
+  let liveBypassRes:
+    | ReturnType<typeof calculateObstructedForwardSpline>
+    | null = null;
+  if (
+    !isSelf &&
+    !isBack &&
+    !isCustomPathStale &&
+    !hasExactEndpoints &&
+    data?.obstacles &&
+    data.obstacles.length > 0 &&
+    (safeSourceX !== 0 || safeSourceY !== 0 || safeTargetX !== 0 ||
+      safeTargetY !== 0)
+  ) {
+    liveBypassRes = calculateObstructedForwardSpline({
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
+      direction: layoutDirection,
+      obstacles: data.obstacles,
+      laneIndex: data.detourLaneIndex ?? 0,
+      laneCount: data.detourLaneCount ?? 1,
+    });
+  }
+
+  if (liveBypassRes) {
+    edgePath = liveBypassRes.path;
+    labelX = liveBypassRes.labelX;
+    labelY = liveBypassRes.labelY;
+  } else if (data?.svgPath && data?.labelPosition && !isCustomPathStale) {
     edgePath = data.svgPath;
     labelX = data.labelPosition.x;
     labelY = data.labelPosition.y;

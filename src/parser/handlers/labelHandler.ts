@@ -286,6 +286,27 @@ export function performLabelSceneSplit(
 
   const sceneIndex = (scanState.currentLabelSceneIndex ?? 1) + 1;
   const nextSceneId = toSceneLabelId(currentLabelBaseId, sceneIndex);
+
+  const prevSceneNode = state.nodeMap.get(activeSceneId);
+  if (
+    prevSceneNode?.sourceLocation &&
+    sourceLocation &&
+    prevSceneNode.sourceLocation.end.line >= sourceLocation.start.line &&
+    sourceLocation.start.line > prevSceneNode.sourceLocation.start.line
+  ) {
+    prevSceneNode.sourceLocation = {
+      ...prevSceneNode.sourceLocation,
+      end: {
+        line: sourceLocation.start.line - 1,
+        character: 0,
+        offset: Math.max(
+          prevSceneNode.sourceLocation.start.offset,
+          sourceLocation.start.offset - 1,
+        ),
+      },
+    };
+  }
+
   addNode(state, {
     id: nextSceneId,
     type: "LABEL",
@@ -294,6 +315,25 @@ export function performLabelSceneSplit(
     chapter,
     sourceLocation,
   });
+
+  if (sourceLocation && state.nodeMutations?.has(activeSceneId)) {
+    const splitLine = sourceLocation.start.line;
+    const prevMuts = state.nodeMutations.get(activeSceneId)!;
+    const stayMuts = prevMuts.filter((m) => m.lineNum < splitLine);
+    const moveMuts = prevMuts.filter((m) => m.lineNum >= splitLine);
+    if (moveMuts.length > 0) {
+      if (stayMuts.length > 0) {
+        state.nodeMutations.set(activeSceneId, stayMuts);
+      } else {
+        state.nodeMutations.delete(activeSceneId);
+      }
+      for (const m of moveMuts) {
+        m.nodeId = nextSceneId;
+      }
+      const existingNext = state.nodeMutations.get(nextSceneId) ?? [];
+      state.nodeMutations.set(nextSceneId, [...existingNext, ...moveMuts]);
+    }
+  }
 
   const connectedSources = new Set<string>();
 

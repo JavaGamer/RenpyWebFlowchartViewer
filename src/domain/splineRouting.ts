@@ -369,11 +369,11 @@ export function calculateParallelForwardSpline(
 
   // Centered index around 0 (e.g. for count=2: -0.5, +0.5; for count=3: -1, 0, +1)
   const centeredIndex = parallelIndex - (parallelCount - 1) / 2;
-  const bowSpacing = 42;
+  const bowSpacing = 90;
   const bowOffset = centeredIndex * bowSpacing;
 
   // Longitudinal label staggering: shift t away from 0.5 along the curve
-  const t = Math.max(0.2, Math.min(0.8, 0.5 + centeredIndex * 0.12));
+  const t = Math.max(0.2, Math.min(0.8, 0.5 + centeredIndex * 0.22));
   const mt = 1 - t;
 
   if (direction === "TB") {
@@ -418,5 +418,368 @@ export function calculateParallelForwardSpline(
       t * t * t * targetY;
 
     return { path, labelX, labelY };
+  }
+}
+
+export interface ObstacleRect {
+  id?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ObstructedForwardSplineParams {
+  sourceX: number;
+  sourceY: number;
+  targetX: number;
+  targetY: number;
+  direction?: LayoutDirection;
+  obstacles: ObstacleRect[];
+  existingPts?: Array<{ x: number; y: number }>;
+  laneIndex?: number;
+  laneCount?: number;
+  preferredSide?: "left" | "right" | "top" | "bottom";
+}
+
+export interface ObstructedForwardSplineResult extends SplineResult {
+  bendPoints: Array<{ x: number; y: number }>;
+  hitObstacles: ObstacleRect[];
+  detourSide: "left" | "right" | "top" | "bottom";
+}
+
+function segmentIntersectsRect(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+): boolean {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+
+  const checks: Array<[number, number]> = [
+    [-dx, p1.x - left],
+    [dx, right - p1.x],
+    [-dy, p1.y - top],
+    [dy, bottom - p1.y],
+  ];
+
+  for (const [p, q] of checks) {
+    if (Math.abs(p) < 1e-9) {
+      if (q < 0) return false;
+    } else {
+      const r = q / p;
+      if (p < 0) {
+        if (r > t1) return false;
+        if (r > t0) t0 = r;
+      } else {
+        if (r < t0) return false;
+        if (r < t1) t1 = r;
+      }
+    }
+  }
+
+  return t0 <= t1;
+}
+
+function computeDetourLabelT(laneIndex: number, laneCount: number): number {
+  const k = Math.max(0, laneIndex);
+  if (laneCount > 1) {
+    const centered = k - (laneCount - 1) / 2;
+    return Math.max(0.22, Math.min(0.78, 0.5 + centered * 0.22));
+  }
+  if (k > 0) {
+    const step = Math.ceil(k / 2) * 0.16 * (k % 2 === 1 ? 1 : -1);
+    return Math.max(0.22, Math.min(0.78, 0.5 + step));
+  }
+  return 0.5;
+}
+
+/**
+ * Detects if a multi-rank forward edge is obstructed by one or more intermediate
+ * nodes and computes a filleted orthogonal bypass path and clear label position
+ * around the obstructing node(s). Returns null if the edge is unobstructed.
+ */
+export function calculateObstructedForwardSpline(
+  params: ObstructedForwardSplineParams,
+): ObstructedForwardSplineResult | null {
+  const {
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    direction = "TB",
+    obstacles,
+    existingPts,
+    laneIndex = 0,
+    laneCount = 1,
+    preferredSide,
+  } = params;
+
+  if (!obstacles || obstacles.length === 0) {
+    return null;
+  }
+
+  const pts = existingPts && existingPts.length >= 2 ? existingPts : [
+    { x: sourceX, y: sourceY },
+    { x: targetX, y: targetY },
+  ];
+
+  const currentFilleted = buildFilletedOrthogonalPath(pts);
+  const clearance = 44;
+  const k = Math.max(0, laneIndex);
+  const laneStep = 28;
+  const labelT = computeDetourLabelT(k, laneCount);
+
+  if (direction === "TB") {
+    if (targetY <= sourceY + 16) return null;
+
+    const intermediateObstacles = obstacles.filter(
+      (obs) => obs.y >= sourceY - 4 && obs.y + obs.height <= targetY + 4,
+    );
+    if (intermediateObstacles.length === 0) return null;
+
+    const padX = 28;
+    const padY = 8;
+
+    const hitObstacles = intermediateObstacles.filter((obs) => {
+      const left = obs.x - padX;
+      const right = obs.x + obs.width + padX;
+      const top = obs.y - padY;
+      const bottom = obs.y + obs.height + padY;
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (
+          segmentIntersectsRect(pts[i]!, pts[i + 1]!, left, right, top, bottom)
+        ) {
+          return true;
+        }
+      }
+
+      if (
+        currentFilleted.labelX >= obs.x - 40 &&
+        currentFilleted.labelX <= obs.x + obs.width + 40 &&
+        currentFilleted.labelY >= obs.y - 16 &&
+        currentFilleted.labelY <= obs.y + obs.height + 16
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (hitObstacles.length === 0) return null;
+
+    let minObsY = Math.min(...hitObstacles.map((o) => o.y));
+    let maxObsBottom = Math.max(...hitObstacles.map((o) => o.y + o.height));
+    const minObsX = Math.min(...hitObstacles.map((o) => o.x));
+    const maxObsX = Math.max(...hitObstacles.map((o) => o.x + o.width));
+
+    let leftDetourX = minObsX - clearance;
+    let leftChanged = true;
+    while (leftChanged) {
+      leftChanged = false;
+      for (const obs of intermediateObstacles) {
+        if (
+          leftDetourX >= obs.x - padX &&
+          leftDetourX <= obs.x + obs.width + padX
+        ) {
+          leftDetourX = obs.x - clearance;
+          minObsY = Math.min(minObsY, obs.y);
+          maxObsBottom = Math.max(maxObsBottom, obs.y + obs.height);
+          leftChanged = true;
+        }
+      }
+    }
+
+    let rightDetourX = maxObsX + clearance;
+    let rightChanged = true;
+    while (rightChanged) {
+      rightChanged = false;
+      for (const obs of intermediateObstacles) {
+        if (
+          rightDetourX >= obs.x - padX &&
+          rightDetourX <= obs.x + obs.width + padX
+        ) {
+          rightDetourX = obs.x + obs.width + clearance;
+          minObsY = Math.min(minObsY, obs.y);
+          maxObsBottom = Math.max(maxObsBottom, obs.y + obs.height);
+          rightChanged = true;
+        }
+      }
+    }
+
+    const leftCost = Math.abs(sourceX - leftDetourX) +
+      Math.abs(targetX - leftDetourX);
+    const rightCost = Math.abs(sourceX - rightDetourX) +
+      Math.abs(targetX - rightDetourX);
+    const routeLeft = preferredSide === "left"
+      ? true
+      : preferredSide === "right"
+      ? false
+      : leftDetourX >= 24 && leftCost < rightCost - 1;
+    const detourSide = routeLeft ? "left" : "right";
+    const detourX = routeLeft
+      ? leftDetourX - k * laneStep
+      : rightDetourX + k * laneStep;
+
+    let leadOutY = Math.max(
+      sourceY + 14,
+      Math.min(minObsY - 14, (sourceY + minObsY) / 2),
+    );
+    let leadInY = Math.min(
+      targetY - 14,
+      Math.max(maxObsBottom + 14, (maxObsBottom + targetY) / 2),
+    );
+    if (leadOutY >= leadInY) {
+      leadOutY = sourceY + (targetY - sourceY) * 0.2;
+      leadInY = sourceY + (targetY - sourceY) * 0.8;
+    }
+
+    const bendPoints = [
+      { x: sourceX, y: sourceY },
+      { x: sourceX, y: leadOutY },
+      { x: detourX, y: leadOutY },
+      { x: detourX, y: leadInY },
+      { x: targetX, y: leadInY },
+      { x: targetX, y: targetY },
+    ];
+    const filleted = buildFilletedOrthogonalPath(bendPoints, 10);
+
+    return {
+      path: filleted.path,
+      labelX: detourX,
+      labelY: leadOutY + (leadInY - leadOutY) * labelT,
+      bendPoints,
+      hitObstacles,
+      detourSide,
+    };
+  } else {
+    if (targetX <= sourceX + 16) return null;
+
+    const intermediateObstacles = obstacles.filter(
+      (obs) => obs.x >= sourceX - 4 && obs.x + obs.width <= targetX + 4,
+    );
+    if (intermediateObstacles.length === 0) return null;
+
+    const padX = 8;
+    const padY = 28;
+
+    const hitObstacles = intermediateObstacles.filter((obs) => {
+      const left = obs.x - padX;
+      const right = obs.x + obs.width + padX;
+      const top = obs.y - padY;
+      const bottom = obs.y + obs.height + padY;
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (
+          segmentIntersectsRect(pts[i]!, pts[i + 1]!, left, right, top, bottom)
+        ) {
+          return true;
+        }
+      }
+
+      if (
+        currentFilleted.labelX >= obs.x - 16 &&
+        currentFilleted.labelX <= obs.x + obs.width + 16 &&
+        currentFilleted.labelY >= obs.y - 24 &&
+        currentFilleted.labelY <= obs.y + obs.height + 24
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (hitObstacles.length === 0) return null;
+
+    let minObsX = Math.min(...hitObstacles.map((o) => o.x));
+    let maxObsRight = Math.max(...hitObstacles.map((o) => o.x + o.width));
+    const minObsY = Math.min(...hitObstacles.map((o) => o.y));
+    const maxObsY = Math.max(...hitObstacles.map((o) => o.y + o.height));
+
+    let topDetourY = minObsY - clearance;
+    let topChanged = true;
+    while (topChanged) {
+      topChanged = false;
+      for (const obs of intermediateObstacles) {
+        if (
+          topDetourY >= obs.y - padY &&
+          topDetourY <= obs.y + obs.height + padY
+        ) {
+          topDetourY = obs.y - clearance;
+          minObsX = Math.min(minObsX, obs.x);
+          maxObsRight = Math.max(maxObsRight, obs.x + obs.width);
+          topChanged = true;
+        }
+      }
+    }
+
+    let bottomDetourY = maxObsY + clearance;
+    let bottomChanged = true;
+    while (bottomChanged) {
+      bottomChanged = false;
+      for (const obs of intermediateObstacles) {
+        if (
+          bottomDetourY >= obs.y - padY &&
+          bottomDetourY <= obs.y + obs.height + padY
+        ) {
+          bottomDetourY = obs.y + obs.height + clearance;
+          minObsX = Math.min(minObsX, obs.x);
+          maxObsRight = Math.max(maxObsRight, obs.x + obs.width);
+          bottomChanged = true;
+        }
+      }
+    }
+
+    const topCost = Math.abs(sourceY - topDetourY) +
+      Math.abs(targetY - topDetourY);
+    const bottomCost = Math.abs(sourceY - bottomDetourY) +
+      Math.abs(targetY - bottomDetourY);
+    const routeTop = preferredSide === "top"
+      ? true
+      : preferredSide === "bottom"
+      ? false
+      : topDetourY >= 24 && topCost < bottomCost - 1;
+    const detourSide = routeTop ? "top" : "bottom";
+    const detourY = routeTop
+      ? topDetourY - k * laneStep
+      : bottomDetourY + k * laneStep;
+
+    let leadOutX = Math.max(
+      sourceX + 14,
+      Math.min(minObsX - 14, (sourceX + minObsX) / 2),
+    );
+    let leadInX = Math.min(
+      targetX - 14,
+      Math.max(maxObsRight + 14, (maxObsRight + targetX) / 2),
+    );
+    if (leadOutX >= leadInX) {
+      leadOutX = sourceX + (targetX - sourceX) * 0.2;
+      leadInX = sourceX + (targetX - sourceX) * 0.8;
+    }
+
+    const bendPoints = [
+      { x: sourceX, y: sourceY },
+      { x: leadOutX, y: sourceY },
+      { x: leadOutX, y: detourY },
+      { x: leadInX, y: detourY },
+      { x: leadInX, y: targetY },
+      { x: targetX, y: targetY },
+    ];
+    const filleted = buildFilletedOrthogonalPath(bendPoints, 10);
+
+    return {
+      path: filleted.path,
+      labelX: leadOutX + (leadInX - leadOutX) * labelT,
+      labelY: detourY,
+      bendPoints,
+      hitObstacles,
+      detourSide,
+    };
   }
 }

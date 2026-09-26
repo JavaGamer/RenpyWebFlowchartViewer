@@ -460,26 +460,32 @@ export function dispatchToken(
     scanState.waitForMenuNameForId !== null ||
     isMenuKeywordTokenType(type) ||
     meta.hasMenuStatement ||
-    /^\s*(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)|gameover)\b/i
+    /^\s*(?:call\s+screen\b|(?:\$\s*)?(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)|gameover)\b)/i
       .test(input.lineText ?? "");
 
   const isContinuingBranch = /^\s*(?:elif|else|case)\b/.test(
     input.lineText ?? "",
   );
 
-  const hasPreMenuDialogue = (scanState.currentSceneDialogueCount ?? 0) > 0;
+  const isNonSplittingStaging = /^\s*(?:with|window|pass|pause|camera|nvl)\b/i
+    .test(input.lineText ?? "");
+
+  const isStillOnPreMenuNode = scanState.currentLabelId !== null &&
+    scanState.pendingMenuFallthrough.some((e) =>
+      e.menuId.startsWith("menu_") &&
+      !e.calledTargetId &&
+      state.nodeMap.get(e.menuId)?.parentLabelId === scanState.currentLabelId
+    );
 
   if (
     !isExitOrMenuToken &&
     !isContinuingBranch &&
+    !isNonSplittingStaging &&
     !meta.hasMenuOptionBlock &&
     scanState.menuStack.length === 0 &&
     scanState.conditionalDecisionStack.length === 0 &&
     !scanState.pendingTimedChoice &&
-    hasPreMenuDialogue &&
-    scanState.pendingMenuFallthrough.some((e) =>
-      e.menuId.startsWith("menu_") && !e.calledTargetId
-    )
+    isStillOnPreMenuNode
   ) {
     splitCurrentLabelOnMenuFallthrough(
       state,
