@@ -533,6 +533,8 @@ export function calculateObstructedForwardSpline(
   const clearance = 44;
   const k = Math.max(0, laneIndex);
   const laneStep = 28;
+  const effectiveClearance = clearance + k * laneStep;
+  const laneLeadShift = laneCount > 1 ? ((laneCount - 1) / 2 - k) * 6 : 0;
   const labelT = computeDetourLabelT(k, laneCount);
 
   if (direction === "TB") {
@@ -546,7 +548,7 @@ export function calculateObstructedForwardSpline(
     const padX = 28;
     const padY = 8;
 
-    const hitObstacles = intermediateObstacles.filter((obs) => {
+    const initialHitObstacles = intermediateObstacles.filter((obs) => {
       const left = obs.x - padX;
       const right = obs.x + obs.width + padX;
       const top = obs.y - padY;
@@ -572,42 +574,62 @@ export function calculateObstructedForwardSpline(
       return false;
     });
 
-    if (hitObstacles.length === 0) return null;
+    if (initialHitObstacles.length === 0) return null;
 
-    let minObsY = Math.min(...hitObstacles.map((o) => o.y));
-    let maxObsBottom = Math.max(...hitObstacles.map((o) => o.y + o.height));
-    const minObsX = Math.min(...hitObstacles.map((o) => o.x));
-    const maxObsX = Math.max(...hitObstacles.map((o) => o.x + o.width));
+    const baseMinObsY = Math.min(...initialHitObstacles.map((o) => o.y));
+    const baseMaxObsBottom = Math.max(
+      ...initialHitObstacles.map((o) => o.y + o.height),
+    );
+    const minObsX = Math.min(...initialHitObstacles.map((o) => o.x));
+    const maxObsX = Math.max(...initialHitObstacles.map((o) => o.x + o.width));
 
-    let leftDetourX = minObsX - clearance;
+    let leftMinObsY = baseMinObsY;
+    let leftMaxObsBottom = baseMaxObsBottom;
+    const leftHitObstacles = [...initialHitObstacles];
+    const leftHitSet = new Set(initialHitObstacles);
+
+    let leftDetourX = minObsX - effectiveClearance;
     let leftChanged = true;
     while (leftChanged) {
       leftChanged = false;
       for (const obs of intermediateObstacles) {
         if (
-          leftDetourX >= obs.x - padX &&
+          leftDetourX > obs.x - effectiveClearance &&
           leftDetourX <= obs.x + obs.width + padX
         ) {
-          leftDetourX = obs.x - clearance;
-          minObsY = Math.min(minObsY, obs.y);
-          maxObsBottom = Math.max(maxObsBottom, obs.y + obs.height);
+          leftDetourX = obs.x - effectiveClearance;
+          leftMinObsY = Math.min(leftMinObsY, obs.y);
+          leftMaxObsBottom = Math.max(leftMaxObsBottom, obs.y + obs.height);
+          if (!leftHitSet.has(obs)) {
+            leftHitSet.add(obs);
+            leftHitObstacles.push(obs);
+          }
           leftChanged = true;
         }
       }
     }
 
-    let rightDetourX = maxObsX + clearance;
+    let rightMinObsY = baseMinObsY;
+    let rightMaxObsBottom = baseMaxObsBottom;
+    const rightHitObstacles = [...initialHitObstacles];
+    const rightHitSet = new Set(initialHitObstacles);
+
+    let rightDetourX = maxObsX + effectiveClearance;
     let rightChanged = true;
     while (rightChanged) {
       rightChanged = false;
       for (const obs of intermediateObstacles) {
         if (
           rightDetourX >= obs.x - padX &&
-          rightDetourX <= obs.x + obs.width + padX
+          rightDetourX < obs.x + obs.width + effectiveClearance
         ) {
-          rightDetourX = obs.x + obs.width + clearance;
-          minObsY = Math.min(minObsY, obs.y);
-          maxObsBottom = Math.max(maxObsBottom, obs.y + obs.height);
+          rightDetourX = obs.x + obs.width + effectiveClearance;
+          rightMinObsY = Math.min(rightMinObsY, obs.y);
+          rightMaxObsBottom = Math.max(rightMaxObsBottom, obs.y + obs.height);
+          if (!rightHitSet.has(obs)) {
+            rightHitSet.add(obs);
+            rightHitObstacles.push(obs);
+          }
           rightChanged = true;
         }
       }
@@ -621,19 +643,20 @@ export function calculateObstructedForwardSpline(
       ? true
       : preferredSide === "right"
       ? false
-      : leftDetourX >= 24 && leftCost < rightCost - 1;
+      : leftCost < rightCost - 1;
     const detourSide = routeLeft ? "left" : "right";
-    const detourX = routeLeft
-      ? leftDetourX - k * laneStep
-      : rightDetourX + k * laneStep;
+    const detourX = routeLeft ? leftDetourX : rightDetourX;
+    const minObsY = routeLeft ? leftMinObsY : rightMinObsY;
+    const maxObsBottom = routeLeft ? leftMaxObsBottom : rightMaxObsBottom;
+    const hitObstacles = routeLeft ? leftHitObstacles : rightHitObstacles;
 
     let leadOutY = Math.max(
       sourceY + 14,
-      Math.min(minObsY - 14, (sourceY + minObsY) / 2),
+      Math.min(minObsY - 14, (sourceY + minObsY) / 2 + laneLeadShift),
     );
     let leadInY = Math.min(
       targetY - 14,
-      Math.max(maxObsBottom + 14, (maxObsBottom + targetY) / 2),
+      Math.max(maxObsBottom + 14, (maxObsBottom + targetY) / 2 - laneLeadShift),
     );
     if (leadOutY >= leadInY) {
       leadOutY = sourceY + (targetY - sourceY) * 0.2;
@@ -669,7 +692,7 @@ export function calculateObstructedForwardSpline(
     const padX = 8;
     const padY = 28;
 
-    const hitObstacles = intermediateObstacles.filter((obs) => {
+    const initialHitObstacles = intermediateObstacles.filter((obs) => {
       const left = obs.x - padX;
       const right = obs.x + obs.width + padX;
       const top = obs.y - padY;
@@ -695,42 +718,62 @@ export function calculateObstructedForwardSpline(
       return false;
     });
 
-    if (hitObstacles.length === 0) return null;
+    if (initialHitObstacles.length === 0) return null;
 
-    let minObsX = Math.min(...hitObstacles.map((o) => o.x));
-    let maxObsRight = Math.max(...hitObstacles.map((o) => o.x + o.width));
-    const minObsY = Math.min(...hitObstacles.map((o) => o.y));
-    const maxObsY = Math.max(...hitObstacles.map((o) => o.y + o.height));
+    const baseMinObsX = Math.min(...initialHitObstacles.map((o) => o.x));
+    const baseMaxObsRight = Math.max(
+      ...initialHitObstacles.map((o) => o.x + o.width),
+    );
+    const minObsY = Math.min(...initialHitObstacles.map((o) => o.y));
+    const maxObsY = Math.max(...initialHitObstacles.map((o) => o.y + o.height));
 
-    let topDetourY = minObsY - clearance;
+    let topMinObsX = baseMinObsX;
+    let topMaxObsRight = baseMaxObsRight;
+    const topHitObstacles = [...initialHitObstacles];
+    const topHitSet = new Set(initialHitObstacles);
+
+    let topDetourY = minObsY - effectiveClearance;
     let topChanged = true;
     while (topChanged) {
       topChanged = false;
       for (const obs of intermediateObstacles) {
         if (
-          topDetourY >= obs.y - padY &&
+          topDetourY > obs.y - effectiveClearance &&
           topDetourY <= obs.y + obs.height + padY
         ) {
-          topDetourY = obs.y - clearance;
-          minObsX = Math.min(minObsX, obs.x);
-          maxObsRight = Math.max(maxObsRight, obs.x + obs.width);
+          topDetourY = obs.y - effectiveClearance;
+          topMinObsX = Math.min(topMinObsX, obs.x);
+          topMaxObsRight = Math.max(topMaxObsRight, obs.x + obs.width);
+          if (!topHitSet.has(obs)) {
+            topHitSet.add(obs);
+            topHitObstacles.push(obs);
+          }
           topChanged = true;
         }
       }
     }
 
-    let bottomDetourY = maxObsY + clearance;
+    let bottomMinObsX = baseMinObsX;
+    let bottomMaxObsRight = baseMaxObsRight;
+    const bottomHitObstacles = [...initialHitObstacles];
+    const bottomHitSet = new Set(initialHitObstacles);
+
+    let bottomDetourY = maxObsY + effectiveClearance;
     let bottomChanged = true;
     while (bottomChanged) {
       bottomChanged = false;
       for (const obs of intermediateObstacles) {
         if (
           bottomDetourY >= obs.y - padY &&
-          bottomDetourY <= obs.y + obs.height + padY
+          bottomDetourY < obs.y + obs.height + effectiveClearance
         ) {
-          bottomDetourY = obs.y + obs.height + clearance;
-          minObsX = Math.min(minObsX, obs.x);
-          maxObsRight = Math.max(maxObsRight, obs.x + obs.width);
+          bottomDetourY = obs.y + obs.height + effectiveClearance;
+          bottomMinObsX = Math.min(bottomMinObsX, obs.x);
+          bottomMaxObsRight = Math.max(bottomMaxObsRight, obs.x + obs.width);
+          if (!bottomHitSet.has(obs)) {
+            bottomHitSet.add(obs);
+            bottomHitObstacles.push(obs);
+          }
           bottomChanged = true;
         }
       }
@@ -744,19 +787,20 @@ export function calculateObstructedForwardSpline(
       ? true
       : preferredSide === "bottom"
       ? false
-      : topDetourY >= 24 && topCost < bottomCost - 1;
+      : topCost < bottomCost - 1;
     const detourSide = routeTop ? "top" : "bottom";
-    const detourY = routeTop
-      ? topDetourY - k * laneStep
-      : bottomDetourY + k * laneStep;
+    const detourY = routeTop ? topDetourY : bottomDetourY;
+    const minObsX = routeTop ? topMinObsX : bottomMinObsX;
+    const maxObsRight = routeTop ? topMaxObsRight : bottomMaxObsRight;
+    const hitObstacles = routeTop ? topHitObstacles : bottomHitObstacles;
 
     let leadOutX = Math.max(
       sourceX + 14,
-      Math.min(minObsX - 14, (sourceX + minObsX) / 2),
+      Math.min(minObsX - 14, (sourceX + minObsX) / 2 + laneLeadShift),
     );
     let leadInX = Math.min(
       targetX - 14,
-      Math.max(maxObsRight + 14, (maxObsRight + targetX) / 2),
+      Math.max(maxObsRight + 14, (maxObsRight + targetX) / 2 - laneLeadShift),
     );
     if (leadOutX >= leadInX) {
       leadOutX = sourceX + (targetX - sourceX) * 0.2;

@@ -23,6 +23,15 @@ function getBaseLabelId(id: string): string {
   return idx !== -1 ? id.slice(0, idx) : id;
 }
 
+function setHasLabelOrScene(set: Set<string>, baseLabelId: string): boolean {
+  if (set.has(baseLabelId)) return true;
+  const prefix = `${baseLabelId}__scene_`;
+  for (const item of set) {
+    if (item.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 /**
  * Checks whether a label node has sequence or jump traffic connecting to external nodes
  * (i.e. not internal child decisions or internal menus belonging to the same label,
@@ -49,7 +58,7 @@ function hasExternalStoryTraffic(
     if (edge.kind !== "sequence" && edge.kind !== "jump") continue;
     if (edge.source === edge.target) continue;
 
-    if (edge.target === labelId) {
+    if (getBaseLabelId(edge.target) === baseLabelId) {
       const sourceNode = state.nodeMap.get(edge.source);
       if (!sourceNode) return true;
       if (sourceNode.type === "LABEL") {
@@ -58,13 +67,14 @@ function hasExternalStoryTraffic(
         }
       } else if (
         (sourceNode.type === "DECISION" || sourceNode.type === "MENU") &&
-        sourceNode.parentLabelId !== labelId
+        (!sourceNode.parentLabelId ||
+          getBaseLabelId(sourceNode.parentLabelId) !== baseLabelId)
       ) {
         return true;
       }
     }
 
-    if (edge.source === labelId) {
+    if (getBaseLabelId(edge.source) === baseLabelId) {
       const targetNode = state.nodeMap.get(edge.target);
       if (!targetNode) return true;
       if (targetNode.type === "LABEL") {
@@ -73,7 +83,8 @@ function hasExternalStoryTraffic(
         }
       } else if (
         (targetNode.type === "DECISION" || targetNode.type === "MENU") &&
-        targetNode.parentLabelId !== labelId
+        (!targetNode.parentLabelId ||
+          getBaseLabelId(targetNode.parentLabelId) !== baseLabelId)
       ) {
         return true;
       }
@@ -107,9 +118,14 @@ export function classifyNodeRole(
     }
   }
 
-  const hasReturn = state.hasReturnInLabel.has(node.id);
-  const isCalled = state.calledLabels.has(node.id);
-  const isCalledFromMenuOption = state.calledFromMenuOptionTargets.has(node.id);
+  const baseLabelId = getBaseLabelId(node.id);
+  const hasReturn = state.hasReturnInLabel.has(node.id) ||
+    setHasLabelOrScene(state.hasReturnInLabel, baseLabelId);
+  const isCalled = state.calledLabels.has(node.id) ||
+    setHasLabelOrScene(state.calledLabels, baseLabelId);
+  const isCalledFromMenuOption =
+    state.calledFromMenuOptionTargets.has(node.id) ||
+    setHasLabelOrScene(state.calledFromMenuOptionTargets, baseLabelId);
 
   const hasExternalTraffic = hasExternalStoryTraffic(state, node.id);
 

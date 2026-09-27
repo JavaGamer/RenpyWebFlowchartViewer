@@ -421,7 +421,9 @@ export function buildVisibleEdges(params: {
       previousData?.parallelCount === edgeData.parallelCount &&
       previousData?.detourLaneIndex === edgeData.detourLaneIndex &&
       previousData?.detourLaneCount === edgeData.detourLaneCount &&
+      previousData?.detourSide === edgeData.detourSide &&
       previousData?.obstacles === edgeData.obstacles &&
+      previousData?.bendPoints === edgeData.bendPoints &&
       previousData?.svgPath === edgeData.svgPath &&
       previousData?.labelPosition?.x === edgeData.labelPosition?.x &&
       previousData?.labelPosition?.y === edgeData.labelPosition?.y &&

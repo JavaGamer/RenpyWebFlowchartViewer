@@ -3,6 +3,8 @@ import {
   calculateObstructedForwardSpline,
   calculateParallelForwardSpline,
 } from "../../src/domain/splineRouting.ts";
+import { applyElkLayout } from "../../src/infrastructure/layoutEngines.ts";
+import type { FlowEdge, FlowNode } from "../../src/domain/index.ts";
 
 describe("calculateParallelForwardSpline", () => {
   it("returns fallback bezier when parallelCount <= 1", () => {
@@ -201,5 +203,169 @@ describe("calculateObstructedForwardSpline", () => {
     expect(lane1!.labelX).toBeLessThan(lane0!.labelX - 15);
     // Longitudinal staggering along Y prevents badge overlap
     expect(Math.abs(lane1!.labelY - lane0!.labelY)).toBeGreaterThan(30);
+  });
+
+  it("includes secondary obstacles hit during outward stepping in hitObstacles and ignores unchosen side obstacles (Bug R1)", () => {
+    const primary = { id: "primary", x: 100, y: 220, width: 220, height: 80 };
+    // Secondary obstacle sits to the left of primary and gets hit when stepping left
+    const secondaryLeft = {
+      id: "secondary_left",
+      x: -140,
+      y: 260,
+      width: 220,
+      height: 120,
+    };
+    // Far-right obstacle sits higher up (y=130) and is only on the right side
+    const unchosenRight = {
+      id: "unchosen_right",
+      x: 340,
+      y: 130,
+      width: 220,
+      height: 80,
+    };
+
+    const res = calculateObstructedForwardSpline({
+      sourceX: 150,
+      sourceY: 100,
+      targetX: 150,
+      targetY: 500,
+      direction: "TB",
+      obstacles: [primary, secondaryLeft, unchosenRight],
+      preferredSide: "left",
+    });
+
+    expect(res).not.toBeNull();
+    expect(res!.detourSide).toBe("left");
+    const hitIds = res!.hitObstacles.map((o) => o.id);
+    expect(hitIds).toContain("primary");
+    expect(hitIds).toContain("secondary_left");
+    expect(hitIds).not.toContain("unchosen_right");
+    // Lead-out Y should be governed by primary (y = (100 + 220) / 2 = 160), not pulled up to unchosenRight (y=130 -> 115)
+    expect(res!.bendPoints[1]!.y).toBe(160);
+  });
+
+  it("separates multi-lane detours across secondary obstacles and staggers lead-out/lead-in segments (Bug R2)", () => {
+    const primary = { id: "primary", x: 100, y: 220, width: 220, height: 90 };
+    const secondary = {
+      id: "secondary",
+      x: 60,
+      y: 240,
+      width: 220,
+      height: 90,
+    };
+
+    const lane0 = calculateObstructedForwardSpline({
+      sourceX: 150,
+      sourceY: 100,
+      targetX: 150,
+      targetY: 450,
+      direction: "TB",
+      obstacles: [primary, secondary],
+      laneIndex: 0,
+      laneCount: 2,
+      preferredSide: "left",
+    });
+    const lane1 = calculateObstructedForwardSpline({
+      sourceX: 150,
+      sourceY: 100,
+      targetX: 150,
+      targetY: 450,
+      direction: "TB",
+      obstacles: [primary, secondary],
+      laneIndex: 1,
+      laneCount: 2,
+      preferredSide: "left",
+    });
+
+    expect(lane0).not.toBeNull();
+    expect(lane1).not.toBeNull();
+    // Both lanes must clear secondary (left edge 60) by effectiveClearance (44 and 72) and stay separated by laneStep (28px)
+    expect(lane0!.labelX).toBe(16);
+    expect(lane1!.labelX).toBe(-12);
+    // Lead-out Y and lead-in Y are staggered between lane 0 and lane 1
+    expect(lane0!.bendPoints[1]!.y).not.toBe(lane1!.bendPoints[1]!.y);
+    expect(lane0!.bendPoints[3]!.y).not.toBe(lane1!.bendPoints[3]!.y);
+  });
+
+  it("allows left and top detours into negative canvas coordinates when that side is shorter (Bug N5)", () => {
+    // Obstacle near x=0 where left detour goes negative (0 - 44 = -44)
+    const obstacleTB = { id: "obs_tb", x: 0, y: 200, width: 220, height: 80 };
+    const resTB = calculateObstructedForwardSpline({
+      sourceX: 40,
+      sourceY: 100,
+      targetX: 40,
+      targetY: 380,
+      direction: "TB",
+      obstacles: [obstacleTB],
+    });
+    expect(resTB).not.toBeNull();
+    expect(resTB!.detourSide).toBe("left");
+    expect(resTB!.labelX).toBe(-44);
+
+    // Obstacle near y=0 in LR mode where top detour goes negative (0 - 44 = -44)
+    const obstacleLR = { id: "obs_lr", x: 200, y: 0, width: 220, height: 80 };
+    const resLR = calculateObstructedForwardSpline({
+      sourceX: 100,
+      sourceY: 20,
+      targetX: 500,
+      targetY: 20,
+      direction: "LR",
+      obstacles: [obstacleLR],
+    });
+    expect(resLR).not.toBeNull();
+    expect(resLR!.detourSide).toBe("top");
+    expect(resLR!.labelY).toBe(-44);
+  });
+
+  it("uses calculateParallelForwardSpline in applyElkLayout so parallel forward menu choices bow apart and stagger labels", async () => {
+    const nodes: FlowNode[] = [
+      {
+        id: "menu_1",
+        type: "MENU",
+        label: "Choice Menu",
+        dialogueCount: 0,
+        chapter: "ch1",
+      },
+      {
+        id: "after_choice",
+        type: "LABEL",
+        label: "after_choice",
+        dialogueCount: 2,
+        chapter: "ch1",
+      },
+    ];
+    const edges: FlowEdge[] = [
+      {
+        id: "seq_menu_1__after_choice_Yes",
+        source: "menu_1",
+        target: "after_choice",
+        kind: "sequence",
+        label: "Yes",
+      },
+      {
+        id: "seq_menu_1__after_choice_No",
+        source: "menu_1",
+        target: "after_choice",
+        kind: "sequence",
+        label: "No",
+      },
+    ];
+
+    const elkLayout = await applyElkLayout(nodes, edges, "TB", {
+      enableCompoundContainers: true,
+    });
+    const yesEdge = elkLayout.edges.find((e) => e.data?.label === "Yes")!;
+    const noEdge = elkLayout.edges.find((e) => e.data?.label === "No")!;
+
+    expect(yesEdge.data?.parallelCount).toBe(2);
+    expect(noEdge.data?.parallelCount).toBe(2);
+    expect(yesEdge.data?.svgPath).toContain("C ");
+    expect(noEdge.data?.svgPath).toContain("C ");
+    expect(yesEdge.data?.labelPosition?.x).not.toBe(
+      noEdge.data?.labelPosition?.x,
+    );
+    expect(yesEdge.data?.labelPosition?.y).not.toBe(
+      noEdge.data?.labelPosition?.y,
+    );
   });
 });

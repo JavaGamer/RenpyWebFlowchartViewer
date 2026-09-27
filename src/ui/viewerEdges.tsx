@@ -108,6 +108,7 @@ export const LabeledEdge = memo(function LabeledEdge({
       obstacles: data.obstacles,
       laneIndex: data.detourLaneIndex ?? 0,
       laneCount: data.detourLaneCount ?? 1,
+      preferredSide: data.detourSide,
     });
   }
 

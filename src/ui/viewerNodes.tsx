@@ -692,6 +692,7 @@ export const MenuNodeComponent = memo(
             "ring-2 ring-violet-500 shadow-xl z-20 scale-[1.02]",
         )}
         style={{
+          minHeight: `${NODE_HEIGHT_MENU}px`,
           borderColor: isRouteHighlighted
             ? (isDark ? "#a78bfa" : "#7c3aed")
             : theme.menuBorder,

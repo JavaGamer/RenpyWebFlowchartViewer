@@ -414,7 +414,13 @@ export function handlePreTokenLineStatements(
         if (terminalMatch) {
           const matchedTerminal = terminalMatch.rule;
           scanState.lastProcessedCustomLineNum = lineNum;
-          if (matchedTerminal?.labelHasExplicitExit !== false) {
+          const isReliableTerminalExit =
+            scanState.conditionalIndentStack.length === 0 &&
+            !meta.hasMenuOptionBlock;
+          if (
+            matchedTerminal?.labelHasExplicitExit !== false &&
+            isReliableTerminalExit
+          ) {
             scanState.labelHasExplicitExit = true;
           }
           if (matchedTerminal?.isTerminalOutcome) {
@@ -433,8 +439,41 @@ export function handlePreTokenLineStatements(
                 lastOpt.hasExit = true;
               }
             }
-          } else if (scanState.pendingMenuFallthrough.length > 0) {
-            scanState.pendingMenuFallthrough = [];
+          } else {
+            if (
+              matchedTerminal?.labelHasExplicitExit !== false &&
+              scanState.conditionalDecisionStack.length > 0
+            ) {
+              const decCtx = scanState.conditionalDecisionStack[
+                scanState.conditionalDecisionStack.length - 1
+              ]!;
+              decCtx.currentBranchHasExit = true;
+              if (matchedTerminal?.isTerminalOutcome) {
+                const decNode = state.nodeMap.get(decCtx.decisionNodeId);
+                if (decNode) {
+                  decNode.isTerminalOutcome = true;
+                }
+              }
+            }
+            if (scanState.pendingMenuFallthrough.length > 0) {
+              const curDec = scanState.conditionalDecisionStack.length > 0
+                ? scanState.conditionalDecisionStack[
+                  scanState.conditionalDecisionStack.length - 1
+                ]
+                : undefined;
+              const curBranchIndex = curDec
+                ? (curDec.branches ? curDec.branches.length : 0)
+                : undefined;
+              scanState.pendingMenuFallthrough = curDec
+                ? scanState.pendingMenuFallthrough.filter(
+                  (e) =>
+                    !(e.branchDecisionId === curDec.decisionNodeId &&
+                      e.branchIndex === curBranchIndex),
+                )
+                : scanState.pendingMenuFallthrough.filter((e) =>
+                  Boolean(e.branchDecisionId)
+                );
+            }
           }
         } else {
           const isExcludedFromBranch = trimmed.startsWith("#") ||

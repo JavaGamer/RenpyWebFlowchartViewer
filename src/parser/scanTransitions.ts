@@ -146,6 +146,7 @@ function handlePoppedDecisionScope(
           decisionNodeId: popped.decisionNodeId,
           branchDecisionId: parentBranchDecisionId,
           branchIndex: parentBranchIndex,
+          hasExplicitElse: hasElse,
         });
       }
     }

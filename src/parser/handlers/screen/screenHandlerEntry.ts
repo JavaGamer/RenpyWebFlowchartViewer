@@ -235,14 +235,24 @@ export function processDirectRenpyBlockCalls(
       continue;
     }
 
+    const pendingFallthrough =
+      (!context.isInOption && scanState.pendingMenuFallthrough.length > 0)
+        ? [...scanState.pendingMenuFallthrough]
+        : null;
+    let updatedFallthrough = scanState.pendingMenuFallthrough;
     for (const target of targets) {
       if (!target.trim()) continue;
+      if (pendingFallthrough) {
+        scanState.pendingMenuFallthrough = [...pendingFallthrough];
+      }
       if (event.callType === "jump") {
         emitJumpEdge(state, scanState, target, context, false);
       } else {
         emitCallEdge(state, scanState, target, context);
       }
+      updatedFallthrough = scanState.pendingMenuFallthrough;
     }
+    scanState.pendingMenuFallthrough = updatedFallthrough;
   }
 }
 

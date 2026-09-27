@@ -57,6 +57,7 @@ export interface EdgeData extends Record<string, unknown> {
   parallelCount?: number;
   detourLaneIndex?: number;
   detourLaneCount?: number;
+  detourSide?: "left" | "right" | "top" | "bottom";
   obstacles?: Array<{
     id?: string;
     x: number;

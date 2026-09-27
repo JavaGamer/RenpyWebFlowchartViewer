@@ -504,7 +504,10 @@ export function normalizeGraphState(
   state.incomingByLabel = new Map();
   state.outgoingByLabel = new Map();
   state.calledLabels = new Set();
-  state.calledFromMenuOptionTargets = new Set();
+  state.calledFromMenuOptionTargets = rebuildReturnTrackingSet(
+    state.calledFromMenuOptionTargets,
+    state.nodeIds,
+  );
   state.hasReturnInLabel = rebuildReturnTrackingSet(
     state.hasReturnInLabel,
     state.nodeIds,

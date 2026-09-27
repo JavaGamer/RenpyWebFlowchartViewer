@@ -42,6 +42,7 @@ export interface PendingMenuFallthroughEntry {
   callContextId?: string;
   branchDecisionId?: string;
   branchIndex?: number;
+  hasExplicitElse?: boolean;
 }
 
 export interface PendingTimedChoice {

@@ -358,9 +358,45 @@ export function performLabelSceneSplit(
     scanState,
   );
 
+  const curDec = scanState.conditionalDecisionStack.length > 0
+    ? scanState.conditionalDecisionStack[
+      scanState.conditionalDecisionStack.length - 1
+    ]
+    : undefined;
+  const curBranchIndex = curDec
+    ? (curDec.branches ? curDec.branches.length : 0)
+    : undefined;
+  const matchingFallthrough = curDec
+    ? scanState.pendingMenuFallthrough.filter(
+      (e) =>
+        e.branchDecisionId === curDec.decisionNodeId &&
+        e.branchIndex === curBranchIndex,
+    )
+    : scanState.pendingMenuFallthrough.filter((e) => !e.branchDecisionId);
+  const remainingFallthrough = curDec
+    ? scanState.pendingMenuFallthrough.filter(
+      (e) =>
+        !(e.branchDecisionId === curDec.decisionNodeId &&
+          e.branchIndex === curBranchIndex),
+    )
+    : scanState.pendingMenuFallthrough.filter((e) =>
+      Boolean(e.branchDecisionId)
+    );
+
+  const hasMenuEntryInPending = matchingFallthrough.some((e) =>
+    e.menuId.startsWith("menu_")
+  );
+  const hasImplicitElseDecisionEntry = matchingFallthrough.some(
+    (e) =>
+      e.menuId.startsWith("decision_") &&
+      e.optionText === null &&
+      !e.calledTargetId &&
+      !e.hasExplicitElse,
+  );
+
   const connectedFallthroughKeys = new Set<string>();
-  if (scanState.pendingMenuFallthrough.length > 0) {
-    for (const entry of scanState.pendingMenuFallthrough) {
+  if (matchingFallthrough.length > 0) {
+    for (const entry of matchingFallthrough) {
       if (entry.calledTargetId && entry.callContextId) {
         updateCallReturnTarget(state, entry.callContextId, nextSceneId);
         connectedSources.add(entry.menuId);
@@ -368,19 +404,30 @@ export function performLabelSceneSplit(
       }
       const key = `${entry.menuId}__${entry.optionText ?? ""}`;
       if (!connectedFallthroughKeys.has(key)) {
+        const isDecisionFallthrough = entry.menuId.startsWith("decision_") &&
+          entry.optionText === null;
+        const decisionHasBranchEdges = isDecisionFallthrough && (
+          hasMenuEntryInPending ||
+          (state.graph.hasNode(entry.menuId) &&
+            state.graph.outEdges(entry.menuId).length > 0)
+        );
+        const isImplicitElseFallthrough = decisionHasBranchEdges &&
+          !entry.hasExplicitElse;
         connectSceneSplitFromSource(
           state,
           entry.menuId,
           nextSceneId,
-          entry.optionText ?? "next",
-          undefined,
+          entry.optionText ?? (isImplicitElseFallthrough ? "else" : "next"),
+          isImplicitElseFallthrough
+            ? { branchKind: "else", decisionNodeId: entry.menuId }
+            : undefined,
           sourceLocation,
         );
         connectedFallthroughKeys.add(key);
         connectedSources.add(entry.menuId);
       }
     }
-    scanState.pendingMenuFallthrough = [];
+    scanState.pendingMenuFallthrough = remainingFallthrough;
   }
 
   if (connectedSources.size === 0) {
@@ -474,13 +521,20 @@ export function performLabelSceneSplit(
           const edgeData = state.graph.getEdgeAttributes(e);
           return {
             target,
+            kind: edgeData.kind ?? "sequence",
             branchKind: edgeData.condition?.branchKind ?? edgeData.label,
           };
         });
         const hasElseBranch = outEdges.some((e) => e.branchKind === "else");
         const allTargetsAreMenus = outEdges.length > 0 &&
           outEdges.every((e) =>
-            e.target.startsWith("menu_") && connectedSources.has(e.target)
+            e.kind !== "sequence" ||
+            (e.target.startsWith("menu_") && connectedSources.has(e.target)) ||
+            (e.target.startsWith("decision_") &&
+              connectedSources.has(e.target)) ||
+            (e.target === nextSceneId &&
+              e.branchKind === "else" &&
+              hasImplicitElseDecisionEntry)
           );
         if (hasElseBranch && allTargetsAreMenus) {
           allBranchesAreMenus = true;
@@ -493,14 +547,21 @@ export function performLabelSceneSplit(
             scanState.conditionalDecisionStack.length - 1
           ];
         if (activeDecision) {
-          connectSceneSplitFromSource(
-            state,
-            activeDecision.decisionNodeId,
-            nextSceneId,
-            undefined,
-            createDecisionConditionMetadata(activeDecision),
-            sourceLocation,
+          const branchCoveredByMenu = matchingFallthrough.some(
+            (e) =>
+              e.menuId.startsWith("menu_") &&
+              e.decisionNodeId === activeDecision.decisionNodeId,
           );
+          if (!branchCoveredByMenu) {
+            connectSceneSplitFromSource(
+              state,
+              activeDecision.decisionNodeId,
+              nextSceneId,
+              undefined,
+              createDecisionConditionMetadata(activeDecision),
+              sourceLocation,
+            );
+          }
           activeDecision.connectedSceneId = nextSceneId;
           activeDecision.connectedBranchKind = activeDecision.branchKind;
         }

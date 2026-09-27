@@ -222,13 +222,22 @@ export function emitJumpEdge(
         addIncoming(state, resolvedTargetId, "jump");
       }
       scanState.pendingMenuFallthrough = remainingEntries;
-      if (
-        suppressFallthrough &&
-        scanState.conditionalIndentStack.length === 0
-      ) {
-        scanState.labelHasExplicitExit = true;
+      if (suppressFallthrough) {
+        if (scanState.conditionalIndentStack.length === 0) {
+          scanState.labelHasExplicitExit = true;
+        } else if (curDec) {
+          curDec.currentBranchHasExit = true;
+        }
       }
-      if (allCoveredByMenus) {
+      const activeBranchCoveredByMenu = Boolean(
+        curDec &&
+          matchingEntries.some(
+            (e) =>
+              e.menuId.startsWith("menu_") &&
+              e.decisionNodeId === curDec.decisionNodeId,
+          ),
+      );
+      if (allCoveredByMenus || activeBranchCoveredByMenu) {
         return;
       }
     }
@@ -476,7 +485,15 @@ export function emitCallEdge(
         });
       }
       scanState.pendingMenuFallthrough = remainingEntries;
-      if (allCoveredByMenus) {
+      const activeBranchCoveredByMenu = Boolean(
+        curDec &&
+          matchingEntries.some(
+            (e) =>
+              e.menuId.startsWith("menu_") &&
+              e.decisionNodeId === curDec.decisionNodeId,
+          ),
+      );
+      if (allCoveredByMenus || activeBranchCoveredByMenu) {
         return;
       }
     }

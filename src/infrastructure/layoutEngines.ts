@@ -101,6 +101,22 @@ export function mapDomainNodeTypeToCanvasType(
   return "labelNode";
 }
 
+function pointToRectBoundaryDist(
+  px: number,
+  py: number,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+): number {
+  const dxOut = px < rx ? rx - px : px > rx + rw ? px - (rx + rw) : 0;
+  const dyOut = py < ry ? ry - py : py > ry + rh ? py - (ry + rh) : 0;
+  if (dxOut > 0 || dyOut > 0) {
+    return Math.hypot(dxOut, dyOut);
+  }
+  return Math.min(px - rx, rx + rw - px, py - ry, ry + rh - py);
+}
+
 /**
  * Generates CanvasEdges with smart loop, back-edge, and orthogonal spline routing.
  */
@@ -181,7 +197,12 @@ function buildCanvasEdges(
   const nodeObstacles: ObstacleRect[] = [];
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]!;
-    if (node.type === "chapterNode" || node.data?.isChapterContainer) continue;
+    if (
+      (node.type === "chapterNode" || node.data?.isChapterContainer) &&
+      !node.data?.isCollapsed
+    ) {
+      continue;
+    }
     const pos = absolutePositions.get(node.id) ?? node.position;
     nodeObstacles.push({
       id: node.id,
@@ -195,6 +216,7 @@ function buildCanvasEdges(
   interface PrecomputedForwardBypass {
     detourSide: "left" | "right" | "top" | "bottom";
     hitObstacles: ObstacleRect[];
+    obstacles: ObstacleRect[];
     detourLaneIndex: number;
     detourLaneCount: number;
     path: string;
@@ -210,17 +232,19 @@ function buildCanvasEdges(
     const targetNode = nodeById.get(e.target);
     const sourceIsDecision = sourceNode?.data?.nodeType === "DECISION";
     const targetIsDecision = targetNode?.data?.nodeType === "DECISION";
+    const sourceWidth = sourceNode?.width ?? NODE_WIDTH;
+    const targetWidth = targetNode?.width ?? NODE_WIDTH;
     const sourceHeight = sourceNode?.height ?? 80;
     const targetHeight = targetNode?.height ?? 80;
 
     const forwardSX = direction === "TB"
-      ? sourcePos.x + NODE_WIDTH / 2
-      : sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH);
+      ? sourcePos.x + sourceWidth / 2
+      : sourcePos.x + (sourceIsDecision ? 190 : sourceWidth);
     const forwardSY = direction === "TB"
       ? sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight)
       : sourcePos.y + sourceHeight / 2;
     const forwardTX = direction === "TB"
-      ? targetPos.x + NODE_WIDTH / 2
+      ? targetPos.x + targetWidth / 2
       : targetPos.x + (targetIsDecision ? 30 : 0);
     const forwardTY = direction === "TB"
       ? targetPos.y + (targetIsDecision ? 8 : 0)
@@ -243,15 +267,46 @@ function buildCanvasEdges(
           parentNode &&
           (parentNode.position.x !== 0 || parentNode.position.y !== 0)
         ) {
-          const distToAbs = Math.hypot(
-            section.startPoint.x - (sourcePos.x + NODE_WIDTH / 2),
-            section.startPoint.y - (sourcePos.y + sourceHeight / 2),
-          );
-          const distToRel = Math.hypot(
-            section.startPoint.x - (sourceNode.position.x + NODE_WIDTH / 2),
-            section.startPoint.y - (sourceNode.position.y + sourceHeight / 2),
-          );
-          if (distToRel + 4 < distToAbs) {
+          const lastSection = elkEdge.sections[elkEdge.sections.length - 1] ??
+            section;
+          const endPoint = lastSection.endPoint ?? section.endPoint;
+          const distToAbs = pointToRectBoundaryDist(
+            section.startPoint.x,
+            section.startPoint.y,
+            sourcePos.x,
+            sourcePos.y,
+            sourceWidth,
+            sourceHeight,
+          ) +
+            (targetNode
+              ? pointToRectBoundaryDist(
+                endPoint.x,
+                endPoint.y,
+                targetPos.x,
+                targetPos.y,
+                targetWidth,
+                targetHeight,
+              )
+              : 0);
+          const distToRel = pointToRectBoundaryDist(
+            section.startPoint.x,
+            section.startPoint.y,
+            sourceNode.position.x,
+            sourceNode.position.y,
+            sourceWidth,
+            sourceHeight,
+          ) +
+            (targetNode
+              ? pointToRectBoundaryDist(
+                endPoint.x,
+                endPoint.y,
+                targetNode.position.x,
+                targetNode.position.y,
+                targetWidth,
+                targetHeight,
+              )
+              : 0);
+          if (distToRel + 1 < distToAbs) {
             offsetX = parentNode.position.x;
             offsetY = parentNode.position.y;
           }
@@ -262,9 +317,29 @@ function buildCanvasEdges(
         ...(section.bendPoints ?? []),
         section.endPoint,
       ];
-      existingPts = (offsetX !== 0 || offsetY !== 0)
-        ? rawPts.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }))
-        : rawPts;
+      if (offsetX !== 0 || offsetY !== 0) {
+        existingPts = rawPts.map((p) => ({
+          x: p.x + offsetX,
+          y: p.y + offsetY,
+        }));
+        sections = elkEdge.sections.map((s) => ({
+          ...s,
+          startPoint: {
+            x: s.startPoint.x + offsetX,
+            y: s.startPoint.y + offsetY,
+          },
+          endPoint: {
+            x: s.endPoint.x + offsetX,
+            y: s.endPoint.y + offsetY,
+          },
+          bendPoints: s.bendPoints?.map((p) => ({
+            x: p.x + offsetX,
+            y: p.y + offsetY,
+          })),
+        }));
+      } else {
+        existingPts = rawPts;
+      }
     }
 
     return {
@@ -351,9 +426,23 @@ function buildCanvasEdges(
         }) ?? item.initialBypass)
         : item.initialBypass;
 
+      const hitIds = new Set(finalBypass.hitObstacles.map((o) => o.id));
+      const spanObstacles = item.candidateObstacles.filter((obs) => {
+        if (hitIds.has(obs.id)) return true;
+        if (direction === "TB") {
+          const minY = Math.min(item.coords.forwardSY, item.coords.forwardTY);
+          const maxY = Math.max(item.coords.forwardSY, item.coords.forwardTY);
+          return obs.y + obs.height >= minY && obs.y <= maxY;
+        }
+        const minX = Math.min(item.coords.forwardSX, item.coords.forwardTX);
+        const maxX = Math.max(item.coords.forwardSX, item.coords.forwardTX);
+        return obs.x + obs.width >= minX && obs.x <= maxX;
+      });
+
       bypassByEdgeId.set(item.edge.id, {
         detourSide: finalBypass.detourSide,
         hitObstacles: finalBypass.hitObstacles,
+        obstacles: spanObstacles,
         detourLaneIndex,
         detourLaneCount,
         path: finalBypass.path,
@@ -392,6 +481,8 @@ function buildCanvasEdges(
     const sourceIsDecision = sourceNode?.data?.nodeType === "DECISION";
     const targetIsDecision = targetNode?.data?.nodeType === "DECISION";
 
+    const sourceWidth = sourceNode?.width ?? NODE_WIDTH;
+    const targetWidth = targetNode?.width ?? NODE_WIDTH;
     const sourceHeight = sourceNode?.height ?? 80;
     const targetHeight = targetNode?.height ?? 80;
 
@@ -419,6 +510,7 @@ function buildCanvasEdges(
     let labelPosition: { x: number; y: number } | undefined;
     let bendPoints: Array<{ x: number; y: number }> | undefined;
     let sections: ElkEdgeSection[] | undefined;
+    let detourSide: "left" | "right" | "top" | "bottom" | undefined;
     let detourLaneIndex: number | undefined;
     let detourLaneCount: number | undefined;
     let obstacles: ObstacleRect[] | undefined;
@@ -431,64 +523,13 @@ function buildCanvasEdges(
       labelPosition = precomputedBypass.labelPosition;
       bendPoints = precomputedBypass.bendPoints;
       sections = precomputedBypass.sections;
+      detourSide = precomputedBypass.detourSide;
       detourLaneIndex = precomputedBypass.detourLaneIndex;
       detourLaneCount = precomputedBypass.detourLaneCount;
-      obstacles = precomputedBypass.hitObstacles;
-    } else if (coords.existingPts) {
-      sections = coords.sections;
-      bendPoints = coords.existingPts;
-      const filleted = buildFilletedOrthogonalPath(coords.existingPts);
-      svgPath = filleted.path;
-      labelPosition = { x: filleted.labelX, y: filleted.labelY };
-    } else if (isSelfLoop) {
-      const sX = direction === "TB"
-        ? sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH)
-        : sourcePos.x + NODE_WIDTH / 2;
-      const sY = direction === "TB"
-        ? sourcePos.y + sourceHeight / 2
-        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
-      const tX = direction === "TB"
-        ? targetPos.x + NODE_WIDTH / 2
-        : targetPos.x + (targetIsDecision ? 30 : 0);
-      const tY = direction === "TB"
-        ? targetPos.y + (targetIsDecision ? 8 : 0)
-        : targetPos.y + targetHeight / 2;
-
-      const loopRes = calculateSelfLoopArc({
-        sourceX: sX,
-        sourceY: sY,
-        targetX: tX,
-        targetY: tY,
-        direction,
-        laneIndex,
-      });
-      svgPath = loopRes.path;
-      labelPosition = { x: loopRes.labelX, y: loopRes.labelY };
-    } else if (isBackEdge) {
-      const sX = direction === "TB"
-        ? sourcePos.x + (sourceIsDecision ? 190 : NODE_WIDTH)
-        : sourcePos.x + NODE_WIDTH / 2;
-      const sY = direction === "TB"
-        ? sourcePos.y + sourceHeight / 2
-        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
-      const tX = direction === "TB"
-        ? targetPos.x + (targetIsDecision ? 190 : NODE_WIDTH)
-        : targetPos.x + NODE_WIDTH / 2;
-      const tY = direction === "TB"
-        ? targetPos.y + targetHeight / 2
-        : targetPos.y + (targetIsDecision ? targetHeight - 8 : targetHeight);
-
-      const splineRes = calculateBackEdgeSpline({
-        sourceX: sX,
-        sourceY: sY,
-        targetX: tX,
-        targetY: tY,
-        direction,
-        laneIndex,
-      });
-      svgPath = splineRes.path;
-      labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
+      obstacles = precomputedBypass.obstacles;
     } else if (
+      !isSelfLoop &&
+      !isBackEdge &&
       parallelCount !== undefined &&
       parallelCount > 1 &&
       parallelIndex !== undefined
@@ -510,6 +551,61 @@ function buildCanvasEdges(
         { x: forwardSX, y: forwardSY },
         { x: forwardTX, y: forwardTY },
       ];
+      sections = coords.sections;
+    } else if (coords.existingPts) {
+      sections = coords.sections;
+      bendPoints = coords.existingPts;
+      const filleted = buildFilletedOrthogonalPath(coords.existingPts);
+      svgPath = filleted.path;
+      labelPosition = { x: filleted.labelX, y: filleted.labelY };
+    } else if (isSelfLoop) {
+      const sX = direction === "TB"
+        ? sourcePos.x + (sourceIsDecision ? 190 : sourceWidth)
+        : sourcePos.x + sourceWidth / 2;
+      const sY = direction === "TB"
+        ? sourcePos.y + sourceHeight / 2
+        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
+      const tX = direction === "TB"
+        ? targetPos.x + targetWidth / 2
+        : targetPos.x + (targetIsDecision ? 30 : 0);
+      const tY = direction === "TB"
+        ? targetPos.y + (targetIsDecision ? 8 : 0)
+        : targetPos.y + targetHeight / 2;
+
+      const loopRes = calculateSelfLoopArc({
+        sourceX: sX,
+        sourceY: sY,
+        targetX: tX,
+        targetY: tY,
+        direction,
+        laneIndex,
+      });
+      svgPath = loopRes.path;
+      labelPosition = { x: loopRes.labelX, y: loopRes.labelY };
+    } else if (isBackEdge) {
+      const sX = direction === "TB"
+        ? sourcePos.x + (sourceIsDecision ? 190 : sourceWidth)
+        : sourcePos.x + sourceWidth / 2;
+      const sY = direction === "TB"
+        ? sourcePos.y + sourceHeight / 2
+        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
+      const tX = direction === "TB"
+        ? targetPos.x + (targetIsDecision ? 190 : targetWidth)
+        : targetPos.x + targetWidth / 2;
+      const tY = direction === "TB"
+        ? targetPos.y + targetHeight / 2
+        : targetPos.y + (targetIsDecision ? targetHeight - 8 : targetHeight);
+
+      const splineRes = calculateBackEdgeSpline({
+        sourceX: sX,
+        sourceY: sY,
+        targetX: tX,
+        targetY: tY,
+        direction,
+        laneIndex,
+      });
+      svgPath = splineRes.path;
+      labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
     }
 
     return {
@@ -531,6 +627,7 @@ function buildCanvasEdges(
         laneIndex,
         parallelIndex,
         parallelCount,
+        detourSide,
         detourLaneIndex,
         detourLaneCount,
         obstacles,
@@ -1212,7 +1309,10 @@ export async function preWarmElk(customInstance?: ElkInstance): Promise<void> {
         workerUrl: elkWorkerUrl,
       });
     } catch {
-      elkInstance = new ELK();
+      const BundledELKModule = await import("elkjs/lib/elk.bundled.js");
+      const BundledELK = (BundledELKModule.default ||
+        BundledELKModule) as unknown as new () => ElkInstance;
+      elkInstance = new BundledELK();
     }
   }
 }
@@ -1393,6 +1493,108 @@ export async function applyElkLayout(
   };
 
   const laidOutGraph = await instance.layout(graph);
+
+  // Normalize intra-chapter ELK edge sections from container-relative to root coordinates
+  // before applying any translation delta so compound chapter offsets are never lost or double-applied.
+  if (isCompound && laidOutGraph.children && laidOutGraph.edges) {
+    const childToContainer = new Map<
+      string,
+      { parent: ElkNode; child: ElkNode }
+    >();
+    laidOutGraph.children.forEach((topLevelNode: ElkNode) => {
+      topLevelNode.children?.forEach((childNode: ElkNode) => {
+        if (childNode.id) {
+          childToContainer.set(childNode.id, {
+            parent: topLevelNode,
+            child: childNode,
+          });
+        }
+      });
+    });
+
+    laidOutGraph.edges.forEach((edge: ElkEdge) => {
+      const sourceId = edge.sources?.[0];
+      const targetId = edge.targets?.[0];
+      if (!sourceId || !targetId) return;
+      const sourceEntry = childToContainer.get(sourceId);
+      const targetEntry = childToContainer.get(targetId);
+      if (!sourceEntry || !targetEntry) return;
+      if (sourceEntry.parent.id !== targetEntry.parent.id) return;
+
+      const parentX = sourceEntry.parent.x ?? 0;
+      const parentY = sourceEntry.parent.y ?? 0;
+      if (parentX === 0 && parentY === 0) return;
+
+      const firstSection = edge.sections?.[0];
+      if (!firstSection?.startPoint) return;
+      const lastSection = edge.sections?.[edge.sections.length - 1] ??
+        firstSection;
+      const endPoint = lastSection.endPoint ?? firstSection.endPoint;
+
+      const childX = sourceEntry.child.x ?? 0;
+      const childY = sourceEntry.child.y ?? 0;
+      const childW = sourceEntry.child.width ?? NODE_WIDTH;
+      const childH = sourceEntry.child.height ?? 80;
+      const targetX = targetEntry.child.x ?? 0;
+      const targetY = targetEntry.child.y ?? 0;
+      const targetW = targetEntry.child.width ?? NODE_WIDTH;
+      const targetH = targetEntry.child.height ?? 80;
+
+      const distToRel = pointToRectBoundaryDist(
+        firstSection.startPoint.x,
+        firstSection.startPoint.y,
+        childX,
+        childY,
+        childW,
+        childH,
+      ) +
+        pointToRectBoundaryDist(
+          endPoint.x,
+          endPoint.y,
+          targetX,
+          targetY,
+          targetW,
+          targetH,
+        );
+      const distToAbs = pointToRectBoundaryDist(
+        firstSection.startPoint.x,
+        firstSection.startPoint.y,
+        parentX + childX,
+        parentY + childY,
+        childW,
+        childH,
+      ) +
+        pointToRectBoundaryDist(
+          endPoint.x,
+          endPoint.y,
+          parentX + targetX,
+          parentY + targetY,
+          targetW,
+          targetH,
+        );
+
+      if (distToRel + 1 < distToAbs) {
+        edge.sections?.forEach((section) => {
+          if (section.startPoint) {
+            section.startPoint.x += parentX;
+            section.startPoint.y += parentY;
+          }
+          if (section.endPoint) {
+            section.endPoint.x += parentX;
+            section.endPoint.y += parentY;
+          }
+          section.bendPoints?.forEach((bp) => {
+            bp.x += parentX;
+            bp.y += parentY;
+          });
+        });
+        edge.junctionPoints?.forEach((jp) => {
+          jp.x += parentX;
+          jp.y += parentY;
+        });
+      }
+    });
+  }
 
   // Translation alignment to minimize visual jumping
   const previousPositionsMap = options?.previousPositions

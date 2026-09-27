@@ -402,25 +402,6 @@ export function dispatchToken(
 
   const { type, meta } = input;
 
-  // Handle pending match/case conditional header
-  if (
-    scanState.pendingConditionalHeader &&
-    (scanState.pendingConditionalHeader.kind === "match" ||
-      scanState.pendingConditionalHeader.kind === "case")
-  ) {
-    if (
-      handleConditionalHeader(
-        state,
-        scanState,
-        input.meta,
-        input.menuDepth,
-        input.chapter,
-      )
-    ) {
-      scanState.currentLabelHasContentSinceSceneBoundary = true;
-    }
-  }
-
   // 2. Check label keyword
   if (type === PARSER_TOKENS.kwLabel && meta.hasLabelStatement) {
     handleKwLabelToken(scanState, input.sourceLocation);
@@ -467,13 +448,14 @@ export function dispatchToken(
     input.lineText ?? "",
   );
 
-  const isNonSplittingStaging = /^\s*(?:with|window|pass|pause|camera|nvl)\b/i
-    .test(input.lineText ?? "");
+  const isNonSplittingStaging =
+    /^\s*(?:with|window|pass|pause|camera|nvl|hide)\b/i
+      .test(input.lineText ?? "");
 
   const isStillOnPreMenuNode = scanState.currentLabelId !== null &&
     scanState.pendingMenuFallthrough.some((e) =>
       e.menuId.startsWith("menu_") &&
-      !e.calledTargetId &&
+      (!e.calledTargetId || !e.decisionNodeId) &&
       state.nodeMap.get(e.menuId)?.parentLabelId === scanState.currentLabelId
     );
 
@@ -495,6 +477,25 @@ export function dispatchToken(
       input.menuDepth,
       input.sourceLocation,
     );
+  }
+
+  // Handle pending match/case conditional header after menu fallthrough split check
+  if (
+    scanState.pendingConditionalHeader &&
+    (scanState.pendingConditionalHeader.kind === "match" ||
+      scanState.pendingConditionalHeader.kind === "case")
+  ) {
+    if (
+      handleConditionalHeader(
+        state,
+        scanState,
+        input.meta,
+        input.menuDepth,
+        input.chapter,
+      )
+    ) {
+      scanState.currentLabelHasContentSinceSceneBoundary = true;
+    }
   }
 
   // 5. Voice check if kwOther

@@ -119,6 +119,7 @@ export function handleJumpTargetToken(
     (!context.isInOption && scanState.pendingMenuFallthrough.length > 0)
       ? [...scanState.pendingMenuFallthrough]
       : null;
+  let updatedFallthrough = scanState.pendingMenuFallthrough;
   for (const target of targets) {
     if (pendingFallthrough) {
       scanState.pendingMenuFallthrough = [...pendingFallthrough];
@@ -130,10 +131,9 @@ export function handleJumpTargetToken(
       { ...context, sourceLocation },
       true,
     );
+    updatedFallthrough = scanState.pendingMenuFallthrough;
   }
-  if (pendingFallthrough) {
-    scanState.pendingMenuFallthrough = [];
-  }
+  scanState.pendingMenuFallthrough = updatedFallthrough;
   scanState.waitForJumpTarget = false;
   scanState.waitForJumpExpressionTarget = false;
 }
@@ -187,6 +187,7 @@ export function handleCallTargetToken(
     (!context.isInOption && scanState.pendingMenuFallthrough.length > 0)
       ? [...scanState.pendingMenuFallthrough]
       : null;
+  let updatedFallthrough = scanState.pendingMenuFallthrough;
   for (const target of targets) {
     if (pendingFallthrough) {
       scanState.pendingMenuFallthrough = [...pendingFallthrough];
@@ -198,10 +199,9 @@ export function handleCallTargetToken(
       { ...context, sourceLocation },
       callArgs,
     );
+    updatedFallthrough = scanState.pendingMenuFallthrough;
   }
-  if (pendingFallthrough) {
-    scanState.pendingMenuFallthrough = [];
-  }
+  scanState.pendingMenuFallthrough = updatedFallthrough;
   scanState.waitForCallTarget = false;
   scanState.waitForCallExpressionTarget = false;
 }
@@ -236,18 +236,42 @@ export function handleReturnKeywordToken(
         decNode.isTerminalOutcome = true;
       }
     }
-    if (scanState.pendingMenuFallthrough.length > 0) {
+    const curDec = scanState.conditionalDecisionStack.length > 0
+      ? scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]
+      : undefined;
+    const curBranchIndex = curDec
+      ? (curDec.branches ? curDec.branches.length : 0)
+      : undefined;
+    const matchingEntries = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          e.branchDecisionId === curDec.decisionNodeId &&
+          e.branchIndex === curBranchIndex,
+      )
+      : scanState.pendingMenuFallthrough.filter((e) => !e.branchDecisionId);
+    const remainingEntries = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          !(e.branchDecisionId === curDec.decisionNodeId &&
+            e.branchIndex === curBranchIndex),
+      )
+      : scanState.pendingMenuFallthrough.filter((e) =>
+        Boolean(e.branchDecisionId)
+      );
+    if (matchingEntries.length > 0) {
       const allCoveredByMenus = areAllPathsCoveredByPendingMenus(
         state,
         scanState,
       );
-      for (const entry of scanState.pendingMenuFallthrough) {
+      for (const entry of matchingEntries) {
         state.hasReturnInLabel.add(entry.menuId);
         if (isReliableReturn) {
           state.hasReliableReturnInLabel.add(entry.menuId);
         }
       }
-      scanState.pendingMenuFallthrough = [];
+      scanState.pendingMenuFallthrough = remainingEntries;
       if (!allCoveredByMenus && scanState.currentLabelId !== null) {
         state.hasReturnInLabel.add(scanState.currentLabelId);
         if (isReliableReturn) {
