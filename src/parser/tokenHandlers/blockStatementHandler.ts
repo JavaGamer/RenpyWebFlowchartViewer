@@ -26,6 +26,8 @@ export function parseAndRecordVariableMutation(
 ): void {
   const targetNodeId = scanState.currentLabelId;
   if (!targetNodeId) return;
+  const isConditional = scanState.menuStack.length > 0 ||
+    scanState.conditionalIndentStack.length > 0;
 
   const parsed = parsePythonBlock(statement);
   if (parsed.assignments.length > 0) {
@@ -65,6 +67,7 @@ export function parseAndRecordVariableMutation(
         lineNum,
         isPersistent: isPersist,
         isLiteral,
+        ...(isConditional ? { isConditional: true } : {}),
       };
       nodeMutList.push(mutation);
 
@@ -126,6 +129,7 @@ export function parseAndRecordVariableMutation(
     lineNum,
     isPersistent: isPersist,
     isLiteral,
+    ...(isConditional ? { isConditional: true } : {}),
   };
 
   if (!state.nodeMutations) {

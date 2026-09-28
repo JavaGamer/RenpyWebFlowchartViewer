@@ -135,6 +135,8 @@ export function handleConditionalHeader(
       expression: pending.expression,
       references,
       sourceLocation: pending.sourceLocation,
+      preBranchSceneId: scanState.currentLabelId,
+      preBranchDialogueCount: scanState.currentSceneDialogueCount ?? 0,
     });
     scanState.pendingConditionalHeader = null;
     return true;
@@ -201,6 +203,8 @@ export function handleConditionalHeader(
       expression: synthesizedExpr ?? null,
       references,
       sourceLocation: pending.sourceLocation,
+      preBranchSceneId: matchContext.preBranchSceneId,
+      preBranchDialogueCount: matchContext.preBranchDialogueCount,
     });
     scanState.pendingConditionalHeader = null;
     return true;
@@ -224,7 +228,14 @@ export function handleConditionalHeader(
     callContextId: existing.callContextId,
     calledSubroutines: existing.calledSubroutines,
     expression: existing.expression,
+    connectedSceneId: existing.connectedSceneId,
   });
+  if (existing.preBranchDialogueCount !== undefined) {
+    scanState.currentSceneDialogueCount = existing.preBranchDialogueCount;
+  }
+  if (existing.connectedSceneId && existing.preBranchSceneId) {
+    scanState.currentLabelId = existing.preBranchSceneId;
+  }
   // Construct a new context representation for elif/else instead of mutating existing in-place
   scanState
     .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1] = {
@@ -237,6 +248,8 @@ export function handleConditionalHeader(
       sourceLocation: pending.sourceLocation ?? existing.sourceLocation,
       branches: existing.branches,
       currentBranchHasExit: false,
+      preBranchSceneId: existing.preBranchSceneId,
+      preBranchDialogueCount: existing.preBranchDialogueCount,
     };
   scanState.pendingConditionalHeader = null;
   return true;

@@ -29,15 +29,22 @@ import {
   type TerminalStatementRule,
 } from "../../config/parserRules.ts";
 
+const BUILTIN_TERMINAL_REGEX =
+  /^(?:\$\s*)?(?:gameover\b|MainMenu\s*\(|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call)\b)/i;
+
 function findMatchingTerminalRule(
   trimmed: string,
   variant?: ParserVariant,
 ): { matched: boolean; rule?: TerminalStatementRule } | null {
-  if (
-    /^(?:\$\s*)?(?:gameover|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call))\b/i
-      .test(trimmed)
-  ) {
-    return { matched: true };
+  if (BUILTIN_TERMINAL_REGEX.test(trimmed)) {
+    return {
+      matched: true,
+      rule: {
+        pattern: BUILTIN_TERMINAL_REGEX,
+        isTerminalOutcome: true,
+        labelHasExplicitExit: true,
+      },
+    };
   }
   const plugin = getParserVariantPlugin(variant);
   const rule = plugin.terminalStatements?.find((r) => {
@@ -273,7 +280,7 @@ export function isNonBranchingStagingStatement(
   if (trimmed.startsWith("$")) {
     const pyCode = trimmed.slice(1).trim();
     const isBranchingPy =
-      /^(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)|gameover|break|continue|return)\b/i
+      /^(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)\b|MainMenu\s*\(|gameover\b|break\b|continue\b|return\b)/i
         .test(pyCode);
     return !isBranchingPy;
   }
@@ -400,10 +407,12 @@ export function handlePreTokenLineStatements(
           sourceLocation,
         };
       } else {
+        const isGameoverStatement = /^(?:\$\s*)?gameover\b/i.test(trimmed);
         const isExcludedFromTerminal = trimmed.startsWith("#") ||
-          meta.hasSayStatement ||
-          meta.hasSayCharacter ||
-          meta.hasSayNarrator ||
+          (!isGameoverStatement &&
+            (meta.hasSayStatement ||
+              meta.hasSayCharacter ||
+              meta.hasSayNarrator)) ||
           meta.hasPythonBlock ||
           meta.hasMenuOption;
 

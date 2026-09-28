@@ -87,8 +87,6 @@ export function handleDialogueStringToken(
   }
 
   scanState.currentLabelHasContentSinceSceneBoundary = true;
-  scanState.currentSceneDialogueCount =
-    (scanState.currentSceneDialogueCount ?? 0) + 1;
 
   const menu = menuAtDepth(scanState.menuStack, menuDepth);
   const isInMenuPrompt = menu !== null && !meta.hasMenuOptionBlock;
@@ -97,6 +95,11 @@ export function handleDialogueStringToken(
     : scanState.currentLabelId;
 
   if (!ownerId) return;
+
+  if (ownerId === scanState.currentLabelId) {
+    scanState.currentSceneDialogueCount =
+      (scanState.currentSceneDialogueCount ?? 0) + 1;
+  }
 
   const ownerNode = state.nodeMap.get(ownerId);
   if (!ownerNode) return;

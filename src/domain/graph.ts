@@ -155,6 +155,7 @@ export interface VariableMutation {
   lineNum: number;
   isPersistent: boolean;
   isLiteral?: boolean;
+  isConditional?: boolean;
 }
 
 export interface LanguageTranslationData {

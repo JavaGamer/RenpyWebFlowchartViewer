@@ -441,7 +441,7 @@ export function dispatchToken(
     scanState.waitForMenuNameForId !== null ||
     isMenuKeywordTokenType(type) ||
     meta.hasMenuStatement ||
-    /^\s*(?:call\s+screen\b|(?:\$\s*)?(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)|gameover)\b)/i
+    /^\s*(?:call\s+screen\b|(?:\$\s*)?(?:renpy\.(?:jump|call|full_restart|quit|utter_restart|jump_out_of_context|pop_call)\b|MainMenu\s*\(|gameover\b))/i
       .test(input.lineText ?? "");
 
   const isContinuingBranch = /^\s*(?:elif|else|case)\b/.test(
@@ -454,9 +454,13 @@ export function dispatchToken(
 
   const isStillOnPreMenuNode = scanState.currentLabelId !== null &&
     scanState.pendingMenuFallthrough.some((e) =>
-      e.menuId.startsWith("menu_") &&
-      (!e.calledTargetId || !e.decisionNodeId) &&
-      state.nodeMap.get(e.menuId)?.parentLabelId === scanState.currentLabelId
+      (e.menuId.startsWith("menu_") &&
+        (!e.calledTargetId || !e.decisionNodeId) &&
+        state.nodeMap.get(e.menuId)?.parentLabelId ===
+          scanState.currentLabelId) ||
+      (!e.menuId.startsWith("menu_") &&
+        !e.menuId.startsWith("decision_") &&
+        !e.branchDecisionId)
     );
 
   if (

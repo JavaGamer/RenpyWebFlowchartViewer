@@ -51,6 +51,7 @@ function handlePoppedDecisionScope(
     callContextId: popped.callContextId,
     calledSubroutines: popped.calledSubroutines,
     expression: popped.expression,
+    connectedSceneId: popped.connectedSceneId,
   });
 
   const parentDec = scanState.conditionalDecisionStack.length > 0
@@ -88,7 +89,30 @@ function handlePoppedDecisionScope(
       parent.currentBranchHasExit = true;
     }
   } else {
-    if (!popped.sourceId?.startsWith("menu_")) {
+    if (
+      !popped.sourceId?.startsWith("menu_") &&
+      scanState.menuStack.length === 0
+    ) {
+      const branchesWithScenes = popped.branches.filter(
+        (b) => !b.hasExit && Boolean(b.connectedSceneId),
+      );
+      for (const b of branchesWithScenes) {
+        if (
+          !scanState.pendingMenuFallthrough.some(
+            (e) => e.menuId === b.connectedSceneId,
+          )
+        ) {
+          scanState.pendingMenuFallthrough.push({
+            menuId: b.connectedSceneId!,
+            optionText: "next",
+            sourceLocation: popped.sourceLocation,
+            decisionNodeId: popped.decisionNodeId,
+            branchDecisionId: parentBranchDecisionId,
+            branchIndex: parentBranchIndex,
+          });
+        }
+      }
+
       const branchesWithSubroutines = popped.branches.filter(
         (b) =>
           !b.hasExit &&
@@ -122,19 +146,22 @@ function handlePoppedDecisionScope(
           Boolean(b.calledTargetId) ||
           Boolean(b.calledSubroutines && b.calledSubroutines.length > 0),
       );
-      const hasLinearFallthroughBranch = popped.branches.some(
+      const hasUnconnectedLinearFallthroughBranch = popped.branches.some(
         (b) =>
           !b.hasExit &&
+          !b.connectedSceneId &&
           !b.calledTargetId &&
           (!b.calledSubroutines || b.calledSubroutines.length === 0),
       );
-      const hasDivergentExit = hasExitingBranch || hasSubroutineBranch ||
+      const hasDivergentExit = hasExitingBranch ||
+        hasSubroutineBranch ||
+        branchesWithScenes.length > 0 ||
         menuCountForDecision > 0;
       const hasNonSubroutineFallthrough = (!hasElse) ||
-        (hasDivergentExit && hasLinearFallthroughBranch);
+        (hasDivergentExit && hasUnconnectedLinearFallthroughBranch);
       if (
         hasNonSubroutineFallthrough &&
-        !popped.connectedSceneId &&
+        (!hasElse || hasUnconnectedLinearFallthroughBranch) &&
         !scanState.pendingMenuFallthrough.some(
           (e) => e.menuId === popped.decisionNodeId && !e.calledTargetId,
         )
@@ -425,6 +452,15 @@ export function maybeUpdateMenuScope(
     }
 
     const closedMenu = scanState.menuStack.pop()!;
+    let hadChildFallthrough = false;
+    for (const entry of scanState.pendingMenuFallthrough) {
+      if (entry.parentMenuId === closedMenu.id) {
+        entry.parentMenuId = closedMenu.parentMenuId;
+        entry.parentMenuOptionText = closedMenu.parentMenuOptionText;
+        hadChildFallthrough = true;
+      }
+    }
+
     const fallthroughOptions = closedMenu.options?.filter((o) => !o.hasExit) ??
       [];
 
@@ -456,6 +492,8 @@ export function maybeUpdateMenuScope(
           callContextId: lastCall.callContextId,
           branchDecisionId,
           branchIndex,
+          parentMenuId: closedMenu.parentMenuId,
+          parentMenuOptionText: closedMenu.parentMenuOptionText,
         });
       }
       scanState.labelHasExplicitExit = false;
@@ -463,7 +501,12 @@ export function maybeUpdateMenuScope(
       const isTopLevelMenu = scanState.currentLabelIndent === null ||
         topMenu.indent === undefined ||
         topMenu.indent <= (scanState.currentLabelIndent ?? 0) + 4;
-      if (isTopLevelMenu && scanState.conditionalIndentStack.length === 0) {
+      if (
+        isTopLevelMenu &&
+        scanState.conditionalIndentStack.length === 0 &&
+        !hadChildFallthrough &&
+        scanState.pendingMenuFallthrough.length === 0
+      ) {
         scanState.labelHasExplicitExit = true;
       }
     } else if (menuHasFallthrough(closedMenu)) {
@@ -474,6 +517,8 @@ export function maybeUpdateMenuScope(
         decisionNodeId: closedMenu.decisionNodeId,
         branchDecisionId,
         branchIndex,
+        parentMenuId: closedMenu.parentMenuId,
+        parentMenuOptionText: closedMenu.parentMenuOptionText,
       });
       scanState.labelHasExplicitExit = false;
     }

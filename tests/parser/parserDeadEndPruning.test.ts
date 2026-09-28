@@ -324,6 +324,76 @@ label start:
       (e) => e.source === "start__scene_2" && e.target === "start__scene_3",
     );
     expect(beachToMountain).toBeUndefined();
+
+    // Verify both beach and mountain reconverge into the post-conditional continuation scene
+    const beachToEvening = result.edges.find(
+      (e) => e.source === "start__scene_2" && e.target === "start__scene_4",
+    );
+    const mountainToEvening = result.edges.find(
+      (e) => e.source === "start__scene_3" && e.target === "start__scene_4",
+    );
+    expect(beachToEvening).toBeDefined();
+    expect(mountainToEvening).toBeDefined();
+  });
+
+  it("handles nested menus inside sibling menu options without cross-wiring or duplicate parent fallthrough edges", async () => {
+    const script = `
+label start:
+    $ flag = False
+    "Intro"
+    menu:
+        "Yes":
+            $ flag = True
+            "Chose yes"
+            menu:
+                "Option A":
+                    $ sub = 1
+                "Option B":
+                    $ sub = 2
+        "No":
+            "Chose no"
+            menu:
+                "Jump Option":
+                    jump next_chapter
+                "Fallthrough Option":
+                    $ sub = 2
+
+label next_chapter:
+    if flag == False:
+        "Flag is still false"
+    else:
+        "Flag is true"
+    gameover "The End"
+    resetstate
+    $ MainMenu(confirm=False)()
+`;
+
+    const result = await parseRenpyFiles(
+      [{ name: "script.rpy", content: script }],
+      { pruneDeadEndDecisions: true },
+    );
+
+    // menu_2 ("Yes" child menu) must NOT wire into menu_3 ("No" child menu)
+    const menu2ToMenu3 = result.edges.find(
+      (e) => e.source === "menu_2" && e.target === "menu_3",
+    );
+    expect(menu2ToMenu3).toBeUndefined();
+
+    // menu_1 must NOT have direct fallthrough edges to next_chapter bypassing menu_2/menu_3
+    const menu1ToNext = result.edges.filter(
+      (e) => e.source === "menu_1" && e.target === "next_chapter",
+    );
+    expect(menu1ToNext).toHaveLength(0);
+
+    // next_chapter should be marked terminal (via gameover / MainMenu)
+    const nextNode = result.nodes.find((n) => n.id === "next_chapter");
+    expect(nextNode?.isTerminalOutcome).toBe(true);
+
+    // Conditional mutation `$ flag = True` inside "Yes" must not mark `if flag == False` as dead_branch
+    const deadBranchDiags = (result.diagnostics ?? []).filter(
+      (d) => d.context?.category === "dead_branch",
+    );
+    expect(deadBranchDiags).toHaveLength(0);
   });
 
   it("prunes cosmetic decision immediately preceding a jump without duplicate edges", async () => {

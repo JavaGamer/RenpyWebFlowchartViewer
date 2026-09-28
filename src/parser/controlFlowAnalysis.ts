@@ -709,6 +709,16 @@ function propagateVariableMutationsAndEvaluateConditions(
         const store = mut.isPersistent
           ? nextState.persistent
           : nextState.variables;
+        const applyStoreUpdate = (varName: string, newVal: VariableValue) => {
+          if (mut.isConditional && store.has(varName)) {
+            const existing = store.get(varName);
+            if (existing !== newVal) {
+              store.set(varName, "unknown");
+              return;
+            }
+          }
+          store.set(varName, newVal);
+        };
         if (mut.operator === "=") {
           if (
             !mut.isLiteral &&
@@ -724,14 +734,14 @@ function propagateVariableMutationsAndEvaluateConditions(
             );
             const res = evaluateConditionExpression(mut.value, mockFlags);
             if (res === "true") {
-              store.set(mut.variableName, true);
+              applyStoreUpdate(mut.variableName, true);
             } else if (res === "false") {
-              store.set(mut.variableName, false);
+              applyStoreUpdate(mut.variableName, false);
             } else {
-              store.set(mut.variableName, mut.value);
+              applyStoreUpdate(mut.variableName, mut.value);
             }
           } else {
-            store.set(mut.variableName, mut.value);
+            applyStoreUpdate(mut.variableName, mut.value);
           }
         } else if (mut.operator === "+=" && typeof mut.value === "number") {
           const raw = store.get(mut.variableName);
@@ -741,7 +751,7 @@ function propagateVariableMutationsAndEvaluateConditions(
             const prev = typeof raw === "number"
               ? raw
               : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, prev + mut.value);
+            applyStoreUpdate(mut.variableName, prev + mut.value);
           }
         } else if (mut.operator === "-=" && typeof mut.value === "number") {
           const raw = store.get(mut.variableName);
@@ -751,7 +761,7 @@ function propagateVariableMutationsAndEvaluateConditions(
             const prev = typeof raw === "number"
               ? raw
               : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, prev - mut.value);
+            applyStoreUpdate(mut.variableName, prev - mut.value);
           }
         } else if (mut.operator === "*=" && typeof mut.value === "number") {
           const raw = store.get(mut.variableName);
@@ -761,7 +771,7 @@ function propagateVariableMutationsAndEvaluateConditions(
             const prev = typeof raw === "number"
               ? raw
               : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, prev * mut.value);
+            applyStoreUpdate(mut.variableName, prev * mut.value);
           }
         } else if (mut.operator === "/=" && typeof mut.value === "number") {
           if (mut.value !== 0) {
@@ -772,7 +782,7 @@ function propagateVariableMutationsAndEvaluateConditions(
               const prev = typeof raw === "number"
                 ? raw
                 : (!isNaN(Number(raw)) ? Number(raw) : 0);
-              store.set(mut.variableName, prev / mut.value);
+              applyStoreUpdate(mut.variableName, prev / mut.value);
             }
           }
         } else if (mut.operator === "%=" && typeof mut.value === "number") {
@@ -784,7 +794,7 @@ function propagateVariableMutationsAndEvaluateConditions(
               const prev = typeof raw === "number"
                 ? raw
                 : (!isNaN(Number(raw)) ? Number(raw) : 0);
-              store.set(mut.variableName, prev % mut.value);
+              applyStoreUpdate(mut.variableName, prev % mut.value);
             }
           }
         } else if (mut.operator === "//=" && typeof mut.value === "number") {
@@ -796,7 +806,7 @@ function propagateVariableMutationsAndEvaluateConditions(
               const prev = typeof raw === "number"
                 ? raw
                 : (!isNaN(Number(raw)) ? Number(raw) : 0);
-              store.set(mut.variableName, Math.floor(prev / mut.value));
+              applyStoreUpdate(mut.variableName, Math.floor(prev / mut.value));
             }
           }
         } else if (mut.operator === "**=" && typeof mut.value === "number") {
@@ -807,7 +817,7 @@ function propagateVariableMutationsAndEvaluateConditions(
             const prev = typeof raw === "number"
               ? raw
               : (!isNaN(Number(raw)) ? Number(raw) : 0);
-            store.set(mut.variableName, Math.pow(prev, mut.value));
+            applyStoreUpdate(mut.variableName, Math.pow(prev, mut.value));
           }
         } else if (mut.operator === "toggle") {
           const raw = store.get(mut.variableName);
@@ -815,7 +825,7 @@ function propagateVariableMutationsAndEvaluateConditions(
             store.set(mut.variableName, "unknown");
           } else {
             const currentBool = isPythonTruthy(raw);
-            store.set(mut.variableName, !currentBool);
+            applyStoreUpdate(mut.variableName, !currentBool);
           }
         }
       }
@@ -1241,8 +1251,26 @@ function analyzeDeadStateAndUnusedFlags(state: ParseGraphState): void {
   }
 
   // 7. Check for unused variables/flags
+  const speakingCharacters = new Set<string>();
+  for (const node of state.nodes) {
+    if (node.characterDialogue) {
+      for (const charId of Object.keys(node.characterDialogue)) {
+        if (charId) speakingCharacters.add(charId);
+      }
+    }
+  }
   for (const [varName, loc] of declaredVariables.entries()) {
     if (isBuiltinOrInternalVariable(varName)) continue;
+    if (varName.includes(".") && !varName.startsWith("persistent.")) {
+      const rootObj = varName.split(".")[0]!;
+      if (
+        state.globalCharacters?.has(rootObj) ||
+        speakingCharacters.has(rootObj) ||
+        varName.endsWith(".name")
+      ) {
+        continue;
+      }
+    }
     const isReferenced = referencedVariables.has(varName) ||
       referencedVariables.has(`persistent.${varName}`) ||
       (varName.startsWith("persistent.") &&

@@ -266,6 +266,7 @@ export function handleReturnKeywordToken(
         scanState,
       );
       for (const entry of matchingEntries) {
+        if (entry.menuId.startsWith("decision_")) continue;
         state.hasReturnInLabel.add(entry.menuId);
         if (isReliableReturn) {
           state.hasReliableReturnInLabel.add(entry.menuId);

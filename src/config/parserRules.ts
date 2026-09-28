@@ -373,9 +373,10 @@ export const BUILTIN_PARSER_VARIANT_PLUGINS: readonly ParserVariantPlugin[] = [
       "exspirit",
       "possess",
       "scry",
+      "resetstate",
     ],
     stagingRegex:
-      /^(?:swap|morph|clone|body|exspirit|possess|scry)\s+[A-Za-z_]/i,
+      /^(?:(?:swap|morph|clone|body|exspirit|possess|scry)\s+[A-Za-z_]|resetstate\b)/i,
     terminalStatements: [
       {
         pattern: ST_PLACEHOLDER_REGEX,

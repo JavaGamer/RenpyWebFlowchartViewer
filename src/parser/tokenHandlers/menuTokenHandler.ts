@@ -148,12 +148,15 @@ export function handleMenuStatementToken(
     sourceLocation,
   });
 
+  const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
+  const decisionContext = scanState
+    .conditionalDecisionStack[
+      scanState.conditionalDecisionStack.length - 1
+    ];
+
   let connectedIncomingMenu = false;
   if (scanState.pendingMenuFallthrough.length > 0) {
-    const currentDecision = scanState
-      .conditionalDecisionStack[
-        scanState.conditionalDecisionStack.length - 1
-      ];
+    const currentDecision = decisionContext;
     const connectedFallthroughKeys = new Set<string>();
     const remainingPending: typeof scanState.pendingMenuFallthrough = [];
     for (const entry of scanState.pendingMenuFallthrough) {
@@ -162,7 +165,12 @@ export function handleMenuStatementToken(
           entry.decisionNodeId &&
           currentDecision.decisionNodeId === entry.decisionNodeId,
       );
-      if (isSiblingBranch) {
+      const isSiblingMenuOption = Boolean(
+        parentMenu &&
+          entry.parentMenuId === parentMenu.id &&
+          entry.parentMenuOptionText !== (parentMenu.optionText ?? null),
+      );
+      if (isSiblingBranch || isSiblingMenuOption) {
         remainingPending.push(entry);
         continue;
       }
@@ -232,13 +240,8 @@ export function handleMenuStatementToken(
     }
   }
 
-  const parentMenu = scanState.menuStack[scanState.menuStack.length - 1];
-  const decisionContext = scanState
-    .conditionalDecisionStack[
-      scanState.conditionalDecisionStack.length - 1
-    ];
   const source = parentMenu
-    ? parentMenu.id
+    ? (connectedIncomingMenu ? null : parentMenu.id)
     : (decisionContext?.decisionNodeId ??
       (connectedIncomingMenu ? null : scanState.currentLabelId));
   if (source) {
@@ -264,6 +267,19 @@ export function handleMenuStatementToken(
     });
     addOutgoing(state, source, "sequence");
     addIncoming(state, newMenuId, "sequence");
+    if (
+      parentMenu &&
+      parentMenu.options &&
+      parentMenu.options.length > 0 &&
+      (!decisionContext ||
+        (parentMenu.indent !== undefined &&
+          decisionContext.indent <= parentMenu.indent))
+    ) {
+      const lastOpt = parentMenu.options[parentMenu.options.length - 1];
+      if (lastOpt) {
+        lastOpt.hasExit = true;
+      }
+    }
   }
 
   if (scanState.pendingTimedChoice) {
@@ -296,6 +312,8 @@ export function handleMenuStatementToken(
     sourceLocation: sourceLocation ? { ...sourceLocation } : undefined,
     indent: lineIndent,
     lineNum,
+    parentMenuId: parentMenu?.id,
+    parentMenuOptionText: parentMenu?.optionText ?? null,
   });
   assertInvariant(
     scanState.menuStack.length <= menuDepth,

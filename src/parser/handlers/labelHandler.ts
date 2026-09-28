@@ -278,6 +278,14 @@ export function performLabelSceneSplit(
     if (sceneOneNode) {
       sceneOneNode.label = `${currentLabelDeclaredName}: Scene 1`;
     }
+    for (const dec of scanState.conditionalDecisionStack) {
+      if (dec.preBranchSceneId === currentLabelId) {
+        dec.preBranchSceneId = sceneOneId;
+      }
+      if (dec.sourceId === currentLabelId) {
+        dec.sourceId = sceneOneId;
+      }
+    }
     activeSceneId = sceneOneId;
     scanState.currentLabelId = sceneOneId;
     scanState.currentLabelHasSplit = true;
@@ -486,7 +494,10 @@ export function performLabelSceneSplit(
     const hasMenuFallthrough = Array.from(connectedSources).some((id) =>
       id.startsWith("menu_")
     );
-    if (!hasMenuFallthrough && !activeDecision) {
+    const hasBranchSceneFallthrough = Array.from(connectedSources).some(
+      (id) => !id.startsWith("menu_") && !id.startsWith("decision_"),
+    );
+    if (!hasMenuFallthrough && !hasBranchSceneFallthrough && !activeDecision) {
       const baseEdgeId = `seq_${activeSceneId}__${nextSceneId}`;
       if (!state.edgeIds.has(baseEdgeId) && !state.graph.hasEdge(baseEdgeId)) {
         connectSceneSplitFromSource(

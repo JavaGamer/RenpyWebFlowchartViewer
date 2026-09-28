@@ -115,6 +115,27 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
     list.push(edge);
   }
 
+  const hasParentOtherForwardFlow = (
+    decisionId: string,
+    parentLabelId: string | undefined,
+    visited: Set<string>,
+  ): boolean => {
+    if (!parentLabelId) return false;
+    const parentOuts = outEdgesBySource.get(parentLabelId) || [];
+    return parentOuts.some((e) => {
+      if (e.target === decisionId) return false;
+      if (
+        e.kind === "jump" || e.kind === "call" || e.kind === "call_return"
+      ) {
+        return true;
+      }
+      const targetNode = state.nodeMap.get(e.target);
+      if (!targetNode) return false;
+      if (targetNode.type !== "DECISION") return true;
+      return !isDeadEndDecision(targetNode.id, new Set(visited));
+    });
+  };
+
   const isDeadEndDecision = (
     id: string,
     visited = new Set<string>(),
@@ -127,15 +148,21 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
       node?.condition?.branchKind === "while" ||
       node?.condition?.branchKind === "for" ||
       node?.role === "while_loop" ||
-      node?.role === "for_loop" ||
-      node?.isTerminalOutcome ||
-      state.hasReturnInLabel.has(id)
+      node?.role === "for_loop"
     ) {
       return false;
     }
 
     const outs = outEdgesBySource.get(id) || [];
-    if (outs.length === 0) return true;
+    if (outs.length === 0) {
+      if (
+        (node?.isTerminalOutcome || state.hasReturnInLabel.has(id)) &&
+        hasParentOtherForwardFlow(id, node?.parentLabelId, visited)
+      ) {
+        return false;
+      }
+      return true;
+    }
 
     return outs.every((edge) => {
       if (
@@ -148,8 +175,6 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
       if (!targetNode) return true;
       if (
         targetNode.type !== "DECISION" ||
-        targetNode.isTerminalOutcome ||
-        state.hasReturnInLabel.has(targetNode.id) ||
         targetNode.condition?.branchKind === "while" ||
         targetNode.condition?.branchKind === "for" ||
         targetNode.role === "while_loop" ||
@@ -165,8 +190,6 @@ export function pruneDeadEndDecisionNodes(state: ParseGraphState): void {
   for (const node of state.nodes) {
     if (
       node.type === "DECISION" &&
-      !node.isTerminalOutcome &&
-      !state.hasReturnInLabel.has(node.id) &&
       node.condition?.branchKind !== "while" &&
       node.condition?.branchKind !== "for" &&
       node.role !== "while_loop" &&
