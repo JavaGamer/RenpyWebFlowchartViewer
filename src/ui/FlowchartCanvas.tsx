@@ -168,6 +168,8 @@ export function FlowchartCanvas({
   const {
     nodes,
     edges,
+    spatialItems,
+    spatialBounds,
     onNodesChange,
     onEdgesChange,
     relayout,
@@ -223,6 +225,8 @@ export function FlowchartCanvas({
     previousVisibleNodesByIdRef,
     previousVisibleEdgesByIdRef,
     viewportBounds,
+    spatialItems,
+    spatialBounds,
   });
 
   // -- Interaction Hook -------------------------------------------------------

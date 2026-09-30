@@ -27,6 +27,7 @@ export interface NodeData extends Record<string, unknown> {
   conditionReferences?: string[];
   theme?: ThemeName;
   collapsedLabels?: string[];
+  collapsedNodeIds?: string[];
   isOrphan?: boolean;
   characterDialogue?: FlowNode["characterDialogue"];
   isRouteHighlighted?: boolean;

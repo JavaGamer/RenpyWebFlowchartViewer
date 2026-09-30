@@ -437,6 +437,7 @@ export interface ObstructedForwardSplineParams {
   direction?: LayoutDirection;
   obstacles: ObstacleRect[];
   existingPts?: Array<{ x: number; y: number }>;
+  precomputedFilleted?: { labelX: number; labelY: number };
   laneIndex?: number;
   laneCount?: number;
   preferredSide?: "left" | "right" | "top" | "bottom";
@@ -499,6 +500,22 @@ function computeDetourLabelT(laneIndex: number, laneCount: number): number {
   return 0.5;
 }
 
+function resolveInitialLabelPoint(
+  pts: Array<{ x: number; y: number }>,
+  precomputedFilleted?: { labelX: number; labelY: number },
+): { labelX: number; labelY: number } {
+  if (precomputedFilleted) {
+    return precomputedFilleted;
+  }
+  if (pts.length === 2) {
+    return {
+      labelX: (pts[0]!.x + pts[1]!.x) / 2,
+      labelY: (pts[0]!.y + pts[1]!.y) / 2,
+    };
+  }
+  return buildFilletedOrthogonalPath(pts);
+}
+
 /**
  * Detects if a multi-rank forward edge is obstructed by one or more intermediate
  * nodes and computes a filleted orthogonal bypass path and clear label position
@@ -515,6 +532,7 @@ export function calculateObstructedForwardSpline(
     direction = "TB",
     obstacles,
     existingPts,
+    precomputedFilleted,
     laneIndex = 0,
     laneCount = 1,
     preferredSide,
@@ -529,7 +547,6 @@ export function calculateObstructedForwardSpline(
     { x: targetX, y: targetY },
   ];
 
-  const currentFilleted = buildFilletedOrthogonalPath(pts);
   const clearance = 44;
   const k = Math.max(0, laneIndex);
   const laneStep = 28;
@@ -545,6 +562,7 @@ export function calculateObstructedForwardSpline(
     );
     if (intermediateObstacles.length === 0) return null;
 
+    const currentFilleted = resolveInitialLabelPoint(pts, precomputedFilleted);
     const padX = 28;
     const padY = 8;
 
@@ -689,6 +707,7 @@ export function calculateObstructedForwardSpline(
     );
     if (intermediateObstacles.length === 0) return null;
 
+    const currentFilleted = resolveInitialLabelPoint(pts, precomputedFilleted);
     const padX = 8;
     const padY = 28;
 

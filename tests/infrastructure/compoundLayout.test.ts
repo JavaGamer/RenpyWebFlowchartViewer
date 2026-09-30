@@ -112,8 +112,13 @@ describe("compound layout tests (Dagre & ELK)", () => {
     });
   });
 
-  describe("ELK Compound Layout", () => {
-    it("handles compound hierarchy in mock ELK instance", async () => {
+  describe("ELK Compound Layout (Two-Tier)", () => {
+    it("executes independent per-chapter micro-layouts and a macro container layout with caching", async () => {
+      const { clearLayoutCaches } = await import(
+        "../../src/infrastructure/index.ts"
+      );
+      clearLayoutCaches();
+
       interface MockElkChild {
         id: string;
         children?: MockElkChild[];
@@ -131,26 +136,25 @@ describe("compound layout tests (Dagre & ELK)", () => {
         edges: unknown[];
       }
 
+      const layoutCallIds: string[] = [];
+
       const mockElk = {
         layout(graph: MockElkGraph): Promise<MockElkGraph> {
-          // Verify hierarchy options and children structure
-          expect(graph.layoutOptions["elk.hierarchyHandling"]).toBe(
-            "INCLUDE_CHILDREN",
-          );
+          layoutCallIds.push(graph.id);
+          expect(
+            graph.layoutOptions[
+              "org.eclipse.elk.layered.considerModelOrder.strategy"
+            ],
+          ).toBe("NODES_AND_EDGES");
           expect(graph.children).toBeDefined();
           return Promise.resolve({
             ...graph,
-            children: graph.children.map((c: MockElkChild) => ({
+            children: graph.children.map((c: MockElkChild, idx: number) => ({
               ...c,
-              x: 0,
-              y: 0,
-              width: 300,
-              height: 200,
-              children: c.children?.map((child: MockElkChild) => ({
-                ...child,
-                x: 20,
-                y: 50,
-              })),
+              x: 10,
+              y: idx * 120,
+              width: c.width ?? 220,
+              height: c.height ?? 90,
             })),
           });
         },
@@ -158,22 +162,46 @@ describe("compound layout tests (Dagre & ELK)", () => {
 
       setElkInstance(mockElk);
 
-      const result = await applyElkLayout(
-        multiChapterNodes,
-        multiChapterEdges,
-        "TB",
-        { enableCompoundContainers: true },
-      );
+      try {
+        const result = await applyElkLayout(
+          multiChapterNodes,
+          multiChapterEdges,
+          "TB",
+          { enableCompoundContainers: true },
+        );
 
-      const ch1Container = result.nodes.find((n) => n.id === "chapter:ch1.rpy");
-      expect(ch1Container).toBeDefined();
-      expect(ch1Container?.type).toBe("chapterNode");
+        expect(layoutCallIds).toEqual([
+          "chapter:ch1.rpy",
+          "chapter:ch2.rpy",
+          "root",
+        ]);
 
-      const child1 = result.nodes.find((n) => n.id === "ch1_node1");
-      expect(child1?.parentId).toBe("chapter:ch1.rpy");
-      expect(child1?.position).toEqual({ x: 20, y: 50 });
+        const ch1Container = result.nodes.find((n) =>
+          n.id === "chapter:ch1.rpy"
+        );
+        expect(ch1Container).toBeDefined();
+        expect(ch1Container?.type).toBe("chapterNode");
 
-      setElkInstance(null);
+        const child1 = result.nodes.find((n) => n.id === "ch1_node1");
+        expect(child1?.parentId).toBe("chapter:ch1.rpy");
+        expect(child1?.position).toEqual({ x: 24, y: 50 });
+
+        // Collapsing ch2.rpy should reuse the cached micro-layout for ch1.rpy
+        layoutCallIds.length = 0;
+        await applyElkLayout(
+          multiChapterNodes,
+          multiChapterEdges,
+          "TB",
+          {
+            enableCompoundContainers: true,
+            collapsedChapters: { "ch2.rpy": true },
+          },
+        );
+        expect(layoutCallIds).toEqual(["root"]);
+      } finally {
+        setElkInstance(null);
+        clearLayoutCaches();
+      }
     });
   });
 });

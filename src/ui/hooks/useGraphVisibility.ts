@@ -27,7 +27,12 @@ import {
 } from "../../config/viewerConfig.ts";
 import { MAX_VISIBLE_LABEL_SUBGRAPH_TOGGLES } from "../viewerConstants.ts";
 
-import { type AABB, createSpatialIndex } from "../../infrastructure/index.ts";
+import {
+  type AABB,
+  createSpatialIndex,
+  createSpatialIndexFromItems,
+  type SpatialItem,
+} from "../../infrastructure/index.ts";
 
 export interface UseGraphVisibilityProps {
   nodes: CanvasNode[];
@@ -39,6 +44,8 @@ export interface UseGraphVisibilityProps {
   previousVisibleNodesByIdRef: React.MutableRefObject<Map<string, CanvasNode>>;
   previousVisibleEdgesByIdRef: React.MutableRefObject<Map<string, CanvasEdge>>;
   viewportBounds?: AABB | null;
+  spatialItems?: SpatialItem[];
+  spatialBounds?: AABB;
 }
 
 export function useGraphVisibility({
@@ -51,6 +58,8 @@ export function useGraphVisibility({
   previousVisibleNodesByIdRef,
   previousVisibleEdgesByIdRef,
   viewportBounds,
+  spatialItems,
+  spatialBounds,
 }: UseGraphVisibilityProps) {
   const {
     searchInput,
@@ -368,8 +377,15 @@ export function useGraphVisibility({
 
   const spatialIndex = useMemo(() => {
     if (nodes.length < 150) return null;
+    if (
+      spatialItems &&
+      spatialBounds &&
+      spatialItems.length === nodes.length
+    ) {
+      return createSpatialIndexFromItems(spatialItems, spatialBounds);
+    }
     return createSpatialIndex(nodes);
-  }, [nodes]);
+  }, [nodes, spatialBounds, spatialItems]);
 
   const selectedNodeIdsSet = useMemo(
     () => new Set(selectedNodeIds),

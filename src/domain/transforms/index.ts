@@ -12,6 +12,7 @@ export {
   NODE_HEIGHT_LABEL,
   NODE_HEIGHT_MENU,
   NODE_WIDTH,
+  type NodeHeightInput,
   normalizeChildPosition,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from "./layout.ts";
@@ -34,5 +35,9 @@ export {
   redirectEdgesForCollapsedChapters,
 } from "./chapterGrouping.ts";
 
-export { collapseLinearChains, simplifyGraph } from "./simplify.ts";
+export {
+  collapseLinearChains,
+  collapseParentLabelSubgraphs,
+  simplifyGraph,
+} from "./simplify.ts";
 export type { GraphSimplificationOptions } from "./simplify.ts";

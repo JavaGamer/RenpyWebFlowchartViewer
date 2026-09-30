@@ -184,4 +184,78 @@ describe("Two-Tier Hierarchical Dagre Layout Engine", () => {
     const ch2Children = nodes.filter((n) => n.parentId === "chapter:Ch2");
     expect(ch2Children).toHaveLength(0);
   });
+
+  it("places multi-chapter nodes inside tight container bounds in Two-Tier ELK and aligns leaf positions", async () => {
+    const { applyElkLayout, clearLayoutCaches } = await import(
+      "../../src/infrastructure/layoutEngines.ts"
+    );
+    clearLayoutCaches();
+
+    const rawNodes: FlowNode[] = [
+      {
+        id: "start",
+        label: "start",
+        type: "LABEL",
+        dialogueCount: 5,
+        chapter: "Chapter 1",
+      },
+      {
+        id: "ch1_choice",
+        label: "Chapter 1 Choice",
+        type: "MENU",
+        dialogueCount: 0,
+        chapter: "Chapter 1",
+      },
+      {
+        id: "ch2_start",
+        label: "Chapter 2 Start",
+        type: "LABEL",
+        dialogueCount: 3,
+        chapter: "Chapter 2",
+      },
+      {
+        id: "ch2_end",
+        label: "Chapter 2 End",
+        type: "LABEL",
+        dialogueCount: 2,
+        chapter: "Chapter 2",
+        isTerminalOutcome: true,
+      },
+    ];
+
+    const rawEdges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "ch1_choice", kind: "sequence" },
+      { id: "e2", source: "ch1_choice", target: "ch2_start", kind: "jump" },
+      { id: "e3", source: "ch2_start", target: "ch2_end", kind: "sequence" },
+    ];
+
+    const { nodes, edges, spatialItems, spatialBounds } = await applyElkLayout(
+      rawNodes,
+      rawEdges,
+      "TB",
+      {
+        enableCompoundContainers: true,
+      },
+    );
+
+    const chapter1 = nodes.find((n) => n.id === "chapter:Chapter 1");
+    const chapter2 = nodes.find((n) => n.id === "chapter:Chapter 2");
+    expect(chapter1).toBeDefined();
+    expect(chapter2).toBeDefined();
+
+    const ch1Children = nodes.filter((n) => n.parentId === "chapter:Chapter 1");
+    expect(ch1Children).toHaveLength(2);
+    for (const child of ch1Children) {
+      expect(child.position.x).toBeGreaterThanOrEqual(
+        CHAPTER_CONTAINER_PADDING.left - 1,
+      );
+      expect(child.position.y).toBeGreaterThanOrEqual(
+        CHAPTER_CONTAINER_PADDING.top - 1,
+      );
+    }
+
+    expect(edges).toHaveLength(3);
+    expect(spatialItems).toHaveLength(nodes.length);
+    expect(spatialBounds).toBeDefined();
+  });
 });

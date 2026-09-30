@@ -20,9 +20,12 @@ import {
 } from "../../domain/index.ts";
 import type { createPerfTracker } from "../../infrastructure/index.ts";
 import {
+  type AABB,
   applyDagreLayout,
   areWorkersSupported,
+  computeSpatialItemsAndBounds,
   runLayoutInWorker,
+  type SpatialItem,
 } from "../../infrastructure/index.ts";
 import { useViewerStore } from "../../application/index.ts";
 import { useShallow } from "zustand/react/shallow";
@@ -55,9 +58,24 @@ interface UseViewerLayoutParams {
 function createNodePositionsMap(
   nodes: CanvasNode[],
 ): Map<string, { x: number; y: number }> {
+  const nodeById = new Map<string, CanvasNode>();
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]!;
+    nodeById.set(n.id, n);
+  }
   const map = new Map<string, { x: number; y: number }>();
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i]!;
+    if (n.parentId) {
+      const parent = nodeById.get(n.parentId);
+      if (parent) {
+        map.set(n.id, {
+          x: parent.position.x + n.position.x,
+          y: parent.position.y + n.position.y,
+        });
+        continue;
+      }
+    }
     map.set(n.id, n.position);
   }
   return map;
@@ -74,6 +92,8 @@ export function useViewerLayout({
 }: UseViewerLayoutParams): {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  spatialItems?: SpatialItem[];
+  spatialBounds?: AABB;
   setNodes: ReturnType<typeof useNodesState<CanvasNode>>[1];
   setEdges: ReturnType<typeof useEdgesState<CanvasEdge>>[1];
   onNodesChange: ReturnType<typeof useNodesState<CanvasNode>>[2];
@@ -82,10 +102,15 @@ export function useViewerLayout({
   relayout: () => void;
   isCalculatingLayout: boolean;
 } {
-  const { enableCompoundContainers, collapsedChapters } = useViewerStore(
+  const {
+    enableCompoundContainers,
+    collapsedChapters,
+    collapsedParentLabels,
+  } = useViewerStore(
     useShallow((s) => ({
       enableCompoundContainers: s.enableCompoundContainers,
       collapsedChapters: s.collapsedChapters,
+      collapsedParentLabels: s.collapsedParentLabels,
     })),
   );
 
@@ -100,10 +125,20 @@ export function useViewerLayout({
     isWorkerEnabled,
   );
 
-  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
+  const {
+    nodes: layoutNodes,
+    edges: layoutEdges,
+    spatialItems: layoutSpatialItems,
+    spatialBounds: layoutSpatialBounds,
+  } = useMemo(() => {
     if (isWorkerEnabled) {
       // Immediately bypass synchronous layout for worker execution
-      return { nodes: [], edges: [] };
+      return {
+        nodes: [],
+        edges: [],
+        spatialItems: undefined,
+        spatialBounds: undefined,
+      };
     }
     perf.mark("layout");
     const progressive = shouldProgressiveLayout;
@@ -117,6 +152,7 @@ export function useViewerLayout({
         layoutDensity,
         enableCompoundContainers,
         collapsedChapters,
+        collapsedParentLabels,
       },
     );
     perf.measure("layout", "layout_ms", {
@@ -137,19 +173,56 @@ export function useViewerLayout({
     simplifyOptions,
     enableCompoundContainers,
     collapsedChapters,
+    collapsedParentLabels,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
+  const [workerSpatialData, setWorkerSpatialData] = useState<{
+    spatialItems?: SpatialItem[];
+    spatialBounds?: AABB;
+  }>({});
+  const [draggedSpatialData, setDraggedSpatialData] = useState<
+    {
+      forLayoutNodes: CanvasNode[];
+      spatialItems?: SpatialItem[];
+      spatialBounds?: AABB;
+    } | null
+  >(null);
+
+  const nodesRef = useRef(nodes);
+  const layoutNodesRef = useRef(layoutNodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+    layoutNodesRef.current = layoutNodes;
+  }, [nodes, layoutNodes]);
 
   // Intercept and wrap onNodesChange to record manual dragging coordinates
   const onNodesChangeWrapped = useCallback(
     (changes: NodeChange<CanvasNode>[]) => {
       onNodesChange(changes);
+      let dragEnded = false;
       for (const change of changes) {
-        if (change.type === "position" && change.position && change.id) {
-          nodePositionsRef.current.set(change.id, change.position);
+        if (change.type === "position") {
+          if (change.position && change.id) {
+            nodePositionsRef.current.set(change.id, change.position);
+          }
+          if (change.dragging === false) {
+            dragEnded = true;
+          }
         }
+      }
+      if (dragEnded && nodesRef.current.length >= 150) {
+        const updatedNodes = nodesRef.current.map((n) => {
+          const pos = nodePositionsRef.current.get(n.id);
+          return pos && !n.parentId ? { ...n, position: pos } : n;
+        });
+        const { items, bounds } = computeSpatialItemsAndBounds(updatedNodes);
+        setDraggedSpatialData({
+          forLayoutNodes: layoutNodesRef.current,
+          spatialItems: items,
+          spatialBounds: bounds,
+        });
       }
     },
     [onNodesChange],
@@ -166,6 +239,7 @@ export function useViewerLayout({
 
   const relayout = useCallback(() => {
     setIsCalculatingLayout(true);
+    setDraggedSpatialData(null);
     if (!isWorkerEnabled) {
       const simplified = simplifyGraph(
         flowNodes,
@@ -182,11 +256,16 @@ export function useViewerLayout({
           layoutDensity,
           enableCompoundContainers,
           collapsedChapters,
+          collapsedParentLabels,
         },
       );
       nodePositionsRef.current = createNodePositionsMap(next.nodes);
       setNodes(next.nodes);
       setEdges(next.edges);
+      setWorkerSpatialData({
+        spatialItems: next.spatialItems,
+        spatialBounds: next.spatialBounds,
+      });
       setIsCalculatingLayout(false);
       if (onRelayoutComplete) {
         relayoutRafRef.current = requestAnimationFrame(onRelayoutComplete);
@@ -205,11 +284,17 @@ export function useViewerLayout({
         simplifyOptions,
         enableCompoundContainers,
         collapsedChapters,
+        collapsedParentLabels,
       },
       (next) => {
         nodePositionsRef.current = createNodePositionsMap(next.nodes);
+        setDraggedSpatialData(null);
         setNodes(next.nodes);
         setEdges(next.edges);
+        setWorkerSpatialData({
+          spatialItems: next.spatialItems,
+          spatialBounds: next.spatialBounds,
+        });
         setIsCalculatingLayout(false);
         if (onRelayoutComplete) {
           relayoutRafRef.current = requestAnimationFrame(onRelayoutComplete);
@@ -233,6 +318,7 @@ export function useViewerLayout({
     simplifyOptions,
     enableCompoundContainers,
     collapsedChapters,
+    collapsedParentLabels,
   ]);
 
   useEffect(() => {
@@ -276,12 +362,18 @@ export function useViewerLayout({
         simplifyOptions,
         enableCompoundContainers,
         collapsedChapters,
+        collapsedParentLabels,
       },
       (refined) => {
         nodePositionsRef.current = createNodePositionsMap(refined.nodes);
         startTransition(() => {
+          setDraggedSpatialData(null);
           setNodes(refined.nodes);
           setEdges(refined.edges);
+          setWorkerSpatialData({
+            spatialItems: refined.spatialItems,
+            spatialBounds: refined.spatialBounds,
+          });
         });
         setIsCalculatingLayout(false);
         if (onRelayoutComplete) {
@@ -305,11 +397,17 @@ export function useViewerLayout({
               layoutDensity,
               enableCompoundContainers,
               collapsedChapters,
+              collapsedParentLabels,
             },
           );
           startTransition(() => {
+            setDraggedSpatialData(null);
             setNodes(fallback.nodes);
             setEdges(fallback.edges);
+            setWorkerSpatialData({
+              spatialItems: fallback.spatialItems,
+              spatialBounds: fallback.spatialBounds,
+            });
           });
         } catch {
           // Ignore secondary fallback error
@@ -340,12 +438,27 @@ export function useViewerLayout({
     simplifyOptions,
     enableCompoundContainers,
     collapsedChapters,
+    collapsedParentLabels,
     onRelayoutComplete,
   ]);
+
+  const validDraggedSpatial =
+    draggedSpatialData && draggedSpatialData.forLayoutNodes === layoutNodes
+      ? draggedSpatialData
+      : null;
+
+  const activeSpatialItems = validDraggedSpatial
+    ? validDraggedSpatial.spatialItems
+    : (isWorkerEnabled ? workerSpatialData.spatialItems : layoutSpatialItems);
+  const activeSpatialBounds = validDraggedSpatial
+    ? validDraggedSpatial.spatialBounds
+    : (isWorkerEnabled ? workerSpatialData.spatialBounds : layoutSpatialBounds);
 
   return {
     nodes,
     edges,
+    spatialItems: activeSpatialItems,
+    spatialBounds: activeSpatialBounds,
     setNodes,
     setEdges,
     onNodesChange: onNodesChangeWrapped,

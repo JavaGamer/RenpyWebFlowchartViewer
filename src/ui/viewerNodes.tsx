@@ -8,7 +8,6 @@ import {
   type LabelNodeType,
   type MenuNodeType,
   NODE_HEIGHT_DECISION,
-  NODE_HEIGHT_MENU,
 } from "../domain/index.ts";
 import { THEMES } from "./viewerTheme.ts";
 import { useAppStore, useViewerStore } from "../application/index.ts";
@@ -124,8 +123,12 @@ export const LabelNodeComponent = memo(
 
       const labelHeight = getNodeHeight({
         type: "LABEL",
+        label: data.label,
         isShadowed,
         isTerminalOutcome,
+        isOrphan,
+        collapsedLabels: data.collapsedLabels,
+        mutations: data.mutations,
         audioAssetCues: data.audioAssetCues,
       });
 
@@ -326,7 +329,7 @@ export const LabelNodeComponent = memo(
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1">
             {isOrphan && (
               <span
                 className={cn(
@@ -407,7 +410,7 @@ export const LabelNodeComponent = memo(
           </div>
         </div>
         <div
-          className="font-mono font-bold truncate text-sm"
+          className="font-mono font-bold line-clamp-2 break-words text-sm"
           style={{ color: theme.labelText, opacity: isShadowed ? 0.8 : 1 }}
         >
           {searchInput
@@ -578,6 +581,11 @@ export const MenuNodeComponent = memo(
       ? translations.translationsByLanguage[activeLanguage].strings[data.label]!
       : data.label;
 
+    const menuHeight = getNodeHeight({
+      type: "MENU",
+      label: data.label,
+    });
+
     const isLod = useIsLodMode();
 
     if (isLod) {
@@ -587,7 +595,7 @@ export const MenuNodeComponent = memo(
             "w-[220px] flex items-center justify-center relative select-none cursor-pointer transition-all duration-200",
             isRouteHighlighted && "scale-[1.02] z-20",
           )}
-          style={{ minHeight: `${NODE_HEIGHT_MENU}px` }}
+          style={{ minHeight: `${menuHeight}px` }}
           title={`Menu: ${displayLabel}`}
         >
           {/* Target Anchors */}
@@ -692,7 +700,7 @@ export const MenuNodeComponent = memo(
             "ring-2 ring-violet-500 shadow-xl z-20 scale-[1.02]",
         )}
         style={{
-          minHeight: `${NODE_HEIGHT_MENU}px`,
+          minHeight: `${menuHeight}px`,
           borderColor: isRouteHighlighted
             ? (isDark ? "#a78bfa" : "#7c3aed")
             : theme.menuBorder,
@@ -779,7 +787,7 @@ export const MenuNodeComponent = memo(
           )}
         </div>
         <div
-          className="font-mono font-bold truncate text-sm"
+          className="font-mono font-bold line-clamp-2 break-words text-sm"
           style={{ color: theme.menuText }}
         >
           {searchInput

@@ -386,19 +386,62 @@ describe("layoutWorkerClient", () => {
     expect((onError.mock.calls[0][0] as Error).message).toBe("oops");
   });
 
-  it("terminates an active worker when a new layout request arrives", async () => {
+  it("coalesces overlapping requests in a latest-wins single-slot queue on the warm worker without terminating it", async () => {
     const { runLayoutInWorker } = await freshClient();
+    const onResult1 = vi.fn();
+    const onResult2 = vi.fn();
+    const onResult3 = vi.fn();
 
-    // First request — do NOT resolve it, so the worker is still "running"
-    runLayoutInWorker(noNodes, noEdges, "TB", undefined, vi.fn());
+    // First request — in flight
+    runLayoutInWorker(noNodes, noEdges, "TB", undefined, onResult1);
     const firstInstance = mockWorkerInstance;
+    expect(firstInstance.postMessage).toHaveBeenCalledTimes(1);
 
-    // Second request should terminate the first worker and create a new one
-    runLayoutInWorker(noNodes, noEdges, "LR", undefined, vi.fn());
+    // Second request arrives while first is in flight — queued
+    runLayoutInWorker(noNodes, noEdges, "LR", undefined, onResult2);
+    // Third request arrives while first is still in flight — replaces second (latest-wins)
+    runLayoutInWorker(
+      noNodes,
+      noEdges,
+      "LR",
+      { layoutDensity: "compact" },
+      onResult3,
+    );
 
-    expect(firstInstance.terminate).toHaveBeenCalledTimes(1);
-    // A new Worker should have been created for the second request
-    expect(vi.mocked(globalThis.Worker)).toHaveBeenCalledTimes(2);
+    // Warm worker is NOT terminated and no second Worker is constructed
+    expect(firstInstance.terminate).not.toHaveBeenCalled();
+    expect(vi.mocked(globalThis.Worker)).toHaveBeenCalledTimes(1);
+    expect(firstInstance.postMessage).toHaveBeenCalledTimes(1);
+
+    // Resolve the first in-flight request
+    const firstPayload = firstInstance.postMessage.mock.calls[0][0] as {
+      requestId: number;
+    };
+    firstInstance.triggerMessage({
+      requestId: firstPayload.requestId,
+      result: { nodes: [], edges: [] },
+    });
+
+    // First and second callbacks were superseded; third request is now dispatched on the same worker
+    expect(onResult1).not.toHaveBeenCalled();
+    expect(onResult2).not.toHaveBeenCalled();
+    expect(firstInstance.postMessage).toHaveBeenCalledTimes(2);
+
+    const thirdPayload = firstInstance.postMessage.mock.calls[1][0] as {
+      requestId: number;
+      direction: string;
+      options: { layoutDensity: string };
+    };
+    expect(thirdPayload.direction).toBe("LR");
+    expect(thirdPayload.options.layoutDensity).toBe("compact");
+
+    // Resolve the third request
+    const finalResult = { nodes: [], edges: [] };
+    firstInstance.triggerMessage({
+      requestId: thirdPayload.requestId,
+      result: finalResult,
+    });
+    expect(onResult3).toHaveBeenCalledWith(finalResult);
   });
 
   it("serialises a Map previousPositions to an array before posting", async () => {
@@ -439,22 +482,32 @@ describe("layoutWorkerClient", () => {
     expect(isLayoutRunning()).toBe(false);
   });
 
-  it("cancel function returned by runLayoutInWorker terminates the worker", async () => {
+  it("cancel function returned by runLayoutInWorker cancels the request without terminating the warm worker", async () => {
     const { runLayoutInWorker, isLayoutRunning } = await freshClient();
+    const onResult = vi.fn();
 
     const cancel = runLayoutInWorker(
       noNodes,
       noEdges,
       "TB",
       undefined,
-      vi.fn(),
+      onResult,
     );
     expect(isLayoutRunning()).toBe(true);
 
     cancel();
 
-    expect(mockWorkerInstance.terminate).toHaveBeenCalledTimes(1);
+    expect(mockWorkerInstance.terminate).not.toHaveBeenCalled();
     expect(isLayoutRunning()).toBe(false);
+
+    const payload = mockWorkerInstance.postMessage.mock.calls[0][0] as {
+      requestId: number;
+    };
+    mockWorkerInstance.triggerMessage({
+      requestId: payload.requestId,
+      result: { nodes: [], edges: [] },
+    });
+    expect(onResult).not.toHaveBeenCalled();
   });
 
   it("cancel is a no-op after the layout has already completed", async () => {
@@ -476,9 +529,117 @@ describe("layoutWorkerClient", () => {
       result: { nodes: [], edges: [] },
     });
 
-    // Now cancel should be a no-op (the requestId no longer matches activeRequestId)
+    // Now cancel should be a no-op
     cancel();
     expect(mockWorkerInstance.terminate).not.toHaveBeenCalled();
+  });
+
+  it("terminates a hung worker and calls onError when the watchdog timeout expires", async () => {
+    vi.useFakeTimers();
+    try {
+      const {
+        runLayoutInWorker,
+        setLayoutWatchdogTimeoutMs,
+        isLayoutRunning,
+      } = await freshClient();
+      setLayoutWatchdogTimeoutMs(200);
+      const onError = vi.fn();
+
+      runLayoutInWorker(noNodes, noEdges, "TB", undefined, vi.fn(), onError);
+      expect(isLayoutRunning()).toBe(true);
+
+      vi.advanceTimersByTime(250);
+
+      expect(mockWorkerInstance.terminate).toHaveBeenCalledTimes(1);
+      expect(isLayoutRunning()).toBe(false);
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect((onError.mock.calls[0][0] as Error).message).toContain(
+        "Layout worker timed out",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("strips dialogueLines/dialogueLineNums before IPC, re-hydrates them on result (including collapsedNodeIds), and omits unchanged rawNodes on repeat calls", async () => {
+    const { runLayoutInWorker } = await freshClient();
+    const nodesWithDialogue: FlowNode[] = [
+      {
+        id: "n1",
+        type: "LABEL",
+        label: "Start",
+        dialogueCount: 2,
+        dialogueLines: ["Hello", "World"],
+        dialogueLineNums: [10, 11],
+      },
+      {
+        id: "n2",
+        type: "LABEL",
+        label: "Next",
+        dialogueCount: 1,
+        dialogueLines: ["Continuation"],
+        dialogueLineNums: [20],
+      },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "n1", target: "n2", kind: "sequence" },
+    ];
+
+    const onResult1 = vi.fn();
+    runLayoutInWorker(nodesWithDialogue, edges, "TB", undefined, onResult1);
+
+    const firstPayload = mockWorkerInstance.postMessage.mock.calls[0][0] as {
+      requestId: number;
+      rawNodes: FlowNode[];
+      rawEdges: FlowEdge[];
+    };
+    expect(firstPayload.rawNodes).toHaveLength(2);
+    expect(firstPayload.rawNodes[0]?.dialogueLines).toBeUndefined();
+    expect(firstPayload.rawNodes[0]?.dialogueLineNums).toBeUndefined();
+
+    // Simulate worker returning a merged node n1 with collapsedNodeIds: ["n1", "n2"]
+    mockWorkerInstance.triggerMessage({
+      requestId: firstPayload.requestId,
+      result: {
+        nodes: [
+          {
+            id: "n1",
+            type: "labelNode",
+            position: { x: 0, y: 0 },
+            data: {
+              label: "Start",
+              dialogueCount: 3,
+              nodeType: "LABEL",
+              collapsedLabels: ["Next"],
+              collapsedNodeIds: ["n1", "n2"],
+            },
+          },
+        ],
+        edges: [],
+      },
+    });
+
+    expect(onResult1).toHaveBeenCalledTimes(1);
+    const rehydratedNode = onResult1.mock.calls[0][0].nodes[0];
+    expect(rehydratedNode.data.dialogueLines).toEqual([
+      "Hello",
+      "World",
+      "Continuation",
+    ]);
+    expect(rehydratedNode.data.dialogueLineNums).toEqual([10, 11, 20]);
+
+    // Second call with the same rawNodes & rawEdges references should send null, null
+    const onResult2 = vi.fn();
+    runLayoutInWorker(nodesWithDialogue, edges, "LR", undefined, onResult2);
+    const secondPayload = mockWorkerInstance.postMessage.mock.calls[1][0] as {
+      requestId: number;
+      rawNodes: FlowNode[] | null;
+      rawEdges: FlowEdge[] | null;
+      options: { graphRevision?: number };
+    };
+    expect(secondPayload.rawNodes).toBeNull();
+    expect(secondPayload.rawEdges).toBeNull();
+    expect(typeof secondPayload.options.graphRevision).toBe("number");
   });
 
   describe("preWarmLayoutWorker", () => {

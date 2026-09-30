@@ -119,6 +119,8 @@ export interface FlowNode {
   menuPromptLineNum?: number;
   /** Label names collapsed into this node during linear chain collapsing. */
   collapsedLabels?: string[];
+  /** Unique node IDs collapsed into this node during linear chain collapsing. */
+  collapsedNodeIds?: string[];
   /** True when dialogue lines and audio asset cues have been loaded/hydrated. */
   isDetailsLoaded?: boolean;
   /** Detailed source ranges for all labels collapsed into this node. */

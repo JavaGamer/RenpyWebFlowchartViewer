@@ -44,7 +44,7 @@ export function buildVisibleNodes(params: {
   dialogueMatchNodeIds?: Set<string> | null;
   minDialogue: number;
   collapsedChapters: Record<string, boolean>;
-  collapsedLabelChildren: Set<string>;
+  collapsedLabelChildren?: Set<string>;
   conditionHiddenNodeIds?: Set<string>;
   theme: ThemeName;
   previousById?: Map<string, CanvasNode>;
@@ -59,7 +59,7 @@ export function buildVisibleNodes(params: {
     dialogueMatchNodeIds = null,
     minDialogue,
     collapsedChapters,
-    collapsedLabelChildren,
+    collapsedLabelChildren = new Set<string>(),
     conditionHiddenNodeIds,
     theme,
     previousById,
@@ -201,6 +201,7 @@ export function buildVisibleNodes(params: {
         prevData.wordCount === nodeData.wordCount &&
         prevData.pauseDuration === nodeData.pauseDuration &&
         prevData.collapsedLabels === nodeData.collapsedLabels &&
+        prevData.collapsedNodeIds === nodeData.collapsedNodeIds &&
         prevData.dialogueLines === nodeData.dialogueLines &&
         prevData.audioAssetCues === nodeData.audioAssetCues &&
         prevData.nodeType === nodeData.nodeType &&

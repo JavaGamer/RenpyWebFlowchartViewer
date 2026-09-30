@@ -27,7 +27,63 @@ function isWorkerSupported(): boolean {
   return true;
 }
 let apiProxy: Remote<LayoutWorkerApi> | null = null;
-let isWorkerRunning = false;
+let isWorkerBusy = false;
+let activeInFlightCancelled = false;
+let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const DEFAULT_LAYOUT_WATCHDOG_TIMEOUT_MS = 5000;
+let layoutWatchdogTimeoutMs = DEFAULT_LAYOUT_WATCHDOG_TIMEOUT_MS;
+
+export function setLayoutWatchdogTimeoutMs(ms: number): void {
+  layoutWatchdogTimeoutMs = ms;
+}
+
+let lastSyncedRawNodesRef: FlowNode[] | null = null;
+let lastSyncedRawEdgesRef: FlowEdge[] | null = null;
+let currentGraphRevision = 0;
+let workerHasSyncedGraph = false;
+
+interface LayoutRequestOptions {
+  progressive?: boolean;
+  previousPositions?:
+    | Map<string, { x: number; y: number }>
+    | Array<[string, { x: number; y: number }]>;
+  theme?: ThemeName;
+  layoutDensity?: LayoutDensity;
+  simplifyOptions?: GraphSimplificationOptions;
+  enableCompoundContainers?: boolean;
+  collapsedChapters?: Record<string, boolean>;
+  collapsedParentLabels?: Record<string, boolean>;
+}
+
+type LayoutResultCallback = (result: {
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  spatialItems?: SpatialItem[];
+  spatialBounds?: AABB;
+}) => void;
+
+interface QueuedLayoutRequest {
+  requestId: number;
+  rawNodes: FlowNode[];
+  rawEdges: FlowEdge[];
+  direction: "TB" | "LR";
+  options?: LayoutRequestOptions;
+  onResult: LayoutResultCallback;
+  onError?: (error: Error) => void;
+  isCancelled: () => boolean;
+  markCompleted: () => void;
+}
+
+let pendingRequest: QueuedLayoutRequest | null = null;
+let activeInFlightRequest: QueuedLayoutRequest | null = null;
+
+function clearWatchdogTimer() {
+  if (watchdogTimer !== null) {
+    clearTimeout(watchdogTimer);
+    watchdogTimer = null;
+  }
+}
 
 function getLayoutWorker(): Worker {
   if (!worker) {
@@ -35,6 +91,7 @@ function getLayoutWorker(): Worker {
       type: "module",
     });
     apiProxy = wrap<LayoutWorkerApi>(worker);
+    workerHasSyncedGraph = false;
   }
   return worker;
 }
@@ -43,6 +100,11 @@ let currentRequestId = 0;
 
 export function terminateLayoutWorker() {
   currentRequestId += 1;
+  clearWatchdogTimer();
+  pendingRequest = null;
+  activeInFlightRequest = null;
+  activeInFlightCancelled = true;
+  workerHasSyncedGraph = false;
   if (apiProxy) {
     try {
       apiProxy[releaseProxy]();
@@ -55,7 +117,7 @@ export function terminateLayoutWorker() {
     worker.terminate();
     worker = null;
   }
-  isWorkerRunning = false;
+  isWorkerBusy = false;
 }
 
 export function preWarmLayoutWorker(): void {
@@ -80,30 +142,210 @@ export function preWarmLayoutWorker(): void {
 }
 
 export function isLayoutRunning(): boolean {
-  return isWorkerRunning;
+  return (isWorkerBusy && !activeInFlightCancelled) || pendingRequest !== null;
+}
+
+function stripDialoguePayload(rawNodes: FlowNode[]): FlowNode[] {
+  let hasDialoguePayload = false;
+  for (let i = 0; i < rawNodes.length; i++) {
+    const n = rawNodes[i]!;
+    if (n.dialogueLines !== undefined || n.dialogueLineNums !== undefined) {
+      hasDialoguePayload = true;
+      break;
+    }
+  }
+  if (!hasDialoguePayload) return rawNodes;
+  return rawNodes.map((n) => {
+    if (n.dialogueLines === undefined && n.dialogueLineNums === undefined) {
+      return n;
+    }
+    const copy = { ...n };
+    delete copy.dialogueLines;
+    delete copy.dialogueLineNums;
+    return copy;
+  });
+}
+
+function rehydrateCanvasNodes(
+  nodes: CanvasNode[],
+  rawNodes: FlowNode[],
+): CanvasNode[] {
+  if (nodes.length === 0 || rawNodes.length === 0) return nodes;
+  const rawById = new Map<string, FlowNode>();
+  let anyDialogue = false;
+  for (let i = 0; i < rawNodes.length; i++) {
+    const rn = rawNodes[i]!;
+    rawById.set(rn.id, rn);
+    if (rn.dialogueLines !== undefined || rn.dialogueLineNums !== undefined) {
+      anyDialogue = true;
+    }
+  }
+  if (!anyDialogue) return nodes;
+
+  return nodes.map((cn) => {
+    const collapsedIds = cn.data?.collapsedNodeIds;
+    if (collapsedIds && collapsedIds.length > 1) {
+      const dialogueLines: string[] = [];
+      const dialogueLineNums: number[] = [];
+      let hasLines = false;
+      let hasLineNums = false;
+      for (const id of collapsedIds) {
+        const member = rawById.get(id);
+        if (member?.dialogueLines) {
+          hasLines = true;
+          dialogueLines.push(...member.dialogueLines);
+        }
+        if (member?.dialogueLineNums) {
+          hasLineNums = true;
+          dialogueLineNums.push(...member.dialogueLineNums);
+        }
+      }
+      return {
+        ...cn,
+        data: {
+          ...cn.data,
+          dialogueLines: hasLines ? dialogueLines : cn.data.dialogueLines,
+          dialogueLineNums: hasLineNums
+            ? dialogueLineNums
+            : cn.data.dialogueLineNums,
+        },
+      };
+    }
+
+    const orig = rawById.get(cn.id);
+    if (!orig) return cn;
+    if (
+      orig.dialogueLines === cn.data?.dialogueLines &&
+      orig.dialogueLineNums === cn.data?.dialogueLineNums
+    ) {
+      return cn;
+    }
+    return {
+      ...cn,
+      data: {
+        ...cn.data,
+        dialogueLines: orig.dialogueLines,
+        dialogueLineNums: orig.dialogueLineNums,
+      },
+    };
+  });
+}
+
+function dispatchRequest(req: QueuedLayoutRequest): void {
+  isWorkerBusy = true;
+  activeInFlightCancelled = req.isCancelled();
+  activeInFlightRequest = req;
+  getLayoutWorker();
+
+  if (
+    req.rawNodes !== lastSyncedRawNodesRef ||
+    req.rawEdges !== lastSyncedRawEdgesRef
+  ) {
+    currentGraphRevision += 1;
+    lastSyncedRawNodesRef = req.rawNodes;
+    lastSyncedRawEdgesRef = req.rawEdges;
+    workerHasSyncedGraph = false;
+  }
+
+  let nodesToSend: FlowNode[] | null;
+  let edgesToSend: FlowEdge[] | null;
+  if (workerHasSyncedGraph && req.rawNodes.length > 0) {
+    nodesToSend = null;
+    edgesToSend = null;
+  } else {
+    nodesToSend = stripDialoguePayload(req.rawNodes);
+    edgesToSend = req.rawEdges;
+    workerHasSyncedGraph = true;
+  }
+
+  let serializedPreviousPositions:
+    | Array<[string, { x: number; y: number }]>
+    | undefined;
+  if (req.options?.previousPositions) {
+    if (req.options.previousPositions instanceof Map) {
+      serializedPreviousPositions = Array.from(
+        req.options.previousPositions.entries(),
+      );
+    } else {
+      serializedPreviousPositions = req.options.previousPositions;
+    }
+  }
+
+  clearWatchdogTimer();
+  watchdogTimer = setTimeout(() => {
+    watchdogTimer = null;
+    const targetReq = pendingRequest ?? activeInFlightRequest;
+    const errCallback = targetReq && !targetReq.isCancelled()
+      ? targetReq.onError
+      : undefined;
+    if (targetReq) {
+      targetReq.markCompleted();
+    }
+    terminateLayoutWorker();
+    if (errCallback) {
+      errCallback(new Error("Layout worker timed out"));
+    }
+  }, layoutWatchdogTimeoutMs);
+
+  apiProxy!.runLayout(nodesToSend, edgesToSend, req.direction, {
+    theme: req.options?.theme,
+    layoutDensity: req.options?.layoutDensity,
+    previousPositions: serializedPreviousPositions,
+    simplifyOptions: req.options?.simplifyOptions,
+    enableCompoundContainers: req.options?.enableCompoundContainers,
+    collapsedChapters: req.options?.collapsedChapters,
+    collapsedParentLabels: req.options?.collapsedParentLabels,
+    graphRevision: currentGraphRevision,
+  })
+    .then((result) => {
+      clearWatchdogTimer();
+      isWorkerBusy = false;
+      activeInFlightRequest = null;
+
+      if (pendingRequest) {
+        const next = pendingRequest;
+        pendingRequest = null;
+        dispatchRequest(next);
+        return;
+      }
+
+      if (req.isCancelled() || req.requestId !== currentRequestId) return;
+      req.markCompleted();
+      const rehydratedNodes = rehydrateCanvasNodes(result.nodes, req.rawNodes);
+      req.onResult(
+        rehydratedNodes === result.nodes
+          ? result
+          : { ...result, nodes: rehydratedNodes },
+      );
+    })
+    .catch((error) => {
+      clearWatchdogTimer();
+      isWorkerBusy = false;
+      activeInFlightRequest = null;
+
+      if (pendingRequest) {
+        const next = pendingRequest;
+        pendingRequest = null;
+        dispatchRequest(next);
+        return;
+      }
+
+      if (req.isCancelled() || req.requestId !== currentRequestId) return;
+      req.markCompleted();
+      if (req.onError) {
+        req.onError(error instanceof Error ? error : new Error(String(error)));
+      } else {
+        console.error(error);
+      }
+    });
 }
 
 export function runLayoutInWorker(
   rawNodes: FlowNode[],
   rawEdges: FlowEdge[],
   direction: "TB" | "LR",
-  options: {
-    progressive?: boolean;
-    previousPositions?:
-      | Map<string, { x: number; y: number }>
-      | Array<[string, { x: number; y: number }]>;
-    theme?: ThemeName;
-    layoutDensity?: LayoutDensity;
-    simplifyOptions?: GraphSimplificationOptions;
-    enableCompoundContainers?: boolean;
-    collapsedChapters?: Record<string, boolean>;
-  } | undefined,
-  onResult: (result: {
-    nodes: CanvasNode[];
-    edges: CanvasEdge[];
-    spatialItems?: SpatialItem[];
-    spatialBounds?: AABB;
-  }) => void,
+  options: LayoutRequestOptions | undefined,
+  onResult: LayoutResultCallback,
   onError?: (error: Error) => void,
 ): () => void {
   if (!isWorkerSupported()) {
@@ -113,60 +355,41 @@ export function runLayoutInWorker(
     return () => {};
   }
 
-  if (isWorkerRunning) {
-    terminateLayoutWorker();
-  }
-
   currentRequestId += 1;
   const thisRequestId = currentRequestId;
-  isWorkerRunning = true;
-  getLayoutWorker();
 
   let cancelled = false;
   let completed = false;
 
-  let serializedPreviousPositions:
-    | Array<[string, { x: number; y: number }]>
-    | undefined;
-  if (options?.previousPositions) {
-    if (options.previousPositions instanceof Map) {
-      serializedPreviousPositions = Array.from(
-        options.previousPositions.entries(),
-      );
-    } else {
-      serializedPreviousPositions = options.previousPositions;
-    }
+  const req: QueuedLayoutRequest = {
+    requestId: thisRequestId,
+    rawNodes,
+    rawEdges,
+    direction,
+    options,
+    onResult,
+    onError,
+    isCancelled: () => cancelled,
+    markCompleted: () => {
+      completed = true;
+    },
+  };
+
+  if (isWorkerBusy) {
+    pendingRequest = req;
+  } else {
+    dispatchRequest(req);
   }
 
-  apiProxy!.runLayout(rawNodes, rawEdges, direction, {
-    theme: options?.theme,
-    layoutDensity: options?.layoutDensity,
-    previousPositions: serializedPreviousPositions,
-    simplifyOptions: options?.simplifyOptions,
-    enableCompoundContainers: options?.enableCompoundContainers,
-    collapsedChapters: options?.collapsedChapters,
-  })
-    .then((result) => {
-      if (cancelled || thisRequestId !== currentRequestId) return;
-      completed = true;
-      isWorkerRunning = false;
-      onResult(result);
-    })
-    .catch((error) => {
-      if (cancelled || thisRequestId !== currentRequestId) return;
-      completed = true;
-      isWorkerRunning = false;
-      if (onError) {
-        onError(error instanceof Error ? error : new Error(String(error)));
-      } else {
-        console.error(error);
-      }
-    });
-
   return () => {
-    if (!completed && thisRequestId === currentRequestId) {
+    if (!completed) {
       cancelled = true;
-      terminateLayoutWorker();
+      if (pendingRequest?.requestId === thisRequestId) {
+        pendingRequest = null;
+      }
+      if (activeInFlightRequest?.requestId === thisRequestId) {
+        activeInFlightCancelled = true;
+      }
     }
   };
 }

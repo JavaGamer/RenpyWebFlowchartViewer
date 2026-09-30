@@ -4,6 +4,7 @@ import {
   buildVisibleEdges,
   buildVisibleNodes,
   getNodeCenter,
+  getNodeHeight,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from "../../src/domain";
 import { applyDagreLayout } from "../../src/infrastructure";
@@ -665,5 +666,142 @@ describe("flowchartTransforms", () => {
     });
     expect(conditional.hiddenNodeIds.has("branch_false")).toBe(true);
     expect(conditional.hiddenNodeIds.has("downstream")).toBe(true);
+  });
+
+  it("collapses child MENU nodes of collapsedParentLabels pre-layout and transitively redirects edges", () => {
+    const rawNodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      {
+        id: "menu_1",
+        type: "MENU",
+        label: "Choice A",
+        dialogueCount: 0,
+        parentLabelId: "start",
+      },
+      { id: "target_a", type: "LABEL", label: "target_a", dialogueCount: 2 },
+      { id: "target_b", type: "LABEL", label: "target_b", dialogueCount: 3 },
+    ];
+    const rawEdges: FlowEdge[] = [
+      { id: "e_start_m1", source: "start", target: "menu_1", kind: "sequence" },
+      {
+        id: "e_m1_a",
+        source: "menu_1",
+        target: "target_a",
+        kind: "jump",
+        label: "Go A",
+      },
+      {
+        id: "e_m1_b",
+        source: "menu_1",
+        target: "target_b",
+        kind: "jump",
+        label: "Go B",
+      },
+    ];
+
+    const layout = applyDagreLayout(rawNodes, rawEdges, "TB", {
+      collapsedParentLabels: { start: true },
+    });
+
+    expect(layout.nodes.map((n) => n.id)).toEqual([
+      "start",
+      "target_a",
+      "target_b",
+    ]);
+    expect(layout.edges).toHaveLength(2);
+    expect(
+      layout.edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        label: e.data?.label,
+      })),
+    ).toEqual([
+      { source: "start", target: "target_a", label: "Go A" },
+      { source: "start", target: "target_b", label: "Go B" },
+    ]);
+  });
+
+  it("computes content-aware heights for wrapped titles (>24 chars) and multi-badge rows (>=2 badges)", () => {
+    // Base LABEL height = 90
+    expect(getNodeHeight({ type: "LABEL", label: "short_label" })).toBe(90);
+    // Wrapped title (>24 chars) adds +20px -> 110
+    expect(
+      getNodeHeight({
+        type: "LABEL",
+        label: "very_long_narrative_chapter_label_name",
+      }),
+    ).toBe(110);
+    // Two badges (isTerminalOutcome +14px and >=2 badges +22px -> 90 + 14 + 22 = 126)
+    expect(
+      getNodeHeight({
+        type: "LABEL",
+        label: "short_label",
+        isTerminalOutcome: true,
+        collapsedLabels: ["extra"],
+      }),
+    ).toBe(126);
+    // Base MENU height = 80; wrapped MENU label (>24 chars) adds +20px -> 100
+    expect(getNodeHeight({ type: "MENU", label: "short_menu" })).toBe(80);
+    expect(
+      getNodeHeight({
+        type: "MENU",
+        label: "menu_with_a_very_long_descriptive_choice_title",
+      }),
+    ).toBe(100);
+  });
+
+  it("prioritizes narrative entry nodes via BFS from start during progressive Dagre layout", () => {
+    const nodes: FlowNode[] = [];
+    const edges: FlowEdge[] = [];
+
+    // Create 219 disconnected filler nodes first in array order
+    for (let i = 0; i < 219; i++) {
+      nodes.push({
+        id: `filler_${i}`,
+        type: "LABEL",
+        label: `filler_${i}`,
+        dialogueCount: 1,
+      });
+    }
+    // Place `start` and its reachable chain at the end of the array (indices 219..221)
+    nodes.push(
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      {
+        id: "intro_next",
+        type: "LABEL",
+        label: "intro_next",
+        dialogueCount: 1,
+      },
+      {
+        id: "intro_branch",
+        type: "LABEL",
+        label: "intro_branch",
+        dialogueCount: 1,
+      },
+    );
+    edges.push(
+      { id: "e_s_1", source: "start", target: "intro_next", kind: "sequence" },
+      {
+        id: "e_1_2",
+        source: "intro_next",
+        target: "intro_branch",
+        kind: "sequence",
+      },
+    );
+
+    const layout = applyDagreLayout(nodes, edges, "TB", { progressive: true });
+    const startNode = layout.nodes.find((n) => n.id === "start")!;
+    const introNext = layout.nodes.find((n) => n.id === "intro_next")!;
+    const introBranch = layout.nodes.find((n) => n.id === "intro_branch")!;
+    const lastFiller = layout.nodes.find((n) => n.id === "filler_218")!;
+
+    // start, intro_next, and intro_branch must be in the primary Dagre layout (y < 800)
+    expect(startNode.position.y).toBeLessThan(800);
+    expect(introNext.position.y).toBeLessThan(800);
+    expect(introBranch.position.y).toBeLessThan(800);
+    expect(startNode.position.y).toBeLessThan(introNext.position.y);
+    expect(introNext.position.y).toBeLessThan(introBranch.position.y);
+    // The last filler node was pushed to the overflow grid (y >= 800)
+    expect(lastFiller.position.y).toBeGreaterThanOrEqual(800);
   });
 });

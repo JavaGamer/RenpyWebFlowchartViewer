@@ -34,30 +34,62 @@ export const CHAPTER_HEADER_HEIGHT = 44;
  */
 export const PROGRESSIVE_LAYOUT_NODE_LIMIT = 220;
 
+export type NodeHeightInput =
+  & Pick<FlowNode, "type">
+  & Partial<
+    Pick<
+      FlowNode,
+      | "label"
+      | "isShadowed"
+      | "isTerminalOutcome"
+      | "isOrphan"
+      | "collapsedLabels"
+      | "mutations"
+      | "audioAssetCues"
+    >
+  >;
+
 /**
  * Computes the correct pixel height for a LABEL node based on its visual variant
- * (shadowed, terminal outcome, or standard).
+ * (shadowed, terminal outcome, or standard), wrapped label text, and header badges.
  */
 export function getLabelHeight(
-  params: { isShadowed?: boolean; isTerminalOutcome?: boolean },
+  params: Partial<Omit<NodeHeightInput, "type">>,
 ): number {
-  if (params.isShadowed) return NODE_HEIGHT_LABEL_SHADOWED;
-  if (params.isTerminalOutcome) return NODE_HEIGHT_LABEL_TERMINAL;
-  return NODE_HEIGHT_LABEL;
+  let height = NODE_HEIGHT_LABEL;
+  if (params.isShadowed) {
+    height = NODE_HEIGHT_LABEL_SHADOWED;
+  } else if (params.isTerminalOutcome) {
+    height = NODE_HEIGHT_LABEL_TERMINAL;
+  }
+
+  if ((params.label?.length ?? 0) > 24) {
+    height += 20;
+  }
+
+  let badgeCount = 0;
+  if (params.isOrphan || params.isTerminalOutcome) badgeCount += 1;
+  if (params.isShadowed) badgeCount += 1;
+  if ((params.collapsedLabels?.length ?? 0) > 0) badgeCount += 1;
+  if ((params.mutations?.length ?? 0) > 0) badgeCount += 1;
+  if (badgeCount >= 2) {
+    height += 22;
+  }
+
+  return height;
 }
 
 /**
  * Returns the pixel height for any node type: dispatches to
  * the appropriate constant or `getLabelHeight` and adds extra
- * padding if audio/asset cues are present.
+ * padding if titles wrap or audio/asset cues are present.
  */
-export function getNodeHeight(
-  node: Pick<
-    FlowNode,
-    "type" | "isShadowed" | "isTerminalOutcome" | "audioAssetCues"
-  >,
-): number {
-  if (node.type === "MENU") return NODE_HEIGHT_MENU;
+export function getNodeHeight(node: NodeHeightInput): number {
+  if (node.type === "MENU") {
+    return (node.label?.length ?? 0) > 24
+      ? NODE_HEIGHT_MENU + 20
+      : NODE_HEIGHT_MENU;
+  }
   if (node.type === "DECISION") return NODE_HEIGHT_DECISION;
   const baseHeight = getLabelHeight(node);
   if (node.audioAssetCues && node.audioAssetCues.length > 0) {
@@ -98,8 +130,12 @@ export function getNodeCenter(node: CanvasNode): { x: number; y: number } {
         : node.type === "syntaxErrorNode"
         ? "SYNTAX_ERROR"
         : "LABEL",
+      label: nodeData.label,
       isShadowed: nodeData.isShadowed,
       isTerminalOutcome: nodeData.isTerminalOutcome,
+      isOrphan: nodeData.isOrphan,
+      collapsedLabels: nodeData.collapsedLabels,
+      mutations: nodeData.mutations,
       audioAssetCues: nodeData.audioAssetCues,
     });
   return {

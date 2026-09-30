@@ -21,14 +21,18 @@ export {
 } from "./parserWorkerClient.ts";
 export { readFileAsArrayBuffer, readFileAsText } from "./fileReader.ts";
 export {
+  DEFAULT_LAYOUT_WATCHDOG_TIMEOUT_MS,
   preWarmLayoutWorker,
   runLayoutInWorker,
+  setLayoutWatchdogTimeoutMs,
   terminateLayoutWorker,
 } from "./layoutWorkerClient.ts";
 export {
   applyDagreLayout,
   applyElkLayout,
   applyTwoTierDagreLayout,
+  applyTwoTierElkLayout,
+  clearLayoutCaches,
   preWarmElk,
   setElkInstance,
 } from "./layoutEngines.ts";

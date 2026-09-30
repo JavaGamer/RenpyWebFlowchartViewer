@@ -198,8 +198,12 @@ export function computeSpatialItemsAndBounds(nodes: CanvasNode[]): {
       (typeof node.style?.width === "number" ? node.style.width : node.width) ||
       (node.type === "chapterNode" ? 300 : 220);
     const nodeData = node.data as {
+      label?: string;
       isShadowed?: boolean;
       isTerminalOutcome?: boolean;
+      isOrphan?: boolean;
+      collapsedLabels?: string[];
+      mutations?: import("../domain/index.ts").VariableMutation[];
       audioAssetCues?: unknown[];
     } | undefined;
     const height = node.measured?.height ||
@@ -212,8 +216,12 @@ export function computeSpatialItemsAndBounds(nodes: CanvasNode[]): {
           : node.type === "menuNode"
           ? "MENU"
           : "DECISION",
+        label: nodeData?.label,
         isShadowed: nodeData?.isShadowed,
         isTerminalOutcome: nodeData?.isTerminalOutcome,
+        isOrphan: nodeData?.isOrphan,
+        collapsedLabels: nodeData?.collapsedLabels,
+        mutations: nodeData?.mutations,
         audioAssetCues: nodeData?.audioAssetCues as
           | import("../domain/index.ts").AudioAssetCue[]
           | undefined,

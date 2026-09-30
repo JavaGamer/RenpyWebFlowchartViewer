@@ -517,6 +517,10 @@ export function collapseLinearChains(
     const dialogueLineNums = [...(rootNode.dialogueLineNums || [])];
     const audioAssetCues = [...(rootNode.audioAssetCues || [])];
     const collapsedLabels = [...(rootNode.collapsedLabels || [])];
+    const collapsedNodeIds =
+      rootNode.collapsedNodeIds && rootNode.collapsedNodeIds.length > 0
+        ? [...rootNode.collapsedNodeIds]
+        : [rootId];
     let isShadowed = rootNode.isShadowed;
     let isTerminalOutcome = rootNode.isTerminalOutcome;
 
@@ -544,6 +548,8 @@ export function collapseLinearChains(
       audioAssetCues.push(...(node.audioAssetCues || []));
       collapsedLabels.push(node.label);
       collapsedLabels.push(...(node.collapsedLabels || []));
+      collapsedNodeIds.push(node.id);
+      collapsedNodeIds.push(...(node.collapsedNodeIds || []));
       if (node.characterDialogue) {
         for (const [char, stats] of Object.entries(node.characterDialogue)) {
           if (!characterDialogue[char]) {
@@ -579,6 +585,7 @@ export function collapseLinearChains(
       dialogueLineNums,
       audioAssetCues,
       collapsedLabels,
+      collapsedNodeIds,
       characterDialogue: Object.keys(characterDialogue).length > 0
         ? characterDialogue
         : undefined,
@@ -715,4 +722,206 @@ export function collapseLinearChains(
   }
 
   return { nodes: finalNodes, edges: finalEdges };
+}
+
+/**
+ * Pre-layout transform that collapses child MENU nodes belonging to collapsed parent labels
+ * and transitively redirects their outgoing choice edges to the parent label so downstream
+ * narrative branches stay connected and the layout compacts cleanly.
+ */
+export function collapseParentLabelSubgraphs(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  collapsedParentLabels?: Record<string, boolean>,
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  if (!collapsedParentLabels) {
+    return { nodes, edges };
+  }
+
+  const collapsedMenuIds = new Set<string>();
+  for (const node of nodes) {
+    if (
+      node.type === "MENU" &&
+      node.parentLabelId &&
+      collapsedParentLabels[node.parentLabelId]
+    ) {
+      collapsedMenuIds.add(node.id);
+    }
+  }
+
+  if (collapsedMenuIds.size === 0) {
+    return { nodes, edges };
+  }
+
+  const outgoingBySource = new Map<string, FlowEdge[]>();
+  for (const edge of edges) {
+    const list = outgoingBySource.get(edge.source) ?? [];
+    list.push(edge);
+    outgoingBySource.set(edge.source, list);
+  }
+
+  const newEdges: FlowEdge[] = [];
+
+  for (const u of nodes) {
+    if (collapsedMenuIds.has(u.id)) continue;
+
+    const emittedEdgeKeys = new Set<string>();
+    const visitedQueueStates = new Set<string>();
+
+    const queue: Array<{
+      nodeId: string;
+      label: string;
+      kind: EdgeKind;
+      condition?: ConditionMetadata;
+      timeout?: FlowEdge["timeout"];
+      arguments?: CallArgument[];
+      sourceLocation?: SourceLocation;
+      callContext?: CallContext;
+      originalId: string;
+      isRedirected: boolean;
+      pathVisited: Set<string>;
+    }> = [];
+
+    for (const edge of outgoingBySource.get(u.id) ?? []) {
+      queue.push({
+        nodeId: edge.target,
+        label: edge.label || "",
+        kind: edge.kind || "sequence",
+        condition: edge.condition,
+        timeout: edge.timeout,
+        arguments: edge.arguments,
+        sourceLocation: edge.sourceLocation,
+        callContext: edge.callContext,
+        originalId: edge.id,
+        isRedirected: false,
+        pathVisited: new Set([edge.target]),
+      });
+    }
+
+    let head = 0;
+    const MAX_QUEUE = 1000;
+    while (head < queue.length && head < MAX_QUEUE) {
+      const current = queue[head++]!;
+
+      if (!collapsedMenuIds.has(current.nodeId)) {
+        const edgeKey = `${current.nodeId}__${current.kind}__${
+          current.condition?.expression ?? ""
+        }__${current.condition?.branchKind ?? ""}__${current.label || ""}__${
+          serializeTimeout(current.timeout)
+        }__${serializeCallArguments(current.arguments)}__${
+          serializeCallContext(current.callContext)
+        }`;
+        if (emittedEdgeKeys.has(edgeKey)) {
+          continue;
+        }
+        emittedEdgeKeys.add(edgeKey);
+
+        newEdges.push({
+          id: current.isRedirected
+            ? `${
+              current.kind || "sequence"
+            }_${u.id}__${current.nodeId}__collapsed_label_${current.originalId}_${newEdges.length}`
+            : current.originalId,
+          source: u.id,
+          target: current.nodeId,
+          kind: current.kind,
+          label: current.label || undefined,
+          condition: current.condition,
+          timeout: current.timeout,
+          arguments: current.arguments,
+          sourceLocation: current.sourceLocation,
+          callContext: current.callContext,
+        });
+        continue;
+      }
+
+      const nextEdges = outgoingBySource.get(current.nodeId) ?? [];
+      for (const nextEdge of nextEdges) {
+        if (
+          collapsedMenuIds.has(nextEdge.target) &&
+          current.pathVisited.has(nextEdge.target)
+        ) {
+          continue;
+        }
+
+        const mergedLabel = nextEdge.label || current.label || "";
+        let mergedKind: EdgeKind = current.kind;
+        if (nextEdge.kind === "call_return" || mergedKind === "call_return") {
+          mergedKind = "call_return";
+        } else if (nextEdge.kind === "call" || mergedKind === "call") {
+          mergedKind = "call";
+        } else if (nextEdge.kind === "jump" || mergedKind === "jump") {
+          mergedKind = "jump";
+        } else {
+          mergedKind = "sequence";
+        }
+
+        let mergedCondition = nextEdge.condition || current.condition;
+        if (current.condition && nextEdge.condition) {
+          const exp1 = current.condition.expression;
+          const exp2 = nextEdge.condition.expression;
+          const mergedExpression = exp1 && exp2
+            ? `(${exp1}) and (${exp2})`
+            : exp1 || exp2;
+          const mergedRefs = Array.from(
+            new Set([
+              ...(current.condition.references || []),
+              ...(nextEdge.condition.references || []),
+            ]),
+          ).sort();
+          const branchKind: ConditionBranchKind =
+            current.condition.branchKind === "if" ||
+              nextEdge.condition.branchKind === "if"
+              ? "if"
+              : current.condition.branchKind === "else" &&
+                  nextEdge.condition.branchKind === "else"
+              ? "else"
+              : "elif";
+          mergedCondition = {
+            branchKind,
+            expression: mergedExpression,
+            references: mergedRefs,
+            decisionNodeId: nextEdge.condition.decisionNodeId ||
+              current.condition.decisionNodeId,
+          };
+        }
+
+        const mergedTimeout = nextEdge.timeout || current.timeout;
+        const mergedArguments = nextEdge.arguments || current.arguments;
+        const mergedCallContext = nextEdge.callContext || current.callContext;
+
+        if (collapsedMenuIds.has(nextEdge.target)) {
+          const queueKey = `${nextEdge.target}__${mergedKind}__${
+            mergedCondition?.expression ?? ""
+          }__${mergedLabel}`;
+          if (visitedQueueStates.has(queueKey)) {
+            continue;
+          }
+          visitedQueueStates.add(queueKey);
+        }
+
+        const nextVisited = new Set(current.pathVisited);
+        nextVisited.add(nextEdge.target);
+
+        if (queue.length < MAX_QUEUE) {
+          queue.push({
+            nodeId: nextEdge.target,
+            label: mergedLabel,
+            kind: mergedKind,
+            condition: mergedCondition,
+            timeout: mergedTimeout,
+            arguments: mergedArguments,
+            sourceLocation: nextEdge.sourceLocation || current.sourceLocation,
+            callContext: mergedCallContext,
+            originalId: nextEdge.id || current.originalId,
+            isRedirected: true,
+            pathVisited: nextVisited,
+          });
+        }
+      }
+    }
+  }
+
+  const remainingNodes = nodes.filter((n) => !collapsedMenuIds.has(n.id));
+  return { nodes: remainingNodes, edges: newEdges };
 }
