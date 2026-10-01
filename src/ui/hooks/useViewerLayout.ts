@@ -202,10 +202,24 @@ export function useViewerLayout({
     (changes: NodeChange<CanvasNode>[]) => {
       onNodesChange(changes);
       let dragEnded = false;
+      const nodeById = new Map<string, CanvasNode>();
+      for (let i = 0; i < nodesRef.current.length; i++) {
+        const n = nodesRef.current[i]!;
+        nodeById.set(n.id, n);
+      }
       for (const change of changes) {
         if (change.type === "position") {
           if (change.position && change.id) {
-            nodePositionsRef.current.set(change.id, change.position);
+            const changedNode = nodeById.get(change.id);
+            if (changedNode?.parentId) {
+              const parent = nodeById.get(changedNode.parentId);
+              nodePositionsRef.current.set(change.id, {
+                x: (parent?.position.x ?? 0) + change.position.x,
+                y: (parent?.position.y ?? 0) + change.position.y,
+              });
+            } else {
+              nodePositionsRef.current.set(change.id, change.position);
+            }
           }
           if (change.dragging === false) {
             dragEnded = true;
@@ -214,8 +228,21 @@ export function useViewerLayout({
       }
       if (dragEnded && nodesRef.current.length >= 150) {
         const updatedNodes = nodesRef.current.map((n) => {
+          if (n.parentId) {
+            const parent = nodeById.get(n.parentId);
+            const absPos = nodePositionsRef.current.get(n.id);
+            return absPos && parent
+              ? {
+                ...n,
+                position: {
+                  x: absPos.x - parent.position.x,
+                  y: absPos.y - parent.position.y,
+                },
+              }
+              : n;
+          }
           const pos = nodePositionsRef.current.get(n.id);
-          return pos && !n.parentId ? { ...n, position: pos } : n;
+          return pos ? { ...n, position: pos } : n;
         });
         const { items, bounds } = computeSpatialItemsAndBounds(updatedNodes);
         setDraggedSpatialData({

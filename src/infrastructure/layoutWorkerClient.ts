@@ -191,13 +191,19 @@ function rehydrateCanvasNodes(
       let hasLineNums = false;
       for (const id of collapsedIds) {
         const member = rawById.get(id);
-        if (member?.dialogueLines) {
+        if (member?.dialogueLines && member.dialogueLines.length > 0) {
           hasLines = true;
-          dialogueLines.push(...member.dialogueLines);
-        }
-        if (member?.dialogueLineNums) {
-          hasLineNums = true;
-          dialogueLineNums.push(...member.dialogueLineNums);
+          for (let idx = 0; idx < member.dialogueLines.length; idx++) {
+            dialogueLines.push(member.dialogueLines[idx]!);
+            if (
+              member.dialogueLineNums && idx < member.dialogueLineNums.length
+            ) {
+              hasLineNums = true;
+              dialogueLineNums.push(member.dialogueLineNums[idx]!);
+            } else {
+              dialogueLineNums.push(member.sourceLocation?.start.line ?? 0);
+            }
+          }
         }
       }
       return {
@@ -303,6 +309,7 @@ function dispatchRequest(req: QueuedLayoutRequest): void {
       activeInFlightRequest = null;
 
       if (pendingRequest) {
+        req.markCompleted();
         const next = pendingRequest;
         pendingRequest = null;
         dispatchRequest(next);
@@ -322,8 +329,12 @@ function dispatchRequest(req: QueuedLayoutRequest): void {
       clearWatchdogTimer();
       isWorkerBusy = false;
       activeInFlightRequest = null;
+      workerHasSyncedGraph = false;
+      lastSyncedRawNodesRef = null;
+      lastSyncedRawEdgesRef = null;
 
       if (pendingRequest) {
+        req.markCompleted();
         const next = pendingRequest;
         pendingRequest = null;
         dispatchRequest(next);

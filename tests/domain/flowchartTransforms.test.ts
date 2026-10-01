@@ -721,6 +721,56 @@ describe("flowchartTransforms", () => {
     ]);
   });
 
+  it("transitively redirects through chained MENU nodes and preserves conditions when parent label is collapsed", () => {
+    const rawNodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      {
+        id: "menu_1",
+        type: "MENU",
+        label: "Sub-Choice 1",
+        dialogueCount: 0,
+        parentLabelId: "start",
+      },
+      {
+        id: "menu_2",
+        type: "MENU",
+        label: "Sub-Choice 2",
+        dialogueCount: 0,
+        parentLabelId: "start",
+      },
+      { id: "outcome", type: "LABEL", label: "outcome", dialogueCount: 1 },
+    ];
+    const rawEdges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "menu_1", kind: "sequence" },
+      {
+        id: "e2",
+        source: "menu_1",
+        target: "menu_2",
+        kind: "jump",
+        label: "Continue",
+      },
+      {
+        id: "e3",
+        source: "menu_2",
+        target: "outcome",
+        kind: "jump",
+        label: "Confirm",
+        condition: { branchKind: "if", expression: "score > 5" },
+      },
+    ];
+
+    const layout = applyDagreLayout(rawNodes, rawEdges, "TB", {
+      collapsedParentLabels: { start: true },
+    });
+
+    expect(layout.nodes.map((n) => n.id)).toEqual(["start", "outcome"]);
+    expect(layout.edges).toHaveLength(1);
+    expect(layout.edges[0]?.source).toBe("start");
+    expect(layout.edges[0]?.target).toBe("outcome");
+    expect(layout.edges[0]?.data?.label).toBe("Confirm");
+    expect(layout.edges[0]?.data?.condition?.expression).toBe("score > 5");
+  });
+
   it("computes content-aware heights for wrapped titles (>24 chars) and multi-badge rows (>=2 badges)", () => {
     // Base LABEL height = 90
     expect(getNodeHeight({ type: "LABEL", label: "short_label" })).toBe(90);

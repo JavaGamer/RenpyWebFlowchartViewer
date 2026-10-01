@@ -114,23 +114,23 @@ export const LabelNodeComponent = memo(
 
     const isLod = useIsLodMode();
 
+    const labelHeight = getNodeHeight({
+      type: "LABEL",
+      label: data.label,
+      isShadowed,
+      isTerminalOutcome,
+      isOrphan,
+      collapsedLabels: data.collapsedLabels,
+      mutations: data.mutations,
+      audioAssetCues: showAudioAssetCues ? data.audioAssetCues : undefined,
+    });
+
     if (isLod) {
       const tooltip = isOrphan
         ? `[Unreachable] Label: ${data.label}`
         : isTerminalOutcome
         ? `[End of Route] Label: ${data.label}`
         : `Label: ${data.label}`;
-
-      const labelHeight = getNodeHeight({
-        type: "LABEL",
-        label: data.label,
-        isShadowed,
-        isTerminalOutcome,
-        isOrphan,
-        collapsedLabels: data.collapsedLabels,
-        mutations: data.mutations,
-        audioAssetCues: data.audioAssetCues,
-      });
 
       return (
         <div
@@ -265,6 +265,7 @@ export const LabelNodeComponent = memo(
             "ring-2 ring-violet-500 shadow-xl z-20 scale-[1.02]",
         )}
         style={{
+          minHeight: `${labelHeight}px`,
           borderColor: isRouteHighlighted
             ? (isDark ? "#a78bfa" : "#7c3aed")
             : isOrphan
@@ -583,7 +584,7 @@ export const MenuNodeComponent = memo(
 
     const menuHeight = getNodeHeight({
       type: "MENU",
-      label: data.label,
+      label: displayLabel,
     });
 
     const isLod = useIsLodMode();

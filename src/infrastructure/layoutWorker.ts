@@ -34,9 +34,9 @@ const layoutApi = {
       graphRevision?: number;
     },
   ) {
-    if (rawNodes !== null && rawEdges !== null) {
-      cachedRawNodes = rawNodes;
-      cachedRawEdges = rawEdges;
+    if (rawNodes !== null || rawEdges !== null) {
+      if (rawNodes !== null) cachedRawNodes = rawNodes;
+      if (rawEdges !== null) cachedRawEdges = rawEdges;
       cachedGraphRevision = options?.graphRevision;
       cachedSimplifyKey = null;
       cachedSimplified = null;

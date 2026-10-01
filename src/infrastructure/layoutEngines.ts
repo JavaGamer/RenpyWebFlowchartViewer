@@ -152,11 +152,15 @@ function computeChapterTopologySignature(
   cEdges: FlowEdge[],
 ): string {
   const nodeParts = cNodes.map((n) =>
-    `${n.id}:${NODE_WIDTH}x${getNodeHeight(n)}:${n.role ?? ""}:${
+    `${n.id}:${n.type}:${NODE_WIDTH}x${getNodeHeight(n)}:${n.role ?? ""}:${
       n.condition?.branchKind ?? ""
+    }:${
+      (n.id === "start" || n.label?.toLowerCase() === "start") ? "start" : ""
     }`
   );
-  const edgeParts = cEdges.map((e) => `${e.id}:${e.source}->${e.target}`);
+  const edgeParts = cEdges.map((e) =>
+    `${e.id}:${e.source}->${e.target}:${e.kind ?? ""}`
+  );
   return `${nodeParts.join(",")}|${edgeParts.join(",")}`;
 }
 
@@ -639,8 +643,8 @@ function buildCanvasEdges(
         if (p.y > maxPtY) maxPtY = p.y;
       }
 
-      const padX = direction === "TB" ? 40 : 16;
-      const padY = direction === "TB" ? 16 : 28;
+      const padX = direction === "TB" ? 50 : 20;
+      const padY = direction === "TB" ? 20 : 36;
       const narrowIds = quadtree.queryRange({
         minX: minPtX - padX,
         maxX: maxPtX + padX,
