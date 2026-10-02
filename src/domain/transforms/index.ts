@@ -14,6 +14,7 @@ export {
   NODE_WIDTH,
   type NodeHeightInput,
   normalizeChildPosition,
+  normalizeForkRejoinGeometry,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
 } from "./layout.ts";
 export { resolveGraphIntegrity } from "./integrity.ts";

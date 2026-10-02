@@ -14,7 +14,12 @@ export type NodeRole =
   | "while_loop"
   | "for_loop"
   | "screen_call";
-export type EdgeKind = "sequence" | "jump" | "call" | "call_return";
+export type EdgeKind =
+  | "sequence"
+  | "jump"
+  | "call"
+  | "call_return"
+  | "fallthrough";
 export type ConditionBranchKind =
   | "if"
   | "elif"
@@ -201,4 +206,6 @@ export interface FlowEdge {
   arguments?: CallArgument[];
   /** Context tagging linking call and call_return edges to their origin stack frame. */
   callContext?: CallContext;
+  /** True when this edge represents an implicit label fallthrough without an explicit jump/return. */
+  isFallthrough?: boolean;
 }

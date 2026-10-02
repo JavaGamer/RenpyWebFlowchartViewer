@@ -1,4 +1,4 @@
-import type { CanvasNode, FlowNode, NodeData } from "../index.ts";
+import type { CanvasNode, FlowEdge, FlowNode, NodeData } from "../index.ts";
 
 /** Standard node width in pixels used across all node types in the layout. */
 export const NODE_WIDTH = 220;
@@ -218,4 +218,154 @@ export function normalizeChildPosition(
     x: (dagreNode.x - nodeWidth / 2 - minX) + padding.left,
     y: (dagreNode.y - nodeHeight / 2 - minY) + padding.top,
   };
+}
+
+/**
+ * Normalizes the geometry of fork-and-rejoin structures (diamonds).
+ * 1. Branch Rank Equalization: Immediate branch head nodes from a fork node share the same tier level.
+ * 2. Join Centering: The reconvergence join node is centered horizontally beneath the branch centroid.
+ */
+export function normalizeForkRejoinGeometry(
+  nodes: CanvasNode[],
+  edges: FlowEdge[],
+  direction: "TB" | "LR" = "TB",
+): void {
+  if (nodes.length === 0 || edges.length === 0) return;
+
+  const nodeById = new Map<string, CanvasNode>();
+  for (const n of nodes) {
+    if (n.type !== "chapterNode") {
+      nodeById.set(n.id, n);
+    }
+  }
+
+  const outgoing = new Map<string, string[]>();
+  const incoming = new Map<string, string[]>();
+  for (const e of edges) {
+    if (e.source === e.target) continue;
+    if (!nodeById.has(e.source) || !nodeById.has(e.target)) continue;
+
+    let outList = outgoing.get(e.source);
+    if (!outList) {
+      outList = [];
+      outgoing.set(e.source, outList);
+    }
+    outList.push(e.target);
+
+    let inList = incoming.get(e.target);
+    if (!inList) {
+      inList = [];
+      incoming.set(e.target, inList);
+    }
+    inList.push(e.source);
+  }
+
+  for (const [forkId, targets] of outgoing.entries()) {
+    if (targets.length < 2) continue;
+    const forkNode = nodeById.get(forkId);
+    if (!forkNode) continue;
+
+    const branchNodes: CanvasNode[] = [];
+    for (const tId of targets) {
+      const bn = nodeById.get(tId);
+      if (bn && bn.parentId === forkNode.parentId) {
+        branchNodes.push(bn);
+      }
+    }
+    if (branchNodes.length < 2) continue;
+
+    // 1. Branch Rank Equalization (only for immediate sibling heads within the same tier band)
+    if (direction === "TB") {
+      let minY = Infinity;
+      for (const bn of branchNodes) {
+        if (bn.position.y < minY) minY = bn.position.y;
+      }
+      const immediateBranches = branchNodes.filter(
+        (bn) => Math.abs(bn.position.y - minY) < 120,
+      );
+      if (immediateBranches.length >= 2) {
+        let maxY = -Infinity;
+        for (const bn of immediateBranches) {
+          if (bn.position.y > maxY) maxY = bn.position.y;
+        }
+        for (const bn of immediateBranches) {
+          const inDegree = incoming.get(bn.id)?.length ?? 0;
+          if (inDegree === 1 && bn.position.y < maxY) {
+            bn.position.y = maxY;
+          }
+        }
+      }
+    } else {
+      let minX = Infinity;
+      for (const bn of branchNodes) {
+        if (bn.position.x < minX) minX = bn.position.x;
+      }
+      const immediateBranches = branchNodes.filter(
+        (bn) => Math.abs(bn.position.x - minX) < 120,
+      );
+      if (immediateBranches.length >= 2) {
+        let maxX = -Infinity;
+        for (const bn of immediateBranches) {
+          if (bn.position.x > maxX) maxX = bn.position.x;
+        }
+        for (const bn of immediateBranches) {
+          const inDegree = incoming.get(bn.id)?.length ?? 0;
+          if (inDegree === 1 && bn.position.x < maxX) {
+            bn.position.x = maxX;
+          }
+        }
+      }
+    }
+
+    // 2. Identify potential Join node
+    const targetSets = branchNodes.map((bn) =>
+      new Set(outgoing.get(bn.id) ?? [])
+    );
+    let commonTargets: string[] = [];
+    if (targetSets.length > 0) {
+      const firstSet = targetSets[0]!;
+      for (const candidate of firstSet) {
+        if (candidate !== forkId && targetSets.every((s) => s.has(candidate))) {
+          commonTargets.push(candidate);
+        }
+      }
+    }
+
+    for (const joinId of commonTargets) {
+      const joinNode = nodeById.get(joinId);
+      if (!joinNode || joinNode.parentId !== forkNode.parentId) continue;
+
+      const joinIncoming = incoming.get(joinId) ?? [];
+      const branchIdSet = new Set(branchNodes.map((b) => b.id));
+      const allFromBranches = joinIncoming.every((src) => branchIdSet.has(src));
+
+      if (allFromBranches) {
+        if (direction === "TB") {
+          let minX = Infinity;
+          let maxX = -Infinity;
+          for (const bn of branchNodes) {
+            const w = bn.measured?.width ?? bn.width ?? NODE_WIDTH;
+            if (bn.position.x < minX) minX = bn.position.x;
+            if (bn.position.x + w > maxX) maxX = bn.position.x + w;
+          }
+          const joinWidth = joinNode.measured?.width ?? joinNode.width ??
+            NODE_WIDTH;
+          const centeredX = (minX + maxX) / 2 - joinWidth / 2;
+          joinNode.position.x = centeredX;
+        } else {
+          let minY = Infinity;
+          let maxY = -Infinity;
+          for (const bn of branchNodes) {
+            const h = bn.measured?.height ?? bn.height ?? 80;
+            if (bn.position.y < minY) minY = bn.position.y;
+            if (bn.position.y + h > maxY) maxY = bn.position.y + h;
+          }
+          const joinHeight = joinNode.measured?.height ?? joinNode.height ??
+            80;
+          const centeredY = (minY + maxY) / 2 - joinHeight / 2;
+          joinNode.position.y = centeredY;
+        }
+      }
+    }
+  }
 }

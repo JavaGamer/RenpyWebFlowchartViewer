@@ -681,6 +681,71 @@ export function linkGraphFragments(
     }
   }
 
+  // Detect cross-file fallthrough: when the last label of a file has no outgoing jump/return/exit
+  for (let idx = 0; idx < sortedFragments.length - 1; idx++) {
+    const currFrag = sortedFragments[idx]!;
+    const nextFrag = sortedFragments[idx + 1]!;
+    if (currFrag.chapter === nextFrag.chapter) continue;
+
+    const currLabels = currFrag.nodes.filter((n) => n.type === "LABEL");
+    const nextLabels = nextFrag.nodes.filter((n) => n.type === "LABEL");
+    if (currLabels.length === 0 || nextLabels.length === 0) continue;
+
+    const lastLabel = currLabels[currLabels.length - 1]!;
+    const firstLabel = nextLabels[0]!;
+
+    // Check if lastLabel has a return or terminal outcome
+    const hasReturn = currFrag.hasReturnInLabel?.includes(lastLabel.id) ||
+      currFrag.hasReliableReturnInLabel?.includes(lastLabel.id) ||
+      lastLabel.isTerminalOutcome === true;
+    if (hasReturn) continue;
+
+    // Check if lastLabel has any outgoing jump or sequence exit
+    const outgoingEdges = currFrag.edges.filter((e) =>
+      e.source === lastLabel.id
+    );
+    const hasExit = outgoingEdges.some(
+      (e) => e.kind === "jump" || e.kind === "sequence",
+    );
+    if (!hasExit) {
+      state.diagnostics.push({
+        code: "normalization",
+        severity: "warning",
+        message:
+          `Label "${lastLabel.id}" in "${currFrag.chapter}" implicitly falls through across files to "${firstLabel.id}" in "${nextFrag.chapter}". Verify if an explicit jump or return was intended.`,
+        location: {
+          chapter: currFrag.chapter,
+          construct: "fallthrough",
+          sourceId: lastLabel.id,
+          targetId: firstLabel.id,
+          sourceLocation: lastLabel.sourceLocation,
+        },
+        context: {
+          category: "cross_file_fallthrough",
+          detail: `${lastLabel.id} -> ${firstLabel.id}`,
+        },
+        recoveryAction:
+          "Add an explicit jump or return statement to prevent unintended cross-file fallthrough.",
+      });
+
+      const ftEdgeId = `seq_${lastLabel.id}__${firstLabel.id}`;
+      if (!state.edgeMap.has(ftEdgeId)) {
+        const ftEdge = {
+          id: ftEdgeId,
+          source: lastLabel.id,
+          target: firstLabel.id,
+          kind: "fallthrough" as const,
+          label: "fallthrough",
+          isFallthrough: true,
+          sourceLocation: lastLabel.sourceLocation,
+        };
+        state.edges.push(ftEdge);
+        state.edgeMap.set(ftEdge.id, ftEdge);
+        state.edgeIds.add(ftEdge.id);
+      }
+    }
+  }
+
   // Pass 2.4: Finalize roles, materialize call-returns, normalize graph, & run CFA
   finalizeRoles(state, options);
 

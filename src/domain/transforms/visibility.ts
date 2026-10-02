@@ -274,7 +274,9 @@ export function buildVisibleNodes(params: {
 export function buildVisibleEdges(params: {
   edges: CanvasEdge[];
   showCallReturns: boolean;
-  visibleEdgeKinds: Record<EdgeKindFilter, boolean>;
+  visibleEdgeKinds:
+    | Record<EdgeKindFilter, boolean>
+    | Partial<Record<EdgeKindFilter, boolean>>;
   visibleNodeIds: Set<string>;
   nonHiddenNodeIds?: Set<string>;
   edgeColor: string;
@@ -318,7 +320,7 @@ export function buildVisibleEdges(params: {
   for (const edge of edges) {
     const edgeData = (edge.data as EdgeData | undefined) ?? { label: "" };
     const kind = normalizeEdgeKind(edgeData.kind);
-    if (!visibleEdgeKinds[kind]) continue;
+    if (visibleEdgeKinds[kind] === false) continue;
     if (!showCallReturns && kind === "call_return") continue;
     const conditionState = edgeConditionStateById?.get(edge.id);
     if (

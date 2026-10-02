@@ -9,6 +9,7 @@ export const EDGE_KIND_FILTERS: ReadonlyArray<EdgeKindFilter> = [
   "jump",
   "call",
   "call_return",
+  "fallthrough",
 ];
 
 /**

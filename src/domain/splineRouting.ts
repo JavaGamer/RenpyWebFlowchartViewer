@@ -11,6 +11,7 @@ export interface BackEdgeSplineParams {
   direction?: LayoutDirection;
   laneIndex?: number;
   isLeft?: boolean;
+  outerGutterCoord?: number;
 }
 
 export interface SelfLoopArcParams {
@@ -75,6 +76,7 @@ export function calculateBackEdgeSpline(
     direction = "TB",
     laneIndex = 0,
     isLeft = false,
+    outerGutterCoord,
   } = params;
 
   const k = Math.max(0, laneIndex);
@@ -90,9 +92,11 @@ export function calculateBackEdgeSpline(
     const routeLeft = isLeft ||
       sourcePosition === Position.Left ||
       targetPosition === Position.Left;
-    const channelX = routeLeft
-      ? Math.min(sourceX, targetX) - baseOffset
-      : Math.max(sourceX, targetX) + baseOffset;
+    const channelX = outerGutterCoord !== undefined
+      ? (routeLeft ? outerGutterCoord - k * 18 : outerGutterCoord + k * 18)
+      : (routeLeft
+        ? Math.min(sourceX, targetX) - baseOffset
+        : Math.max(sourceX, targetX) + baseOffset);
 
     const cp1X = channelX;
     const cp1Y = sourceY;
@@ -127,9 +131,11 @@ export function calculateBackEdgeSpline(
     const routeTop = isLeft ||
       sourcePosition === Position.Top ||
       targetPosition === Position.Top;
-    const channelY = routeTop
-      ? Math.min(sourceY, targetY) - baseOffset
-      : Math.max(sourceY, targetY) + baseOffset;
+    const channelY = outerGutterCoord !== undefined
+      ? (routeTop ? outerGutterCoord - k * 18 : outerGutterCoord + k * 18)
+      : (routeTop
+        ? Math.min(sourceY, targetY) - baseOffset
+        : Math.max(sourceY, targetY) + baseOffset);
 
     const cp1X = sourceX;
     const cp1Y = channelY;

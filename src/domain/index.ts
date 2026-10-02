@@ -66,6 +66,7 @@ export {
   NODE_WIDTH,
   type NodeHeightInput,
   normalizeChildPosition,
+  normalizeForkRejoinGeometry,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   redirectEdgesForCollapsedChapters,
   resolveGraphIntegrity,

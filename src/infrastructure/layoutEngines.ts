@@ -24,6 +24,7 @@ import {
   NODE_WIDTH,
   type NodeData,
   normalizeChildPosition,
+  normalizeForkRejoinGeometry,
   type ObstacleRect,
   PROGRESSIVE_LAYOUT_NODE_LIMIT,
   redirectEdgesForCollapsedChapters,
@@ -784,6 +785,219 @@ function buildCanvasEdges(
     });
   }
 
+  const effectiveSpatialBounds = spatialBounds ?? (() => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]!;
+      const pos = absolutePositions.get(node.id) ?? node.position;
+      const w = node.width ?? NODE_WIDTH;
+      const h = node.height ?? 80;
+      if (pos.x < minX) minX = pos.x;
+      if (pos.x + w > maxX) maxX = pos.x + w;
+      if (pos.y < minY) minY = pos.y;
+      if (pos.y + h > maxY) maxY = pos.y + h;
+    }
+    return {
+      minX: Number.isFinite(minX) ? minX : 0,
+      maxX: Number.isFinite(maxX) ? maxX : 800,
+      minY: Number.isFinite(minY) ? minY : 0,
+      maxY: Number.isFinite(maxY) ? maxY : 800,
+    };
+  })();
+
+  const chapterBoundsByParentId = new Map<string, AABB>();
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    if (node.parentId) {
+      const pos = absolutePositions.get(node.id) ?? node.position;
+      const w = node.width ?? NODE_WIDTH;
+      const h = node.height ?? 80;
+      const current = chapterBoundsByParentId.get(node.parentId);
+      if (!current) {
+        chapterBoundsByParentId.set(node.parentId, {
+          minX: pos.x,
+          maxX: pos.x + w,
+          minY: pos.y,
+          maxY: pos.y + h,
+        });
+      } else {
+        if (pos.x < current.minX) current.minX = pos.x;
+        if (pos.x + w > current.maxX) current.maxX = pos.x + w;
+        if (pos.y < current.minY) current.minY = pos.y;
+        if (pos.y + h > current.maxY) current.maxY = pos.y + h;
+      }
+    }
+  }
+
+  // Identify long forward skips that jump multiple tiers without Elk bend points or obstacle bypasses
+  const longSkipCorridorCounts = new Map<string, number>();
+  const longSkipByEdgeId = new Map<string, { laneIndex: number }>();
+  for (let i = 0; i < validEdges.length; i++) {
+    const e = validEdges[i]!;
+    const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+    const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
+    const isSelfLoop = e.source === e.target;
+    const isBackEdge = detectBackEdge(
+      sourcePos,
+      targetPos,
+      direction,
+      isSelfLoop,
+    );
+    if (isSelfLoop || isBackEdge) continue;
+    const coords = getForwardCoords(e);
+    if (coords.existingPts && coords.existingPts.length > 2) continue;
+
+    const isLongDistance = direction === "TB"
+      ? (targetPos.y - sourcePos.y > 380)
+      : (targetPos.x - sourcePos.x > 400);
+
+    if (isLongDistance) {
+      const lane = longSkipCorridorCounts.get(e.target) ?? 0;
+      longSkipCorridorCounts.set(e.target, lane + 1);
+      longSkipByEdgeId.set(e.id, { laneIndex: lane });
+    }
+  }
+
+  // Pre-pass: Detect and compute Orthogonal Bus Reconvergence for multi-inflow target nodes
+  const forwardEdgesByTarget = new Map<string, FlowEdge[]>();
+  for (let i = 0; i < validEdges.length; i++) {
+    const e = validEdges[i]!;
+    const sourceNode = nodeById.get(e.source);
+    const targetNode = nodeById.get(e.target);
+    // Bus manifold must stay strictly within the same chapter container
+    if (sourceNode?.parentId !== targetNode?.parentId) continue;
+
+    const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
+    const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
+    const isSelfLoop = e.source === e.target;
+    const isBackEdge = detectBackEdge(
+      sourcePos,
+      targetPos,
+      direction,
+      isSelfLoop,
+    );
+    if (isSelfLoop || isBackEdge) continue;
+    if (bypassByEdgeId.has(e.id) || longSkipByEdgeId.has(e.id)) continue;
+    const coords = getForwardCoords(e);
+    if (coords.existingPts && coords.existingPts.length > 2) continue;
+
+    // Ensure forward gap is at least 56px so Y_bus or X_bus is at least 28px in front of the source exit
+    const forwardClearance = direction === "TB"
+      ? coords.forwardTY - coords.forwardSY
+      : coords.forwardTX - coords.forwardSX;
+    if (forwardClearance < 56) continue;
+
+    const list = forwardEdgesByTarget.get(e.target);
+    if (list) {
+      list.push(e);
+    } else {
+      forwardEdgesByTarget.set(e.target, [e]);
+    }
+  }
+
+  interface BusRouteData {
+    path: string;
+    labelPosition: { x: number; y: number };
+    bendPoints: Array<{ x: number; y: number }>;
+  }
+  const busRouteByEdgeId = new Map<string, BusRouteData>();
+
+  for (const edgesToTarget of forwardEdgesByTarget.values()) {
+    if (edgesToTarget.length < 2) continue;
+
+    // Sort edges by source coordinate to ensure orderly slot distribution
+    const sortedEdges = [...edgesToTarget].sort((a, b) => {
+      const aPos = absolutePositions.get(a.source) ?? { x: 0, y: 0 };
+      const bPos = absolutePositions.get(b.source) ?? { x: 0, y: 0 };
+      return direction === "TB" ? aPos.x - bPos.x : aPos.y - bPos.y;
+    });
+
+    const targetNode = nodeById.get(edgesToTarget[0]!.target);
+    const targetIsDecision = targetNode?.data?.type === "DECISION";
+    const targetWidth = targetNode?.width ?? NODE_WIDTH;
+    const targetHeight = targetNode?.height ?? 80;
+    const maxAllowedOffset = direction === "TB"
+      ? (targetIsDecision ? 0 : Math.max(0, targetWidth / 2 - 20))
+      : (targetIsDecision ? 0 : Math.max(0, targetHeight / 2 - 16));
+
+    const busCount = sortedEdges.length;
+    for (let busIndex = 0; busIndex < busCount; busIndex++) {
+      const edge = sortedEdges[busIndex]!;
+      const coords = getForwardCoords(edge);
+      const rawOffset = (busIndex - (busCount - 1) / 2) * 12;
+      const slotOffset = Math.max(
+        -maxAllowedOffset,
+        Math.min(maxAllowedOffset, rawOffset),
+      );
+
+      let pts: Array<{ x: number; y: number }>;
+      let yBus: number | undefined;
+      let xBus: number | undefined;
+
+      if (direction === "TB") {
+        yBus = coords.forwardTY - 28;
+        const tXSlot = coords.forwardTX + slotOffset;
+        if (Math.abs(coords.forwardSX - tXSlot) < 2) {
+          pts = [
+            { x: coords.forwardSX, y: coords.forwardSY },
+            { x: tXSlot, y: coords.forwardTY },
+          ];
+        } else {
+          pts = [
+            { x: coords.forwardSX, y: coords.forwardSY },
+            { x: coords.forwardSX, y: yBus },
+            { x: tXSlot, y: yBus },
+            { x: tXSlot, y: coords.forwardTY },
+          ];
+        }
+      } else {
+        xBus = coords.forwardTX - 28;
+        const tYSlot = coords.forwardTY + slotOffset;
+        if (Math.abs(coords.forwardSY - tYSlot) < 2) {
+          pts = [
+            { x: coords.forwardSX, y: coords.forwardSY },
+            { x: coords.forwardTX, y: tYSlot },
+          ];
+        } else {
+          pts = [
+            { x: coords.forwardSX, y: coords.forwardSY },
+            { x: xBus, y: coords.forwardSY },
+            { x: xBus, y: tYSlot },
+            { x: coords.forwardTX, y: tYSlot },
+          ];
+        }
+      }
+
+      const filleted = buildFilletedOrthogonalPath(pts, 10);
+      const labelStagger = (busIndex - (busCount - 1) / 2) * 22;
+      let labelX = filleted.labelX;
+      let labelY = filleted.labelY;
+
+      if (direction === "TB") {
+        if (yBus !== undefined && Math.abs(labelY - yBus) < 14) {
+          labelX += labelStagger;
+        } else {
+          labelY += labelStagger;
+        }
+      } else {
+        if (xBus !== undefined && Math.abs(labelX - xBus) < 14) {
+          labelY += labelStagger;
+        } else {
+          labelX += labelStagger;
+        }
+      }
+
+      busRouteByEdgeId.set(edge.id, {
+        path: filleted.path,
+        labelPosition: { x: labelX, y: labelY },
+        bendPoints: pts,
+      });
+    }
+  }
+
   return validEdges.map((e) => {
     const sourcePos = absolutePositions.get(e.source) ?? { x: 0, y: 0 };
     const targetPos = absolutePositions.get(e.target) ?? { x: 0, y: 0 };
@@ -794,12 +1008,16 @@ function buildCanvasEdges(
       direction,
       isSelfLoop,
     );
+    const longSkipMeta = longSkipByEdgeId.get(e.id);
+    const isLongSkip = Boolean(longSkipMeta);
 
     let laneIndex = 0;
     if (isSelfLoop || isBackEdge) {
       const corridorKey = `${direction}_${e.target}`;
       laneIndex = corridorCounts.get(corridorKey) ?? 0;
       corridorCounts.set(corridorKey, laneIndex + 1);
+    } else if (isLongSkip) {
+      laneIndex = longSkipMeta!.laneIndex;
     }
 
     const parallelMeta = parallelMetaByEdgeId.get(e.id);
@@ -817,20 +1035,46 @@ function buildCanvasEdges(
     const sourceHeight = sourceNode?.height ?? 80;
     const targetHeight = targetNode?.height ?? 80;
 
-    // Determine handle IDs
+    // Determine handle IDs and lateral gutter clearance channels
     let sourceHandle: string | undefined;
     let targetHandle: string | undefined;
+    let isLeft: boolean | undefined;
+    let outerGutterCoord: number | undefined;
+
+    const isIntraChapter = Boolean(
+      sourceNode?.parentId && sourceNode.parentId === targetNode?.parentId,
+    );
+    const localBounds = isIntraChapter
+      ? (chapterBoundsByParentId.get(sourceNode!.parentId!) ??
+        effectiveSpatialBounds)
+      : effectiveSpatialBounds;
 
     if (isSelfLoop) {
       sourceHandle = direction === "TB" ? "source-right" : "source-bottom";
       targetHandle = direction === "TB" ? "target-top" : "target-left";
     } else if (isBackEdge) {
       if (direction === "TB") {
+        sourceHandle = "source-left";
+        targetHandle = "target-left";
+        isLeft = true;
+        outerGutterCoord = localBounds.minX - 50;
+      } else {
+        sourceHandle = "source-top";
+        targetHandle = "target-top";
+        isLeft = true;
+        outerGutterCoord = localBounds.minY - 50;
+      }
+    } else if (isLongSkip) {
+      if (direction === "TB") {
         sourceHandle = "source-right";
         targetHandle = "target-right";
+        isLeft = false;
+        outerGutterCoord = localBounds.maxX + 50;
       } else {
         sourceHandle = "source-bottom";
         targetHandle = "target-bottom";
+        isLeft = false;
+        outerGutterCoord = localBounds.maxY + 50;
       }
     } else {
       sourceHandle = direction === "TB" ? "source-bottom" : "source-right";
@@ -847,9 +1091,55 @@ function buildCanvasEdges(
     let obstacles: ObstacleRect[] | undefined;
 
     const precomputedBypass = bypassByEdgeId.get(e.id);
+    const busRoute = busRouteByEdgeId.get(e.id);
     const coords = !isSelfLoop && !isBackEdge ? getForwardCoords(e) : undefined;
 
-    if (precomputedBypass) {
+    if (isLongSkip) {
+      detourSide = isLeft ? "left" : "right";
+      const sX = direction === "TB"
+        ? sourcePos.x + (sourceIsDecision ? 190 : sourceWidth)
+        : sourcePos.x + sourceWidth / 2;
+      const sY = direction === "TB"
+        ? sourcePos.y + sourceHeight / 2
+        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
+      const tX = direction === "TB"
+        ? targetPos.x + (targetIsDecision ? 190 : targetWidth)
+        : targetPos.x + targetWidth / 2;
+      const tY = direction === "TB"
+        ? targetPos.y + targetHeight / 2
+        : targetPos.y + (targetIsDecision ? targetHeight - 8 : targetHeight);
+
+      const skipRes = calculateBackEdgeSpline({
+        sourceX: sX,
+        sourceY: sY,
+        targetX: tX,
+        targetY: tY,
+        direction,
+        laneIndex,
+        isLeft: false,
+        outerGutterCoord,
+      });
+      svgPath = skipRes.path;
+      labelPosition = { x: skipRes.labelX, y: skipRes.labelY };
+      const laneOffset = laneIndex * 18;
+      if (direction === "TB") {
+        const clearanceX = (outerGutterCoord ?? sX) + laneOffset;
+        bendPoints = [
+          { x: sX, y: sY },
+          { x: clearanceX, y: sY },
+          { x: clearanceX, y: tY },
+          { x: tX, y: tY },
+        ];
+      } else {
+        const clearanceY = (outerGutterCoord ?? sY) + laneOffset;
+        bendPoints = [
+          { x: sX, y: sY },
+          { x: sX, y: clearanceY },
+          { x: tX, y: clearanceY },
+          { x: tX, y: tY },
+        ];
+      }
+    } else if (precomputedBypass) {
       svgPath = precomputedBypass.path;
       labelPosition = precomputedBypass.labelPosition;
       bendPoints = precomputedBypass.bendPoints;
@@ -882,6 +1172,11 @@ function buildCanvasEdges(
         { x: forwardTX, y: forwardTY },
       ];
       sections = coords.sections;
+    } else if (busRoute) {
+      svgPath = busRoute.path;
+      labelPosition = busRoute.labelPosition;
+      bendPoints = busRoute.bendPoints;
+      sections = coords?.sections;
     } else if (coords?.existingPts) {
       sections = coords.sections;
       bendPoints = coords.existingPts;
@@ -921,17 +1216,17 @@ function buildCanvasEdges(
         sections = elkEdge.sections;
       }
       const sX = direction === "TB"
-        ? sourcePos.x + (sourceIsDecision ? 190 : sourceWidth)
+        ? sourcePos.x + (sourceIsDecision ? 30 : 0)
         : sourcePos.x + sourceWidth / 2;
       const sY = direction === "TB"
         ? sourcePos.y + sourceHeight / 2
-        : sourcePos.y + (sourceIsDecision ? sourceHeight - 8 : sourceHeight);
+        : sourcePos.y + (sourceIsDecision ? 8 : 0);
       const tX = direction === "TB"
-        ? targetPos.x + (targetIsDecision ? 190 : targetWidth)
+        ? targetPos.x + (targetIsDecision ? 30 : 0)
         : targetPos.x + targetWidth / 2;
       const tY = direction === "TB"
         ? targetPos.y + targetHeight / 2
-        : targetPos.y + (targetIsDecision ? targetHeight - 8 : targetHeight);
+        : targetPos.y + (targetIsDecision ? 8 : 0);
 
       const splineRes = calculateBackEdgeSpline({
         sourceX: sX,
@@ -940,9 +1235,31 @@ function buildCanvasEdges(
         targetY: tY,
         direction,
         laneIndex,
+        isLeft: true,
+        outerGutterCoord,
       });
       svgPath = splineRes.path;
       labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
+      if (!bendPoints) {
+        const laneOffset = laneIndex * 18;
+        if (direction === "TB") {
+          const clearanceX = (outerGutterCoord ?? sX) - laneOffset;
+          bendPoints = [
+            { x: sX, y: sY },
+            { x: clearanceX, y: sY },
+            { x: clearanceX, y: tY },
+            { x: tX, y: tY },
+          ];
+        } else {
+          const clearanceY = (outerGutterCoord ?? sY) - laneOffset;
+          bendPoints = [
+            { x: sX, y: sY },
+            { x: sX, y: clearanceY },
+            { x: tX, y: clearanceY },
+            { x: tX, y: tY },
+          ];
+        }
+      }
     }
 
     return {
@@ -961,6 +1278,10 @@ function buildCanvasEdges(
         callContext: e.callContext,
         isBackEdge,
         isSelfLoop,
+        isLongSkip,
+        isFallthrough: e.isFallthrough ?? (e.kind === "fallthrough"),
+        isLeft,
+        outerGutterCoord,
         laneIndex,
         parallelIndex,
         parallelCount,
@@ -1364,6 +1685,7 @@ export function applyDagreLayout(
     });
   });
 
+  normalizeForkRejoinGeometry(nodes, effectiveEdges, direction);
   applyLeafTranslationAlignment(nodes, prevMap);
 
   const { items: spatialItems, bounds: spatialBounds } =
@@ -1710,6 +2032,7 @@ export function applyTwoTierDagreLayout(
     }
   });
 
+  normalizeForkRejoinGeometry(nodes, effectiveEdges, direction);
   applyLeafTranslationAlignment(nodes, options?.previousPositions);
 
   const { items: spatialItems, bounds: spatialBounds } =
@@ -1947,14 +2270,14 @@ export async function applyTwoTierElkLayout(
         id: e.id,
         sources: [e.source],
         targets: [e.target],
-        layoutOptions: loopNodeIds.has(e.target)
+        layoutOptions: (loopNodeIds.has(e.target)
           ? {
             "org.eclipse.elk.layered.priority.direction": "0",
             "org.eclipse.elk.layered.priority.shortness": "5",
           }
           : {
             "org.eclipse.elk.layered.priority.direction": "10",
-          },
+          }) as Record<string, string>,
       }));
 
     const microGraph: ElkGraph = {
@@ -2221,6 +2544,7 @@ export async function applyTwoTierElkLayout(
     }
   });
 
+  normalizeForkRejoinGeometry(nodes, effectiveEdges, direction);
   applyLeafTranslationAlignment(
     nodes,
     options?.previousPositions,
@@ -2378,6 +2702,7 @@ export async function applyElkLayout(
     elkEdgeMap.set(e.id, e);
   });
 
+  normalizeForkRejoinGeometry(nodes, effectiveEdges, direction);
   applyLeafTranslationAlignment(
     nodes,
     options?.previousPositions,

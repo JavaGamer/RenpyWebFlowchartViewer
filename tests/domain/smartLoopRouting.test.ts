@@ -242,8 +242,8 @@ describe("Smart Loop & Back-Edge Spline Routing", () => {
       const backEdge = edges.find((e) => e.id === "e3");
       expect(backEdge).toBeDefined();
       expect(backEdge?.data?.isBackEdge).toBe(true);
-      expect(backEdge?.sourceHandle).toBe("source-right");
-      expect(backEdge?.targetHandle).toBe("target-right");
+      expect(backEdge?.sourceHandle).toBe("source-left");
+      expect(backEdge?.targetHandle).toBe("target-left");
       expect(backEdge?.data?.svgPath).toBeDefined();
       expect(backEdge?.data?.labelPosition).toBeDefined();
     });

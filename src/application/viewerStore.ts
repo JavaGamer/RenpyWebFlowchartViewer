@@ -106,6 +106,9 @@ const viewerPersistedStateSchema = z.object({
       call_return: z.boolean().catch(
         defaultPersistedState.visibleEdgeKinds.call_return,
       ),
+      fallthrough: z.boolean().catch(
+        defaultPersistedState.visibleEdgeKinds.fallthrough,
+      ),
     })
     .catch(defaultPersistedState.visibleEdgeKinds),
   simplifyCollapseLinearChains: z.boolean().catch(
@@ -229,6 +232,7 @@ function migrateLegacyKeys(): string | null {
         jump: rawJump !== "false",
         call: rawCall !== "false",
         call_return: rawCallReturn !== "false",
+        fallthrough: true,
       },
       simplifyCollapseLinearChains: false,
       simplifyInlineUtilities: false,

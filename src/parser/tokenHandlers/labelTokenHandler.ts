@@ -131,6 +131,7 @@ export function handleLabelNameToken(
       target: newLabelId,
       kind: "sequence",
       label: "next",
+      isFallthrough: true,
       sourceLocation,
     });
     addOutgoing(state, scanState.currentLabelId, "sequence");

@@ -86,6 +86,7 @@ export const defaultThemeState: ThemeSliceState = {
     jump: true,
     call: true,
     call_return: true,
+    fallthrough: true,
   },
   simplifyCollapseLinearChains: false,
   simplifyInlineUtilities: false,

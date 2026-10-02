@@ -144,6 +144,26 @@ export const LabeledEdge = memo(function LabeledEdge({
         (layoutDirection === "LR" ? Position.Bottom : Position.Right),
       direction: layoutDirection,
       laneIndex: data?.laneIndex ?? 0,
+      isLeft: data?.isLeft ?? true,
+      outerGutterCoord: data?.outerGutterCoord,
+    });
+    edgePath = res.path;
+    labelX = res.labelX;
+    labelY = res.labelY;
+  } else if (data?.isLongSkip) {
+    const res = calculateBackEdgeSpline({
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
+      sourcePosition: sourcePosition ??
+        (layoutDirection === "LR" ? Position.Bottom : Position.Right),
+      targetPosition: targetPosition ??
+        (layoutDirection === "LR" ? Position.Bottom : Position.Right),
+      direction: layoutDirection,
+      laneIndex: data?.laneIndex ?? 0,
+      isLeft: false,
+      outerGutterCoord: data?.outerGutterCoord,
     });
     edgePath = res.path;
     labelX = res.labelX;
@@ -224,11 +244,25 @@ export const LabeledEdge = memo(function LabeledEdge({
       tooltipParts.push(`Timeout: ${timeoutSec}s`);
     }
   }
+  const isFallthrough = data?.kind === "fallthrough" ||
+    data?.isFallthrough === true;
+  const effectiveStyle = isFallthrough
+    ? {
+      ...style,
+      strokeDasharray: style?.strokeDasharray || "4 4",
+      opacity: (typeof style?.opacity === "number" ? style.opacity : 1) * 0.8,
+    }
+    : style;
   const fullTooltip = tooltipParts.join(" · ");
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={effectiveStyle}
+      />
       {displayLabel && (
         <EdgeLabelRenderer>
           <div
@@ -240,12 +274,13 @@ export const LabeledEdge = memo(function LabeledEdge({
               opacity: data?.conditionState === "unreachable" ? 0.45 : 1,
             }}
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] max-w-[120px] truncate shadow-sm nodrag nopan border transition-colors duration-200 cursor-help",
+              "rounded-full px-2 py-0.5 text-[10px] max-w-[130px] truncate shadow-sm nodrag nopan border transition-all duration-200 cursor-help backdrop-blur-sm",
+              isFallthrough && "border-dashed italic",
               isDark
-                ? "bg-slate-800 border-slate-700 text-slate-200"
+                ? "bg-slate-800/90 border-slate-700 text-slate-200 hover:max-w-none hover:z-30"
                 : isHighContrast
-                ? "bg-white border-2 border-black text-black font-semibold"
-                : "bg-white border-gray-200 text-gray-600",
+                ? "bg-white border-2 border-black text-black font-semibold hover:max-w-none hover:z-30"
+                : "bg-white/95 border-gray-200 text-gray-700 hover:max-w-none hover:z-30",
             )}
             title={fullTooltip || displayLabel}
           >

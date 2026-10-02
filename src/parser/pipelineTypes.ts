@@ -140,7 +140,8 @@ export interface ParseDiagnosticContext {
     | "call_cycle_deadlock"
     | "unused_variable"
     | "undeclared_variable"
-    | "excessive_call_depth";
+    | "excessive_call_depth"
+    | "cross_file_fallthrough";
   detail?: string;
 }
 
@@ -186,7 +187,8 @@ export interface NormalizationParseDiagnostic extends ParseDiagnosticBase {
       | "call_cycle_deadlock"
       | "unused_variable"
       | "undeclared_variable"
-      | "excessive_call_depth";
+      | "excessive_call_depth"
+      | "cross_file_fallthrough";
     detail?: string;
   };
 }

@@ -13,6 +13,7 @@ const VALID_EDGE_KINDS = new Set<EdgeKind>([
   "jump",
   "call",
   "call_return",
+  "fallthrough",
 ]);
 
 /**
@@ -35,6 +36,7 @@ function normalizeEdgeKind(edge: FlowEdge): EdgeKind {
   if (edge.id.startsWith("jump_")) return "jump";
   if (edge.id.startsWith("call_")) return "call";
   if (edge.id.startsWith("ret_")) return "call_return";
+  if (edge.id.startsWith("ft_")) return "fallthrough";
   return "sequence";
 }
 

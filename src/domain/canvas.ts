@@ -46,13 +46,17 @@ export interface NodeData extends Record<string, unknown> {
 
 export interface EdgeData extends Record<string, unknown> {
   label: string;
-  kind?: "sequence" | "jump" | "call" | "call_return";
+  kind?: "sequence" | "jump" | "call" | "call_return" | "fallthrough";
   condition?: FlowEdge["condition"];
   timeout?: FlowEdge["timeout"];
   conditionState?: ConditionReachability;
   callContext?: CallContext;
   isBackEdge?: boolean;
   isSelfLoop?: boolean;
+  isLongSkip?: boolean;
+  isFallthrough?: boolean;
+  isLeft?: boolean;
+  outerGutterCoord?: number;
   laneIndex?: number;
   parallelIndex?: number;
   parallelCount?: number;
