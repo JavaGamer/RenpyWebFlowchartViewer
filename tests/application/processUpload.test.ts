@@ -32,6 +32,10 @@ vi.mock("../../src/infrastructure/fileReader", () => ({
   readFileAsText: vi.fn(),
   readFileAsArrayBuffer: vi.fn(),
 }));
+vi.mock("../../src/infrastructure/fileReader.ts", () => ({
+  readFileAsText: vi.fn(),
+  readFileAsArrayBuffer: vi.fn(),
+}));
 
 function toFileList(files: File[]): FileList {
   return {

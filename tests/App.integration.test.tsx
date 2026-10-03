@@ -65,6 +65,28 @@ vi.mock("../src/infrastructure/parserWorkerClient", () => {
   };
 });
 
+vi.mock("../src/infrastructure/parserWorkerClient.ts", () => {
+  return {
+    parseRenpyFilesInWorker: vi.fn(
+      async (
+        request:
+          | Array<{ name: string; content: string }>
+          | {
+            files?: Array<{ name: string; content: string }>;
+            [key: string]: unknown;
+          },
+      ) => {
+        const files = Array.isArray(request) ? request : (request.files ?? []);
+        const opts = Array.isArray(request) ? {} : request;
+        return await parser.parseRenpyFiles(files, opts);
+      },
+    ),
+    searchDialogueLinesInWorker: vi.fn(() => Promise.resolve([])),
+    areWorkersSupported: () => true,
+    getWorkerPoolSize: () => 1,
+  };
+});
+
 vi.mock("html-to-image", () => ({
   toBlob: vi.fn().mockResolvedValue(new Blob(["stub"], { type: "image/png" })),
   toSvg: vi.fn().mockResolvedValue("data:image/svg+xml;base64,c3R1Yg=="),

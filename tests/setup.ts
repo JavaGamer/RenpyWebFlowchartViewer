@@ -158,12 +158,18 @@ vi.mock("@xyflow/react", () => {
         const NodeComp = n.type && nodeTypes ? nodeTypes[n.type] : null;
         return NodeComp
           ? React.createElement(
-            "button",
+            "div",
             {
               key: n.id,
-              type: "button",
+              role: "button",
+              tabIndex: 0,
               "aria-label": `node-${n.id}`,
               onClick: () => onNodeClick?.({}, { id: n.id }),
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  onNodeClick?.({}, { id: n.id });
+                }
+              },
             },
             React.createElement(NodeComp, {
               id: n.id,

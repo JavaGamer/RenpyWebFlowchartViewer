@@ -321,7 +321,7 @@ export function normalizeForkRejoinGeometry(
     const targetSets = branchNodes.map((bn) =>
       new Set(outgoing.get(bn.id) ?? [])
     );
-    let commonTargets: string[] = [];
+    const commonTargets: string[] = [];
     if (targetSets.length > 0) {
       const firstSet = targetSets[0]!;
       for (const candidate of firstSet) {

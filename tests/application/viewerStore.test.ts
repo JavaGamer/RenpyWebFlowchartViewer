@@ -16,6 +16,7 @@ const DEFAULTS = {
     jump: true,
     call: true,
     call_return: true,
+    fallthrough: true,
   },
 };
 
@@ -169,6 +170,7 @@ describe("useViewerStore persistence", () => {
           jump: true,
           call: false,
           call_return: false,
+          fallthrough: false,
         },
       },
       version: 0,
@@ -183,6 +185,7 @@ describe("useViewerStore persistence", () => {
       jump: true,
       call: false,
       call_return: false,
+      fallthrough: false,
     });
   });
 
