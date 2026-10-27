@@ -42,6 +42,12 @@ export function isWithinCurrentLabelScope(
   ) {
     return false;
   }
+  if (
+    meta.hasMenuStatement || meta.hasMenuBlock || meta.hasMenuOption ||
+    meta.hasMenuOptionBlock
+  ) {
+    return true;
+  }
   const rootIndent = scanState.currentGlobalLabelIndent ??
     scanState.currentLabelIndent;
   return lineIndent > rootIndent;

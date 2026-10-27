@@ -2559,4 +2559,60 @@ describe("parseRenpyFiles", () => {
       result.edges.some((e) => e.source === "loop_a" && e.target === "loop_a"),
     ).toBe(true);
   });
+
+  it("preserves unindented top-level menu statements inside a label without dropping branches or creating false fallthrough", async () => {
+    const script = [
+      "label scenario_root:",
+      '    riley "let\'s see..."',
+      "",
+      "menu:",
+      '     "Route A":',
+      "         jump route_a",
+      '     "Route B":',
+      "         jump route_b",
+      "",
+      "label route_a:",
+      "    return",
+      "",
+      "label route_b:",
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([{
+      name: "unindented-menu.rpy",
+      content: script,
+    }]);
+
+    const menuNode = result.nodes.find((n) => n.type === "MENU");
+    expect(menuNode).toBeDefined();
+
+    // The sequence fallthrough from root to route_a should NOT exist
+    expect(
+      result.edges.find((e) =>
+        e.source === "scenario_root" && e.target === "route_a" &&
+        e.kind === "sequence"
+      ),
+    ).toBeUndefined();
+
+    // The menu should be connected from scenario_root
+    expect(
+      result.edges.some((e) =>
+        e.source === "scenario_root" && e.target === menuNode!.id
+      ),
+    ).toBe(true);
+
+    // Both routes should be targeted from the menu
+    expect(
+      result.edges.some((e) =>
+        e.source === menuNode!.id && e.target === "route_a" &&
+        e.label === "Route A"
+      ),
+    ).toBe(true);
+    expect(
+      result.edges.some((e) =>
+        e.source === menuNode!.id && e.target === "route_b" &&
+        e.label === "Route B"
+      ),
+    ).toBe(true);
+  });
 });
