@@ -30,13 +30,26 @@ import { useViewerLayout } from "./hooks/useViewerLayout.ts";
 import { AdvancedControlsModal } from "./components/AdvancedControlsModal.tsx";
 import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
 import { ActiveRouteBanner } from "./components/ActiveRouteBanner.tsx";
-import { NarrativeAnalyticsModal } from "./components/NarrativeAnalyticsModal.tsx";
 import { CanvasSelectionToolbar } from "./components/CanvasSelectionToolbar.tsx";
-import { RouteSolverModal } from "./components/RouteSolverModal.tsx";
+const NarrativeAnalyticsModal = React.lazy(() =>
+  import("./components/NarrativeAnalyticsModal.tsx").then((m) => ({
+    default: m.NarrativeAnalyticsModal,
+  }))
+);
+const RouteSolverModal = React.lazy(() =>
+  import("./components/RouteSolverModal.tsx").then((m) => ({
+    default: m.RouteSolverModal,
+  }))
+);
 import { cn } from "./utils/cn.ts";
 
 import { ViewerInspector } from "./viewerInspector.tsx";
-import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
+import type {
+  CanvasCallbacksRegistry,
+  CanvasMetrics,
+  FlowchartEdge,
+  FlowchartNode,
+} from "./canvasTypes.ts";
 import { useGraphVisibility } from "./hooks/useGraphVisibility.ts";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction.ts";
 import { useViewportBounds } from "./hooks/useViewportBounds.ts";
@@ -48,7 +61,7 @@ export interface FlowchartCanvasProps {
   flowEdges: FlowEdge[];
   flowRef: React.RefObject<HTMLDivElement | null>;
   flowInstanceRef: React.MutableRefObject<
-    ReactFlowInstance<CanvasNode, CanvasEdge> | null
+    ReactFlowInstance<FlowchartNode, FlowchartEdge> | null
   >;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   canvasCallbacksRef: React.MutableRefObject<CanvasCallbacksRegistry>;
@@ -318,7 +331,9 @@ export function FlowchartCanvas({
         chapterStats={chapterStats}
       />
 
-      <NarrativeAnalyticsModal onFocusNode={onFocusNode} />
+      <React.Suspense fallback={null}>
+        <NarrativeAnalyticsModal onFocusNode={onFocusNode} />
+      </React.Suspense>
 
       <div className="flex-1 flex flex-col xl:flex-row min-h-0">
         <div
@@ -345,27 +360,32 @@ export function FlowchartCanvas({
             showPacingHeatmap={showPacingHeatmap}
             isLod={isLod}
           >
-            <ReactFlow
+            <ReactFlow<FlowchartNode, FlowchartEdge>
               colorMode={theme === "dark" ? "dark" : "light"}
-              nodes={visibleNodes}
-              edges={visibleEdges}
+              nodes={visibleNodes as unknown as FlowchartNode[]}
+              edges={visibleEdges as unknown as FlowchartEdge[]}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              onSelectionChange={onSelectionChange}
+              onSelectionChange={onSelectionChange as unknown as (
+                params: { nodes: FlowchartNode[]; edges: FlowchartEdge[] },
+              ) => void}
               selectionMode={SelectionMode.Partial}
               selectionOnDrag={isBoxSelectionActive}
               panOnDrag={isBoxSelectionActive ? [1, 2] : true}
-              onNodeClick={onNodeClick}
-              onEdgeClick={onEdgeClick}
+              onNodeClick={onNodeClick as unknown as (
+                event: React.MouseEvent,
+                node: FlowchartNode,
+              ) => void}
+              onEdgeClick={onEdgeClick as unknown as (
+                event: React.MouseEvent,
+                edge: FlowchartEdge,
+              ) => void}
               onPaneClick={onPaneClick}
               onMove={updateBounds}
               onInit={(instance) => {
-                flowInstanceRef.current = instance as ReactFlowInstance<
-                  CanvasNode,
-                  CanvasEdge
-                >;
+                flowInstanceRef.current = instance;
                 updateBounds();
               }}
               fitView
@@ -422,12 +442,14 @@ export function FlowchartCanvas({
       </div>
 
       {solverTargetNodeId && (
-        <RouteSolverModal
-          isOpen={Boolean(solverTargetNodeId)}
-          onClose={() => setSolverTargetNodeId(null)}
-          initialTargetNodeId={solverTargetNodeId}
-          onFocusNode={onFocusNode}
-        />
+        <React.Suspense fallback={null}>
+          <RouteSolverModal
+            isOpen={Boolean(solverTargetNodeId)}
+            onClose={() => setSolverTargetNodeId(null)}
+            initialTargetNodeId={solverTargetNodeId}
+            onFocusNode={onFocusNode}
+          />
+        </React.Suspense>
       )}
     </>
   );

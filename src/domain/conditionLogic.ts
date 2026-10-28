@@ -1,31 +1,19 @@
-import { Parser } from "expr-eval-fork";
 import {
+  type ConditionEvaluationResult,
+  evaluateConditionExpression,
   evaluatePythonAstExpression,
   isPythonTruthy,
+  type MockFlagValue,
 } from "./pythonAstEvaluator.ts";
 import { parser as pythonParser } from "@lezer/python";
 
-export type MockFlagValue = "true" | "false" | "unknown";
-export type ConditionEvaluationResult = "true" | "false" | "unknown";
+export type { ConditionEvaluationResult, MockFlagValue };
+
 export type ConditionBranchState =
   | "normal"
   | "taken"
   | "unreachable"
   | "unknown";
-
-const parser = new Parser({
-  operators: {
-    logical: true,
-    comparison: true,
-    add: true,
-    subtract: true,
-    multiply: true,
-    divide: true,
-    remainder: true,
-    power: false,
-    concatenate: false,
-  },
-});
 
 class BoundedMap<K, V> extends Map<K, V> {
   private readonly maxEntries: number;
@@ -58,18 +46,27 @@ class BoundedMap<K, V> extends Map<K, V> {
   }
 }
 
-function preprocessConditionExpression(expression: string): string {
-  return expression.replace(
-    /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\.)\bis\s+not\b|(?<!\.)\bis\b/gi,
-    (match) => {
-      if (match.startsWith('"') || match.startsWith("'")) return match;
-      const lower = match.toLowerCase();
-      if (lower === "is not") return "!=";
-      if (lower === "is") return "==";
-      return match;
-    },
-  );
-}
+const KEYWORDS = new Set([
+  "true",
+  "false",
+  "none",
+  "null",
+  "and",
+  "or",
+  "not",
+  "is",
+  "in",
+  "len",
+  "str",
+  "int",
+  "bool",
+  "if",
+  "else",
+  "for",
+  "while",
+  "return",
+  "pass",
+]);
 
 const flagRefsCache = new BoundedMap<string, string[]>(200);
 
@@ -81,27 +78,6 @@ export function extractConditionFlagRefs(
   try {
     let refs = flagRefsCache.get(trimmed);
     if (!refs) {
-      const KEYWORDS = new Set([
-        "true",
-        "false",
-        "none",
-        "null",
-        "and",
-        "or",
-        "not",
-        "is",
-        "in",
-        "len",
-        "str",
-        "int",
-        "bool",
-        "if",
-        "else",
-        "for",
-        "while",
-        "return",
-        "pass",
-      ]);
       const foundVars = new Set<string>();
 
       try {
@@ -123,12 +99,14 @@ export function extractConditionFlagRefs(
           },
         });
       } catch {
-        // Fallback to expr-eval if Lezer fails
-        const preprocessed = preprocessConditionExpression(trimmed);
-        const vars = parser.parse(preprocessed).variables();
-        vars.forEach((v) => {
-          if (!KEYWORDS.has(v.toLowerCase())) foundVars.add(v);
-        });
+        // Fallback to regex tokenizer if Lezer fails on malformed input
+        const matches = trimmed.matchAll(/\b[a-zA-Z_][a-zA-Z0-9_.]*\b/g);
+        for (const m of matches) {
+          const name = m[0];
+          if (!KEYWORDS.has(name.toLowerCase())) {
+            foundVars.add(name);
+          }
+        }
       }
 
       refs = Array.from(foundVars).sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
@@ -138,179 +116,6 @@ export function extractConditionFlagRefs(
   } catch {
     return [];
   }
-}
-
-interface EvalInstruction {
-  type: string;
-  value?: unknown;
-}
-
-function evaluateInstructions(
-  instructions: EvalInstruction[],
-  flags: Record<string, MockFlagValue>,
-): ConditionEvaluationResult {
-  const stack: string[] = [];
-
-  for (const inst of instructions) {
-    if (inst.type === "IVAR") {
-      const val = typeof inst.value === "string" ? inst.value : "";
-      const lower = val.toLowerCase();
-      if (lower === "true") {
-        stack.push("true");
-      } else if (lower === "false" || lower === "none" || lower === "null") {
-        stack.push("false");
-      } else if (val && flags[val] !== undefined) {
-        stack.push(String(flags[val]));
-      } else {
-        stack.push("unknown");
-      }
-    } else if (inst.type === "INUMBER" || inst.type === "INUM") {
-      stack.push(String(inst.value ?? 0));
-    } else if (inst.type === "ISTR") {
-      stack.push(String(inst.value ?? ""));
-    } else if (inst.type === "IEXPR") {
-      if (Array.isArray(inst.value)) {
-        stack.push(
-          evaluateInstructions(inst.value as EvalInstruction[], flags),
-        );
-      } else {
-        stack.push("unknown");
-      }
-    } else if (inst.type === "IOP1") {
-      const val = stack.pop();
-      if (val === undefined) throw new Error("Stack underflow");
-      const op = typeof inst.value === "string" ? inst.value : "";
-      if (op === "-" || op === "+") {
-        if (val === "unknown") {
-          stack.push("unknown");
-        } else {
-          const num = Number(val);
-          stack.push(isNaN(num) ? "unknown" : String(op === "-" ? -num : +num));
-        }
-      } else {
-        const numVal = Number(val);
-        const isFalsy = val === "false" ||
-          (!isNaN(numVal) && numVal === 0) ||
-          val === "none" ||
-          val === "null" ||
-          val === "";
-        stack.push(
-          val === "unknown" ? "unknown" : isFalsy ? "true" : "false",
-        );
-      }
-    } else if (inst.type === "IOP2") {
-      const right = stack.pop();
-      const left = stack.pop();
-      if (left === undefined || right === undefined) {
-        throw new Error("Stack underflow");
-      }
-
-      const op = typeof inst.value === "string" ? inst.value : "";
-      const isFalsy = (v: string) => {
-        const numVal = Number(v);
-        return v === "false" ||
-          (!isNaN(numVal) && numVal === 0) ||
-          v === "none" ||
-          v === "null" ||
-          v === "";
-      };
-      const isTruthy = (v: string) => {
-        const numVal = Number(v);
-        return v === "true" || (!isNaN(numVal) && numVal !== 0);
-      };
-
-      if (op === "and" || op === "&&") {
-        if (isFalsy(left) || isFalsy(right)) {
-          stack.push("false");
-        } else if (isTruthy(left) && isTruthy(right)) {
-          stack.push("true");
-        } else {
-          stack.push("unknown");
-        }
-      } else if (op === "or" || op === "||") {
-        if (isTruthy(left) || isTruthy(right)) {
-          stack.push("true");
-        } else if (isFalsy(left) && isFalsy(right)) {
-          stack.push("false");
-        } else {
-          stack.push("unknown");
-        }
-      } else if (op === "==" || op === "!=") {
-        if (left === "unknown" || right === "unknown") {
-          stack.push("unknown");
-        } else {
-          const isNumericStr = (s: string) =>
-            /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(s.trim());
-          const normalizeForCompare = (s: string) => {
-            const low = s.trim().toLowerCase();
-            if (low === "true") return 1;
-            if (low === "false") return 0;
-            return isNumericStr(s) ? Number(s) : s;
-          };
-          const nL = normalizeForCompare(left);
-          const nR = normalizeForCompare(right);
-          const equal = nL === nR;
-          const res = op === "==" ? equal : !equal;
-          stack.push(res ? "true" : "false");
-        }
-      } else if (op === "<" || op === ">" || op === "<=" || op === ">=") {
-        if (left === "unknown" || right === "unknown") {
-          stack.push("unknown");
-        } else {
-          const parseNumeric = (s: string) => {
-            const low = s.trim().toLowerCase();
-            if (low === "true") return 1;
-            if (low === "false") return 0;
-            return Number(s);
-          };
-          const numL = parseNumeric(left);
-          const numR = parseNumeric(right);
-          if (!isNaN(numL) && !isNaN(numR)) {
-            let res = false;
-            if (op === "<") res = numL < numR;
-            else if (op === ">") res = numL > numR;
-            else if (op === "<=") res = numL <= numR;
-            else if (op === ">=") res = numL >= numR;
-            stack.push(res ? "true" : "false");
-          } else {
-            stack.push("unknown");
-          }
-        }
-      } else if (
-        op === "+" || op === "-" || op === "*" || op === "/" || op === "%"
-      ) {
-        if (left === "unknown" || right === "unknown") {
-          stack.push("unknown");
-        } else {
-          const numL = Number(left);
-          const numR = Number(right);
-          if (!isNaN(numL) && !isNaN(numR)) {
-            let val = 0;
-            if (op === "+") val = numL + numR;
-            else if (op === "-") val = numL - numR;
-            else if (op === "*") val = numL * numR;
-            else if (op === "/") val = numR !== 0 ? numL / numR : NaN;
-            else if (op === "%") val = numR !== 0 ? numL % numR : NaN;
-            stack.push(!isNaN(val) ? String(val) : "unknown");
-          } else {
-            stack.push("unknown");
-          }
-        }
-      } else {
-        stack.push("unknown");
-      }
-    }
-  }
-
-  const finalVal = stack.pop() ?? "unknown";
-  if (finalVal === "true" || finalVal === "false") return finalVal;
-  if (finalVal === "unknown") return "unknown";
-  const num = Number(finalVal);
-  if (!isNaN(num)) return num !== 0 ? "true" : "false";
-  if (finalVal === "none" || finalVal === "null" || finalVal === "") {
-    return "false";
-  }
-  return "true";
 }
 
 export function evaluateConditionBranch(
@@ -589,27 +394,7 @@ export function areAllFlagsKnown(
   return true;
 }
 
-const parsedExpressionCache = new BoundedMap<string, EvalInstruction[]>(200);
-
-export function evaluateConditionExpression(
-  expression: string | undefined,
-  flags: Record<string, MockFlagValue>,
-): ConditionEvaluationResult {
-  if (!expression || expression.trim().length === 0) return "unknown";
-
-  const preprocessed = preprocessConditionExpression(expression);
-  try {
-    let tokens = parsedExpressionCache.get(preprocessed);
-    if (!tokens) {
-      const expr = parser.parse(preprocessed);
-      tokens = (expr as unknown as { tokens: EvalInstruction[] }).tokens;
-      parsedExpressionCache.set(preprocessed, tokens);
-    }
-    return evaluateInstructions(tokens, flags);
-  } catch {
-    return "unknown";
-  }
-}
+export { evaluateConditionExpression };
 
 export function buildMockFlagsFromVariableState(
   variables: Map<string, unknown>,

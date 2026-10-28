@@ -8,15 +8,13 @@ import {
 } from "@xyflow/react";
 import {
   calculateBackEdgeSpline,
-  calculateObstructedForwardSpline,
   calculateParallelForwardSpline,
   calculateSelfLoopArc,
   detectBackEdge,
-  type LabeledEdgeType,
   NODE_WIDTH,
 } from "../domain/index.ts";
+import type { LabeledEdgeType } from "./canvasTypes.ts";
 import { useViewerLayoutDirection } from "./viewerContext.tsx";
-import { useAppStore, useViewerStore } from "../application/index.ts";
 import { cn } from "./utils/cn.ts";
 
 export const LabeledEdge = memo(function LabeledEdge({
@@ -30,6 +28,7 @@ export const LabeledEdge = memo(function LabeledEdge({
   data,
   markerEnd,
   style,
+  selected,
 }: EdgeProps<LabeledEdgeType>) {
   const layoutDirection = useViewerLayoutDirection();
   const theme = data?.theme ?? "violet";
@@ -59,6 +58,23 @@ export const LabeledEdge = memo(function LabeledEdge({
   const endPt = data?.bendPoints && data.bendPoints.length >= 2
     ? data.bendPoints[data.bendPoints.length - 1]
     : undefined;
+
+  const sourceDx = startPt ? safeSourceX - startPt.x : 0;
+  const sourceDy = startPt ? safeSourceY - startPt.y : 0;
+  const targetDx = endPt ? safeTargetX - endPt.x : 0;
+  const targetDy = endPt ? safeTargetY - endPt.y : 0;
+
+  const isRigidTranslation = Boolean(
+    startPt && endPt &&
+      Math.abs(sourceDx - targetDx) <= 2 &&
+      Math.abs(sourceDy - targetDy) <= 2,
+  );
+  const hasMoved = Boolean(
+    startPt && endPt &&
+      (Math.abs(sourceDx) > 3 || Math.abs(sourceDy) > 3 ||
+        Math.abs(targetDx) > 3 || Math.abs(targetDy) > 3),
+  );
+
   const maxPrimaryOffset = 84;
   const maxCrossOffset = NODE_WIDTH / 2 + 12;
   const isCustomPathStale = Boolean(
@@ -78,49 +94,8 @@ export const LabeledEdge = memo(function LabeledEdge({
         )
     ),
   );
-  const hasExactEndpoints = Boolean(
-    startPt && endPt &&
-      Math.abs(safeSourceX - startPt.x) <= 1 &&
-      Math.abs(safeSourceY - startPt.y) <= 1 &&
-      Math.abs(safeTargetX - endPt.x) <= 1 &&
-      Math.abs(safeTargetY - endPt.y) <= 1,
-  );
 
-  let liveBypassRes:
-    | ReturnType<typeof calculateObstructedForwardSpline>
-    | null = null;
-  if (
-    !isSelf &&
-    !isBack &&
-    !isCustomPathStale &&
-    !hasExactEndpoints &&
-    data?.obstacles &&
-    data.obstacles.length > 0 &&
-    (safeSourceX !== 0 || safeSourceY !== 0 || safeTargetX !== 0 ||
-      safeTargetY !== 0)
-  ) {
-    liveBypassRes = calculateObstructedForwardSpline({
-      sourceX: safeSourceX,
-      sourceY: safeSourceY,
-      targetX: safeTargetX,
-      targetY: safeTargetY,
-      direction: layoutDirection,
-      obstacles: data.obstacles,
-      laneIndex: data.detourLaneIndex ?? 0,
-      laneCount: data.detourLaneCount ?? 1,
-      preferredSide: data.detourSide,
-    });
-  }
-
-  if (liveBypassRes) {
-    edgePath = liveBypassRes.path;
-    labelX = liveBypassRes.labelX;
-    labelY = liveBypassRes.labelY;
-  } else if (data?.svgPath && data?.labelPosition && !isCustomPathStale) {
-    edgePath = data.svgPath;
-    labelX = data.labelPosition.x;
-    labelY = data.labelPosition.y;
-  } else if (isSelf) {
+  if (isSelf) {
     const res = calculateSelfLoopArc({
       sourceX: safeSourceX,
       sourceY: safeSourceY,
@@ -187,6 +162,25 @@ export const LabeledEdge = memo(function LabeledEdge({
     edgePath = res.path;
     labelX = res.labelX;
     labelY = res.labelY;
+  } else if (data?.svgPath && data?.labelPosition && !hasMoved) {
+    edgePath = data.svgPath;
+    labelX = data.labelPosition.x;
+    labelY = data.labelPosition.y;
+  } else if (
+    data?.svgPath && data?.labelPosition && isRigidTranslation &&
+    !isCustomPathStale
+  ) {
+    const [d] = getBezierPath({
+      sourceX: safeSourceX,
+      sourceY: safeSourceY,
+      sourcePosition,
+      targetX: safeTargetX,
+      targetY: safeTargetY,
+      targetPosition,
+    });
+    edgePath = d;
+    labelX = data.labelPosition.x + sourceDx;
+    labelY = data.labelPosition.y + sourceDy;
   } else {
     const [d, lx, ly] = getBezierPath({
       sourceX: safeSourceX,
@@ -204,19 +198,13 @@ export const LabeledEdge = memo(function LabeledEdge({
   const safeLabelX = Number.isFinite(labelX) ? labelX : 0;
   const safeLabelY = Number.isFinite(labelY) ? labelY : 0;
 
-  const activeLanguage = useViewerStore((s) => s.activeLanguage);
-  const translations = useAppStore((s) => s.translations);
-
   const rawLabel = data?.label ??
     (data?.timeout?.isTimeout
       ? (data.timeout.durationSeconds !== undefined
         ? `Timeout (${data.timeout.durationSeconds}s)`
         : "Timeout")
       : undefined);
-  const displayLabel = (rawLabel && activeLanguage &&
-      translations?.translationsByLanguage[activeLanguage]?.strings[rawLabel])
-    ? translations.translationsByLanguage[activeLanguage].strings[rawLabel]!
-    : rawLabel;
+  const displayLabel = data?.displayLabel ?? rawLabel;
 
   const tooltipParts: string[] = [];
   if (displayLabel) {
@@ -272,9 +260,10 @@ export const LabeledEdge = memo(function LabeledEdge({
                 `translate(-50%, -50%) translate(${safeLabelX}px,${safeLabelY}px)`,
               pointerEvents: "all",
               opacity: data?.conditionState === "unreachable" ? 0.45 : 1,
+              zIndex: selected ? 1005 : 10,
             }}
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] max-w-[130px] truncate shadow-sm nodrag nopan border transition-all duration-200 cursor-help backdrop-blur-sm",
+              "rounded-full px-2 py-0.5 text-[10px] max-w-[130px] truncate shadow-sm nodrag nopan border transition-colors duration-200 cursor-help backdrop-blur-sm z-10",
               isFallthrough && "border-dashed italic",
               isDark
                 ? "bg-slate-800/90 border-slate-700 text-slate-200 hover:max-w-none hover:z-30"

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useViewerStore } from "../../application/index.ts";
+import { useAppStore, useViewerStore } from "../../application/index.ts";
 import type {
   CanvasEdge,
   CanvasNode,
@@ -85,6 +85,7 @@ export function useGraphVisibility({
     highlightedRoute,
     selectedNodeIds,
     isolatedSubgraphNodeIds,
+    activeLanguage,
   } = useViewerStore(
     useShallow((s) => ({
       searchInput: s.searchInput,
@@ -110,8 +111,11 @@ export function useGraphVisibility({
       selectedSearchNodeKinds: s.selectedSearchNodeKinds,
       selectedCallContextId: s.selectedCallContextId,
       highlightedRoute: s.highlightedRoute,
+      activeLanguage: s.activeLanguage,
     })),
   );
+
+  const translations = useAppStore((s) => s.translations);
 
   const { setAllParentLabelsCollapsed, setDialogueSearchResults } =
     useViewerStore(
@@ -333,8 +337,11 @@ export function useGraphVisibility({
         previousById: previousVisibleNodesByIdRef.current,
         highlightedRouteNodeIds,
         stepOrderMap,
+        activeLanguage,
+        translations,
       }),
     [
+      activeLanguage,
       collapsedChapters,
       collapsedLabelChildren,
       conditionVisibilityMode,
@@ -349,6 +356,7 @@ export function useGraphVisibility({
       searchMatchNodeIds,
       stepOrderMap,
       theme,
+      translations,
     ],
   );
 
@@ -468,8 +476,11 @@ export function useGraphVisibility({
         selectedCallContextId,
         highlightedRouteEdgeIds,
         theme,
+        activeLanguage,
+        translations,
       }),
     [
+      activeLanguage,
       conditionalVisibility.edgeConditionStateById,
       conditionVisibilityMode,
       edges,
@@ -480,6 +491,7 @@ export function useGraphVisibility({
       selectedCallContextId,
       showCallReturns,
       theme,
+      translations,
       visibleEdgeKinds,
       visibleNodeIds,
     ],

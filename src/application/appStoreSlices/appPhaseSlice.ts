@@ -3,7 +3,7 @@ import type { AppPhase } from "../appTypes.ts";
 import type { AppStore } from "../appStore.ts";
 import { clearUploadedFilesCache } from "../uploadCache.ts";
 
-export type DialogueSearchMode = "auto" | "full" | "countOnly";
+export type { DialogueSearchMode } from "../uploadTypes.ts";
 
 export interface AppPhaseState {
   phase: AppPhase;

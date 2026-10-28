@@ -19,7 +19,7 @@ import type {
   ScreenActionKind,
   ScreenActionRule,
   VariantDetectionResult,
-} from "../config/parserRules.ts";
+} from "./plugins/index.ts";
 import type { MultiDirectedGraph } from "graphology";
 
 export type {

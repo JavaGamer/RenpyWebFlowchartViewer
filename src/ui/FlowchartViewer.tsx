@@ -17,18 +17,12 @@ import {
 } from "../application/index.ts";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import type {
-  CanvasEdge,
-  CanvasNode,
-  FlowEdge,
-  FlowNode,
-} from "../domain/index.ts";
+import type { FlowEdge, FlowNode } from "../domain/index.ts";
 import {
   type DebugBundlePrivacyOptions,
+  DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   type DialogueSearchMode,
   type ParseService,
-  useAppStore,
-  useDebugBundle,
   useViewerStore,
 } from "../application/index.ts";
 
@@ -41,7 +35,12 @@ import { ViewerToolbar } from "./ViewerToolbar.tsx";
 import { CanvasErrorFallback } from "./CanvasErrorFallback.tsx";
 import { FlowchartCanvas } from "./FlowchartCanvas.tsx";
 import { dataUrlToBlob } from "./canvasHelpers.ts";
-import type { CanvasCallbacksRegistry, CanvasMetrics } from "./canvasTypes.ts";
+import type {
+  CanvasCallbacksRegistry,
+  CanvasMetrics,
+  FlowchartEdge,
+  FlowchartNode,
+} from "./canvasTypes.ts";
 
 export interface FlowchartViewerProps {
   flowNodes?: FlowNode[];
@@ -55,43 +54,21 @@ export interface FlowchartViewerProps {
   onOpenIssue?: (options: DebugBundlePrivacyOptions) => void;
 }
 
-export default function FlowchartViewer({
-  flowNodes: propFlowNodes,
-  flowEdges: propFlowEdges,
-  dialogueSearchMode: propDialogueSearchMode,
-  onDialogueSearchModeChange: propOnDialogueSearchModeChange,
+export function FlowchartViewer({
+  flowNodes = [],
+  flowEdges = [],
+  dialogueSearchMode = "auto",
+  onDialogueSearchModeChange = () => {},
   parseService = workerParseService,
-  debugPrivacyOptions: propDebugPrivacyOptions,
-  onDebugPrivacyOptionsChange: propOnDebugPrivacyOptionsChange,
-  onExportDebugBundle: propOnExportDebugBundle,
-  onOpenIssue: propOnOpenIssue,
+  debugPrivacyOptions = DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
+  onDebugPrivacyOptionsChange = () => {},
+  onExportDebugBundle = () => {},
+  onOpenIssue = () => {},
 }: FlowchartViewerProps) {
-  const storeNodes = useAppStore((s) => s.flowNodes);
-  const storeEdges = useAppStore((s) => s.flowEdges);
-  const flowNodes = propFlowNodes ?? storeNodes;
-  const flowEdges = propFlowEdges ?? storeEdges;
-
-  const storeDialogueSearchMode = useAppStore((s) => s.dialogueSearchMode);
-  const storeSetDialogueSearchMode = useAppStore((s) =>
-    s.setDialogueSearchMode
-  );
-  const dialogueSearchMode = propDialogueSearchMode ?? storeDialogueSearchMode;
-  const onDialogueSearchModeChange = propOnDialogueSearchModeChange ??
-    storeSetDialogueSearchMode;
-
-  const debug = useDebugBundle();
-  const debugPrivacyOptions = propDebugPrivacyOptions ??
-    debug.debugPrivacyOptions;
-  const onDebugPrivacyOptionsChange = propOnDebugPrivacyOptionsChange ??
-    debug.setDebugPrivacyOptions;
-  const onExportDebugBundle = propOnExportDebugBundle ??
-    debug.exportDebugBundle;
-  const onOpenIssue = propOnOpenIssue ?? debug.openNewIssue;
-
   const perf = useMemo(() => createPerfTracker("viewer"), []);
   const flowRef = useRef<HTMLDivElement>(null);
   const flowInstanceRef = useRef<
-    ReactFlowInstance<CanvasNode, CanvasEdge> | null
+    ReactFlowInstance<FlowchartNode, FlowchartEdge> | null
   >(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -198,29 +175,15 @@ export default function FlowchartViewer({
   }, []);
 
   // -- Dialogue mode ----------------------------------------------------------
-  const useAppStoreDialogueMode = !!propOnDialogueSearchModeChange ||
-    !propFlowNodes;
-
-  const selectedDialogueSearchMode = useAppStoreDialogueMode
-    ? dialogueSearchMode
-    : standaloneDialogueSearchMode;
+  const selectedDialogueSearchMode = dialogueSearchMode ??
+    standaloneDialogueSearchMode;
 
   const handleDialogueModeChange = useCallback(
     (mode: DialogueSearchMode) => {
-      if (propOnDialogueSearchModeChange) {
-        propOnDialogueSearchModeChange(mode);
-      } else if (!propFlowNodes) {
-        storeSetDialogueSearchMode(mode);
-      } else {
-        setStandaloneDialogueSearchMode(mode);
-      }
+      onDialogueSearchModeChange(mode);
+      setStandaloneDialogueSearchMode(mode);
     },
-    [
-      propOnDialogueSearchModeChange,
-      propFlowNodes,
-      storeSetDialogueSearchMode,
-      setStandaloneDialogueSearchMode,
-    ],
+    [onDialogueSearchModeChange, setStandaloneDialogueSearchMode],
   );
 
   // -- Toolbar callbacks ------------------------------------------------------
@@ -463,3 +426,5 @@ export default function FlowchartViewer({
     </div>
   );
 }
+
+export default FlowchartViewer;

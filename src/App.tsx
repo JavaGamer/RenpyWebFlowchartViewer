@@ -13,9 +13,9 @@ import { useShallow } from "zustand/react/shallow";
 import { Loader2 } from "lucide-react";
 import {
   DiagnosticsSection,
-  FlowchartViewer,
+  FlowchartViewerContainer,
   Header,
-  UploadArea,
+  UploadAreaContainer,
 } from "./ui/index.ts";
 import { preWarmLayoutWorker } from "./infrastructure/index.ts";
 import { useAppStore, useViewerStore } from "./application/index.ts";
@@ -164,10 +164,10 @@ export default function App() {
 
             <DiagnosticsSection parseDiagnostics={parseDiagnostics} />
 
-            <FlowchartViewer key={importRevision} />
+            <FlowchartViewerContainer key={importRevision} />
           </main>
         )
-        : <UploadArea />}
+        : <UploadAreaContainer />}
     </div>
   );
 }

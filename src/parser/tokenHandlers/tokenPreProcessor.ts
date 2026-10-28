@@ -27,7 +27,7 @@ import {
   type BranchStatementRule,
   getParserVariantPlugin,
   type TerminalStatementRule,
-} from "../../config/parserRules.ts";
+} from "../plugins/index.ts";
 
 const BUILTIN_TERMINAL_REGEX =
   /^(?:\$\s*)?(?:gameover\b|MainMenu\s*\(|renpy\.(?:full_restart|quit|utter_restart|jump_out_of_context|pop_call)\b)/i;

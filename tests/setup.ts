@@ -1,10 +1,19 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { cleanup } from "@testing-library/react";
-import { afterEach, expect } from "vitest";
+import { afterEach, expect, vi } from "vitest";
+import { Tokenizer } from "@renpy/ast/out/tokenizer/tokenizer";
+import { clearLayoutCaches } from "../src/infrastructure/layoutEngines.ts";
+import { clearUploadedFilesCache } from "../src/application/uploadCache.ts";
+
 expect.extend(matchers);
 
 afterEach(() => {
   cleanup();
+  Tokenizer.clearTokenCache();
+  clearLayoutCaches();
+  clearUploadedFilesCache();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 // Ensure React's act() integration is enabled in the Vitest + jsdom environment.
@@ -69,7 +78,6 @@ if (
 }
 
 import React from "react";
-import { vi } from "vitest";
 
 vi.mock("@xyflow/react", () => {
   const flowApi = {

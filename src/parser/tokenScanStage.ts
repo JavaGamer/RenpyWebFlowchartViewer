@@ -13,12 +13,13 @@ import {
 import { flushPendingTimedChoice } from "./tokenHandlers/tokenPreProcessor.ts";
 import { handleToken } from "./tokenHandling.ts";
 import { PARSER_TOKENS } from "./parserTokens.ts";
-import type { ParserVariant, ScreenActionRule } from "../config/parserRules.ts";
 import {
+  type ParserVariant,
   type ScreenActionKind,
+  type ScreenActionRule,
   toScreenActionRuleMap,
-} from "../config/parserRules.ts";
-import type { NodeDetailsPayload } from "./workerProtocol.ts";
+} from "./plugins/index.ts";
+import type { NodeDetailsPayload } from "../domain/index.ts";
 import {
   extractPlayCue,
   extractQueueCue,

@@ -4,7 +4,7 @@ import type {
   TokenMetaFlags,
   VariableValue,
 } from "../../pipelineTypes.ts";
-import type { ScreenActionKind } from "../../../config/parserRules.ts";
+import type { ScreenActionKind } from "../../plugins/index.ts";
 import { isMenuKeywordTokenType, PARSER_TOKENS } from "../../parserTokens.ts";
 import {
   addDynamicTargetDiagnostic,

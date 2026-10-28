@@ -1,38 +1,21 @@
 import { proxy, releaseProxy, type Remote, transfer, wrap } from "comlink";
-import MiniSearch from "minisearch";
-import {
-  compareFiles,
-  type FlowAsset,
-  type FlowNode,
-} from "../domain/index.ts";
+import { compareFiles, type FlowAsset } from "../domain/index.ts";
 import {
   createGraphState,
-  extractNodeDetailsFromTokens,
-  finalizeRoles,
   type InitVariableDescriptor,
   type ParseGraphState,
   type ParseInputFile,
   preParseInitialization,
-  processTokenizedFile,
   RENPY_TL_PATH_REGEX,
   scanTranslations,
-  type TextDocument,
-  tokenizeOneFile,
-  type TokenTree,
   type VariableMutation,
   type VariableValue,
 } from "../parser/index.ts";
 import {
-  DIALOGUE_MINISEARCH_OPTIONS,
-  type DialogueSearchDocument,
-} from "../config/searchConfig.ts";
-import {
   deserializeVariantPlugin,
-  type ParserVariant,
   registerParserVariantPlugin,
-  type ScreenActionRule,
 } from "../config/parserRules.ts";
-import { DIALOGUE_SEARCH_MAX_RESULTS } from "../config/viewerConfig.ts";
+import { directParseService } from "./directParseService.ts";
 import type { ParserWorkerApi } from "./parserWorker.ts";
 import {
   type DialogueSearchResult,
@@ -224,217 +207,13 @@ async function computeFileCacheKeys(
   );
 }
 
-interface FallbackState {
-  graphState: ReturnType<typeof createGraphState>;
-  rawFilesByChapter: Map<string, ParseInputFile>;
-  docs: DialogueSearchDocument[];
-  miniSearch: MiniSearch<DialogueSearchDocument> | null;
-}
-
 let activeSessionId: string | null = null;
-let activeFallbackState: FallbackState | null = null;
-
-function getActiveFallbackState(
-  reset = false,
-  parserVariant?: ParserVariant,
-  screenActionRules?: ScreenActionRule[],
-): FallbackState {
-  if (reset || !activeFallbackState) {
-    activeFallbackState = {
-      graphState: createGraphState(parserVariant, screenActionRules),
-      rawFilesByChapter: new Map(),
-      docs: [],
-      miniSearch: null,
-    };
-  }
-  return activeFallbackState;
-}
-
-async function fallbackBuildDialogueSearchIndex(
-  fallbackState: FallbackState,
-  nodes: FlowNode[],
-  deferUnhydrated = false,
-) {
-  fallbackState.docs = [];
-  if (!deferUnhydrated) {
-    const unhydrated = nodes.filter((n) =>
-      n.dialogueCount > 0 && !n.dialogueLines
-    );
-    if (unhydrated.length > 0 && fallbackState.rawFilesByChapter.size > 0) {
-      const tokenizedFilesByChapter = new Map<
-        string,
-        { document: TextDocument; tokenTree: TokenTree }
-      >();
-      for (
-        const [chapter, rawFile] of fallbackState.rawFilesByChapter.entries()
-      ) {
-        const tokenized = await tokenizeOneFile(rawFile);
-        tokenizedFilesByChapter.set(chapter, {
-          document: tokenized.document,
-          tokenTree: tokenized.tokenTree,
-        });
-      }
-      const extracted = extractNodeDetailsFromTokens(
-        unhydrated,
-        tokenizedFilesByChapter,
-      );
-      for (const [id, payload] of Object.entries(extracted)) {
-        const node = fallbackState.graphState.nodeMap.get(id);
-        if (node) {
-          if (payload.dialogueLines) node.dialogueLines = payload.dialogueLines;
-          if (payload.dialogueLineNums) {
-            node.dialogueLineNums = payload.dialogueLineNums;
-          }
-          if (payload.audioAssetCues) {
-            node.audioAssetCues = payload.audioAssetCues;
-          }
-          node.isDetailsLoaded = true;
-        }
-      }
-    }
-  }
-
-  for (const node of nodes) {
-    if (!node.dialogueLines || node.dialogueLines.length === 0) continue;
-    for (let idx = 0; idx < node.dialogueLines.length; idx += 1) {
-      fallbackState.docs.push({
-        id: `${node.id}:${idx}`,
-        nodeId: node.id,
-        nodeLabel: node.label,
-        lineIndex: idx + 1,
-        lineText: node.dialogueLines[idx]!,
-      });
-    }
-  }
-  if (fallbackState.docs.length > 0) {
-    fallbackState.miniSearch = new MiniSearch(
-      DIALOGUE_MINISEARCH_OPTIONS,
-    );
-    fallbackState.miniSearch.addAll(fallbackState.docs);
-  } else {
-    fallbackState.miniSearch = null;
-  }
-}
-
-async function parseRenpyFilesFallback(
-  request: ParseWorkerClientRequest,
-): Promise<ParseWorkerClientResult> {
-  const {
-    files,
-    resetActiveGraph,
-    isFinalChunk = true,
-    captureDialogueLines,
-    deferDetails,
-    parserVariant,
-    customVariantPlugins,
-    screenActionRules,
-    onProgress,
-    onPartialResult,
-    signal,
-  } = request;
-
-  if (signal?.aborted) {
-    throw new DOMException("Parsing cancelled", "AbortError");
-  }
-
-  if (customVariantPlugins && customVariantPlugins.length > 0) {
-    for (const def of customVariantPlugins) {
-      try {
-        registerParserVariantPlugin(deserializeVariantPlugin(def));
-      } catch {
-        // Safe to ignore if already registered
-      }
-    }
-  }
-
-  const currentFallback = getActiveFallbackState(
-    resetActiveGraph,
-    parserVariant,
-    screenActionRules,
-  );
-  if (request.projectMediaFiles) {
-    currentFallback.graphState.projectMediaFiles = request.projectMediaFiles;
-  }
-
-  // Sort files deterministically
-  files.sort(compareFiles);
-
-  // Convert any Uint8Array contents to strings
-  for (const file of files) {
-    if (file.content instanceof Uint8Array) {
-      file.content = new TextDecoder("utf-8").decode(file.content);
-    }
-    const chapterSource = file.relativePath ?? file.name;
-    const chapter = chapterSource.replace(/\\/g, "/").replace(/\.rpy$/i, "");
-    currentFallback.rawFilesByChapter.set(chapter, file);
-  }
-
-  if (resetActiveGraph || !currentFallback.graphState.initVariables?.size) {
-    preParseInitialization(files, currentFallback.graphState);
-  }
-
-  if (request.maxCallStackDepth !== undefined) {
-    currentFallback.graphState.maxCallStackDepth = request.maxCallStackDepth;
-  }
-
-  try {
-    for (let idx = 0; idx < files.length; idx += 1) {
-      if (signal?.aborted) {
-        throw new DOMException("Parsing cancelled", "AbortError");
-      }
-      const tokenized = await tokenizeOneFile(files[idx], {}, idx);
-      processTokenizedFile(currentFallback.graphState, tokenized, {
-        captureDialogueLines: captureDialogueLines !== false,
-        deferDetails,
-        parserVariant,
-        screenActionRules,
-        pruneDeadEndDecisions: request.pruneDeadEndDecisions,
-      });
-
-      onProgress?.({
-        doneFiles: idx + 1,
-        totalFiles: files.length,
-        currentFile: files[idx].relativePath ?? files[idx].name,
-      });
-    }
-
-    if (isFinalChunk) {
-      finalizeRoles(currentFallback.graphState, {
-        pruneDeadEndDecisions: request.pruneDeadEndDecisions,
-      });
-      await fallbackBuildDialogueSearchIndex(
-        currentFallback,
-        currentFallback.graphState.nodes,
-        Boolean(deferDetails || captureDialogueLines === false),
-      );
-    }
-
-    const result: ParseWorkerClientResult = {
-      nodes: currentFallback.graphState.nodes,
-      edges: currentFallback.graphState.edges,
-      diagnostics: currentFallback.graphState.diagnostics.length > 0
-        ? currentFallback.graphState.diagnostics
-        : undefined,
-    };
-
-    if (!isFinalChunk) {
-      onPartialResult?.(result);
-    }
-
-    return result;
-  } catch (error) {
-    if (resetActiveGraph || isFinalChunk) {
-      getActiveFallbackState(true);
-    }
-    throw error;
-  }
-}
 
 export function parseRenpyFilesInWorker(
   request: ParseWorkerClientRequest,
 ): Promise<ParseWorkerClientResult> {
   if (!areWorkersSupported()) {
-    return parseRenpyFilesFallback(request);
+    return directParseService.parse(request);
   }
 
   const {
@@ -611,28 +390,12 @@ export function searchDialogueLinesInWorker({
   signal,
 }: SearchRequestPayload): Promise<DialogueSearchResult[]> {
   if (!areWorkersSupported()) {
-    if (signal?.aborted) {
-      return Promise.reject(new DOMException("Search cancelled", "AbortError"));
-    }
-    const maxRes = Math.max(
-      1,
-      Math.min(maxResults ?? 500, DIALOGUE_SEARCH_MAX_RESULTS),
-    );
-    const allowedIds = nodeIds ? new Set(nodeIds) : null;
-    let results: DialogueSearchResult[] = [];
-    if (activeFallbackState?.miniSearch) {
-      const rawResults = activeFallbackState.miniSearch.search(query);
-      const filtered = allowedIds
-        ? rawResults.filter((entry) => allowedIds.has(entry.nodeId))
-        : rawResults;
-      results = filtered.slice(0, maxRes).map((entry) => ({
-        nodeId: entry.nodeId,
-        nodeLabel: entry.nodeLabel,
-        lineIndex: entry.lineIndex,
-        lineText: entry.lineText,
-      })) as DialogueSearchResult[];
-    }
-    return Promise.resolve(results);
+    return directParseService.searchDialogueLines({
+      query,
+      nodeIds,
+      maxResults,
+      signal,
+    });
   }
 
   const requestId = ++requestCounter;
@@ -1423,68 +1186,7 @@ export function extractNodeDetailsInWorker(
   signal?: AbortSignal,
 ): Promise<Record<string, NodeDetailsPayload>> {
   if (!areWorkersSupported()) {
-    if (signal?.aborted) {
-      return Promise.reject(
-        new DOMException("Extract details cancelled", "AbortError"),
-      );
-    }
-    const fallbackState = getActiveFallbackState();
-    const targetSet = new Set(nodeIds);
-    const unhydratedNodes = fallbackState.graphState.nodes.filter(
-      (n) => targetSet.has(n.id) && !n.isDetailsLoaded && !n.dialogueLines,
-    );
-    return (async () => {
-      if (
-        unhydratedNodes.length > 0 && fallbackState.rawFilesByChapter.size > 0
-      ) {
-        const tokenizedFilesByChapter = new Map<
-          string,
-          { document: TextDocument; tokenTree: TokenTree }
-        >();
-        for (
-          const [chapter, rawFile] of fallbackState.rawFilesByChapter.entries()
-        ) {
-          const tokenized = await tokenizeOneFile(rawFile);
-          tokenizedFilesByChapter.set(chapter, {
-            document: tokenized.document,
-            tokenTree: tokenized.tokenTree,
-          });
-        }
-        const extracted = extractNodeDetailsFromTokens(
-          unhydratedNodes,
-          tokenizedFilesByChapter,
-        );
-        for (const [id, payload] of Object.entries(extracted)) {
-          const node = fallbackState.graphState.nodeMap.get(id);
-          if (node) {
-            if (payload.dialogueLines) {
-              node.dialogueLines = payload.dialogueLines;
-            }
-            if (payload.dialogueLineNums) {
-              node.dialogueLineNums = payload.dialogueLineNums;
-            }
-            if (payload.audioAssetCues) {
-              node.audioAssetCues = payload.audioAssetCues;
-            }
-            node.isDetailsLoaded = true;
-          }
-        }
-      }
-
-      const nodes = fallbackState.graphState.nodes.filter((n) =>
-        targetSet.has(n.id)
-      );
-      const details: Record<string, NodeDetailsPayload> = {};
-      for (const node of nodes) {
-        details[node.id] = {
-          nodeId: node.id,
-          dialogueLines: node.dialogueLines,
-          dialogueLineNums: node.dialogueLineNums,
-          audioAssetCues: node.audioAssetCues,
-        };
-      }
-      return details;
-    })();
+    return directParseService.extractNodeDetails(nodeIds, sessionId, signal);
   }
 
   const requestId = ++requestCounter;

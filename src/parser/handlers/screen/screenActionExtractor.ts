@@ -8,7 +8,7 @@ import type {
 import type { FlowEdge } from "../../../domain/index.ts";
 import { resolveExpressionTargets } from "../jumpCallHandler.ts";
 import { addParseDiagnostic } from "../../diagnostics.ts";
-import type { ScreenActionKind } from "../../../config/parserRules.ts";
+import type { ScreenActionKind } from "../../plugins/index.ts";
 import {
   buildIgnoredPositionMask,
   findTopLevelDelimiterIndex,

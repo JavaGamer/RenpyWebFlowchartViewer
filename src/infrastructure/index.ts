@@ -4,6 +4,9 @@ export {
   type NodeDetailsPayload,
   type ParseChunkRequestMessage,
   type ParseDiagnosticPayload,
+  type ParseService,
+  type ParseServiceRequest,
+  type ParseServiceResult,
   type ParseWorkerClientRequest,
   type ParseWorkerClientResult,
   type UnmappedScreenActionParseDiagnosticPayload,
@@ -41,6 +44,11 @@ export {
   type PerfEvent,
   type PerfTrackerOptions,
 } from "./perf.ts";
+export {
+  DirectParseService,
+  directParseService,
+  type DirectParseSessionState,
+} from "./directParseService.ts";
 export { workerParseService } from "./workerParseAdapter.ts";
 export {
   type AABB,

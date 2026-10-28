@@ -16,7 +16,7 @@ import {
   type MutationOperator,
   parsePythonBlock,
 } from "../../domain/index.ts";
-import type { ScreenActionKind } from "../../config/parserRules.ts";
+import type { ScreenActionKind } from "../plugins/index.ts";
 
 export function parseAndRecordVariableMutation(
   state: ParseGraphState,

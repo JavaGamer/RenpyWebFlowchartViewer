@@ -28,6 +28,12 @@ import {
   type SpatialItem,
 } from "../../infrastructure/index.ts";
 import { useViewerStore } from "../../application/index.ts";
+import {
+  type FlowchartEdge,
+  type FlowchartNode,
+  toFlowchartEdges,
+  toFlowchartNodes,
+} from "../canvasTypes.ts";
 import { useShallow } from "zustand/react/shallow";
 
 const globalProcess = (globalThis as unknown as {
@@ -94,10 +100,10 @@ export function useViewerLayout({
   edges: CanvasEdge[];
   spatialItems?: SpatialItem[];
   spatialBounds?: AABB;
-  setNodes: ReturnType<typeof useNodesState<CanvasNode>>[1];
-  setEdges: ReturnType<typeof useEdgesState<CanvasEdge>>[1];
-  onNodesChange: ReturnType<typeof useNodesState<CanvasNode>>[2];
-  onEdgesChange: ReturnType<typeof useEdgesState<CanvasEdge>>[2];
+  setNodes: ReturnType<typeof useNodesState<FlowchartNode>>[1];
+  setEdges: ReturnType<typeof useEdgesState<FlowchartEdge>>[1];
+  onNodesChange: ReturnType<typeof useNodesState<FlowchartNode>>[2];
+  onEdgesChange: ReturnType<typeof useEdgesState<FlowchartEdge>>[2];
   nodePositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
   relayout: () => void;
   isCalculatingLayout: boolean;
@@ -176,8 +182,12 @@ export function useViewerLayout({
     collapsedParentLabels,
   ]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowchartNode>(
+    layoutNodes as unknown as FlowchartNode[],
+  );
+  const [edges, setEdges, onEdgesChange] = useEdgesState<FlowchartEdge>(
+    layoutEdges as unknown as FlowchartEdge[],
+  );
   const [workerSpatialData, setWorkerSpatialData] = useState<{
     spatialItems?: SpatialItem[];
     spatialBounds?: AABB;
@@ -199,10 +209,10 @@ export function useViewerLayout({
 
   // Intercept and wrap onNodesChange to record manual dragging coordinates
   const onNodesChangeWrapped = useCallback(
-    (changes: NodeChange<CanvasNode>[]) => {
+    (changes: NodeChange<FlowchartNode>[]) => {
       onNodesChange(changes);
       let dragEnded = false;
-      const nodeById = new Map<string, CanvasNode>();
+      const nodeById = new Map<string, FlowchartNode>();
       for (let i = 0; i < nodesRef.current.length; i++) {
         const n = nodesRef.current[i]!;
         nodeById.set(n.id, n);
@@ -244,7 +254,9 @@ export function useViewerLayout({
           const pos = nodePositionsRef.current.get(n.id);
           return pos ? { ...n, position: pos } : n;
         });
-        const { items, bounds } = computeSpatialItemsAndBounds(updatedNodes);
+        const { items, bounds } = computeSpatialItemsAndBounds(
+          updatedNodes as unknown as CanvasNode[],
+        );
         setDraggedSpatialData({
           forLayoutNodes: layoutNodesRef.current,
           spatialItems: items,
@@ -287,8 +299,8 @@ export function useViewerLayout({
         },
       );
       nodePositionsRef.current = createNodePositionsMap(next.nodes);
-      setNodes(next.nodes);
-      setEdges(next.edges);
+      setNodes(toFlowchartNodes(next.nodes));
+      setEdges(toFlowchartEdges(next.edges));
       setWorkerSpatialData({
         spatialItems: next.spatialItems,
         spatialBounds: next.spatialBounds,
@@ -316,8 +328,8 @@ export function useViewerLayout({
       (next) => {
         nodePositionsRef.current = createNodePositionsMap(next.nodes);
         setDraggedSpatialData(null);
-        setNodes(next.nodes);
-        setEdges(next.edges);
+        setNodes(toFlowchartNodes(next.nodes));
+        setEdges(toFlowchartEdges(next.edges));
         setWorkerSpatialData({
           spatialItems: next.spatialItems,
           spatialBounds: next.spatialBounds,
@@ -360,8 +372,8 @@ export function useViewerLayout({
     } else {
       if (!isWorkerEnabled || flowNodes.length === 0) {
         startTransition(() => {
-          setNodes(layoutNodes);
-          setEdges(layoutEdges);
+          setNodes(toFlowchartNodes(layoutNodes));
+          setEdges(toFlowchartEdges(layoutEdges));
         });
       }
       if (layoutNodes.length > 0) {
@@ -395,8 +407,8 @@ export function useViewerLayout({
         nodePositionsRef.current = createNodePositionsMap(refined.nodes);
         startTransition(() => {
           setDraggedSpatialData(null);
-          setNodes(refined.nodes);
-          setEdges(refined.edges);
+          setNodes(toFlowchartNodes(refined.nodes));
+          setEdges(toFlowchartEdges(refined.edges));
           setWorkerSpatialData({
             spatialItems: refined.spatialItems,
             spatialBounds: refined.spatialBounds,
@@ -429,8 +441,8 @@ export function useViewerLayout({
           );
           startTransition(() => {
             setDraggedSpatialData(null);
-            setNodes(fallback.nodes);
-            setEdges(fallback.edges);
+            setNodes(toFlowchartNodes(fallback.nodes));
+            setEdges(toFlowchartEdges(fallback.edges));
             setWorkerSpatialData({
               spatialItems: fallback.spatialItems,
               spatialBounds: fallback.spatialBounds,
@@ -482,8 +494,8 @@ export function useViewerLayout({
     : (isWorkerEnabled ? workerSpatialData.spatialBounds : layoutSpatialBounds);
 
   return {
-    nodes,
-    edges,
+    nodes: nodes as unknown as CanvasNode[],
+    edges: edges as unknown as CanvasEdge[],
     spatialItems: activeSpatialItems,
     spatialBounds: activeSpatialBounds,
     setNodes,

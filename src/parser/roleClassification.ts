@@ -1,6 +1,6 @@
 import type { FlowNode } from "../domain/index.ts";
 import type { ParseGraphState } from "./pipelineTypes.ts";
-import { getParserVariantPlugin } from "../config/parserRules.ts";
+import { getParserVariantPlugin } from "./plugins/index.ts";
 
 /**
  * Assigns a specific semantic role to a flowchart node based on its AST type and graph topology.

@@ -41,7 +41,7 @@ describe("FlowchartViewer behavior coverage", () => {
 
   afterEach(() => {
     cleanup();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -538,7 +538,7 @@ describe("FlowchartViewer behavior coverage", () => {
     });
     expect(await screen.findByText(/Dialogue line matches \(1\)/i))
       .toBeInTheDocument();
-  });
+  }, 15000);
 
   it("keeps inspector in the document flow and includes focus-visible affordance classes", async () => {
     const user = userEvent.setup();

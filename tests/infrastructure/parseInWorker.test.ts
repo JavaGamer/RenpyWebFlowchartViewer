@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type FinalizeRequestMessage,
   type ParseChunkRequestMessage,
@@ -344,6 +344,10 @@ describe("parseRenpyFilesInWorker", () => {
     setWorkerSpawningFailedForTesting(false);
     vi.stubGlobal("Worker", MockWorker as unknown as typeof Worker);
     vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("supports concurrent requests and resolves each by requestId", async () => {

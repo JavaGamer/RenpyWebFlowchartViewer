@@ -6,7 +6,6 @@ import {
   detectBackEdge,
   type FlowEdge,
   type FlowNode,
-  Position,
 } from "../../src/domain/index.ts";
 import {
   applyDagreLayout,
@@ -75,8 +74,8 @@ describe("Smart Loop & Back-Edge Spline Routing", () => {
         sourceY: 400,
         targetX: 320,
         targetY: 100,
-        sourcePosition: Position.Right,
-        targetPosition: Position.Right,
+        sourcePosition: "right",
+        targetPosition: "right",
         direction: "TB",
         laneIndex: 0,
       });

@@ -1,7 +1,12 @@
 import { getUploadedFilesCache, hasUploadedFilesCache } from "./uploadCache.ts";
 import { useAppStore } from "./appStore.ts";
+import { useViewerStore } from "./viewerStore.ts";
 import { useParserRuleSettingsStore } from "./parserRuleSettingsStore.ts";
 import { createProcessUpload } from "./processUpload.ts";
+import {
+  compileCustomVariant,
+  serializeVariantPlugin,
+} from "../config/parserRules.ts";
 import {
   preWarmLayoutWorker,
   workerParseService,
@@ -82,8 +87,22 @@ export async function reparseUploadedFiles(
     parserVariant: selectedVariant,
     customRulesByVariant,
     customScreenActionRules: selectedVariantCustomRules,
+    customVariantPlugins: ruleSettings.customVariants
+      .map(compileCustomVariant)
+      .map(serializeVariantPlugin),
     pruneDeadEndDecisions: ruleSettings.pruneDeadEndDecisions,
     preserveSession,
+    onResetSession: () => useViewerStore.getState().resetSession(),
+    onPostPreserveSession: (parsedNodes) => {
+      const viewer = useViewerStore.getState();
+      viewer.invalidateHydratedNodeDetails?.();
+      if (
+        viewer.selectedNodeId &&
+        !parsedNodes.some((n) => n.id === viewer.selectedNodeId)
+      ) {
+        viewer.setSelectedNodeId("");
+      }
+    },
   });
 
   try {

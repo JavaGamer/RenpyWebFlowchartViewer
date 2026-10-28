@@ -1,25 +1,17 @@
-import { STORAGE_KEYS } from "../config/storageKeys.ts";
-
 export interface PerfEvent {
   metric: string;
   ms: number;
   detail?: Record<string, unknown>;
 }
 
-function isPerfEnabled(): boolean {
-  const perfFlag =
-    (globalThis as { __RFV_DEBUG_PERF__?: unknown }).__RFV_DEBUG_PERF__;
-  if (perfFlag === true) return true;
-  try {
-    if (typeof globalThis.localStorage === "undefined") return false;
-    return globalThis.localStorage.getItem(STORAGE_KEYS.debugPerf) === "true";
-  } catch {
-    return false;
-  }
-}
-
 export interface PerfTrackerOptions {
   onEvent?: (event: PerfEvent) => void;
+}
+
+function isPerfEnabled(): boolean {
+  return Boolean(
+    (globalThis as { __RFV_DEBUG_PERF__?: unknown }).__RFV_DEBUG_PERF__,
+  );
 }
 
 export function createPerfTracker(scope: string, options?: PerfTrackerOptions) {

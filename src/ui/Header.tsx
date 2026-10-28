@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Activity, FolderOpen } from "lucide-react";
-import TelemetryModal from "./TelemetryModal.tsx";
+const TelemetryModal = lazy(() => import("./TelemetryModal.tsx"));
 import { useViewerStore } from "../application/index.ts";
 import type { ThemeName } from "../domain/index.ts";
 import { cn } from "./utils/cn.ts";
@@ -94,10 +94,14 @@ export default function Header() {
         </span>
       </header>
 
-      <TelemetryModal
-        open={telemetryOpen}
-        onClose={() => setTelemetryOpen(false)}
-      />
+      {telemetryOpen && (
+        <Suspense fallback={null}>
+          <TelemetryModal
+            open={telemetryOpen}
+            onClose={() => setTelemetryOpen(false)}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

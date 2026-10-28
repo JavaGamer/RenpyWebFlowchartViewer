@@ -29,17 +29,34 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (id.includes("react") || id.includes("react-dom")) {
-              return "react-vendor";
-            }
             if (id.includes("@xyflow/react")) {
               return "react-flow";
+            }
+            if (id.includes("lucide-react")) {
+              return "lucide";
+            }
+            if (id.includes("@radix-ui")) {
+              return "radix-ui";
+            }
+            if (
+              id.includes("/node_modules/react/") ||
+              id.includes("/node_modules/react-dom/") ||
+              id.includes("\\node_modules\\react\\") ||
+              id.includes("\\node_modules\\react-dom\\")
+            ) {
+              return "react-vendor";
             }
             if (id.includes("elkjs")) {
               return "elkjs";
             }
             if (id.includes("@dagrejs/dagre") || id.includes("graphology")) {
               return "graph";
+            }
+            if (id.includes("@renpy/ast")) {
+              return "renpy-ast";
+            }
+            if (id.includes("minisearch")) {
+              return "minisearch";
             }
           }
         },

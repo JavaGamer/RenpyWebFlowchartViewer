@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import type { AABB } from "../../infrastructure/index.ts";
-import type { CanvasEdge, CanvasNode } from "../../domain/index.ts";
+import type { FlowchartEdge, FlowchartNode } from "../canvasTypes.ts";
 
 export interface UseViewportBoundsResult {
   bounds: AABB | null;
@@ -11,7 +11,7 @@ export interface UseViewportBoundsResult {
 export function useViewportBounds(
   flowRef: React.RefObject<HTMLDivElement | null>,
   flowInstanceRef: React.MutableRefObject<
-    ReactFlowInstance<CanvasNode, CanvasEdge> | null
+    ReactFlowInstance<FlowchartNode, FlowchartEdge> | null
   >,
   bufferPx = 400,
 ): UseViewportBoundsResult {

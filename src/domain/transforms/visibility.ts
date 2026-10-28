@@ -6,6 +6,7 @@ import type {
   EdgeData,
   EdgeKindFilter,
   NodeData,
+  ProjectTranslations,
   ThemeName,
 } from "../index.ts";
 import {
@@ -50,6 +51,8 @@ export function buildVisibleNodes(params: {
   previousById?: Map<string, CanvasNode>;
   highlightedRouteNodeIds?: Set<string> | null;
   stepOrderMap?: Record<string, number> | null;
+  activeLanguage?: string | null;
+  translations?: ProjectTranslations | null;
 }): CanvasNode[] {
   const {
     nodes,
@@ -65,6 +68,8 @@ export function buildVisibleNodes(params: {
     previousById,
     highlightedRouteNodeIds = null,
     stepOrderMap = null,
+    activeLanguage,
+    translations,
   } = params;
   const query = search.trim().toLowerCase();
   const hasRouteHighlight = Boolean(
@@ -180,6 +185,11 @@ export function buildVisibleNodes(params: {
       ? (isRouteHighlighted || Boolean(nodeData.containsActiveRoute))
       : undefined;
 
+    const displayLabel = (activeLanguage && translations)
+      ? (translations.translationsByLanguage[activeLanguage]
+        ?.strings[nodeData.label] ?? nodeData.label)
+      : nodeData.label;
+
     const previous = previousById?.get(n.id);
     if (previous) {
       const prevData = previous.data as NodeData;
@@ -197,6 +207,7 @@ export function buildVisibleNodes(params: {
         previous.measured?.height === n.measured?.height &&
         prevData.theme === theme &&
         prevData.label === nodeData.label &&
+        prevData.displayLabel === displayLabel &&
         prevData.dialogueCount === nodeData.dialogueCount &&
         prevData.wordCount === nodeData.wordCount &&
         prevData.pauseDuration === nodeData.pauseDuration &&
@@ -238,6 +249,7 @@ export function buildVisibleNodes(params: {
       data: {
         ...nodeData,
         theme,
+        displayLabel,
         isRouteHighlighted,
         isRouteDimmed,
         routeStepIndex,
@@ -291,6 +303,8 @@ export function buildVisibleEdges(params: {
   selectedCallContextId?: string | null;
   highlightedRouteEdgeIds?: Set<string> | null;
   theme?: ThemeName;
+  activeLanguage?: string | null;
+  translations?: ProjectTranslations | null;
 }): CanvasEdge[] {
   const {
     edges,
@@ -310,6 +324,8 @@ export function buildVisibleEdges(params: {
     previousById,
     selectedCallContextId,
     highlightedRouteEdgeIds = null,
+    activeLanguage,
+    translations,
   } = params;
   const visible: CanvasEdge[] = [];
   const isCallContextActive = Boolean(selectedCallContextId);
@@ -399,6 +415,17 @@ export function buildVisibleEdges(params: {
     const finalStrokeDasharray = timeoutDash ||
       unreachableStyle.strokeDasharray || baseDash;
 
+    const rawLabel = edgeLabel ||
+      (edgeData?.timeout?.isTimeout
+        ? (edgeData.timeout.durationSeconds !== undefined
+          ? `Timeout (${edgeData.timeout.durationSeconds}s)`
+          : "Timeout")
+        : undefined);
+    const displayLabel = (rawLabel && activeLanguage &&
+        translations?.translationsByLanguage[activeLanguage]?.strings[rawLabel])
+      ? translations.translationsByLanguage[activeLanguage].strings[rawLabel]!
+      : rawLabel;
+
     const previous = previousById?.get(edge.id);
     const previousData = previous?.data as EdgeData | undefined;
     if (
@@ -410,6 +437,7 @@ export function buildVisibleEdges(params: {
       previous.sourceHandle === edge.sourceHandle &&
       previous.targetHandle === edge.targetHandle &&
       previousData?.label === edgeLabel &&
+      previousData?.displayLabel === displayLabel &&
       previousData?.kind === kind &&
       previousData?.callContext === edgeData.callContext &&
       previousData?.timeout?.isTimeout === edgeData.timeout?.isTimeout &&
@@ -443,7 +471,14 @@ export function buildVisibleEdges(params: {
 
     visible.push({
       ...edge,
-      data: { ...edgeData, label: edgeLabel, kind, conditionState, theme },
+      data: {
+        ...edgeData,
+        label: edgeLabel,
+        displayLabel,
+        kind,
+        conditionState,
+        theme,
+      },
       style: {
         ...(edge.style || {}),
         ...unreachableStyle,

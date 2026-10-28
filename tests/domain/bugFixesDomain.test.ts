@@ -4,7 +4,7 @@ import {
   buildVisibleNodes,
 } from "../../src/domain/transforms/visibility.ts";
 import { evaluateConditionExpression } from "../../src/domain/conditionLogic.ts";
-import type { CanvasEdge, CanvasNode } from "../../src/domain/types.ts";
+import type { CanvasEdge, CanvasNode } from "../../src/domain/index.ts";
 
 describe("Domain Bug Fixes Sweep", () => {
   it("enforces search scopes for digit queries in buildVisibleNodes", () => {

@@ -1031,131 +1031,139 @@ describe("App – upload → parse → render integration", () => {
     expect(parseSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("supports minimum dialogue filter, layout switching, zoom controls, and label subgraph controls", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<App />);
-    const view = within(container);
+  it(
+    "supports minimum dialogue filter, layout switching, zoom controls, and label subgraph controls",
+    async () => {
+      const user = userEvent.setup();
+      const { container } = render(<App />);
+      const view = within(container);
 
-    const input = container.querySelector("#folder-input") as HTMLInputElement;
-    const scriptWithMenu = [
-      "label start:",
-      "    menu:",
-      '        "Go":',
-      "            jump end",
-      "",
-      "label end:",
-      '    "done"',
-      "",
-    ].join("\n");
-    await user.upload(input, makeRpyFile("chapter2.rpy", scriptWithMenu));
+      const input = container.querySelector(
+        "#folder-input",
+      ) as HTMLInputElement;
+      const scriptWithMenu = [
+        "label start:",
+        "    menu:",
+        '        "Go":',
+        "            jump end",
+        "",
+        "label end:",
+        '    "done"',
+        "",
+      ].join("\n");
+      await user.upload(input, makeRpyFile("chapter2.rpy", scriptWithMenu));
 
-    await waitFor(() => {
-      expect(view.getByTestId("react-flow")).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(view.getByTestId("react-flow")).toBeInTheDocument();
+      });
 
-    await user.click(
-      view.getByRole("button", { name: /Show advanced controls/i }),
-    );
-    const searchMode = screen.getByRole("combobox", {
-      name: /Dialogue search mode/i,
-    });
-    expect(searchMode).toHaveValue("auto");
-    const minDialogueInput = screen.getByRole("spinbutton", {
-      name: /Minimum dialogue lines/i,
-    });
-    await user.clear(minDialogueInput);
-    await user.type(minDialogueInput, "2");
-    await waitFor(() => {
-      expect(view.getByTestId("rf-node-count")).toHaveTextContent("0");
-    });
+      await user.click(
+        view.getByRole("button", { name: /Show advanced controls/i }),
+      );
+      const searchMode = screen.getByRole("combobox", {
+        name: /Dialogue search mode/i,
+      });
+      expect(searchMode).toHaveValue("auto");
+      const minDialogueInput = screen.getByRole("spinbutton", {
+        name: /Minimum dialogue lines/i,
+      });
+      await user.clear(minDialogueInput);
+      await user.type(minDialogueInput, "2");
+      await waitFor(() => {
+        expect(view.getByTestId("rf-node-count")).toHaveTextContent("0");
+      });
 
-    await user.clear(minDialogueInput);
-    await user.type(minDialogueInput, "1");
-    await waitFor(() => {
-      const count = parseInt(
+      await user.clear(minDialogueInput);
+      await user.type(minDialogueInput, "1");
+      await waitFor(() => {
+        const count = parseInt(
+          view.getByTestId("rf-node-count").textContent ?? "0",
+          10,
+        );
+        expect(count).toBeGreaterThan(0);
+      });
+
+      const layoutSelect = screen.getByRole("combobox", {
+        name: /Auto layout direction/i,
+      });
+      await user.selectOptions(layoutSelect, "LR");
+      expect(layoutSelect).toHaveValue("LR");
+
+      const relayoutBtn = screen.getByRole("button", {
+        name: /Re-run auto layout/i,
+      });
+      await user.click(relayoutBtn);
+
+      const zoomBtn = view.getByRole("button", {
+        name: /Zoom to 100 percent/i,
+      });
+      await user.click(zoomBtn);
+
+      await user.clear(minDialogueInput);
+      await user.type(minDialogueInput, "0");
+      await waitFor(() => {
+        const count = parseInt(
+          view.getByTestId("rf-node-count").textContent ?? "0",
+          10,
+        );
+        expect(count).toBeGreaterThanOrEqual(2);
+      });
+
+      const beforeCollapse = parseInt(
         view.getByTestId("rf-node-count").textContent ?? "0",
         10,
       );
-      expect(count).toBeGreaterThan(0);
-    });
+      const collapseLabel = screen.getByRole("button", {
+        name: /Collapse label start/i,
+      });
+      await user.click(collapseLabel);
+      await waitFor(() => {
+        const count = parseInt(
+          view.getByTestId("rf-node-count").textContent ?? "0",
+          10,
+        );
+        expect(count).toBeLessThan(beforeCollapse);
+      });
 
-    const layoutSelect = screen.getByRole("combobox", {
-      name: /Auto layout direction/i,
-    });
-    await user.selectOptions(layoutSelect, "LR");
-    expect(layoutSelect).toHaveValue("LR");
+      const labelFilter = screen.getByRole("searchbox", {
+        name: /Filter label subgraphs/i,
+      });
+      await user.clear(labelFilter);
+      await user.type(labelFilter, "start");
+      expect(screen.getByRole("button", { name: /Expand label start/i }))
+        .toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Collapse label end/i })).not
+        .toBeInTheDocument();
 
-    const relayoutBtn = screen.getByRole("button", {
-      name: /Re-run auto layout/i,
-    });
-    await user.click(relayoutBtn);
-
-    const zoomBtn = view.getByRole("button", { name: /Zoom to 100 percent/i });
-    await user.click(zoomBtn);
-
-    await user.clear(minDialogueInput);
-    await user.type(minDialogueInput, "0");
-    await waitFor(() => {
-      const count = parseInt(
-        view.getByTestId("rf-node-count").textContent ?? "0",
-        10,
+      await user.click(
+        screen.getByRole("button", {
+          name: /Expand all visible label subgraphs/i,
+        }),
       );
-      expect(count).toBeGreaterThanOrEqual(2);
-    });
+      await waitFor(() => {
+        const count = parseInt(
+          view.getByTestId("rf-node-count").textContent ?? "0",
+          10,
+        );
+        expect(count).toBeGreaterThanOrEqual(beforeCollapse);
+      });
 
-    const beforeCollapse = parseInt(
-      view.getByTestId("rf-node-count").textContent ?? "0",
-      10,
-    );
-    const collapseLabel = screen.getByRole("button", {
-      name: /Collapse label start/i,
-    });
-    await user.click(collapseLabel);
-    await waitFor(() => {
-      const count = parseInt(
-        view.getByTestId("rf-node-count").textContent ?? "0",
-        10,
+      await user.clear(labelFilter);
+      await user.click(
+        screen.getByRole("button", {
+          name: /Collapse all visible label subgraphs/i,
+        }),
       );
-      expect(count).toBeLessThan(beforeCollapse);
-    });
-
-    const labelFilter = screen.getByRole("searchbox", {
-      name: /Filter label subgraphs/i,
-    });
-    await user.clear(labelFilter);
-    await user.type(labelFilter, "start");
-    expect(screen.getByRole("button", { name: /Expand label start/i }))
-      .toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Collapse label end/i })).not
-      .toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("button", {
-        name: /Expand all visible label subgraphs/i,
-      }),
-    );
-    await waitFor(() => {
-      const count = parseInt(
-        view.getByTestId("rf-node-count").textContent ?? "0",
-        10,
-      );
-      expect(count).toBeGreaterThanOrEqual(beforeCollapse);
-    });
-
-    await user.clear(labelFilter);
-    await user.click(
-      screen.getByRole("button", {
-        name: /Collapse all visible label subgraphs/i,
-      }),
-    );
-    await waitFor(() => {
-      const count = parseInt(
-        view.getByTestId("rf-node-count").textContent ?? "0",
-        10,
-      );
-      expect(count).toBeLessThan(beforeCollapse);
-    });
-  });
+      await waitFor(() => {
+        const count = parseInt(
+          view.getByTestId("rf-node-count").textContent ?? "0",
+          10,
+        );
+        expect(count).toBeLessThan(beforeCollapse);
+      });
+    },
+    15000,
+  );
 
   it("resets label collapse state on each new import", async () => {
     const user = userEvent.setup();

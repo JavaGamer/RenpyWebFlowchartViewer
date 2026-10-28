@@ -6,7 +6,7 @@ import {
   readFileAsText,
 } from "../../src/infrastructure/index.ts";
 import type { ParseService } from "../../src/application/parseService";
-import type { AppActions } from "../../src/application/appStore";
+import type { ProcessUploadActions } from "../../src/application/uploadTypes";
 
 vi.mock("../../src/infrastructure", async (importOriginal) => {
   const actual = await importOriginal<
@@ -53,6 +53,10 @@ function toFileList(files: File[]): FileList {
 
 function makeRpy(name: string, relativePath?: string): File {
   const file = new File(["label start:"], name, { type: "text/plain" });
+  if (name === "bad.rpy") {
+    file.arrayBuffer = () => Promise.reject(new FileReadError("bad.rpy"));
+    file.text = () => Promise.reject(new FileReadError("bad.rpy"));
+  }
   if (relativePath) {
     Object.defineProperty(file, "webkitRelativePath", {
       configurable: true,
@@ -63,17 +67,7 @@ function makeRpy(name: string, relativePath?: string): File {
 }
 
 type MockActions = {
-  [
-    K in keyof Pick<
-      AppActions,
-      | "startReading"
-      | "startParsing"
-      | "setProgress"
-      | "partialParseSuccess"
-      | "parseSuccess"
-      | "fail"
-    >
-  ]: ReturnType<typeof vi.fn>;
+  [K in keyof ProcessUploadActions]: ReturnType<typeof vi.fn>;
 };
 
 function makeActions(): MockActions {
@@ -379,6 +373,9 @@ describe("createProcessUpload", () => {
       actions,
       activeRunIdRef: { current: 0 },
       parseAbortControllerRef: { current: null },
+      readFileAsArrayBuffer: vi.fn().mockRejectedValue(
+        new FileReadError("bad.rpy"),
+      ),
     });
 
     await processUpload(toFileList([makeRpy("bad.rpy")]));

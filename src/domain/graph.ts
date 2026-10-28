@@ -81,6 +81,20 @@ export interface AudioAssetCue {
   isColor?: boolean;
 }
 
+export interface NodeDetailsPayload {
+  nodeId: string;
+  dialogueLines?: string[];
+  dialogueLineNums?: number[];
+  audioAssetCues?: AudioAssetCue[];
+}
+
+export interface DialogueSearchResult {
+  nodeId: string;
+  nodeLabel: string;
+  lineIndex: number;
+  lineText: string;
+}
+
 export interface FlowAsset {
   name: string;
   type: "image" | "scene" | "audio";

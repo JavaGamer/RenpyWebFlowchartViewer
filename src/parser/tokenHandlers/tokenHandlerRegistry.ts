@@ -5,7 +5,7 @@ import type {
   TokenMetaFlags,
 } from "../pipelineTypes.ts";
 import type { SourceLocation } from "../../domain/index.ts";
-import type { ScreenActionKind } from "../../config/parserRules.ts";
+import type { ScreenActionKind } from "../plugins/index.ts";
 import {
   isWithinCurrentLabelScope,
   splitCurrentLabelOnMenuFallthrough,

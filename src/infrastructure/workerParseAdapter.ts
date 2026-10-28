@@ -1,10 +1,10 @@
+import type { NodeDetailsPayload } from "../domain/index.ts";
+import type { ParseInputFile } from "../parser/index.ts";
 import type {
   DialogueSearchResult,
-  NodeDetailsPayload,
-  ParseInputFile,
   ParseWorkerClientRequest,
   ParseWorkerClientResult,
-} from "../parser/index.ts";
+} from "./workerProtocol.ts";
 import {
   extractNodeDetailsInWorker,
   parseRenpyFilesInWorker,

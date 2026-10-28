@@ -5,11 +5,22 @@ import type {
   FlowNode,
   NodeType,
 } from "./graph.ts";
-import type { CSSProperties } from "react";
-import type { EdgeMarker, Position } from "@xyflow/react";
+
+export type CanvasStyle = Record<string, string | number | undefined>;
+export type CanvasPosition = "top" | "bottom" | "left" | "right";
+export interface CanvasEdgeMarker {
+  type: string;
+  color?: string;
+  width?: number;
+  height?: number;
+  markerUnits?: string;
+  orient?: string;
+  strokeWidth?: number;
+}
 
 export interface NodeData extends Record<string, unknown> {
   label: string;
+  displayLabel?: string;
   dialogueCount: number;
   wordCount?: number;
   pauseDuration?: number;
@@ -46,6 +57,7 @@ export interface NodeData extends Record<string, unknown> {
 
 export interface EdgeData extends Record<string, unknown> {
   label: string;
+  displayLabel?: string;
   kind?: "sequence" | "jump" | "call" | "call_return" | "fallthrough";
   condition?: FlowEdge["condition"];
   timeout?: FlowEdge["timeout"];
@@ -86,10 +98,10 @@ export interface CanvasNode {
   type?: string;
   position: { x: number; y: number };
   data: NodeData;
-  style?: CSSProperties;
+  style?: CanvasStyle;
   className?: string;
-  sourcePosition?: Position;
-  targetPosition?: Position;
+  sourcePosition?: CanvasPosition;
+  targetPosition?: CanvasPosition;
   hidden?: boolean;
   selected?: boolean;
   dragging?: boolean;
@@ -118,7 +130,7 @@ export interface CanvasEdge {
   target: string;
   sourceHandle?: string | null;
   targetHandle?: string | null;
-  style?: CSSProperties;
+  style?: CanvasStyle;
   animated?: boolean;
   hidden?: boolean;
   deletable?: boolean;
@@ -128,19 +140,13 @@ export interface CanvasEdge {
   sourceNode?: CanvasNode;
   targetNode?: CanvasNode;
   selected?: boolean;
-  markerStart?: string | EdgeMarker;
-  markerEnd?: string | EdgeMarker;
+  markerStart?: string | CanvasEdgeMarker;
+  markerEnd?: string | CanvasEdgeMarker;
   zIndex?: number;
   ariaLabel?: string;
   interactionWidth?: number;
   focusable?: boolean;
 }
-
-export type LabelNodeType = CanvasNode;
-export type MenuNodeType = CanvasNode;
-export type DecisionNodeType = CanvasNode;
-export type ChapterNodeType = CanvasNode;
-export type LabeledEdgeType = CanvasEdge;
 
 export type EdgeKindFilter = EdgeKind;
 export type ConditionReachability = "reachable" | "unreachable" | "unknown";

@@ -4,6 +4,7 @@ export type {
   CallContext,
   ConditionBranchKind,
   ConditionMetadata,
+  DialogueSearchResult,
   EdgeKind,
   FlowAsset,
   FlowEdge,
@@ -11,6 +12,7 @@ export type {
   LabelParameter,
   LanguageTranslationData,
   MutationOperator,
+  NodeDetailsPayload,
   ProjectTranslations,
   SourceLocation,
   SourcePosition,
@@ -19,23 +21,19 @@ export type {
 
 export type {
   CanvasEdge,
+  CanvasEdgeMarker,
   CanvasNode,
-  ChapterNodeType,
+  CanvasPosition,
+  CanvasStyle,
   ConditionReachability,
   ConditionVisibilityMode,
-  DecisionNodeType,
   EdgeData,
   EdgeKindFilter,
-  LabeledEdgeType,
-  LabelNodeType,
   LayoutDensity,
   LayoutDirection,
-  MenuNodeType,
   NodeData,
   ThemeName,
 } from "./canvas.ts";
-
-export { Position } from "@xyflow/react";
 
 export {
   buildConditionalVisibility,

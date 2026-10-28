@@ -9,7 +9,7 @@ import type {
 import {
   type ScreenActionRule,
   toScreenActionRuleMap,
-} from "../config/parserRules.ts";
+} from "./plugins/index.ts";
 
 export { toScreenActionRuleMap };
 

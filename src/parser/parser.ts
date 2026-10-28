@@ -17,7 +17,7 @@ import {
   type DetectVariantInput,
   FALLBACK_PARSER_VARIANT,
   toScreenActionRuleMap,
-} from "../config/parserRules.ts";
+} from "./plugins/index.ts";
 import type {
   ParseInputFile,
   ParseOptions,

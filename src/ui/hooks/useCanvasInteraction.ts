@@ -5,7 +5,12 @@ import type { CanvasEdge, CanvasNode, FlowNode } from "../../domain/index.ts";
 import { getNodeCenter } from "../../domain/index.ts";
 import type { DialogueSearchResult } from "../../infrastructure/index.ts";
 import { INSPECTOR_DIALOGUE_TRUNCATE_DEFAULT } from "../../config/viewerConfig.ts";
-import type { CanvasCallbacksRegistry, CanvasMetrics } from "../canvasTypes.ts";
+import type {
+  CanvasCallbacksRegistry,
+  CanvasMetrics,
+  FlowchartEdge,
+  FlowchartNode,
+} from "../canvasTypes.ts";
 import type { createPerfTracker } from "../../infrastructure/index.ts";
 import type { ReactFlowInstance } from "@xyflow/react";
 
@@ -19,7 +24,7 @@ export interface UseCanvasInteractionProps {
   activeDialogueSearchResults: DialogueSearchResult[];
   resolvedActiveDialogueResultIndex: number;
   flowInstanceRef: React.MutableRefObject<
-    ReactFlowInstance<CanvasNode, CanvasEdge> | null
+    ReactFlowInstance<FlowchartNode, FlowchartEdge> | null
   >;
   canvasCallbacksRef: React.MutableRefObject<CanvasCallbacksRegistry>;
   perf: ReturnType<typeof createPerfTracker>;

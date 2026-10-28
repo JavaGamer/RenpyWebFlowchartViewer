@@ -1,13 +1,12 @@
-import type { LayoutDirection } from "./canvas.ts";
-import { Position } from "@xyflow/react";
+import type { CanvasPosition, LayoutDirection } from "./canvas.ts";
 
 export interface BackEdgeSplineParams {
   sourceX: number;
   sourceY: number;
   targetX: number;
   targetY: number;
-  sourcePosition?: Position;
-  targetPosition?: Position;
+  sourcePosition?: CanvasPosition;
+  targetPosition?: CanvasPosition;
   direction?: LayoutDirection;
   laneIndex?: number;
   isLeft?: boolean;
@@ -71,8 +70,8 @@ export function calculateBackEdgeSpline(
     sourceY,
     targetX,
     targetY,
-    sourcePosition = Position.Right,
-    targetPosition = Position.Right,
+    sourcePosition = "right",
+    targetPosition = "right",
     direction = "TB",
     laneIndex = 0,
     isLeft = false,
@@ -90,8 +89,8 @@ export function calculateBackEdgeSpline(
 
     // Determine lateral routing side (left vs right channel)
     const routeLeft = isLeft ||
-      sourcePosition === Position.Left ||
-      targetPosition === Position.Left;
+      sourcePosition === "left" ||
+      targetPosition === "left";
     const channelX = outerGutterCoord !== undefined
       ? (routeLeft ? outerGutterCoord - k * 18 : outerGutterCoord + k * 18)
       : (routeLeft
@@ -129,8 +128,8 @@ export function calculateBackEdgeSpline(
     );
 
     const routeTop = isLeft ||
-      sourcePosition === Position.Top ||
-      targetPosition === Position.Top;
+      sourcePosition === "top" ||
+      targetPosition === "top";
     const channelY = outerGutterCoord !== undefined
       ? (routeTop ? outerGutterCoord - k * 18 : outerGutterCoord + k * 18)
       : (routeTop
@@ -318,8 +317,8 @@ export interface ParallelForwardSplineParams {
   sourceY: number;
   targetX: number;
   targetY: number;
-  sourcePosition?: Position;
-  targetPosition?: Position;
+  sourcePosition?: CanvasPosition;
+  targetPosition?: CanvasPosition;
   direction?: LayoutDirection;
   parallelIndex?: number;
   parallelCount?: number;

@@ -37,6 +37,7 @@ export type {
   ParseProgress,
   ParseResult,
   PendingCallReturn,
+  ScreenDefinition,
   TextDocument,
   TokenTree,
   UnmappedScreenActionParseDiagnostic,
@@ -44,4 +45,23 @@ export type {
   VariableValue,
 } from "./pipelineTypes.ts";
 export { RENPY_TL_PATH_REGEX, scanTranslations } from "./translationScanner.ts";
-export * from "./workerProtocol.ts";
+export {
+  BoundedTokenizedCache,
+  type TokenizedCacheEntry,
+} from "./tokenizedCache.ts";
+export {
+  applyPrePassState,
+  type FinalizeChunkOptions,
+  type InternalChunkResult,
+  mergeChunkIntoState,
+  type PrePassState,
+} from "./chunkProtocol.ts";
+export {
+  type HeadlessParseOptions,
+  HeadlessParserEngine,
+  headlessParserEngine,
+  type HeadlessParseResult,
+  type ParserProgressPayload,
+  type ParserSessionState,
+} from "./headlessParserEngine.ts";
+export * from "./plugins/index.ts";

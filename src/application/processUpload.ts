@@ -6,7 +6,6 @@
  * and real-time status reporting.
  */
 
-import type { RefObject } from "react";
 import {
   compareDeterministicStrings,
   type FlowEdge,
@@ -17,9 +16,7 @@ import {
 import type { ParseDiagnosticPayload } from "../infrastructure/index.ts";
 import { readFileAsArrayBuffer } from "../infrastructure/index.ts";
 
-import { useViewerStore } from "./viewerStore.ts";
 import { validateRpyUpload } from "./uploadValidation.ts";
-import type { AppActions, DialogueSearchMode } from "./appStore.ts";
 import {
   toFileReadErrorMessage,
   toParseErrorMessage,
@@ -27,7 +24,6 @@ import {
 import type { ParseService } from "./parseService.ts";
 import {
   AUTO_PARSER_VARIANT,
-  compileCustomVariant,
   detectParserVariant,
   type DetectVariantInput,
   FALLBACK_PARSER_VARIANT,
@@ -36,39 +32,38 @@ import {
   type RulesByVariant,
   type ScreenActionRule,
   type SerializableParserVariantPlugin,
-  serializeVariantPlugin,
   type VariantDetectionResult,
 } from "../config/parserRules.ts";
-import type { UploadedFile, UploadFileStatus } from "./uploadTypes.ts";
+import type {
+  DialogueSearchMode,
+  ProcessUploadActions,
+  UploadedFile,
+  UploadFileStatus,
+} from "./uploadTypes.ts";
 import { extractRpyFilesFromZip } from "./zipExtractor.ts";
 import {
   clearUploadedFilesCache,
   setUploadedFilesCache,
 } from "./uploadCache.ts";
-import { useParserRuleSettingsStore } from "./parserRuleSettingsStore.ts";
+
+/**
+ * Generic reference container holding a mutable current value.
+ * Structurally compatible with React's RefObject without coupling to React.
+ */
+export interface ValueRef<T> {
+  current: T;
+}
 
 /**
  * Dependency bag injected into `createProcessUpload`.
  */
 export interface ProcessUploadDeps {
   parseService: ParseService;
-  actions:
-    & Pick<
-      AppActions,
-      | "startReading"
-      | "startParsing"
-      | "setProgress"
-      | "partialParseSuccess"
-      | "parseSuccess"
-      | "fail"
-    >
-    & {
-      setIsReparsing?: (isReparsing: boolean) => void;
-    };
+  actions: ProcessUploadActions;
   /** Active run ID ref used to abort stale upload sequences when a new upload begins. */
-  activeRunIdRef: RefObject<number>;
+  activeRunIdRef: ValueRef<number>;
   /** Ref holding the AbortController passed to the parse worker so it can be cancelled. */
-  parseAbortControllerRef: RefObject<AbortController | null>;
+  parseAbortControllerRef: ValueRef<AbortController | null>;
   /** Called after each read batch completes; useful for instrumentation/logging. */
   onReadMeasured?: (fileCount: number) => void;
   /** Called once the first parse batch is dispatched. */
@@ -84,6 +79,9 @@ export interface ProcessUploadDeps {
   customVariantPlugins?: SerializableParserVariantPlugin[];
   pruneDeadEndDecisions?: boolean;
   preserveSession?: boolean;
+  readFileAsArrayBuffer?: (file: File) => Promise<ArrayBuffer>;
+  onResetSession?: () => void;
+  onPostPreserveSession?: (parsedNodes: FlowNode[]) => void;
 
   // Real-time status callbacks
   onFilesDiscovered?: (files: UploadFileStatus[]) => void;
@@ -137,6 +135,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
     customVariantPlugins: injectedCustomVariantPlugins,
     pruneDeadEndDecisions: configuredPruneDeadEndDecisions,
     preserveSession: defaultPreserveSession = false,
+    readFileAsArrayBuffer: readBuffer = readFileAsArrayBuffer,
+    onResetSession,
+    onPostPreserveSession,
     onFilesDiscovered,
     onFileStatusUpdate,
   } = deps;
@@ -314,7 +315,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               onFileStatusUpdate?.(id, "reading");
               let content: Uint8Array;
               if (f.file) {
-                const buf = await readFileAsArrayBuffer(f.file);
+                const buf = await readBuffer(f.file);
                 content = new Uint8Array(buf);
               } else if (f.arrayBuffer) {
                 const buf = await f.arrayBuffer();
@@ -394,11 +395,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
               )
               : customScreenActionRules;
 
-            const customVariantPlugins = injectedCustomVariantPlugins ??
-              useParserRuleSettingsStore
-                .getState()
-                .customVariants.map(compileCustomVariant)
-                .map(serializeVariantPlugin);
+            const customVariantPlugins = injectedCustomVariantPlugins ?? [];
 
             const result = await parseService.parse({
               files: parseChunk,
@@ -414,10 +411,7 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
                 : effectiveVariant,
               customVariantPlugins,
               screenActionRules: effectiveScreenActionRules,
-              pruneDeadEndDecisions: configuredPruneDeadEndDecisions ??
-                useParserRuleSettingsStore?.getState?.()
-                  ?.pruneDeadEndDecisions ??
-                true,
+              pruneDeadEndDecisions: configuredPruneDeadEndDecisions ?? true,
               signal: controller.signal,
               maxParallelFiles: typeof navigator !== "undefined"
                 ? navigator.hardwareConcurrency
@@ -515,16 +509,9 @@ export function createProcessUpload(deps: ProcessUploadDeps) {
       edgeCount: parsedEdges.length,
     });
     if (!shouldPreserveSession) {
-      useViewerStore.getState().resetSession();
+      onResetSession?.();
     } else {
-      const viewer = useViewerStore.getState();
-      viewer.invalidateHydratedNodeDetails?.();
-      if (
-        viewer.selectedNodeId &&
-        !parsedNodes.some((n) => n.id === viewer.selectedNodeId)
-      ) {
-        viewer.setSelectedNodeId("");
-      }
+      onPostPreserveSession?.(parsedNodes);
     }
     const finalVariant = effectiveVariant === AUTO_PARSER_VARIANT
       ? "renpy"

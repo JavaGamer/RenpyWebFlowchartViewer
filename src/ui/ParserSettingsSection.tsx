@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -21,7 +21,11 @@ import {
   useViewerStore,
 } from "../application/index.ts";
 import { ParserRuleEditor } from "./components/ParserRuleEditor.tsx";
-import { CustomVariantModal } from "./components/CustomVariantModal.tsx";
+const CustomVariantModal = lazy(() =>
+  import("./components/CustomVariantModal.tsx").then((m) => ({
+    default: m.CustomVariantModal,
+  }))
+);
 import { cn } from "./utils/cn.ts";
 
 export interface ParserSettingsSectionProps {
@@ -473,13 +477,17 @@ export default function ParserSettingsSection({
       </div>
 
       {/* Modal */}
-      <CustomVariantModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveModal}
-        initialDefinition={editingVariant}
-        isDark={isDark}
-      />
+      {isModalOpen && (
+        <Suspense fallback={null}>
+          <CustomVariantModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSave={handleSaveModal}
+            initialDefinition={editingVariant}
+            isDark={isDark}
+          />
+        </Suspense>
+      )}
     </section>
   );
 }

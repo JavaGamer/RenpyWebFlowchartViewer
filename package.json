@@ -42,7 +42,6 @@
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-tooltip": "^1.2.12",
     "minisearch": "^7.1.1",
-    "expr-eval-fork": "^3.0.3",
     "zundo": "^2.3.0",
     "fflate": "^0.8.2"
   },

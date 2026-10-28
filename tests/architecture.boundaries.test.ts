@@ -149,4 +149,49 @@ describe("architecture import boundaries", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("disallows domain modules importing from external UI framework packages", () => {
+    const offenders: string[] = [];
+    const uiFrameworkPattern = /from ['"](?:react|@xyflow\/react)(?:['"/]|$)/;
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      if (!rel.startsWith("domain/")) continue;
+      const source = readFileSync(file, "utf8");
+      if (uiFrameworkPattern.test(source)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("disallows parser layer from defining worker protocol contracts", () => {
+    const offenders: string[] = [];
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      if (rel.startsWith("parser/workerProtocol.")) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("disallows expr-eval or expr-eval-fork imports across all source files", () => {
+    const offenders: string[] = [];
+    const exprEvalPattern = /from ['"]expr-eval(?:-fork)?['"]/;
+    for (const file of tsFiles) {
+      const rel = relativeFromSrc(file);
+      const source = readFileSync(file, "utf8");
+      if (exprEvalPattern.test(source)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("disallows direct store imports in src/application/processUpload.ts", () => {
+    const file = resolve(srcRoot, "application/processUpload.ts");
+    const source = readFileSync(file, "utf8");
+    const storeImportPattern = /from ['"].*Store(?:\.ts)?['"]/;
+    expect(storeImportPattern.test(source)).toBe(false);
+  });
 });

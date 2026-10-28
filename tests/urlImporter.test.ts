@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import {
   fetchFilesFromUrl,
@@ -51,6 +51,10 @@ describe("resolveGithubUrl", () => {
 describe("fetchFilesFromUrl", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("fetches and returns a raw .rpy script file", async () => {
