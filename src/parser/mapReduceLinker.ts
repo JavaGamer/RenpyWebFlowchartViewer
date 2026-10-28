@@ -407,7 +407,21 @@ export function linkGraphFragments(
         if (edge.id.startsWith(oldPrefix)) {
           edge.id = newPrefix + edge.id.slice(oldPrefix.length);
         } else {
-          edge.id = newPrefix;
+          let suffix = "";
+          if (edge.id.includes(`__${oldTarget}`)) {
+            suffix = edge.id.slice(
+              edge.id.indexOf(`__${oldTarget}`) + `__${oldTarget}`.length,
+            );
+          }
+          edge.id = newPrefix + suffix;
+        }
+        if (state.edgeIds.has(edge.id)) {
+          let counter = 1;
+          const baseId = edge.id;
+          while (state.edgeIds.has(`${baseId}__${counter}`)) {
+            counter++;
+          }
+          edge.id = `${baseId}__${counter}`;
         }
         if (edge.callContext) {
           edge.callContext = {
@@ -655,6 +669,14 @@ export function linkGraphFragments(
         newId = newId.replace(`${oldSource}__`, `${edge.source}__`);
       }
       if (newId !== oldId) {
+        if (state.edgeIds.has(newId)) {
+          let counter = 1;
+          const baseId = newId;
+          while (state.edgeIds.has(`${baseId}__${counter}`)) {
+            counter++;
+          }
+          newId = `${baseId}__${counter}`;
+        }
         edge.id = newId;
         state.edgeMap.delete(oldId);
         state.edgeMap.set(newId, edge);

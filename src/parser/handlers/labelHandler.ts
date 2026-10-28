@@ -140,14 +140,41 @@ function remapLabelEdgesAndContexts(
     }
   }
   for (const edge of state.edges) {
-    if (edge.source === fromId) edge.source = toId;
-    if (edge.target === fromId) edge.target = toId;
+    const oldId = edge.id;
+    let changed = false;
+    if (edge.source === fromId) {
+      edge.source = toId;
+      changed = true;
+    }
+    if (edge.target === fromId) {
+      edge.target = toId;
+      changed = true;
+    }
     if (edge.callContext) {
       if (edge.callContext.callSiteId === fromId) {
         edge.callContext.callSiteId = toId;
       }
       if (edge.callContext.returnTargetId === fromId) {
         edge.callContext.returnTargetId = toId;
+      }
+    }
+    if (changed) {
+      let newId = oldId;
+      if (newId.includes(`__${fromId}`)) {
+        newId = newId.replace(`__${fromId}`, `__${toId}`);
+      }
+      if (newId.includes(`_${fromId}__`)) {
+        newId = newId.replace(`_${fromId}__`, `_${toId}__`);
+      }
+      if (newId !== oldId) {
+        edge.id = newId;
+        state.edgeMap.delete(oldId);
+        state.edgeMap.set(newId, edge);
+        state.edgeIds.delete(oldId);
+        state.edgeIds.add(newId);
+        if (edge.callContext) {
+          edge.callContext.callEdgeId = newId;
+        }
       }
     }
   }
@@ -301,22 +328,42 @@ export function performLabelSceneSplit(
   const sceneIndex = (scanState.currentLabelSceneIndex ?? 1) + 1;
   const nextSceneId = toSceneLabelId(currentLabelBaseId, sceneIndex);
 
+  const curDecision = scanState.conditionalDecisionStack.length > 0
+    ? scanState.conditionalDecisionStack[
+      scanState.conditionalDecisionStack.length - 1
+    ]
+    : undefined;
+  const isBranchFirstScene = Boolean(
+    curDecision &&
+      (curDecision.connectedSceneId === undefined ||
+        curDecision.connectedBranchKind !== curDecision.branchKind) &&
+      curDecision.sourceLocation,
+  );
+
+  let nextSceneStartLoc = sourceLocation;
+  if (isBranchFirstScene && curDecision?.sourceLocation && sourceLocation) {
+    nextSceneStartLoc = {
+      ...sourceLocation,
+      start: curDecision.sourceLocation.start,
+    };
+  }
+
   const prevSceneNode = state.nodeMap.get(activeSceneId);
+  const splitCutoffLine = isBranchFirstScene && curDecision?.sourceLocation
+    ? curDecision.sourceLocation.start.line
+    : (sourceLocation ? sourceLocation.start.line : undefined);
   if (
     prevSceneNode?.sourceLocation &&
-    sourceLocation &&
-    prevSceneNode.sourceLocation.end.line >= sourceLocation.start.line &&
-    sourceLocation.start.line > prevSceneNode.sourceLocation.start.line
+    splitCutoffLine !== undefined &&
+    prevSceneNode.sourceLocation.end.line >= splitCutoffLine &&
+    splitCutoffLine > prevSceneNode.sourceLocation.start.line
   ) {
     prevSceneNode.sourceLocation = {
       ...prevSceneNode.sourceLocation,
       end: {
-        line: sourceLocation.start.line - 1,
+        line: splitCutoffLine - 1,
         character: 0,
-        offset: Math.max(
-          prevSceneNode.sourceLocation.start.offset,
-          sourceLocation.start.offset - 1,
-        ),
+        offset: prevSceneNode.sourceLocation.start.offset,
       },
     };
   }
@@ -327,7 +374,7 @@ export function performLabelSceneSplit(
     label: `${currentLabelDeclaredName}: Scene ${sceneIndex}`,
     dialogueCount: 0,
     chapter,
-    sourceLocation,
+    sourceLocation: nextSceneStartLoc,
   });
 
   if (sourceLocation && state.nodeMutations?.has(activeSceneId)) {

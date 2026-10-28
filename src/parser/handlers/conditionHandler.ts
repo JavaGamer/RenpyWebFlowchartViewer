@@ -14,6 +14,7 @@ import {
   addNode,
   addOutgoing,
 } from "../graphMutations.ts";
+import { updateCallReturnTarget } from "./jumpCallEdges.ts";
 
 export function createDecisionConditionMetadata(
   decisionContext:
@@ -107,26 +108,85 @@ export function handleConditionalHeader(
       },
       sourceLocation: pending.sourceLocation,
     });
-    const parentContext = scanState
-      .conditionalDecisionStack[scanState.conditionalDecisionStack.length - 1];
-    addEdge(state, {
-      id: `seq_${source}__${decisionNodeId}`,
-      source,
-      target: decisionNodeId,
-      kind: "sequence",
-      label: parentContext ? parentContext.branchKind : labelPrefix,
-      condition: parentContext
-        ? {
-          branchKind: parentContext.branchKind,
-          expression: parentContext.expression ?? undefined,
-          references: parentContext.references,
-          decisionNodeId: parentContext.decisionNodeId,
+    const curDec = scanState.conditionalDecisionStack.length > 0
+      ? scanState.conditionalDecisionStack[
+        scanState.conditionalDecisionStack.length - 1
+      ]
+      : undefined;
+    const curBranchIndex = curDec
+      ? (curDec.branches ? curDec.branches.length : 0)
+      : undefined;
+
+    const matchingFallthrough = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          e.branchDecisionId === curDec.decisionNodeId &&
+          e.branchIndex === curBranchIndex,
+      )
+      : scanState.pendingMenuFallthrough.filter((e) => !e.branchDecisionId);
+
+    const remainingFallthrough = curDec
+      ? scanState.pendingMenuFallthrough.filter(
+        (e) =>
+          !(e.branchDecisionId === curDec.decisionNodeId &&
+            e.branchIndex === curBranchIndex),
+      )
+      : scanState.pendingMenuFallthrough.filter((e) =>
+        Boolean(e.branchDecisionId)
+      );
+
+    if (matchingFallthrough.length > 0) {
+      for (const entry of matchingFallthrough) {
+        if (entry.calledTargetId && entry.callContextId) {
+          updateCallReturnTarget(state, entry.callContextId, decisionNodeId);
+          continue;
         }
-        : undefined,
-      sourceLocation: pending.sourceLocation,
-    });
-    addOutgoing(state, source, "sequence");
-    addIncoming(state, decisionNodeId, "sequence");
+        const isDecisionFallthrough = entry.menuId.startsWith("decision_") &&
+          entry.optionText === null;
+        const isImplicitElse = isDecisionFallthrough && !entry.hasExplicitElse;
+        const label = isImplicitElse ? "else" : (entry.optionText ?? "next");
+        const edgeId = `seq_${entry.menuId}__${decisionNodeId}${
+          isImplicitElse ? "_else" : ""
+        }`;
+        addEdge(state, {
+          id: edgeId,
+          source: entry.menuId,
+          target: decisionNodeId,
+          kind: "sequence",
+          label,
+          condition: isImplicitElse
+            ? { branchKind: "else", decisionNodeId: entry.menuId }
+            : undefined,
+          sourceLocation: pending.sourceLocation,
+        });
+        addOutgoing(state, entry.menuId, "sequence");
+        addIncoming(state, decisionNodeId, "sequence");
+      }
+      scanState.pendingMenuFallthrough = remainingFallthrough;
+    } else {
+      const parentContext = scanState
+        .conditionalDecisionStack[
+          scanState.conditionalDecisionStack.length - 1
+        ];
+      addEdge(state, {
+        id: `seq_${source}__${decisionNodeId}`,
+        source,
+        target: decisionNodeId,
+        kind: "sequence",
+        label: parentContext ? parentContext.branchKind : labelPrefix,
+        condition: parentContext
+          ? {
+            branchKind: parentContext.branchKind,
+            expression: parentContext.expression ?? undefined,
+            references: parentContext.references,
+            decisionNodeId: parentContext.decisionNodeId,
+          }
+          : undefined,
+        sourceLocation: pending.sourceLocation,
+      });
+      addOutgoing(state, source, "sequence");
+      addIncoming(state, decisionNodeId, "sequence");
+    }
     scanState.conditionalDecisionStack.push({
       indent: pending.indent,
       decisionNodeId,

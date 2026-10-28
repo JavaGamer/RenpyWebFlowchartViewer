@@ -232,44 +232,82 @@ label path_b:
     );
   });
 
-  it("scenario: Wish You Were Her prunes all dead-end decisions without losing real menus or branch points", async () => {
-    const fs = await import("node:fs");
-    const scenarioPath =
-      "C:/Users/gamin/Downloads/Games/StudentTransfer-9.2-pc-arm/game/scenario/wishyouwereher/story/Wish You Were Her.rpy";
-    if (!fs.existsSync(scenarioPath)) return;
+  it("prunes all dead-end decisions without losing real menus or branch points", async () => {
+    const script = [
+      "label start:",
+      "    if cosmetic_a:",
+      '        "Cosmetic line A"',
+      "    menu:",
+      '        "Menu 1 Choice 1":',
+      "            jump label_m1a",
+      '        "Menu 1 Choice 2":',
+      "            jump label_m1b",
+      "",
+      "label label_m1a:",
+      "    if cosmetic_b:",
+      "        $ val = 42",
+      "    menu:",
+      '        "Menu 2 Choice 1":',
+      "            jump label_m2a",
+      '        "Menu 2 Choice 2":',
+      "            jump label_m2b",
+      "",
+      "label label_m1b:",
+      "    menu:",
+      '        "Menu 3 Choice 1":',
+      "            jump label_m2a",
+      '        "Menu 3 Choice 2":',
+      "            jump label_m2b",
+      "",
+      "label label_m2a:",
+      "    if branching_choice:",
+      "        jump path_branch_a",
+      "    else:",
+      "        jump path_branch_b",
+      "",
+      "label label_m2b:",
+      "    menu:",
+      '        "Menu 4 Choice 1":',
+      "            jump path_branch_a",
+      '        "Menu 4 Choice 2":',
+      "            jump path_branch_b",
+      "",
+      "label path_branch_a:",
+      '    "End A"',
+      "    return",
+      "",
+      "label path_branch_b:",
+      '    "End B"',
+      "    return",
+    ].join("\n");
 
-    const content = fs.readFileSync(scenarioPath, "utf-8");
     const result = await parseRenpyFiles(
-      [{
-        name: "Wish You Were Her.rpy",
-        content,
-      }],
+      [{ name: "prune_test.rpy", content: script }],
       { pruneDeadEndDecisions: true },
     );
 
     const menus = result.nodes.filter((n) => n.type === "MENU");
-    // All 4 real story menus in Wish You Were Her remain intact
+    // All 4 real story menus remain intact
     expect(menus.length).toBe(4);
 
     const decisions = result.nodes.filter((n) => n.type === "DECISION");
+    expect(decisions.length).toBe(1);
     // Check that every surviving decision node has at least one outgoing edge
     for (const dec of decisions) {
       const outEdges = result.edges.filter((e) => e.source === dec.id);
       expect(outEdges.length).toBeGreaterThan(0);
     }
 
-    // Dead-end decision count is exactly 0 (previously 59!)
+    // Dead-end decision count is exactly 0
     const deadEndDecisions = decisions.filter((d) => {
       const outEdges = result.edges.filter((e) => e.source === d.id);
       return outEdges.length === 0;
     });
     expect(deadEndDecisions).toHaveLength(0);
 
-    // True branching points (e.g. decision_35 branching to walkHome and friendLink) are preserved
+    // True branching points are preserved
     expect(
-      decisions.some((d) =>
-        d.label?.includes("fMichelleWitch or fScarletHorse")
-      ),
+      decisions.some((d) => d.label?.includes("branching_choice")),
     ).toBe(true);
   });
 

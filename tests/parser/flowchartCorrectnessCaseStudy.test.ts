@@ -456,18 +456,65 @@ describe("flowchart topology and control flow hardening regressions", () => {
     expect(node?.characterDialogue?.["extend"]).toBeUndefined();
   });
 
-  it("verifies the Wish You Were Her case study end-to-end", async () => {
-    const caseStudyPath =
-      "C:\\Users\\gamin\\Downloads\\Games\\StudentTransfer-9.2-pc-arm\\game\\scenario\\wishyouwereher\\story\\Wish You Were Her.rpy";
-    let scriptContent: string;
-    try {
-      scriptContent = await Deno.readTextFile(caseStudyPath);
-    } catch {
-      return; // Skip if file not present on another environment
-    }
+  it("verifies multi-scene subroutine calls, returns, and mutations end-to-end", async () => {
+    const makeLines = (n: number) =>
+      Array.from({ length: n }, (_, i) => `    "Dialogue line ${i}"`).join(
+        "\n",
+      );
+
+    const script = [
+      "label michelle:",
+      "    $ fMichelleWitch = True",
+      makeLines(17),
+      "    scene bg m2",
+      makeLines(17),
+      "    scene bg m3",
+      makeLines(17),
+      "    call walkToFriendDescription",
+      "    scene bg m4",
+      makeLines(17),
+      "    jump dream",
+      "",
+      "label scarlet:",
+      "    $ fScarletHorse = not fKatrinaMean",
+      makeLines(17),
+      "    scene bg s2",
+      makeLines(17),
+      "    scene bg s3",
+      makeLines(17),
+      "    jump dream",
+      "",
+      "label kyoko:",
+      "    if fCalledKyoko:",
+      '        "Called Kyoko"',
+      "    else:",
+      '        "Not called"',
+      "    if fScarletHorse or fMichelleWitch:",
+      '        "Horse or witch"',
+      "    else:",
+      '        "Normal"',
+      "    call walkToFriendDescription",
+      "    jump dream",
+      "",
+      "label walkToFriendDescription:",
+      '    "Describing walk to friend"',
+      "    return",
+      "",
+      "label dream:",
+      '    "Dreaming..."',
+      "    jump day2",
+      "",
+      "label day2:",
+      makeLines(17),
+      "    scene bg d2_afternoon",
+      makeLines(17),
+      "    scene bg d2_evening",
+      makeLines(17),
+      "    return",
+    ].join("\n");
 
     const result = await parseRenpyFiles([
-      { name: "story/Wish You Were Her.rpy", content: scriptContent },
+      { name: "story/case_study.rpy", content: script },
     ], { captureDialogueLines: true });
 
     // 1. Check michelle scenes: none should be dead ends
@@ -515,7 +562,7 @@ describe("flowchart topology and control flow hardening regressions", () => {
     expect(walkNode?.role).toBe("utility");
     expect(walkNode?.isTerminalOutcome).toBeFalsy();
 
-    // 4. Sequential if in kyoko: no else edge between decision_30 and decision_32
+    // 4. Sequential if in kyoko: no else edge between decision_1 and decision_2
     const dec30 = result.nodes.find((n) => n.label === "if fCalledKyoko");
     const dec32 = result.nodes.find((n) =>
       n.label === "if fScarletHorse or fMichelleWitch"
@@ -693,5 +740,133 @@ describe("flowchart topology and control flow hardening regressions", () => {
     expect(ch2).toBeDefined();
     expect(ch2?.characterDialogue?.["alice"]).toBeUndefined();
     expect(ch2?.characterDialogue?.["narrator"]).toBeDefined();
+  });
+
+  it("preserves both if and else edges when both branches of a decision jump to the same target label", async () => {
+    const script = [
+      "label lunch_decision:",
+      "    if flag == True:",
+      '        "Flag was true"',
+      "        jump destination_hub",
+      "    else:",
+      '        "Flag was false"',
+      "        jump destination_hub",
+      "",
+      "label destination_hub:",
+      '    "Reached destination."',
+      "    return",
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "dual_jump.rpy", content: script },
+    ]);
+
+    const dec = result.nodes.find((n) => n.type === "DECISION");
+    expect(dec).toBeDefined();
+
+    const outEdges = result.edges.filter((e) => e.source === dec?.id);
+    expect(outEdges).toHaveLength(2);
+
+    const ifEdge = outEdges.find((e) => e.condition?.branchKind === "if");
+    const elseEdge = outEdges.find((e) => e.condition?.branchKind === "else");
+    expect(ifEdge).toBeDefined();
+    expect(elseEdge).toBeDefined();
+    expect(ifEdge?.target).toBe("destination_hub");
+    expect(elseEdge?.target).toBe("destination_hub");
+    expect(ifEdge?.id).not.toBe(elseEdge?.id);
+  });
+
+  it("branches sequential mutually exclusive ending blocks ending in gameover into independent terminal nodes", async () => {
+    const makeBlock = (cond: string, endName: string) =>
+      [
+        `    ${cond}:`,
+        ...Array.from({ length: 17 }, (_, i) => `        "Dialogue line ${i}"`),
+        `        scene bg test_${endName.replace(/\s+/g, "_")}`,
+        ...Array.from(
+          { length: 17 },
+          (_, i) => `        "Dialogue line post ${i}"`,
+        ),
+        `        gameover "${endName}"`,
+      ].join("\n");
+
+    const script = [
+      "label finale_hub:",
+      makeBlock("if score >= 4 and with_partner == True", "Ending 1"),
+      makeBlock("if score >= 4 and with_partner == False", "Ending 2"),
+      makeBlock("if 1 <= score <= 3", "Ending 3"),
+      makeBlock("if score == 0", "Ending 4"),
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "endings.rpy", content: script },
+    ]);
+
+    const terminalNodes = result.nodes.filter((n) => n.isTerminalOutcome);
+    expect(terminalNodes).toHaveLength(4);
+
+    // Each ending should be an independent terminal branch, not chained sequentially
+    for (const term of terminalNodes) {
+      const outEdges = result.edges.filter((e) => e.source === term.id);
+      expect(outEdges).toHaveLength(0);
+    }
+
+    // Verify decisions connect via implicit else
+    const decisions = result.nodes.filter((n) => n.type === "DECISION");
+    expect(decisions).toHaveLength(4);
+
+    const elseEdges = result.edges.filter(
+      (e) =>
+        e.condition?.branchKind === "else" &&
+        e.source.startsWith("decision_"),
+    );
+    expect(elseEdges).toHaveLength(3);
+  });
+
+  it("generates correct cross-label dual-jump branching and independent terminal outcomes", async () => {
+    const makeBlock = (cond: string, endName: string) =>
+      [
+        `    ${cond}:`,
+        ...Array.from({ length: 17 }, (_, i) => `        "Dialogue line ${i}"`),
+        `        scene bg test_${endName.replace(/\s+/g, "_")}`,
+        ...Array.from(
+          { length: 17 },
+          (_, i) => `        "Dialogue line post ${i}"`,
+        ),
+        `        gameover "${endName}"`,
+      ].join("\n");
+
+    const script = [
+      "label hub:",
+      "    if flag == True:",
+      '        "Option True"',
+      "        jump finale_hub",
+      "    else:",
+      '        "Option False"',
+      "        jump finale_hub",
+      "",
+      "label finale_hub:",
+      makeBlock("if score >= 4 and with_partner == True", "Ending 1"),
+      makeBlock("if score >= 4 and with_partner == False", "Ending 2"),
+      makeBlock("if 1 <= score <= 3", "Ending 3"),
+      makeBlock("if score == 0", "Ending 4"),
+    ].join("\n");
+
+    const result = await parseRenpyFiles([
+      { name: "story.rpy", content: script },
+    ]);
+
+    const terminalNodes = result.nodes.filter(
+      (n) => n.isTerminalOutcome && n.id.startsWith("finale_hub"),
+    );
+    expect(terminalNodes).toHaveLength(4);
+
+    const jumpEdges = result.edges.filter(
+      (e) => e.kind === "jump" && e.target.startsWith("finale_hub"),
+    );
+    expect(jumpEdges).toHaveLength(2);
+    expect(jumpEdges.map((e) => e.condition?.branchKind).sort()).toEqual([
+      "else",
+      "if",
+    ]);
   });
 });

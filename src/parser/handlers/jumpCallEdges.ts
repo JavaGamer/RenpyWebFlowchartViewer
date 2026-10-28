@@ -261,9 +261,22 @@ export function emitJumpEdge(
           : String(timeout.durationSeconds)
       }`
       : "";
-    const edgeId = `jump_${source}__${resolvedTargetId}_${
+    const branchSuffix = context.condition?.branchKind
+      ? `_${context.condition.branchKind}`
+      : "";
+    let edgeId = `jump_${source}__${resolvedTargetId}_${
       optionText ?? ""
-    }${timeoutSuffix}`;
+    }${branchSuffix}${timeoutSuffix}`;
+    if (state.edgeIds.has(edgeId) || state.graph.hasEdge(edgeId)) {
+      let counter = 1;
+      while (
+        state.edgeIds.has(`${edgeId}__${counter}`) ||
+        state.graph.hasEdge(`${edgeId}__${counter}`)
+      ) {
+        counter++;
+      }
+      edgeId = `${edgeId}__${counter}`;
+    }
     addEdge(state, {
       id: edgeId,
       source,

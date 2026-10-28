@@ -178,6 +178,13 @@ function handlePoppedDecisionScope(
       }
     }
   }
+
+  if (popped.preBranchSceneId) {
+    scanState.currentLabelId = popped.preBranchSceneId;
+    if (popped.preBranchDialogueCount !== undefined) {
+      scanState.currentSceneDialogueCount = popped.preBranchDialogueCount;
+    }
+  }
 }
 
 /**
