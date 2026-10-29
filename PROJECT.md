@@ -21,11 +21,11 @@
 | # | Name                              | Scope                                      | Dependencies | Status      |
 | - | --------------------------------- | ------------------------------------------ | ------------ | ----------- |
 | 1 | Baseline Diagnostic & Exploration | Run deno test, lint, build, fmt, bench     | none         | DONE        |
-| 2 | Parser & AST Fixes                | Parser, lexer, AST node transformation     | M1           | IN_PROGRESS |
-| 3 | Layout Engine & State Store Fixes | Web worker, Comlink, Zustand/Immer, ELK    | M1           | PLANNED     |
-| 4 | UI & Component Fixes              | React Flow node/edge components, App UI    | M2, M3       | PLANNED     |
-| 5 | Code Quality & Verification Sweep | Type check, lint, format check, perf bench | M2, M3, M4   | PLANNED     |
-| 6 | E2E Suite & Forensic Audit        | Full verification & integrity check        | M5           | PLANNED     |
+| 2 | Parser & AST Fixes                | Indentation-aware lexer, AST parser core   | M1           | DONE        |
+| 3 | Layout Engine & Story Graph Fixes | StoryGraphBuilder, GlobalLinker, Layout    | M1, M2       | DONE        |
+| 4 | UI & Component Integration        | React Flow Label/Menu nodes, App UI        | M2, M3       | DONE        |
+| 5 | Code Quality & Verification Sweep | Type check, lint, format check, perf bench | M2, M3, M4   | DONE        |
+| 6 | E2E Suite & Forensic Audit        | Full verification & integrity check        | M5           | DONE        |
 
 ## Interface Contracts
 

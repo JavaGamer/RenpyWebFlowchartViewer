@@ -5,6 +5,9 @@
  */
 
 export { parseRenpyFiles } from "./parser.ts";
+export { parseRenpyFilesModern } from "./modernParseService.ts";
+export * from "./ast/index.ts";
+export * from "./graph/index.ts";
 export { createGraphState } from "./pipelineState.ts";
 export {
   processTokenizedFile,

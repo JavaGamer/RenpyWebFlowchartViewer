@@ -167,4 +167,49 @@ label scene_one:
       service.getSession("session_2").accumulatedState.nodeMap.has("sess2"),
     ).toBe(true);
   });
+
+  it("supports engine: 'modern' for AST story graph parsing and search", async () => {
+    const files = [
+      {
+        name: "chapter1.rpy",
+        content: `
+label start:
+    "Welcome to the adventure."
+    menu:
+        "Go East":
+            jump east_cave
+        "Go West":
+            jump west_cave
+
+label east_cave:
+    "The east cave contains glowing crystals."
+    return
+
+label west_cave:
+    "The west cave has a sleeping beast."
+    return
+`,
+      },
+    ];
+
+    const result = await service.parse({
+      engine: "modern",
+      files,
+      resetActiveGraph: true,
+    });
+
+    // 3 LabelNodes + 1 MenuNode
+    expect(result.nodes.map((n) => n.id)).toEqual([
+      "start",
+      "menu_start_L3",
+      "east_cave",
+      "west_cave",
+    ]);
+
+    const crystalResults = await service.searchDialogueLines({
+      query: "crystals",
+    });
+    expect(crystalResults.length).toBe(1);
+    expect(crystalResults[0]!.nodeId).toBe("east_cave");
+  });
 });

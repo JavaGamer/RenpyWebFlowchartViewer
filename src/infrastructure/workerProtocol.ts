@@ -42,6 +42,7 @@ export interface ParseProgressPayload {
  * contain callbacks and an AbortSignal.
  */
 export interface ParseWorkerClientRequest {
+  engine?: "legacy" | "modern";
   files: ParseInputFile[];
   onProgress?: (progress: ParseProgressPayload) => void;
   signal?: AbortSignal;

@@ -427,6 +427,7 @@ export interface ParseInputFile {
 }
 
 export interface ParseOptions {
+  engine?: "legacy" | "modern";
   onProgress?: (progress: ParseProgress) => void;
   maxParallelFiles?: number;
   tokenizedCache?: Map<

@@ -24,6 +24,7 @@ import type {
   ParseProgress,
   ParseResult,
 } from "./pipelineTypes.ts";
+import { parseRenpyFilesModern } from "./modernParseService.ts";
 
 export type { ParseOptions, ParseProgress, ParseResult };
 
@@ -43,6 +44,10 @@ export async function parseRenpyFiles(
   files: ParseInputFile[],
   options: ParseOptions = {},
 ): Promise<ParseResult> {
+  if (options.engine === "modern") {
+    return parseRenpyFilesModern(files, options);
+  }
+
   const normalizedFiles = files.map((file) => {
     if (file.content instanceof Uint8Array) {
       return {

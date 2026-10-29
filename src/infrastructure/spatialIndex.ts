@@ -13,6 +13,11 @@ export interface SpatialItem {
   bounds: AABB;
 }
 
+/**
+ * 2D Spatial Quadtree used for 2D range queries and viewport culling.
+ * Under the modern AST-driven Story Graph engine, node counts are ~10x-20x smaller,
+ * making broad-phase collision detection lightweight.
+ */
 export class SpatialQuadtree {
   private readonly bounds: AABB;
   private readonly maxItems: number;

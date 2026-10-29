@@ -522,6 +522,10 @@ function resolveInitialLabelPoint(
 }
 
 /**
+ * @deprecated Legacy obstacle compensation routing. Under the modern AST-driven Story Graph engine,
+ * graphs are significantly cleaner (~50-100 true macro nodes), allowing standard layered layouts
+ * to position edges without artificial collision dodging. Kept for backwards compatibility with legacy graphs.
+ *
  * Detects if a multi-rank forward edge is obstructed by one or more intermediate
  * nodes and computes a filleted orthogonal bypass path and clear label position
  * around the obstructing node(s). Returns null if the edge is unobstructed.

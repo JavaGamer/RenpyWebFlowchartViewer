@@ -43,6 +43,7 @@ import {
   searchDialogueIndex,
 } from "./dialogueSearchIndex.ts";
 import type { DialogueSearchDocument } from "../config/searchConfig.ts";
+import { parseRenpyFilesModern } from "./modernParseService.ts";
 import {
   deserializeVariantPlugin,
   getParserVariantPlugins,
@@ -72,6 +73,7 @@ export interface ParserProgressPayload {
 }
 
 export interface HeadlessParseOptions {
+  engine?: "legacy" | "modern";
   files: ParseInputFile[];
   sessionId?: string;
   fileCacheKeys?: string[];
@@ -386,6 +388,53 @@ export class HeadlessParserEngine {
       session.rawFilesByChapter.clear();
       session.dialogueSearchDocs = [];
       session.dialogueSearchMiniSearch = null;
+    }
+
+    if (options.engine === "modern") {
+      const modernResult = await parseRenpyFilesModern(files, {
+        signal,
+        onProgress: onProgress
+          ? (p) =>
+            onProgress({
+              doneFiles: p.doneFiles,
+              totalFiles: p.totalFiles,
+              currentFile: p.currentFile,
+              elapsedMs: 0,
+            })
+          : undefined,
+      });
+
+      session.accumulatedState.nodes = modernResult.nodes;
+      session.accumulatedState.edges = modernResult.edges;
+      session.accumulatedState.nodeMap = new Map(
+        modernResult.nodes.map((n) => [n.id, n]),
+      );
+      session.accumulatedState.edgeMap = new Map(
+        modernResult.edges.map((e) => [e.id, e]),
+      );
+
+      for (const file of files) {
+        if (file.content instanceof Uint8Array) {
+          file.content = new TextDecoder("utf-8").decode(file.content);
+        }
+        const chapterSource = file.relativePath ?? file.name;
+        const chapter = chapterSource.replace(/\\/g, "/").replace(
+          /\.rpy$/i,
+          "",
+        );
+        session.rawFilesByChapter.set(chapter, file);
+      }
+
+      buildDialogueSearchIndex(
+        session,
+        session.accumulatedState.nodes,
+        session.translations,
+      );
+
+      return {
+        nodes: modernResult.nodes,
+        edges: modernResult.edges,
+      };
     }
 
     if (projectMediaFiles) {
