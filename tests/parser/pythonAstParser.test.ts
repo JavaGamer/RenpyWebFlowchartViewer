@@ -3,7 +3,7 @@ import { parsePythonBlock } from "../../src/domain/pythonAstEvaluator.ts";
 import {
   extractLiteralTarget,
   parseDictLiteral,
-} from "../../src/parser/handlers/targetResolution.ts";
+} from "../../src/parser/index.ts";
 
 describe("pythonAstParser adversarial review fixes", () => {
   it("extracts simple variable assignments", () => {

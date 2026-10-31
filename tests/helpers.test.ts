@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { stripPythonComments } from "../src/parser/initMapper";
 import {
   extractLiteralTarget,
   parseDictLiteral,
-} from "../src/parser/tokenHandling";
+  stripPythonComments,
+} from "../src/parser/index.ts";
 
 describe("stripPythonComments escape handling", () => {
   it("strips plain comments", () => {

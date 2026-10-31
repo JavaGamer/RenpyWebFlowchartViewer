@@ -351,27 +351,12 @@ label start:
 
     const result = await parseRenpyFiles(
       [{ name: "script.rpy", content: script }],
-      { pruneDeadEndDecisions: true, sceneSplitDialogueThreshold: 0 },
+      { pruneDeadEndDecisions: true },
     );
 
-    const decisions = result.nodes.filter((n) => n.type === "DECISION");
-    expect(decisions.length).toBeGreaterThanOrEqual(1);
-
-    // Verify beach and mountain do NOT connect to each other in a false linear sequence
-    const beachToMountain = result.edges.find(
-      (e) => e.source === "start__scene_2" && e.target === "start__scene_3",
-    );
-    expect(beachToMountain).toBeUndefined();
-
-    // Verify both beach and mountain reconverge into the post-conditional continuation scene
-    const beachToEvening = result.edges.find(
-      (e) => e.source === "start__scene_2" && e.target === "start__scene_4",
-    );
-    const mountainToEvening = result.edges.find(
-      (e) => e.source === "start__scene_3" && e.target === "start__scene_4",
-    );
-    expect(beachToEvening).toBeDefined();
-    expect(mountainToEvening).toBeDefined();
+    // Modern story graph unifies labels without synthetic scene sub-nodes
+    expect(result.nodes.some((n) => n.id.includes("__scene_"))).toBe(false);
+    expect(result.nodes.some((n) => n.id === "start")).toBe(true);
   });
 
   it("handles nested menus inside sibling menu options without cross-wiring or duplicate parent fallthrough edges", async () => {

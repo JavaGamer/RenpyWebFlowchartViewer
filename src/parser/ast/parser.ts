@@ -11,12 +11,19 @@ import type {
   CallArgumentAst,
   CallScreenStatementAst,
   CallStatementAst,
+  CaseBranchAst,
+  DefaultStatementAst,
+  DefineStatementAst,
+  ForStatementAst,
+  GenericStatementAst,
   IfBranchAst,
   IfStatementAst,
+  ImageStatementAst,
   InitStatementAst,
   JumpStatementAst,
   LabelParameterAst,
   LabelStatementAst,
+  MatchStatementAst,
   MenuItemAst,
   MenuStatementAst,
   PassStatementAst,
@@ -35,6 +42,8 @@ import type {
   WhileStatementAst,
 } from "./types.ts";
 import { tokenizeRenpy } from "./lexer.ts";
+import { getParserVariantPlugins } from "../plugins/pluginRegistry.ts";
+import { extractLiteralTarget, extractSceneAsset } from "../utils.ts";
 
 export class RenpyParser {
   private tokens: Token[];
@@ -42,17 +51,79 @@ export class RenpyParser {
   private source: string;
   private pos: number = 0;
   private currentGlobalLabel: string = "";
+  private nonSpeakerKeywords: Set<string>;
 
-  constructor(tokens: Token[], file: string, source: string = "") {
+  private fileInitOffset: number = 0;
+
+  constructor(
+    tokens: Token[],
+    file: string,
+    source: string = "",
+    options?: { parserVariant?: string },
+  ) {
     this.tokens = tokens;
     this.file = file;
     this.source = source;
+    this.fileInitOffset = 0;
+    this.nonSpeakerKeywords = new Set<string>([
+      "gameover",
+      "title",
+      "timedchoice",
+      "routename",
+    ]);
+
+    const variant = options?.parserVariant;
+    if (variant && variant !== "renpy") {
+      try {
+        const plugins = getParserVariantPlugins();
+        const activePlugin = plugins.find((p) => p.id === variant);
+        if (activePlugin) {
+          if (activePlugin.id === "st") {
+            this.nonSpeakerKeywords.add("placeholder");
+          }
+          if (activePlugin.branchStatements) {
+            for (const b of activePlugin.branchStatements) {
+              const src = typeof b.pattern === "string"
+                ? b.pattern
+                : b.pattern.source;
+              const clean = src.replace(/^\^/, "").replace(
+                /^(?:\\s|\s)*[+*]?/,
+                "",
+              ).replace(/^\\\$/, "").trim();
+              const m = /^[A-Za-z0-9_]+/.exec(clean);
+              if (m) this.nonSpeakerKeywords.add(m[0].toLowerCase());
+            }
+          }
+          if (activePlugin.terminalStatements) {
+            for (const t of activePlugin.terminalStatements) {
+              const src = typeof t.pattern === "string"
+                ? t.pattern
+                : t.pattern.source;
+              const clean = src.replace(/^\^/, "").replace(
+                /^(?:\\s|\s)*[+*]?/,
+                "",
+              ).replace(/^\\\$/, "").trim();
+              const m = /^[A-Za-z0-9_]+/.exec(clean);
+              if (m) this.nonSpeakerKeywords.add(m[0].toLowerCase());
+            }
+          }
+          if (activePlugin.stagingKeywords) {
+            for (const kw of activePlugin.stagingKeywords) {
+              this.nonSpeakerKeywords.add(kw.toLowerCase());
+            }
+          }
+        }
+      } catch {
+        // Ignore if plugins registry is not yet initialized
+      }
+    }
   }
 
   public parse(): RenpyScriptAst {
     const statements: TopLevelStatementAst[] = [];
     this.pos = 0;
     this.currentGlobalLabel = "";
+    this.fileInitOffset = 0;
 
     this.skipNewlines();
 
@@ -75,27 +146,64 @@ export class RenpyParser {
   // ==========================================================================
 
   private parseTopLevelStatement(): TopLevelStatementAst | null {
-    const tok = this.peek();
+    try {
+      const tok = this.peek();
 
-    if (tok.type === "LABEL") {
-      return this.parseLabelStatement();
+      if (tok.type === "LABEL") {
+        return this.parseLabelStatement();
+      }
+
+      if (tok.type === "SCREEN") {
+        return this.parseScreenStatement();
+      }
+
+      if (tok.type === "INIT") {
+        return this.parseInitStatement();
+      }
+
+      if (tok.type === "PYTHON") {
+        return this.parsePythonBlockStatement();
+      }
+
+      if (tok.type === "IDENTIFIER") {
+        if (tok.value === "define") {
+          return this.parseDefineStatement();
+        }
+        if (tok.value === "default") {
+          return this.parseDefaultStatement();
+        }
+        if (tok.value === "image") {
+          return this.parseImageStatement();
+        }
+        if (tok.value === "python") {
+          return this.parsePythonBlockStatement();
+        }
+      }
+
+      if (
+        tok.type === "MENU" ||
+        (tok.type === "IDENTIFIER" && tok.value.toLowerCase() === "menu")
+      ) {
+        return this.parseMenuStatement();
+      }
+
+      if (tok.type === "DOLLAR") {
+        const stmt = this.parseDollarPythonStatement();
+        return {
+          kind: "init",
+          priority: this.fileInitOffset,
+          body: [stmt],
+          sourceLocation: stmt.sourceLocation,
+        };
+      }
+
+      // Skip unrecognized token at top level to maintain parser resilience
+      this.advance();
+      return null;
+    } catch {
+      this.advance();
+      return null;
     }
-
-    if (tok.type === "SCREEN") {
-      return this.parseScreenStatement();
-    }
-
-    if (tok.type === "INIT") {
-      return this.parseInitStatement();
-    }
-
-    if (tok.type === "PYTHON") {
-      return this.parsePythonBlockStatement();
-    }
-
-    // Skip unrecognized token at top level to maintain parser resilience
-    this.advance();
-    return null;
   }
 
   // ==========================================================================
@@ -106,7 +214,7 @@ export class RenpyParser {
     const labelTok = this.consume("LABEL", "Expected 'label'");
     const startPos = this.toPosition(labelTok);
 
-    const nameTok = this.consume("IDENTIFIER", "Expected label identifier");
+    const nameTok = this.consumeIdentifierLike("Expected label identifier");
     const rawName = nameTok.value;
     const isLocal = rawName.startsWith(".");
 
@@ -125,25 +233,42 @@ export class RenpyParser {
       parameters = this.parseLabelParameters();
     }
 
-    this.consume("COLON", "Expected ':' after label name");
-    this.consume("NEWLINE", "Expected newline after label header");
+    this.match("COLON");
 
     const body: StatementAst[] = [];
     let endPos = this.toEndPosition(nameTok);
 
-    if (this.match("INDENT")) {
-      while (!this.check("DEDENT") && !this.isAtEnd()) {
-        this.skipNewlines();
-        if (this.check("DEDENT") || this.isAtEnd()) break;
-
-        const stmt = this.parseStatement();
-        if (stmt) {
-          body.push(stmt);
-          endPos = stmt.sourceLocation.end;
-        }
-        this.skipNewlines();
+    if (!this.check("NEWLINE") && !this.isAtEnd()) {
+      // Single-line label statement, e.g. "label start: return"
+      const stmt = this.parseStatement();
+      if (stmt) {
+        body.push(stmt);
+        endPos = stmt.sourceLocation.end;
       }
-      this.match("DEDENT");
+    } else {
+      this.consumeStatementTerminator();
+      if (this.match("INDENT")) {
+        while (!this.check("DEDENT") && !this.isAtEnd()) {
+          this.skipNewlines();
+          if (this.check("DEDENT") || this.isAtEnd()) break;
+
+          try {
+            const stmt = this.parseStatement();
+            if (stmt) {
+              body.push(stmt);
+              endPos = stmt.sourceLocation.end;
+            }
+          } catch {
+            while (
+              !this.check("NEWLINE") && !this.check("DEDENT") && !this.isAtEnd()
+            ) {
+              this.advance();
+            }
+          }
+          this.skipNewlines();
+        }
+        this.match("DEDENT");
+      }
     }
 
     return {
@@ -233,11 +358,17 @@ export class RenpyParser {
       case "WHILE":
         return this.parseWhileStatement();
 
+      case "FOR":
+        return this.parseForStatement();
+
       case "DOLLAR":
         return this.parseDollarPythonStatement();
 
       case "PYTHON":
         return this.parseBlockPythonStatement();
+
+      case "SCREEN":
+        return this.parseScreenStatement();
 
       case "PASS":
         return this.parsePassStatement();
@@ -256,8 +387,11 @@ export class RenpyParser {
         if (this.isSaySpeakerAhead()) {
           return this.parseSayWithSpeaker();
         }
+        if (this.peek().value === "match") {
+          return this.parseMatchStatement();
+        }
         // Otherwise, consume remainder of statement line as generic statement
-        return this.skipGenericStatementLine();
+        return this.parseGenericStatement();
       }
 
       default:
@@ -270,12 +404,20 @@ export class RenpyParser {
   // Dialogue / Say Statement
   // ==========================================================================
 
+  private isNonSpeakerKeyword(word: string): boolean {
+    return this.nonSpeakerKeywords.has(word);
+  }
+
   private isSaySpeakerAhead(): boolean {
+    const firstWord = this.peek().value.toLowerCase();
+    if (this.isNonSpeakerKeyword(firstWord)) {
+      return false;
+    }
     let offset = 1;
     while (this.pos + offset < this.tokens.length) {
       const t = this.tokens[this.pos + offset]!;
       if (t.type === "STRING") return true;
-      if (t.type === "NEWLINE" || t.type === "COLON" || t.type === "EOF") {
+      if (t.type !== "IDENTIFIER") {
         return false;
       }
       offset++;
@@ -314,18 +456,29 @@ export class RenpyParser {
   }
 
   private parseSayStatement(speaker?: string): SayStatementAst {
-    const strTok = this.consume("STRING", "Expected dialogue string");
-    const startPos = this.toPosition(strTok);
-    const endPos = this.toEndPosition(strTok);
+    const firstTok = this.consume("STRING", "Expected dialogue string");
+    const startPos = this.toPosition(firstTok);
+    let endPos = this.toEndPosition(firstTok);
+
+    let actualSpeaker = speaker;
+    let actualText = firstTok.value;
+
+    // Handle "Speaker" "Dialogue" syntax
+    if (!speaker && this.check("STRING")) {
+      actualSpeaker = firstTok.value;
+      const secondTok = this.advance();
+      actualText = secondTok.value;
+      endPos = this.toEndPosition(secondTok);
+    }
 
     this.consumeStatementTerminator();
 
-    const pauseDuration = this.extractPauseDuration(strTok.value);
+    const pauseDuration = this.extractPauseDuration(actualText);
 
     return {
       kind: "say",
-      ...(speaker ? { character: speaker } : {}),
-      text: strTok.value,
+      ...(actualSpeaker ? { character: actualSpeaker } : {}),
+      text: actualText,
       ...(pauseDuration !== undefined ? { pauseDuration } : {}),
       sourceLocation: {
         file: this.file,
@@ -358,15 +511,25 @@ export class RenpyParser {
     const startPos = this.toPosition(menuTok);
     let endPos = this.toEndPosition(menuTok);
 
+    let menuName: string | undefined;
+    if (
+      !this.check("COLON") && !this.check("LPAREN") && !this.check("NEWLINE")
+    ) {
+      const nameTok = this.consumeIdentifierLike("Expected menu name");
+      menuName = nameTok.value;
+      endPos = this.toEndPosition(nameTok);
+    }
+
     // Menus can have optional arguments like menu (screen="choice"):
     if (this.check("LPAREN")) {
       this.consumeParenthesizedBlock();
     }
 
-    this.consume("COLON", "Expected ':' after menu");
-    this.consume("NEWLINE", "Expected newline after menu");
+    this.match("COLON");
+    this.consumeStatementTerminator();
 
     let prompt: string | undefined;
+    const prompts: string[] = [];
     let promptSpeaker: string | undefined;
     const items: MenuItemAst[] = [];
 
@@ -381,14 +544,19 @@ export class RenpyParser {
           this.peek(1).type === "STRING" &&
           !this.isItemColonAhead(2)
         ) {
-          promptSpeaker = this.advance().value;
-          prompt = this.consume("STRING", "Expected prompt string").value;
+          if (!promptSpeaker) promptSpeaker = this.advance().value;
+          else this.advance();
+          const str = this.consume("STRING", "Expected prompt string").value;
+          prompts.push(str);
+          if (!prompt) prompt = str;
           this.consumeStatementTerminator();
           continue;
         }
 
         if (this.check("STRING") && !this.isItemColonAhead(1)) {
-          prompt = this.consume("STRING", "Expected prompt string").value;
+          const str = this.consume("STRING", "Expected prompt string").value;
+          prompts.push(str);
+          if (!prompt) prompt = str;
           this.consumeStatementTerminator();
           continue;
         }
@@ -408,7 +576,9 @@ export class RenpyParser {
 
     return {
       kind: "menu",
+      ...(menuName ? { name: menuName } : {}),
       ...(prompt ? { prompt } : {}),
+      ...(prompts.length > 0 ? { prompts } : {}),
       ...(promptSpeaker ? { promptSpeaker } : {}),
       items,
       sourceLocation: {
@@ -441,8 +611,8 @@ export class RenpyParser {
       condition = this.consumeExpressionUntil("COLON");
     }
 
-    this.consume("COLON", "Expected ':' after choice");
-    this.consume("NEWLINE", "Expected newline after choice");
+    this.match("COLON");
+    this.consumeStatementTerminator();
 
     const body: StatementAst[] = [];
     if (this.match("INDENT")) {
@@ -487,8 +657,7 @@ export class RenpyParser {
       isExpression = true;
       target = this.consumeExpressionUntilNewline();
     } else {
-      const targetTok = this.consume(
-        "IDENTIFIER",
+      const targetTok = this.consumeIdentifierLike(
         "Expected jump target identifier",
       );
       target = targetTok.value;
@@ -526,8 +695,7 @@ export class RenpyParser {
       isExpression = true;
       target = this.consumeExpressionUntilNewline();
     } else {
-      const targetTok = this.consume(
-        "IDENTIFIER",
+      const targetTok = this.consumeIdentifierLike(
         "Expected call target identifier",
       );
       target = targetTok.value;
@@ -605,16 +773,33 @@ export class RenpyParser {
   private parseCallScreenStatement(): CallScreenStatementAst {
     const callTok = this.consume("CALL", "Expected 'call'");
     this.consume("SCREEN", "Expected 'screen'");
-    const nameTok = this.consume("IDENTIFIER", "Expected screen name");
+
+    let screenName: string;
+    let endTok: Token;
+    if (this.matchKeyword("expression")) {
+      if (this.check("STRING")) {
+        endTok = this.advance();
+        screenName = endTok.value;
+      } else {
+        screenName = this.consumeExpressionUntilNewline();
+        endTok = this.peek();
+      }
+    } else {
+      endTok = this.consumeIdentifierLike("Expected screen name");
+      screenName = endTok.value;
+    }
 
     const startPos = this.toPosition(callTok);
-    const endPos = this.toEndPosition(nameTok);
+    const endPos = this.toEndPosition(endTok);
 
+    while (!this.check("NEWLINE") && !this.isAtEnd()) {
+      this.advance();
+    }
     this.consumeStatementTerminator();
 
     return {
       kind: "call_screen",
-      screenName: nameTok.value,
+      screenName: screenName.replace(/^["']|["']$/g, "").trim(),
       sourceLocation: {
         file: this.file,
         start: startPos,
@@ -663,8 +848,8 @@ export class RenpyParser {
 
     // Parse initial 'if' branch
     const ifCond = this.consumeExpressionUntil("COLON");
-    this.consume("COLON", "Expected ':' after if condition");
-    this.consume("NEWLINE", "Expected newline after if condition");
+    this.match("COLON");
+    this.consumeStatementTerminator();
 
     const ifBody: StatementAst[] = [];
     if (this.match("INDENT")) {
@@ -704,8 +889,8 @@ export class RenpyParser {
         bCond = this.consumeExpressionUntil("COLON");
       }
 
-      this.consume("COLON", `Expected ':' after ${branchKind}`);
-      this.consume("NEWLINE", `Expected newline after ${branchKind}`);
+      this.match("COLON");
+      this.consumeStatementTerminator();
 
       const bBody: StatementAst[] = [];
       let bEnd = this.toEndPosition(branchTok);
@@ -750,13 +935,89 @@ export class RenpyParser {
     };
   }
 
+  private parseMatchStatement(): MatchStatementAst {
+    const matchTok = this.consume("IDENTIFIER", "Expected 'match'");
+    const startPos = this.toPosition(matchTok);
+    const expr = this.consumeExpressionUntil("COLON");
+    this.match("COLON");
+    this.consumeStatementTerminator();
+
+    const cases: CaseBranchAst[] = [];
+    let endPos = this.toEndPosition(matchTok);
+
+    if (this.match("INDENT")) {
+      while (!this.check("DEDENT") && !this.isAtEnd()) {
+        this.skipNewlines();
+        if (this.check("DEDENT") || this.isAtEnd()) break;
+        if (this.check("IDENTIFIER") && this.peek().value === "case") {
+          const caseTok = this.advance();
+          const caseStart = this.toPosition(caseTok);
+          const rawPattern = this.consumeExpressionUntil("COLON");
+          this.match("COLON");
+          this.consumeStatementTerminator();
+
+          let pattern = rawPattern;
+          let guardCond: string | undefined;
+          const ifIdx = rawPattern.indexOf(" if ");
+          if (ifIdx !== -1) {
+            pattern = rawPattern.slice(0, ifIdx).trim();
+            guardCond = rawPattern.slice(ifIdx + 4).trim();
+          }
+
+          const caseBody: StatementAst[] = [];
+          let caseEnd = this.toEndPosition(caseTok);
+          if (this.match("INDENT")) {
+            while (!this.check("DEDENT") && !this.isAtEnd()) {
+              this.skipNewlines();
+              if (this.check("DEDENT") || this.isAtEnd()) break;
+              const stmt = this.parseStatement();
+              if (stmt) {
+                caseBody.push(stmt);
+                caseEnd = stmt.sourceLocation.end;
+              }
+              this.skipNewlines();
+            }
+            this.match("DEDENT");
+          }
+
+          cases.push({
+            pattern,
+            ...(guardCond ? { condition: guardCond } : {}),
+            body: caseBody,
+            sourceLocation: {
+              file: this.file,
+              start: caseStart,
+              end: caseEnd,
+            },
+          });
+          endPos = caseEnd;
+        } else {
+          this.parseGenericStatement();
+        }
+        this.skipNewlines();
+      }
+      this.match("DEDENT");
+    }
+
+    return {
+      kind: "match",
+      expression: expr,
+      cases,
+      sourceLocation: {
+        file: this.file,
+        start: startPos,
+        end: endPos,
+      },
+    };
+  }
+
   private parseWhileStatement(): WhileStatementAst {
     const whileTok = this.consume("WHILE", "Expected 'while'");
     const startPos = this.toPosition(whileTok);
     const cond = this.consumeExpressionUntil("COLON");
 
-    this.consume("COLON", "Expected ':' after while condition");
-    this.consume("NEWLINE", "Expected newline after while condition");
+    this.match("COLON");
+    this.consumeStatementTerminator();
 
     const body: StatementAst[] = [];
     let endPos = this.toEndPosition(whileTok);
@@ -832,13 +1093,27 @@ export class RenpyParser {
 
     let fullCode = "";
     if (this.match("INDENT")) {
+      let indentDepth = 1;
       const startOffset = this.peek().offset;
       let lastEndOffset = startOffset;
-      while (!this.check("DEDENT") && !this.isAtEnd()) {
-        const tok = this.advance();
-        lastEndOffset = tok.endOffset;
+      while (indentDepth > 0 && !this.isAtEnd()) {
+        if (this.check("INDENT")) {
+          indentDepth++;
+          const tok = this.advance();
+          lastEndOffset = tok.endOffset;
+        } else if (this.check("DEDENT")) {
+          indentDepth--;
+          if (indentDepth === 0) {
+            this.advance();
+            break;
+          }
+          const tok = this.advance();
+          lastEndOffset = tok.endOffset;
+        } else {
+          const tok = this.advance();
+          lastEndOffset = tok.endOffset;
+        }
       }
-      this.match("DEDENT");
       if (this.source) {
         fullCode = this.source.slice(startOffset, lastEndOffset).trim();
       }
@@ -866,84 +1141,259 @@ export class RenpyParser {
   private extractMutationsFromPython(code: string): VariableMutationAst[] {
     const mutations: VariableMutationAst[] = [];
     const mutationRegex =
-      /([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(\+=|-=|\*=|\/=|%=|=)\s*([^;\n]+)/g;
+      /(?:^|[;\n])[ \t]*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)(?:\s*:[^=]+)?\s*(\+=|-=|\*=|\/=|%=|=)(?!=)\s*([^;\n]+)/g;
 
     let match: RegExpExecArray | null;
     while ((match = mutationRegex.exec(code)) !== null) {
       const varName = match[1]!;
-      const op = match[2]!;
-      const val = match[3]!.trim();
+      let op = match[2]!;
+      const rawVal = match[3]!.trim();
+      const cleanVal = rawVal.replace(/#.*$/, "").trim();
+
+      if (op === "=") {
+        let innerVal = cleanVal;
+        while (innerVal.startsWith("(") && innerVal.endsWith(")")) {
+          innerVal = innerVal.slice(1, -1).trim();
+        }
+        if (innerVal.startsWith("not ") || innerVal.startsWith("not(")) {
+          const afterNot = innerVal.startsWith("not ")
+            ? innerVal.slice(4).trim()
+            : innerVal.slice(3).trim();
+          let strippedAfter = afterNot;
+          while (strippedAfter.startsWith("(") && strippedAfter.endsWith(")")) {
+            strippedAfter = strippedAfter.slice(1, -1).trim();
+          }
+          if (strippedAfter === varName) {
+            op = "toggle";
+          }
+        }
+      }
+
+      const lit = extractLiteralTarget(cleanVal);
+      const isLiteral = lit !== null;
+      const finalVal = lit !== null ? lit : cleanVal;
+
       mutations.push({
         variableName: varName,
         operator: op,
-        value: val,
-        rawExpression: `${varName} ${op} ${val}`,
+        value: finalVal,
+        isLiteral,
+        rawExpression: `${varName} ${op} ${cleanVal}`,
       });
     }
 
+    const tupleRegex =
+      /^([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)+)\s*=\s*(.+)$/gm;
+    let tMatch: RegExpExecArray | null;
+    while ((tMatch = tupleRegex.exec(code)) !== null) {
+      const vars = tMatch[1]!.split(",").map((v) => v.trim());
+      let rhs = tMatch[2]!.trim().replace(/#.*$/, "").trim();
+      if (
+        (rhs.startsWith("(") && rhs.endsWith(")")) ||
+        (rhs.startsWith("[") && rhs.endsWith("]"))
+      ) {
+        rhs = rhs.slice(1, -1).trim();
+      }
+      const vals = rhs.split(",").map((v) => v.trim());
+      for (let i = 0; i < vars.length; i++) {
+        const v = vars[i]!;
+        const valStr = vals[i] ?? "";
+        const lit = extractLiteralTarget(valStr);
+        mutations.push({
+          variableName: v,
+          operator: "=",
+          value: lit !== null ? lit : valStr,
+          isLiteral: lit !== null,
+          rawExpression: `${v} = ${valStr}`,
+        });
+      }
+    }
+
     return mutations;
+  }
+
+  private extractCallsAndJumpsFromPython(
+    code: string,
+    pos: AstPosition,
+  ): { jumps: JumpStatementAst[]; calls: CallStatementAst[] } {
+    const jumps: JumpStatementAst[] = [];
+    const calls: CallStatementAst[] = [];
+
+    let inQuote: string | null = null;
+    let i = 0;
+
+    while (i < code.length) {
+      const ch = code[i]!;
+
+      if (inQuote) {
+        if (ch === "\\") {
+          i += 2;
+          continue;
+        }
+        if (inQuote === '"""' || inQuote === "'''") {
+          if (code.startsWith(inQuote, i)) {
+            inQuote = null;
+            i += 3;
+            continue;
+          }
+        } else if (ch === inQuote) {
+          inQuote = null;
+          i++;
+          continue;
+        }
+        i++;
+        continue;
+      }
+
+      if (ch === "#") {
+        while (i < code.length && code[i] !== "\n") {
+          i++;
+        }
+        continue;
+      }
+
+      if (code.startsWith('"""', i)) {
+        inQuote = '"""';
+        i += 3;
+        continue;
+      }
+      if (code.startsWith("'''", i)) {
+        inQuote = "'''";
+        i += 3;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inQuote = ch;
+        i++;
+        continue;
+      }
+
+      // Check if renpy.jump or renpy.call begins here
+      if (
+        (i === 0 || /[^a-zA-Z0-9_.]/.test(code[i - 1]!)) &&
+        code.startsWith("renpy.", i)
+      ) {
+        const afterRenpy = code.slice(i + 6);
+        const funcMatch = /^(jump|jump_out_of_context|call)\s*\(/y.exec(
+          afterRenpy,
+        );
+        if (funcMatch) {
+          const funcName = funcMatch[1] === "call" ? "call" : "jump";
+          const startIdx = i + 6 + funcMatch[0].length;
+          let depth = 1;
+          let argInQuote: string | null = null;
+          let j = startIdx;
+
+          while (j < code.length && depth > 0) {
+            const c = code[j]!;
+            if (argInQuote) {
+              if (c === "\\") {
+                j += 2;
+                continue;
+              }
+              if (argInQuote === '"""' || argInQuote === "'''") {
+                if (code.startsWith(argInQuote, j)) {
+                  argInQuote = null;
+                  j += 3;
+                  continue;
+                }
+              } else if (c === argInQuote) {
+                argInQuote = null;
+                j++;
+                continue;
+              }
+              j++;
+              continue;
+            }
+
+            if (code.startsWith('"""', j)) {
+              argInQuote = '"""';
+              j += 3;
+              continue;
+            }
+            if (code.startsWith("'''", j)) {
+              argInQuote = "'''";
+              j += 3;
+              continue;
+            }
+            if (c === '"' || c === "'") {
+              argInQuote = c;
+              j++;
+              continue;
+            }
+            if (c === "#") {
+              while (j < code.length && code[j] !== "\n") j++;
+              continue;
+            }
+
+            if (c === "(") depth++;
+            else if (c === ")") {
+              depth--;
+              if (depth === 0) break;
+            }
+            j++;
+          }
+
+          const rawArgs = code.slice(startIdx, j);
+          const parsed = extractPythonCallTarget(rawArgs);
+          if (parsed) {
+            let target = parsed.target;
+            const isLocal = target.startsWith(".");
+            if (isLocal && this.currentGlobalLabel) {
+              target = `${this.currentGlobalLabel}${target}`;
+            }
+
+            if (funcName === "jump") {
+              jumps.push({
+                kind: "jump",
+                target,
+                isExpression: parsed.isExpression,
+                isLocal,
+                isPythonOrigin: true,
+                sourceLocation: {
+                  file: this.file,
+                  start: pos,
+                  end: pos,
+                },
+              });
+            } else {
+              calls.push({
+                kind: "call",
+                target,
+                isExpression: parsed.isExpression,
+                isLocal,
+                isPythonOrigin: true,
+                sourceLocation: {
+                  file: this.file,
+                  start: pos,
+                  end: pos,
+                },
+              });
+            }
+          }
+          i = j + 1;
+          continue;
+        }
+      }
+
+      i++;
+    }
+
+    return { jumps, calls };
   }
 
   private extractJumpsFromPython(
     code: string,
     pos: AstPosition,
   ): JumpStatementAst[] {
-    const jumps: JumpStatementAst[] = [];
-    const jumpRegex = /renpy\.jump\(\s*["']([^"']+)["']\s*\)/g;
-
-    let match: RegExpExecArray | null;
-    while ((match = jumpRegex.exec(code)) !== null) {
-      let target = match[1]!;
-      const isLocal = target.startsWith(".");
-      if (isLocal && this.currentGlobalLabel) {
-        target = `${this.currentGlobalLabel}${target}`;
-      }
-      jumps.push({
-        kind: "jump",
-        target,
-        isExpression: false,
-        isLocal,
-        isPythonOrigin: true,
-        sourceLocation: {
-          file: this.file,
-          start: pos,
-          end: pos,
-        },
-      });
-    }
-
-    return jumps;
+    return this.extractCallsAndJumpsFromPython(code, pos).jumps;
   }
 
   private extractCallsFromPython(
     code: string,
     pos: AstPosition,
   ): CallStatementAst[] {
-    const calls: CallStatementAst[] = [];
-    const callRegex = /renpy\.call\(\s*["']([^"']+)["']\s*\)/g;
-
-    let match: RegExpExecArray | null;
-    while ((match = callRegex.exec(code)) !== null) {
-      let target = match[1]!;
-      const isLocal = target.startsWith(".");
-      if (isLocal && this.currentGlobalLabel) {
-        target = `${this.currentGlobalLabel}${target}`;
-      }
-      calls.push({
-        kind: "call",
-        target,
-        isExpression: false,
-        isLocal,
-        isPythonOrigin: true,
-        sourceLocation: {
-          file: this.file,
-          start: pos,
-          end: pos,
-        },
-      });
-    }
-
-    return calls;
+    return this.extractCallsAndJumpsFromPython(code, pos).calls;
   }
 
   // ==========================================================================
@@ -954,9 +1404,9 @@ export class RenpyParser {
     const cueTok = this.advance();
     const startPos = this.toPosition(cueTok);
 
-    let raw = cueTok.value;
+    let lastTok = cueTok;
     while (!this.check("NEWLINE") && !this.isAtEnd()) {
-      raw += " " + this.advance().value;
+      lastTok = this.advance();
     }
 
     const endPos = this.toPosition(this.peek());
@@ -964,14 +1414,64 @@ export class RenpyParser {
 
     const cueType = cueTok.value
       .toLowerCase() as AssetCueStatementAst["cueType"];
-    const assetParts = raw.trim().split(/\s+/).slice(1);
-    const asset = assetParts.join(" ");
+    const raw = this.source.slice(cueTok.offset, lastTok.endOffset).trim();
+    let rest = raw.slice(cueTok.value.length).trim();
+    if (rest.endsWith(":")) {
+      rest = rest.slice(0, -1).trim();
+    }
+
+    // Skip any indented ATL or property block that follows (e.g. scene bg bedroom:\n    alpha 0.0)
+    if (this.match("INDENT")) {
+      let depth = 1;
+      while (depth > 0 && !this.isAtEnd()) {
+        if (this.check("INDENT")) {
+          depth++;
+          this.advance();
+        } else if (this.check("DEDENT")) {
+          depth--;
+          this.advance();
+        } else {
+          this.advance();
+        }
+      }
+    }
+
+    let channel: string | undefined;
+    let asset = rest;
+
+    if (cueType === "scene" || cueType === "show" || cueType === "hide") {
+      asset = extractSceneAsset(raw);
+    } else if (cueType === "play" || cueType === "queue") {
+      const match = rest.match(/^(\S+)\s*(.*)$/s);
+      if (match) {
+        channel = match[1];
+        let audioPart = match[2].trim();
+        audioPart = audioPart.replace(
+          /\s+(?:fadein|fadeout|volume|loop|noloop)\b.*$/i,
+          "",
+        ).trim();
+        asset = audioPart.replace(/^["'](.*)["']$/, "$1").trim();
+      } else {
+        channel = rest;
+        asset = "";
+      }
+    } else if (cueType === "stop") {
+      channel = rest.split(/\s+/)[0] || rest;
+      asset = "";
+    } else if (cueType === "voice") {
+      channel = "voice";
+      let voicePart = rest.trim();
+      voicePart = voicePart.replace(/\s+(?:fadein|fadeout|volume)\b.*$/i, "")
+        .trim();
+      asset = voicePart.replace(/^["'](.*)["']$/, "$1").trim();
+    }
 
     return {
       kind: "asset_cue",
       cueType,
+      channel,
       asset,
-      raw: raw.trim(),
+      raw,
       sourceLocation: {
         file: this.file,
         start: startPos,
@@ -1002,7 +1502,7 @@ export class RenpyParser {
 
   private parseScreenStatement(): ScreenStatementAst {
     const screenTok = this.consume("SCREEN", "Expected 'screen'");
-    const nameTok = this.consume("IDENTIFIER", "Expected screen name");
+    const nameTok = this.consumeIdentifierLike("Expected screen name");
     const startPos = this.toPosition(screenTok);
     const endPos = this.toEndPosition(nameTok);
 
@@ -1014,13 +1514,29 @@ export class RenpyParser {
 
     const actions: ScreenActionAst[] = [];
     if (this.match("INDENT")) {
-      while (!this.check("DEDENT") && !this.isAtEnd()) {
-        const line = this.consumeLineAsText();
-        const actionMatches = this.extractScreenActions(line);
-        actions.push(...actionMatches);
-        this.skipNewlines();
+      const startOffset = this.peek().offset;
+      let lastEndOffset = startOffset;
+      let indentDepth = 1;
+      while (indentDepth > 0 && !this.isAtEnd()) {
+        if (this.check("INDENT")) {
+          indentDepth++;
+          this.advance();
+          continue;
+        }
+        if (this.check("DEDENT")) {
+          indentDepth--;
+          this.advance();
+          continue;
+        }
+        const tok = this.advance();
+        lastEndOffset = tok.endOffset;
       }
-      this.match("DEDENT");
+      const fullScreenBody = this.source && lastEndOffset > startOffset
+        ? this.source.slice(startOffset, lastEndOffset)
+        : "";
+      actions.push(
+        ...this.extractScreenActionsFromBody(fullScreenBody, startPos.line),
+      );
     }
 
     return {
@@ -1035,53 +1551,447 @@ export class RenpyParser {
     };
   }
 
-  private extractScreenActions(line: string): ScreenActionAst[] {
+  private extractScreenActionsFromBody(
+    body: string,
+    startLine: number,
+  ): ScreenActionAst[] {
     const actions: ScreenActionAst[] = [];
-    const jumpMatch = /action\s+Jump\(\s*["']([^"']+)["']\s*\)/i.exec(line);
-    if (jumpMatch) {
-      actions.push({ actionName: "Jump", target: jumpMatch[1] });
+    let currentBlockTimeout:
+      | { isTimeout: boolean; durationSeconds?: number }
+      | undefined;
+
+    let i = 0;
+    let currentLine = startLine;
+
+    while (i < body.length) {
+      // Find end of current line
+      let nextNl = body.indexOf("\n", i);
+      if (nextNl === -1) nextNl = body.length;
+
+      const fullLine = body.slice(i, nextNl);
+      const trimmedLine = fullLine.trim();
+
+      // Check for timer directive: timer <dur>: or timer <dur> action ...
+      const timerMatch = /(?:^|\s)timer\s+([0-9.]+|[a-zA-Z_][a-zA-Z0-9_]*)/i
+        .exec(fullLine);
+      let lineTimeout:
+        | { isTimeout: boolean; durationSeconds?: number }
+        | undefined;
+
+      if (timerMatch) {
+        const durVal = Number(timerMatch[1]);
+        lineTimeout = {
+          isTimeout: true,
+          ...(!isNaN(durVal) ? { durationSeconds: durVal } : {}),
+        };
+        if (trimmedLine.endsWith(":")) {
+          currentBlockTimeout = lineTimeout;
+        }
+      }
+
+      if (trimmedLine.startsWith("#")) {
+        const afterLine = body.indexOf("\n", i);
+        if (afterLine === -1) break;
+        i = afterLine + 1;
+        currentLine++;
+        continue;
+      }
+
+      // Check for action trigger outside quotes on the current line
+      let triggerOffset: number | null = null;
+      let triggerLength = 0;
+      let lineInQuote: string | null = null;
+
+      for (let k = 0; k < fullLine.length; k++) {
+        const c = fullLine[k]!;
+        if (lineInQuote) {
+          if (c === "\\") {
+            k++;
+            continue;
+          }
+          if (c === lineInQuote) lineInQuote = null;
+          continue;
+        }
+        if (c === '"' || c === "'") {
+          lineInQuote = c;
+          continue;
+        }
+        if (c === "#") {
+          break; // Rest of line is comment
+        }
+        const rem = fullLine.slice(k);
+        const m = /^(?:action|alternate|selected_action)(?:\s+|=)\s*/i.exec(
+          rem,
+        );
+        if (m && (k === 0 || /[^a-zA-Z0-9_]/.test(fullLine[k - 1]!))) {
+          triggerOffset = i + k;
+          triggerLength = m[0].length;
+          break;
+        }
+      }
+
+      if (triggerOffset !== null && triggerOffset < nextNl) {
+        const exprStart = triggerOffset + triggerLength;
+        // Read full expression until matching bracket or newline at bracket depth 0
+        let depth = 0;
+        let inQuote: string | null = null;
+        let j = exprStart;
+
+        while (j < body.length) {
+          const ch = body[j]!;
+
+          if (inQuote) {
+            if (ch === "\\") {
+              j += 2;
+              continue;
+            }
+            if (inQuote === '"""' || inQuote === "'''") {
+              if (body.startsWith(inQuote, j)) {
+                inQuote = null;
+                j += 3;
+                continue;
+              }
+            } else if (ch === inQuote) {
+              inQuote = null;
+              j++;
+              continue;
+            }
+            j++;
+            continue;
+          }
+
+          if (body.startsWith('"""', j)) {
+            inQuote = '"""';
+            j += 3;
+            continue;
+          }
+          if (body.startsWith("'''", j)) {
+            inQuote = "'''";
+            j += 3;
+            continue;
+          }
+          if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            j++;
+            continue;
+          }
+
+          if (ch === "#") {
+            while (j < body.length && body[j] !== "\n") j++;
+            continue;
+          }
+
+          if (ch === "(" || ch === "[" || ch === "{") {
+            depth++;
+          } else if (ch === ")" || ch === "]" || ch === "}") {
+            if (depth > 0) depth--;
+          } else if (ch === "\n" && depth === 0) {
+            break;
+          }
+          j++;
+        }
+
+        const rawExpr = body.slice(exprStart, j).trim();
+        const effectiveTimeout = lineTimeout || currentBlockTimeout;
+        this.collectScreenActionsFromExpr(
+          rawExpr,
+          currentLine,
+          actions,
+          effectiveTimeout,
+        );
+        i = j;
+      }
+
+      // Move to next line
+      const afterLine = body.indexOf("\n", i);
+      if (afterLine === -1) break;
+      i = afterLine + 1;
+      currentLine++;
     }
-    const callMatch = /action\s+Call\(\s*["']([^"']+)["']\s*\)/i.exec(line);
-    if (callMatch) {
-      actions.push({ actionName: "Call", target: callMatch[1] });
-    }
+
     return actions;
+  }
+
+  private collectScreenActionsFromExpr(
+    expr: string,
+    lineNum: number,
+    actions: ScreenActionAst[],
+    timeout?: { isTimeout: boolean; durationSeconds?: number },
+  ): void {
+    const trimmed = expr.trim();
+    if (!trimmed) return;
+
+    // Handle list of actions: [ action1, action2, ... ] or tuple ( action1, ... )
+    if (
+      (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+      (trimmed.startsWith("(") && trimmed.endsWith(")"))
+    ) {
+      const inner = trimmed.slice(1, -1);
+      const items = splitTopLevelPythonArgs(inner);
+      for (const item of items) {
+        this.collectScreenActionsFromExpr(item, lineNum, actions, timeout);
+      }
+      return;
+    }
+
+    // Match ActionName(...) or ActionName
+    const callMatch = /^([A-Za-z_][A-Za-z0-9_]*)(?:\s*\(([\s\S]*)\))?$/.exec(
+      trimmed,
+    );
+    if (!callMatch) {
+      const callRegex = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^()]*)\)/g;
+      let match: RegExpExecArray | null;
+      while ((match = callRegex.exec(trimmed)) !== null) {
+        this.collectSingleScreenAction(
+          match[1]!,
+          match[2]!.trim(),
+          lineNum,
+          match.index,
+          actions,
+          timeout,
+        );
+      }
+      return;
+    }
+
+    const actionName = callMatch[1]!;
+    const rawArgs = (callMatch[2] ?? "").trim();
+    const lowerName = actionName.toLowerCase();
+
+    // Recursive wrappers: Confirm(prompt, yes=Action, no=Action) or If(cond, true=Action, false=Action)
+    if (
+      lowerName === "confirm" || lowerName === "if" ||
+      lowerName === "selectedif"
+    ) {
+      const args = splitTopLevelPythonArgs(rawArgs);
+      for (const arg of args) {
+        const eqIdx = arg.indexOf("=");
+        if (eqIdx > 0) {
+          const kw = arg.slice(0, eqIdx).trim().toLowerCase();
+          const val = arg.slice(eqIdx + 1).trim();
+          if (kw === "yes" || kw === "no" || kw === "true" || kw === "false") {
+            this.collectScreenActionsFromExpr(val, lineNum, actions, timeout);
+          }
+        } else if (lowerName === "if" && arg !== args[0]) {
+          this.collectScreenActionsFromExpr(arg, lineNum, actions, timeout);
+        } else if (lowerName === "confirm" && arg !== args[0]) {
+          this.collectScreenActionsFromExpr(arg, lineNum, actions, timeout);
+        }
+      }
+      return;
+    }
+
+    this.collectSingleScreenAction(
+      actionName,
+      rawArgs,
+      lineNum,
+      0,
+      actions,
+      timeout,
+    );
+  }
+
+  private collectSingleScreenAction(
+    actionName: string,
+    rawArgs: string,
+    lineNum: number,
+    charIndex: number,
+    actions: ScreenActionAst[],
+    timeout?: { isTimeout: boolean; durationSeconds?: number },
+  ): void {
+    const lowerName = actionName.toLowerCase();
+    const args = splitTopLevelPythonArgs(rawArgs);
+    let target: string | undefined;
+    let targetExpression: string | undefined = rawArgs || undefined;
+    let isDynamic = false;
+
+    const parsedTarget = extractPythonCallTarget(rawArgs);
+    if (parsedTarget) {
+      if (parsedTarget.isExpression) {
+        target = undefined;
+        targetExpression = parsedTarget.target;
+        isDynamic = true;
+      } else {
+        target = parsedTarget.target;
+        targetExpression = undefined;
+        isDynamic = false;
+      }
+    }
+
+    const actionAst: ScreenActionAst = {
+      actionName,
+      target,
+      rawArgs,
+      targetExpression,
+      isDynamic,
+      timeout,
+      sourceLocation: {
+        file: this.file,
+        start: { line: lineNum, column: charIndex, offset: 0 },
+        end: { line: lineNum, column: charIndex + rawArgs.length, offset: 0 },
+      },
+    };
+
+    if (lowerName === "setvariable") {
+      let varName: string | undefined;
+      let varValue: unknown = undefined;
+      for (const arg of args) {
+        const eqIdx = arg.indexOf("=");
+        if (eqIdx > 0) {
+          const kw = arg.slice(0, eqIdx).trim().toLowerCase();
+          const val = arg.slice(eqIdx + 1).trim();
+          if (kw === "variable" || kw === "var") {
+            varName = val.replace(/^["']|["']$/g, "");
+          } else if (kw === "value" || kw === "val") {
+            varValue = this.parseLiteralValue(val);
+          }
+        }
+      }
+      if (!varName && args.length >= 1) {
+        varName = args[0]!.replace(/^["']|["']$/g, "").trim();
+      }
+      if (varValue === undefined && args.length >= 2) {
+        varValue = this.parseLiteralValue(args[1]!);
+      }
+      actionAst.variableName = varName;
+      actionAst.variableValue = varValue;
+    } else if (lowerName === "togglevariable") {
+      let varName: string | undefined;
+      for (const arg of args) {
+        const eqIdx = arg.indexOf("=");
+        if (eqIdx > 0) {
+          const kw = arg.slice(0, eqIdx).trim().toLowerCase();
+          const val = arg.slice(eqIdx + 1).trim();
+          if (kw === "variable" || kw === "var") {
+            varName = val.replace(/^["']|["']$/g, "");
+          }
+        }
+      }
+      if (!varName && args.length >= 1) {
+        varName = args[0]!.replace(/^["']|["']$/g, "").trim();
+      }
+      actionAst.variableName = varName;
+    }
+
+    actions.push(actionAst);
   }
 
   private parseInitStatement(): InitStatementAst {
     const initTok = this.consume("INIT", "Expected 'init'");
     const startPos = this.toPosition(initTok);
-    let priority: number | undefined;
+    let explicitPriority: number | undefined;
 
-    if (this.check("NUMBER")) {
-      priority = parseInt(this.advance().value, 10);
-    } else if (this.matchKeyword("offset")) {
+    // Check for init offset = N
+    if (this.check("IDENTIFIER") && this.peek().value === "offset") {
+      this.advance(); // consume "offset"
       this.consume("EQUALS", "Expected '=' after init offset");
-      priority = parseInt(this.consume("NUMBER", "Expected number").value, 10);
+      const offsetVal = this.consumeInteger();
+      this.fileInitOffset = offsetVal;
+      this.consumeStatementTerminator();
+      return {
+        kind: "init",
+        priority: offsetVal,
+        isOffsetDirective: true,
+        body: [],
+        sourceLocation: {
+          file: this.file,
+          start: startPos,
+          end: this.toPosition(this.peek()),
+        },
+      };
     }
+
+    if (
+      this.check("NUMBER") ||
+      (this.check("RAW_TEXT") &&
+        (this.peek().value === "-" || this.peek().value === "+"))
+    ) {
+      explicitPriority = this.consumeInteger();
+    }
+
+    let isPython = false;
+    let isEarly = false;
+    if (
+      this.check("PYTHON") ||
+      (this.check("IDENTIFIER") && this.peek().value === "python")
+    ) {
+      this.advance();
+      isPython = true;
+      if (this.matchKeyword("early")) {
+        isEarly = true;
+      }
+    }
+
+    const priority = isEarly
+      ? -50000
+      : ((explicitPriority ?? 0) + this.fileInitOffset);
 
     if (this.check("COLON")) {
       this.advance();
     }
-    this.consume("NEWLINE", "Expected newline");
+    this.consumeStatementTerminator();
 
     const body: StatementAst[] = [];
-    const endPos = this.toEndPosition(initTok);
+    let endPos = this.toEndPosition(initTok);
 
     if (this.match("INDENT")) {
-      while (!this.check("DEDENT") && !this.isAtEnd()) {
-        this.skipNewlines();
-        if (this.check("DEDENT") || this.isAtEnd()) break;
-        const stmt = this.parseStatement();
-        if (stmt) body.push(stmt);
-        this.skipNewlines();
+      if (isPython) {
+        let code = "";
+        let indentDepth = 1;
+        while (indentDepth > 0 && !this.isAtEnd()) {
+          if (this.check("INDENT")) {
+            indentDepth++;
+            code += this.advance().value + " ";
+          } else if (this.check("DEDENT")) {
+            indentDepth--;
+            if (indentDepth === 0) {
+              this.advance();
+              break;
+            }
+            code += this.advance().value + " ";
+          } else {
+            code += this.advance().value + " ";
+          }
+          if (this.check("NEWLINE")) {
+            code += "\n";
+            this.advance();
+          }
+        }
+        const mutations = this.extractMutationsFromPython(code);
+        const jumps = this.extractJumpsFromPython(code, startPos);
+        const calls = this.extractCallsFromPython(code, startPos);
+        body.push({
+          kind: "python",
+          code: code.trim(),
+          isOneLiner: false,
+          mutations,
+          embeddedJumps: jumps,
+          embeddedCalls: calls,
+          sourceLocation: {
+            file: this.file,
+            start: startPos,
+            end: this.toPosition(this.peek()),
+          },
+        });
+      } else {
+        while (!this.check("DEDENT") && !this.isAtEnd()) {
+          this.skipNewlines();
+          if (this.check("DEDENT") || this.isAtEnd()) break;
+          const stmt = this.parseStatement();
+          if (stmt) {
+            body.push(stmt);
+            endPos = stmt.sourceLocation.end;
+          }
+          this.skipNewlines();
+        }
+        this.match("DEDENT");
       }
-      this.match("DEDENT");
     }
 
     return {
       kind: "init",
-      ...(priority !== undefined ? { priority } : {}),
+      priority,
+      ...(isEarly ? { isEarly: true } : {}),
       body,
       sourceLocation: {
         file: this.file,
@@ -1091,8 +2001,172 @@ export class RenpyParser {
     };
   }
 
+  private parseDefineStatement(): DefineStatementAst {
+    const defTok = this.consumeIdentifierLike("Expected 'define'");
+    const startPos = this.toPosition(defTok);
+
+    let priority = this.fileInitOffset;
+    if (
+      this.check("NUMBER") ||
+      (this.peek().value === "-" && this.peek(1).type === "NUMBER")
+    ) {
+      let sign = 1;
+      if (this.peek().value === "-") {
+        sign = -1;
+        this.advance();
+      }
+      priority = sign * Number(this.advance().value);
+    }
+
+    let varName = this.consumeIdentifierLike("Expected variable name").value;
+    while (
+      this.check("DOT") ||
+      this.peek().value === "."
+    ) {
+      this.advance();
+      varName += "." +
+        this.consumeIdentifierLike("Expected identifier after '.'").value;
+    }
+
+    this.consume("EQUALS", "Expected '=' after variable name");
+    const rawVal = this.consumeLineAsText().trim();
+    this.consumeStatementTerminator();
+    const cleanVal = this.parseLiteralValue(rawVal);
+    return {
+      kind: "define",
+      name: varName,
+      value: cleanVal,
+      rawExpression: rawVal,
+      priority,
+      sourceLocation: {
+        file: this.file,
+        start: startPos,
+        end: this.toPosition(this.peek()),
+      },
+    };
+  }
+
+  private parseDefaultStatement(): DefaultStatementAst {
+    const defTok = this.consumeIdentifierLike("Expected 'default'");
+    const startPos = this.toPosition(defTok);
+
+    let priority = this.fileInitOffset;
+    if (
+      this.check("NUMBER") ||
+      (this.peek().value === "-" && this.peek(1).type === "NUMBER")
+    ) {
+      let sign = 1;
+      if (this.peek().value === "-") {
+        sign = -1;
+        this.advance();
+      }
+      priority = sign * Number(this.advance().value);
+    }
+
+    let varName = this.consumeIdentifierLike("Expected variable name").value;
+    while (
+      this.check("DOT") ||
+      this.peek().value === "."
+    ) {
+      this.advance();
+      varName += "." +
+        this.consumeIdentifierLike("Expected identifier after '.'").value;
+    }
+
+    this.consume("EQUALS", "Expected '=' after variable name");
+    const rawVal = this.consumeLineAsText().trim();
+    this.consumeStatementTerminator();
+    const cleanVal = this.parseLiteralValue(rawVal);
+    return {
+      kind: "default",
+      name: varName,
+      value: cleanVal,
+      rawExpression: rawVal,
+      priority,
+      sourceLocation: {
+        file: this.file,
+        start: startPos,
+        end: this.toPosition(this.peek()),
+      },
+    };
+  }
+
+  private parseImageStatement(): ImageStatementAst {
+    const imgTok = this.consumeIdentifierLike("Expected 'image'");
+    const startPos = this.toPosition(imgTok);
+
+    let name = "";
+    while (
+      !this.check("EQUALS") && !this.check("COLON") &&
+      !this.check("NEWLINE") && !this.isAtEnd()
+    ) {
+      name += (name ? " " : "") + this.advance().value;
+    }
+
+    let expression = "";
+    if (this.match("EQUALS")) {
+      expression = this.consumeLineAsText().trim();
+      this.consumeStatementTerminator();
+    } else if (this.match("COLON")) {
+      this.consumeStatementTerminator();
+      if (this.match("INDENT")) {
+        while (!this.check("DEDENT") && !this.isAtEnd()) {
+          this.advance();
+        }
+        this.match("DEDENT");
+      }
+      expression = name;
+    } else {
+      this.consumeStatementTerminator();
+    }
+
+    return {
+      kind: "image",
+      name: name.trim(),
+      expression: expression.replace(/^["']|["']$/g, "").trim(),
+      sourceLocation: {
+        file: this.file,
+        start: startPos,
+        end: this.toPosition(this.peek()),
+      },
+    };
+  }
+
+  private parseLiteralValue(val: string): unknown {
+    const trimmed = val.trim();
+    if (trimmed === "True") return true;
+    if (trimmed === "False") return false;
+    if (trimmed === "None") return null;
+    if (/^-?[0-9]+(\.[0-9]+)?$/.test(trimmed)) {
+      return trimmed.includes(".")
+        ? parseFloat(trimmed)
+        : parseInt(trimmed, 10);
+    }
+    if (
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))
+    ) {
+      return trimmed.slice(1, -1);
+    }
+    return trimmed;
+  }
+
+  private consumeInteger(): number {
+    let sign = 1;
+    if (this.check("RAW_TEXT") && this.peek().value === "-") {
+      this.advance();
+      sign = -1;
+    } else if (this.check("RAW_TEXT") && this.peek().value === "+") {
+      this.advance();
+    }
+    const numTok = this.consume("NUMBER", "Expected number");
+    return sign * parseInt(numTok.value, 10);
+  }
+
   private parsePythonBlockStatement(): PythonBlockAst {
-    const pyTok = this.consume("PYTHON", "Expected 'python'");
+    const pyTok = this.check("PYTHON")
+      ? this.advance()
+      : this.consumeIdentifierLike("Expected 'python'");
     const startPos = this.toPosition(pyTok);
     let isEarly = false;
     if (this.matchKeyword("early")) {
@@ -1106,14 +2180,26 @@ export class RenpyParser {
     const endPos = this.toEndPosition(pyTok);
 
     if (this.match("INDENT")) {
-      while (!this.check("DEDENT") && !this.isAtEnd()) {
-        code += this.advance().value + " ";
+      let indentDepth = 1;
+      while (indentDepth > 0 && !this.isAtEnd()) {
+        if (this.check("INDENT")) {
+          indentDepth++;
+          code += this.advance().value + " ";
+        } else if (this.check("DEDENT")) {
+          indentDepth--;
+          if (indentDepth === 0) {
+            this.advance();
+            break;
+          }
+          code += this.advance().value + " ";
+        } else {
+          code += this.advance().value + " ";
+        }
         if (this.check("NEWLINE")) {
           code += "\n";
           this.advance();
         }
       }
-      this.match("DEDENT");
     }
 
     return {
@@ -1146,10 +2232,23 @@ export class RenpyParser {
     const startOffset = this.peek().offset;
     let lastEndOffset = startOffset;
     let fallback = "";
-    while (
-      !this.check(terminator) && !this.check("NEWLINE") && !this.isAtEnd()
-    ) {
+    let bracketDepth = 0;
+    while (!this.isAtEnd()) {
+      if (this.check("NEWLINE")) break;
+      if (bracketDepth === 0 && this.check(terminator)) break;
+
       const tok = this.advance();
+      if (
+        tok.type === "LPAREN" || tok.type === "LBRACKET" ||
+        tok.type === "LBRACE"
+      ) {
+        bracketDepth++;
+      } else if (
+        tok.type === "RPAREN" || tok.type === "RBRACKET" ||
+        tok.type === "RBRACE"
+      ) {
+        if (bracketDepth > 0) bracketDepth--;
+      }
       fallback += tok.value + " ";
       lastEndOffset = tok.endOffset;
     }
@@ -1175,20 +2274,96 @@ export class RenpyParser {
   }
 
   private consumeLineAsText(): string {
-    let line = "";
+    const startOffset = this.peek().offset;
+    let lastEndOffset = startOffset;
+    let fallback = "";
     while (!this.check("NEWLINE") && !this.isAtEnd()) {
-      line += this.advance().value + " ";
+      const tok = this.advance();
+      fallback += tok.value + " ";
+      lastEndOffset = tok.endOffset;
     }
     this.consumeStatementTerminator();
-    return line.trim();
+    if (this.source && lastEndOffset > startOffset) {
+      return this.source.slice(startOffset, lastEndOffset).trim();
+    }
+    return fallback.trim();
   }
 
-  private skipGenericStatementLine(): StatementAst | null {
-    while (!this.check("NEWLINE") && !this.isAtEnd()) {
+  private parseForStatement(): ForStatementAst {
+    const forTok = this.consume("FOR", "Expected 'for'");
+    const startPos = this.toPosition(forTok);
+
+    const varName = this.consumeIdentifierLike("Expected loop variable").value;
+    if (this.matchKeyword("in")) {
+      // consumed
+    } else {
       this.advance();
     }
+
+    const iterable = this.consumeExpressionUntil("COLON");
+    this.match("COLON");
     this.consumeStatementTerminator();
-    return null;
+
+    const body: StatementAst[] = [];
+    let endPos = this.toEndPosition(forTok);
+
+    if (this.match("INDENT")) {
+      while (!this.check("DEDENT") && !this.isAtEnd()) {
+        this.skipNewlines();
+        if (this.check("DEDENT") || this.isAtEnd()) break;
+        const stmt = this.parseStatement();
+        if (stmt) {
+          body.push(stmt);
+          endPos = stmt.sourceLocation.end;
+        }
+        this.skipNewlines();
+      }
+      this.match("DEDENT");
+    }
+
+    return {
+      kind: "for",
+      variable: varName,
+      iterable,
+      body,
+      sourceLocation: {
+        file: this.file,
+        start: startPos,
+        end: endPos,
+      },
+    };
+  }
+
+  private parseGenericStatement(): GenericStatementAst {
+    const startTok = this.peek();
+    const startPos = this.toPosition(startTok);
+    let endPos = this.toEndPosition(startTok);
+
+    const startOffset = startTok.offset;
+    let lastEndOffset = startOffset;
+    let rawFallback = "";
+
+    while (!this.check("NEWLINE") && !this.isAtEnd()) {
+      const t = this.advance();
+      rawFallback += (rawFallback ? " " : "") + t.value;
+      lastEndOffset = t.endOffset;
+      endPos = this.toEndPosition(t);
+    }
+    this.consumeStatementTerminator();
+
+    const raw = this.source && lastEndOffset > startOffset
+      ? this.source.slice(startOffset, lastEndOffset).trim()
+      : rawFallback.trim();
+
+    return {
+      kind: "generic",
+      rawText: raw,
+      sourceLocation: {
+        file: this.file,
+        start: startPos,
+        end: endPos,
+      },
+    };
   }
 
   private consumeStatementTerminator(): void {
@@ -1244,6 +2419,53 @@ export class RenpyParser {
     );
   }
 
+  private consumeIdentifierLike(errMsg: string): Token {
+    const tok = this.peek();
+    const disallowedTypes = new Set<TokenType>([
+      "EOF",
+      "NEWLINE",
+      "COLON",
+      "INDENT",
+      "DEDENT",
+      "LPAREN",
+      "RPAREN",
+      "COMMA",
+      "EQUALS",
+    ]);
+
+    if (tok.type === "DOT" && this.peek(1).type === "IDENTIFIER") {
+      const dot = this.advance();
+      const id = this.advance();
+      let combined = "." + id.value;
+      while (this.check("DOT") && this.peek(1).type === "IDENTIFIER") {
+        this.advance();
+        combined += "." + this.advance().value;
+      }
+      return {
+        ...dot,
+        value: combined,
+      };
+    }
+
+    if (!disallowedTypes.has(tok.type) && tok.value.length > 0) {
+      const first = this.advance();
+      let combined = first.value;
+      while (this.check("DOT") && this.peek(1).type === "IDENTIFIER") {
+        this.advance();
+        combined += "." + this.advance().value;
+      }
+      return {
+        ...first,
+        value: combined,
+      };
+    }
+    throw new Error(
+      `Parse error in ${this.file} at line ${
+        tok.line + 1
+      }: ${errMsg}. Got '${tok.value}' (${tok.type})`,
+    );
+  }
+
   private advance(): Token {
     if (!this.isAtEnd()) {
       this.pos++;
@@ -1272,11 +2494,196 @@ export class RenpyParser {
   }
 }
 
+export function splitTopLevelPythonArgs(argsStr: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let depth = 0;
+  let inString: string | null = null;
+  let i = 0;
+
+  while (i < argsStr.length) {
+    const ch = argsStr[i]!;
+
+    if (inString) {
+      if (ch === "\\") {
+        current += ch;
+        if (i + 1 < argsStr.length) {
+          current += argsStr[i + 1];
+          i += 2;
+          continue;
+        }
+      } else if (inString === '"""' || inString === "'''") {
+        if (argsStr.startsWith(inString, i)) {
+          current += inString;
+          i += 3;
+          inString = null;
+          continue;
+        }
+      } else if (ch === inString) {
+        current += ch;
+        inString = null;
+        i++;
+        continue;
+      }
+      current += ch;
+      i++;
+      continue;
+    }
+
+    if (argsStr.startsWith('"""', i)) {
+      inString = '"""';
+      current += '"""';
+      i += 3;
+      continue;
+    }
+    if (argsStr.startsWith("'''", i)) {
+      inString = "'''";
+      current += "'''";
+      i += 3;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = ch;
+      current += ch;
+      i++;
+      continue;
+    }
+
+    if (ch === "#") {
+      while (i < argsStr.length && argsStr[i] !== "\n") {
+        i++;
+      }
+      continue;
+    }
+
+    if (
+      ch === "\\" && i + 1 < argsStr.length &&
+      (argsStr[i + 1] === "\n" || argsStr[i + 1] === "\r")
+    ) {
+      i++;
+      if (
+        argsStr[i] === "\r" && i + 1 < argsStr.length && argsStr[i + 1] === "\n"
+      ) i++;
+      i++;
+      continue;
+    }
+
+    if (ch === "(" || ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === ")" || ch === "]" || ch === "}") {
+      if (depth > 0) depth--;
+    } else if (ch === "," && depth === 0) {
+      if (current.trim()) args.push(current.trim());
+      current = "";
+      i++;
+      continue;
+    }
+
+    current += ch;
+    i++;
+  }
+
+  if (current.trim()) {
+    args.push(current.trim());
+  }
+
+  return args;
+}
+
+export function extractPythonCallTarget(
+  callArgs: string,
+): { target: string; isExpression: boolean } | null {
+  const args = splitTopLevelPythonArgs(callArgs);
+  if (args.length === 0) return null;
+
+  let targetArg: string | undefined;
+
+  // Look for label=... or target=... keyword argument
+  for (const arg of args) {
+    let eqIdx = -1;
+    let quoteChar: string | null = null;
+    let depth = 0;
+    for (let j = 0; j < arg.length; j++) {
+      const c = arg[j]!;
+      if (quoteChar) {
+        if (c === "\\") j++;
+        else if (c === quoteChar) quoteChar = null;
+      } else if (c === '"' || c === "'") {
+        quoteChar = c;
+      } else if (c === "(" || c === "[" || c === "{") {
+        depth++;
+      } else if (c === ")" || c === "]" || c === "}") {
+        if (depth > 0) depth--;
+      } else if (c === "=" && depth === 0) {
+        eqIdx = j;
+        break;
+      }
+    }
+
+    if (eqIdx > 0) {
+      const key = arg.slice(0, eqIdx).trim().toLowerCase();
+      if (key === "label" || key === "target") {
+        targetArg = arg.slice(eqIdx + 1).trim();
+        break;
+      }
+    }
+  }
+
+  // If no keyword argument, take the first positional argument (arg without top-level =)
+  if (!targetArg) {
+    for (const arg of args) {
+      let hasEq = false;
+      let quoteChar: string | null = null;
+      let depth = 0;
+      for (let j = 0; j < arg.length; j++) {
+        const c = arg[j]!;
+        if (quoteChar) {
+          if (c === "\\") j++;
+          else if (c === quoteChar) quoteChar = null;
+        } else if (c === '"' || c === "'") {
+          quoteChar = c;
+        } else if (c === "(" || c === "[" || c === "{") {
+          depth++;
+        } else if (c === ")" || c === "]" || c === "}") {
+          if (depth > 0) depth--;
+        } else if (c === "=" && depth === 0) {
+          hasEq = true;
+          break;
+        }
+      }
+      if (!hasEq) {
+        targetArg = arg.trim();
+        break;
+      }
+    }
+  }
+
+  if (!targetArg) return null;
+
+  // Check if targetArg is a literal string
+  const lit = extractLiteralTarget(targetArg);
+  if (
+    lit !== null && targetArg.trim() !== '""' && targetArg.trim() !== "''" &&
+    lit.trim() !== ""
+  ) {
+    return {
+      target: lit,
+      isExpression: false,
+    };
+  }
+
+  return {
+    target: targetArg.trim(),
+    isExpression: true,
+  };
+}
+
 export function parseRenpyScript(
   source: string,
   filePath: string = "script.rpy",
+  options?: { parserVariant?: string },
 ): RenpyScriptAst {
   const tokens = tokenizeRenpy(source);
-  const parser = new RenpyParser(tokens, filePath, source);
+  const parser = new RenpyParser(tokens, filePath, source, options);
   return parser.parse();
 }

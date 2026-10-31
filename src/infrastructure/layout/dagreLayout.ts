@@ -27,6 +27,7 @@ import {
   createSpatialIndexFromItems,
 } from "../spatialIndex.ts";
 import {
+  type ElkEdge,
   type LayoutResult,
   PROGRESSIVE_FALLBACK_MAX_COLUMNS,
 } from "./types.ts";
@@ -356,7 +357,7 @@ export function applyDagreLayout(
     );
   }
 
-  const g = new dagre.graphlib.Graph();
+  const g = new dagre.graphlib.Graph({ multigraph: true });
   const density = options?.layoutDensity ?? "normal";
   let ranksep = direction === "TB" ? 80 : 110;
   let nodesep = 50;
@@ -390,11 +391,30 @@ export function applyDagreLayout(
       g.hasNode(edge.source) &&
       g.hasNode(edge.target)
     ) {
-      g.setEdge(edge.source, edge.target);
+      g.setEdge(edge.source, edge.target, {}, edge.id);
     }
   });
 
   dagre.layout(g);
+
+  const dagreEdgeMap = new Map<string, ElkEdge>();
+  for (const edgeObj of g.edges()) {
+    const dEdge = g.edge(edgeObj);
+    const edgeId = edgeObj.name;
+    if (edgeId && dEdge?.points && dEdge.points.length >= 2) {
+      dagreEdgeMap.set(edgeId, {
+        id: edgeId,
+        sources: [edgeObj.v],
+        targets: [edgeObj.w],
+        sections: [{
+          id: `${edgeId}_s0`,
+          startPoint: dEdge.points[0]!,
+          bendPoints: dEdge.points.slice(1, -1),
+          endPoint: dEdge.points[dEdge.points.length - 1]!,
+        }],
+      });
+    }
+  }
 
   // Position nodes
   const nodes: CanvasNode[] = [];
@@ -438,7 +458,7 @@ export function applyDagreLayout(
     nodes,
     direction,
     edgeColor,
-    undefined,
+    dagreEdgeMap,
     quadtree,
     spatialBounds,
   );
@@ -503,6 +523,8 @@ export function applyTwoTierDagreLayout(
       chapterByNodeId.set(n.id, chapterName);
     }
   }
+
+  const dagreEdgeMap = new Map<string, ElkEdge>();
 
   // Partition edges into intra-chapter and cross-chapter
   const intraChapterEdges = new Map<string, FlowEdge[]>();
@@ -577,7 +599,7 @@ export function applyTwoTierDagreLayout(
       continue;
     }
 
-    const microG = new dagre.graphlib.Graph();
+    const microG = new dagre.graphlib.Graph({ multigraph: true });
     microG.setGraph({
       rankdir: direction,
       ranksep: microRanksep,
@@ -600,7 +622,7 @@ export function applyTwoTierDagreLayout(
         microG.hasNode(edge.source) &&
         microG.hasNode(edge.target)
       ) {
-        microG.setEdge(edge.source, edge.target);
+        microG.setEdge(edge.source, edge.target, {}, edge.id);
       }
     });
 
@@ -652,6 +674,28 @@ export function applyTwoTierDagreLayout(
         });
       }
     });
+
+    for (const edgeObj of microG.edges()) {
+      const dEdge = microG.edge(edgeObj);
+      const edgeId = edgeObj.name;
+      if (edgeId && dEdge?.points && dEdge.points.length >= 2) {
+        const pts = dEdge.points.map((pt: { x: number; y: number }) => ({
+          x: pt.x - bbox.minX + CHAPTER_CONTAINER_PADDING.left,
+          y: pt.y - bbox.minY + CHAPTER_CONTAINER_PADDING.top,
+        }));
+        dagreEdgeMap.set(edgeId, {
+          id: edgeId,
+          sources: [edgeObj.v],
+          targets: [edgeObj.w],
+          sections: [{
+            id: `${edgeId}_s0`,
+            startPoint: pts[0]!,
+            bendPoints: pts.slice(1, -1),
+            endPoint: pts[pts.length - 1]!,
+          }],
+        });
+      }
+    }
 
     setBoundedCacheEntry(dagreMicroLayoutCache, cacheKey, {
       width: bbox.width,
@@ -785,7 +829,7 @@ export function applyTwoTierDagreLayout(
     nodes,
     direction,
     edgeColor,
-    undefined,
+    dagreEdgeMap,
     quadtree,
     spatialBounds,
   );

@@ -62,7 +62,6 @@ export function evaluatePythonAstExpression(
 
       if (nodeKind === "String" || nodeKind === "FormatString") {
         const strVal = unquoteString(extractNodeText(trimmed, node));
-        stringCandidates.push(strVal);
         return { value: strVal, ok: true };
       }
 
@@ -93,7 +92,25 @@ export function evaluatePythonAstExpression(
 
         if (Object.prototype.hasOwnProperty.call(environment, text)) {
           const envVal = environment[text];
-          if (typeof envVal === "string") stringCandidates.push(envVal);
+          if (Array.isArray(envVal)) {
+            for (const item of envVal) {
+              if (typeof item === "string") stringCandidates.push(item);
+            }
+          } else if (typeof envVal === "string") {
+            const trimmed = envVal.trim();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+              const items = trimmed
+                .slice(1, -1)
+                .split(",")
+                .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+                .filter(Boolean);
+              for (const it of items) {
+                stringCandidates.push(it);
+              }
+            } else {
+              stringCandidates.push(envVal);
+            }
+          }
           return { value: envVal, ok: true };
         }
         return { value: undefined, ok: false };
@@ -152,42 +169,52 @@ export function evaluatePythonAstExpression(
         return { value: dict, ok: allOk };
       }
 
-      // Handle SubscriptExpression / IndexExpression (e.g. items[0], data["key"])
+      // Handle MemberExpression (e.g. persistent.flag, stats.hp, target_map["route_a"])
+      // and SubscriptExpression / IndexExpression
       if (
         nodeKind === "SubscriptExpression" ||
-        nodeKind === "IndexExpression"
+        nodeKind === "IndexExpression" ||
+        nodeKind === "MemberExpression"
       ) {
-        const children = getNonSeparatorChildren(node);
-        if (children.length >= 2) {
-          const targetRes = evalNode(children[0]!);
-          const indexRes = evalNode(children[1]!);
-          if (targetRes.ok) {
-            const target = targetRes.value;
-            if (indexRes.ok) {
-              return evalSubscript(target, indexRes.value, stringCandidates);
-            } else {
-              collectCandidateStringsFromTarget(target, stringCandidates);
-            }
-          }
-        }
-        return { value: undefined, ok: false };
-      }
-
-      // Handle MemberExpression (e.g. persistent.flag, stats.hp)
-      if (nodeKind === "MemberExpression") {
         const fullText = extractNodeText(trimmed, node);
         if (Object.prototype.hasOwnProperty.call(environment, fullText)) {
           const envVal = environment[fullText];
           if (typeof envVal === "string") stringCandidates.push(envVal);
           return { value: envVal, ok: true };
         }
-        const objChild = node.firstChild;
-        const propChild = node.lastChild;
-        if (objChild && propChild && objChild !== propChild) {
-          const objRes = evalNode(objChild);
-          const propName = extractNodeText(trimmed, propChild);
-          if (objRes.ok) {
-            return evalMemberAccess(objRes.value, propName, stringCandidates);
+
+        const children = getNonSeparatorChildren(node);
+        if (children.length >= 2) {
+          let hasBracket = false;
+          let curr = node.firstChild;
+          while (curr) {
+            if (curr.name === "[") {
+              hasBracket = true;
+              break;
+            }
+            curr = curr.nextSibling;
+          }
+
+          const targetRes = evalNode(children[0]!);
+          if (hasBracket) {
+            const indexRes = evalNode(children[1]!);
+            if (targetRes.ok) {
+              const target = targetRes.value;
+              if (indexRes.ok) {
+                return evalSubscript(target, indexRes.value, stringCandidates);
+              } else {
+                collectCandidateStringsFromTarget(target, stringCandidates);
+              }
+            }
+          } else {
+            const propName = extractNodeText(trimmed, children[1]!);
+            if (targetRes.ok) {
+              return evalMemberAccess(
+                targetRes.value,
+                propName,
+                stringCandidates,
+              );
+            }
           }
         }
         return { value: undefined, ok: false };

@@ -542,8 +542,6 @@ export function buildCanvasEdges(
       isSelfLoop,
     );
     if (isSelfLoop || isBackEdge) continue;
-    const coords = getForwardCoords(e);
-    if (coords.existingPts && coords.existingPts.length > 2) continue;
 
     const isLongDistance = direction === "TB"
       ? (targetPos.y - sourcePos.y > 380)
@@ -577,7 +575,7 @@ export function buildCanvasEdges(
     if (isSelfLoop || isBackEdge) continue;
     if (bypassByEdgeId.has(e.id) || longSkipByEdgeId.has(e.id)) continue;
     const coords = getForwardCoords(e);
-    if (coords.existingPts && coords.existingPts.length > 2) continue;
+    if (coords.existingPts && coords.existingPts.length > 3) continue;
 
     // Ensure forward gap is at least 56px so Y_bus or X_bus is at least 28px in front of the source exit
     const forwardClearance = direction === "TB"
@@ -904,12 +902,6 @@ export function buildCanvasEdges(
       svgPath = loopRes.path;
       labelPosition = { x: loopRes.labelX, y: loopRes.labelY };
     } else if (isBackEdge) {
-      const elkEdge = elkEdgeMap?.get(e.id);
-      if (elkEdge?.sections && elkEdge.sections.length > 0) {
-        const s = elkEdge.sections[0]!;
-        bendPoints = [s.startPoint, ...(s.bendPoints ?? []), s.endPoint];
-        sections = elkEdge.sections;
-      }
       const sX = direction === "TB"
         ? sourcePos.x + (sourceIsDecision ? 30 : 0)
         : sourcePos.x + sourceWidth / 2;
@@ -935,25 +927,23 @@ export function buildCanvasEdges(
       });
       svgPath = splineRes.path;
       labelPosition = { x: splineRes.labelX, y: splineRes.labelY };
-      if (!bendPoints) {
-        const laneOffset = laneIndex * 18;
-        if (direction === "TB") {
-          const clearanceX = (outerGutterCoord ?? sX) - laneOffset;
-          bendPoints = [
-            { x: sX, y: sY },
-            { x: clearanceX, y: sY },
-            { x: clearanceX, y: tY },
-            { x: tX, y: tY },
-          ];
-        } else {
-          const clearanceY = (outerGutterCoord ?? sY) - laneOffset;
-          bendPoints = [
-            { x: sX, y: sY },
-            { x: sX, y: clearanceY },
-            { x: tX, y: clearanceY },
-            { x: tX, y: tY },
-          ];
-        }
+      const laneOffset = laneIndex * 18;
+      if (direction === "TB") {
+        const clearanceX = (outerGutterCoord ?? sX) - laneOffset;
+        bendPoints = [
+          { x: sX, y: sY },
+          { x: clearanceX, y: sY },
+          { x: clearanceX, y: tY },
+          { x: tX, y: tY },
+        ];
+      } else {
+        const clearanceY = (outerGutterCoord ?? sY) - laneOffset;
+        bendPoints = [
+          { x: sX, y: sY },
+          { x: sX, y: clearanceY },
+          { x: tX, y: clearanceY },
+          { x: tX, y: tY },
+        ];
       }
     }
 

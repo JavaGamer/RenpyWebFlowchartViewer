@@ -1,18 +1,4 @@
 import { describe, expect, it } from "vitest";
-import {
-  extractScreenActionTarget,
-} from "../src/parser/handlers/screen/screenActionExtractor.ts";
-import {
-  extractMenuOptionCondition,
-} from "../src/parser/tokenHandlers/menuTokenHandler.ts";
-import {
-  parseCallArguments,
-  parseLabelParameters,
-} from "../src/parser/handlers/jumpCallArgs.ts";
-import {
-  stripInlineComment,
-} from "../src/parser/handlers/screen/screenHandlerEntry.ts";
-import { findTopLevelHeaderColon } from "../src/parser/scanTransitions.ts";
 import { evaluateConditionExpression } from "../src/domain/conditionLogic.ts";
 import { solveRouteToTarget } from "../src/domain/analytics/routeSolver.ts";
 import {
@@ -36,50 +22,6 @@ import {
 import type { FlowEdge, FlowNode } from "../src/domain/index.ts";
 
 describe("Comprehensive Bug Fixes & Regressions", () => {
-  describe("Parser fixes", () => {
-    it("extractScreenActionTarget handles positional arguments before keyword arguments", () => {
-      const target = extractScreenActionTarget(
-        `"act2_intro", from_current=True`,
-      );
-      expect(target).toBe('"act2_intro"');
-    });
-
-    it("extractMenuOptionCondition extracts outer condition despite inner ternary", () => {
-      const cond = extractMenuOptionCondition(
-        `"Option [var if flag else other]" if score > 5:`,
-      );
-      expect(cond).toBe("score > 5");
-    });
-
-    it("parseLabelParameters and parseCallArguments support dot-qualified names", () => {
-      const labelParams = parseLabelParameters("label .sub_route(a=1, b=2):");
-      expect(labelParams).toHaveLength(2);
-      expect(labelParams?.[0]?.name).toBe("a");
-      expect(labelParams?.[0]?.defaultValue).toBe("1");
-
-      const callArgs = parseCallArguments(
-        "call chapter1.scene2(10, fast=True)",
-      );
-      expect(callArgs).toHaveLength(2);
-      expect(callArgs?.[0]?.value).toBe("10");
-      expect(callArgs?.[1]?.name).toBe("fast");
-    });
-
-    it("stripInlineComment resets single-line string quote tracking across newlines", () => {
-      const code =
-        `text "Unclosed quote on line 1\ntext "Valid on line 2" # Comment`;
-      const stripped = stripInlineComment(code);
-      expect(stripped).toContain(`text "Valid on line 2"`);
-      expect(stripped).not.toContain("# Comment");
-    });
-
-    it("findTopLevelHeaderColon ignores walrus operator := in header colons", () => {
-      const line = "if (x := get_val()) > 0:";
-      const colonIdx = findTopLevelHeaderColon(line);
-      expect(colonIdx).toBe(line.length - 1);
-    });
-  });
-
   describe("Domain & Condition Logic fixes", () => {
     it("evaluates arithmetic operators and relational booleans correctly", () => {
       const vars = { flag: "true", count: "5", bonus: "3" };

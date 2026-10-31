@@ -25,8 +25,9 @@ function normalizePath(p: string): string {
 }
 
 function stripAudioTags(asset: string): string {
-  // Strip chained Ren'Py audio tags like `<silence 0.5><loop 1.0>audio/bgm.ogg`
-  return asset.replace(/^(?:<[^>]+>\s*)+/, "").trim();
+  // Strip quotes if present, then chained Ren'Py audio tags like `<silence 0.5><loop 1.0>audio/bgm.ogg`
+  const unquoted = asset.trim().replace(/^["']|["']$/g, "").trim();
+  return unquoted.replace(/^(?:<[^>]+>\s*)+/, "").trim();
 }
 
 export function isBuiltinOrColor(asset: string): boolean {
@@ -37,10 +38,10 @@ export function isBuiltinOrColor(asset: string): boolean {
   if (COLOR_HEX_REGEX.test(trimmed)) return true;
   if (BUILTIN_DISPLAYABLES.has(trimmed.toLowerCase())) return true;
   if (
-    trimmed.startsWith("Solid(") ||
-    trimmed.startsWith("Composite(") ||
-    trimmed.startsWith("Transform(") ||
-    trimmed.startsWith("Frame(")
+    /^Solid\s*\(/i.test(trimmed) ||
+    /^Composite\s*\(/i.test(trimmed) ||
+    /^Transform\s*\(/i.test(trimmed) ||
+    /^Frame\s*\(/i.test(trimmed)
   ) {
     return true;
   }

@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  type FinalizeRequestMessage,
-  type ParseChunkRequestMessage,
   PARSER_WORKER_PROTOCOL_VERSION,
 } from "../../src/infrastructure/workerProtocol";
 
@@ -621,84 +619,6 @@ describe("parseRenpyFilesInWorker", () => {
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
   });
 
-  it("runs parallel chunk parsing and finalizes when files count >= 20 and multiple workers available", async () => {
-    vi.stubGlobal("navigator", { hardwareConcurrency: 2 });
-    const { parseRenpyFilesInWorker } = await import(
-      "../../src/infrastructure"
-    );
-
-    const promise = parseRenpyFilesInWorker({
-      files: Array.from({ length: 20 }, (_, idx) => ({
-        name: idx === 0
-          ? "a_chunk1.rpy"
-          : idx === 10
-          ? "z_chunk2.rpy"
-          : `file_${idx.toString().padStart(2, "0")}.rpy`,
-        content: `label label${idx}:`,
-      })),
-      maxParallelFiles: 2,
-    });
-
-    await waitForPostedMessages(2);
-    const parseChunks = postedMessages.filter((
-      m,
-    ): m is ParseChunkRequestMessage =>
-      (m as { type: string }).type === "parse_chunk"
-    );
-    expect(parseChunks.length).toBe(2);
-    expect(parseChunks[0]!.files[0]!.name).toBe("a_chunk1.rpy");
-    expect(parseChunks[1]!.files[0]!.name).toBe("file_11.rpy");
-
-    emitWorkerMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: "chunk_result",
-      requestId: parseChunks[0].requestId,
-      nodes: [{ id: "a" }],
-      edges: [],
-      pendingCallReturns: [],
-      hasReliableReturnInLabel: [],
-      globalScreens: [],
-      labelDefinitionCount: [],
-      canonicalLabelIds: [],
-    });
-
-    emitWorkerMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: "chunk_result",
-      requestId: parseChunks[1].requestId,
-      nodes: [{ id: "b" }],
-      edges: [],
-      pendingCallReturns: [],
-      hasReliableReturnInLabel: [],
-      globalScreens: [],
-      labelDefinitionCount: [],
-      canonicalLabelIds: [],
-    });
-
-    await waitForPostedMessages(3);
-    const finalizeMsg = postedMessages.find((m): m is FinalizeRequestMessage =>
-      (m as { type: string }).type === "finalize"
-    );
-    expect(finalizeMsg).toBeDefined();
-    expect(finalizeMsg!.nodes).toEqual([{ id: "a" }, { id: "b" }]);
-
-    emitWorkerMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: "finalize_result",
-      requestId: finalizeMsg!.requestId,
-      nodes: [{ id: "a", role: "story" }, { id: "b", role: "story" }],
-      edges: [],
-    });
-
-    await expect(promise).resolves.toEqual({
-      nodes: [{ id: "a", role: "story" }, { id: "b", role: "story" }],
-      edges: [],
-      diagnostics: undefined,
-    });
-
-    vi.unstubAllGlobals();
-  });
-
   it("does not terminate the worker on cancellation under normal conditions", async () => {
     const { parseRenpyFilesInWorker } = await import(
       "../../src/infrastructure"
@@ -745,100 +665,6 @@ describe("parseRenpyFilesInWorker", () => {
     expect(
       mockWorkers.some((w) => w.terminate.mock.calls.length > 0),
     ).toBe(true);
-    vi.useRealTimers();
-  });
-
-  it("terminates helper workers after 30 seconds of idle inactivity", async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal("navigator", { hardwareConcurrency: 2 });
-    const { parseRenpyFilesInWorker } = await import(
-      "../../src/infrastructure"
-    );
-
-    const promise = parseRenpyFilesInWorker({
-      files: Array.from({ length: 20 }, (_, idx) => ({
-        name: idx === 0 ? "a.rpy" : idx === 10 ? "b.rpy" : `file${idx}.rpy`,
-        content: `label label${idx}:`,
-      })),
-      maxParallelFiles: 2,
-    });
-
-    // Advance fake timers until cache keys resolve and chunk requests are posted
-    for (let i = 0; i < 50 && postedMessages.length < 2; i++) {
-      await vi.advanceTimersByTimeAsync(10);
-      await Promise.resolve();
-    }
-
-    const parseChunks = postedMessages.filter((
-      m,
-    ): m is ParseChunkRequestMessage =>
-      (m as { type: string }).type === "parse_chunk"
-    );
-    expect(parseChunks.length).toBe(2);
-
-    // Resolve chunk parsing to trigger finalization
-    emitWorkerMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: "chunk_result",
-      requestId: parseChunks[0]!.requestId,
-      nodes: [{ id: "a" }],
-      edges: [],
-      pendingCallReturns: [],
-      hasReliableReturnInLabel: [],
-      globalScreens: [],
-      labelDefinitionCount: [],
-      canonicalLabelIds: [],
-    });
-    emitWorkerMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: "chunk_result",
-      requestId: parseChunks[1]!.requestId,
-      nodes: [{ id: "b" }],
-      edges: [],
-      pendingCallReturns: [],
-      hasReliableReturnInLabel: [],
-      globalScreens: [],
-      labelDefinitionCount: [],
-      canonicalLabelIds: [],
-    });
-
-    // Advance fake timers until chunk results resolve and finalize request is posted
-    for (let i = 0; i < 50 && postedMessages.length < 3; i++) {
-      await vi.advanceTimersByTimeAsync(10);
-      await Promise.resolve();
-    }
-
-    const finalizeMsg = postedMessages.find((m): m is FinalizeRequestMessage =>
-      (m as { type: string }).type === "finalize"
-    );
-    expect(finalizeMsg).toBeDefined();
-
-    emitWorkerMessage({
-      protocolVersion: PARSER_WORKER_PROTOCOL_VERSION,
-      type: "finalize_result",
-      requestId: finalizeMsg!.requestId,
-      nodes: [{ id: "a", role: "story" }, { id: "b", role: "story" }],
-      edges: [],
-    });
-
-    // Resolve finalize and complete promise
-    await vi.advanceTimersByTimeAsync(0);
-    await promise;
-
-    // Verify helper worker is spawned (mockWorkers[1])
-    expect(mockWorkers[1]).toBeDefined();
-    expect(mockWorkers[1]?.terminate).not.toHaveBeenCalled();
-
-    // Advance timers by 30 seconds
-    await vi.advanceTimersByTimeAsync(30000);
-
-    // Helper worker should be terminated due to idle timeout
-    expect(mockWorkers[1]?.terminate).toHaveBeenCalledTimes(1);
-
-    // Primary worker should NOT be terminated
-    expect(mockWorkers[0]?.terminate).not.toHaveBeenCalled();
-
-    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 });

@@ -1,8 +1,7 @@
 import { expect, test } from "vitest";
 import {
-  extractNodeDetailsFromTokens,
+  headlessParserEngine,
   parseRenpyFiles,
-  tokenizeOneFile,
 } from "../../src/parser/index.ts";
 import type { ParseInputFile } from "../../src/parser/index.ts";
 
@@ -57,21 +56,22 @@ test("deferDetails skips line allocations and audio cue regexes while computing 
   expect(startNodeDeferred.isDetailsLoaded).toBeFalsy();
 });
 
-test("extractNodeDetailsFromTokens hydrates deferred node details on demand", async () => {
+test("headlessParserEngine extracts deferred node details on demand", async () => {
   const file: ParseInputFile = {
     name: "script.rpy",
     content: SAMPLE_RPY,
   };
 
-  const parseResult = await parseRenpyFiles([file], { deferDetails: true });
+  const parseResult = await headlessParserEngine.parse({
+    files: [file],
+    resetActiveGraph: true,
+    deferDetails: true,
+  });
   const startNode = parseResult.nodes.find((n) =>
     n.label === "start" || n.id === "start"
   )!;
 
-  const tokenized = await tokenizeOneFile(file, { chapter: startNode.chapter });
-  const tokenizedMap = new Map([[startNode.chapter || "", tokenized]]);
-
-  const details = extractNodeDetailsFromTokens([startNode], tokenizedMap);
+  const details = await headlessParserEngine.extractNodeDetails([startNode.id]);
 
   expect(details[startNode.id]).toBeDefined();
   const startPayload = details[startNode.id]!;
@@ -82,7 +82,7 @@ test("extractNodeDetailsFromTokens hydrates deferred node details on demand", as
   );
 });
 
-test("extractNodeDetailsFromTokens ignores malformed audio/visual cue statements", async () => {
+test("headlessParserEngine ignores malformed audio/visual cue statements", async () => {
   const file: ParseInputFile = {
     name: "script.rpy",
     content: `
@@ -97,14 +97,16 @@ label start:
 `,
   };
 
-  const parseResult = await parseRenpyFiles([file], { deferDetails: true });
+  const parseResult = await headlessParserEngine.parse({
+    files: [file],
+    resetActiveGraph: true,
+    deferDetails: true,
+  });
   const startNode = parseResult.nodes.find((n) =>
     n.label === "start" || n.id === "start"
   )!;
-  const tokenized = await tokenizeOneFile(file, { chapter: startNode.chapter });
-  const tokenizedMap = new Map([[startNode.chapter || "", tokenized]]);
 
-  const details = extractNodeDetailsFromTokens([startNode], tokenizedMap);
+  const details = await headlessParserEngine.extractNodeDetails([startNode.id]);
   const startPayload = details[startNode.id]!;
 
   expect(startPayload.dialogueLines?.length).toBe(1);

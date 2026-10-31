@@ -128,11 +128,11 @@ describe("Call Context Tagging & Resolution", () => {
 
     expect(callEdge).toBeDefined();
     expect(callEdge?.callContext).toBeDefined();
-    expect(callEdge?.callContext?.callSiteId).toBe("long_scene__scene_1");
-    expect(callEdge?.callContext?.returnTargetId).toBe("long_scene__scene_1");
+    expect(callEdge?.callContext?.callSiteId).toBe("long_scene");
+    expect(callEdge?.callContext?.returnTargetId).toBe("long_scene");
 
     expect(returnEdge).toBeDefined();
     expect(returnEdge?.callContext).toBeDefined();
-    expect(returnEdge?.callContext?.returnTargetId).toBe("long_scene__scene_1");
+    expect(returnEdge?.callContext?.returnTargetId).toBe("long_scene");
   });
 });

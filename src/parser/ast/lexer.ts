@@ -18,6 +18,7 @@ const KEYWORDS: Record<string, TokenType> = {
   elif: "ELIF",
   else: "ELSE",
   while: "WHILE",
+  for: "FOR",
   screen: "SCREEN",
   init: "INIT",
   python: "PYTHON",
@@ -536,6 +537,14 @@ export class RenpyLexer {
         break;
       case "]":
         type = "RBRACKET";
+        if (this.bracketDepth > 0) this.bracketDepth--;
+        break;
+      case "{":
+        type = "LBRACE";
+        this.bracketDepth++;
+        break;
+      case "}":
+        type = "RBRACE";
         if (this.bracketDepth > 0) this.bracketDepth--;
         break;
       case ",":

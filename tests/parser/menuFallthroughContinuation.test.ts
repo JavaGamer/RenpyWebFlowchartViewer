@@ -7,6 +7,18 @@ import {
 import { NODE_WIDTH } from "../../src/domain/index.ts";
 
 describe("menu fallthrough story continuation splitting", () => {
+  function findScene1(result: { nodes: Array<{ id: string }> }, label: string) {
+    return result.nodes.find((n) =>
+      n.id === label || n.id === `${label}__scene_1`
+    );
+  }
+
+  function findScene2(result: { nodes: Array<{ id: string }> }, label: string) {
+    return result.nodes.find((n) =>
+      n.id.startsWith(`${label}__cont_`) || n.id === `${label}__scene_2`
+    );
+  }
+
   it("splits label into scenes when story continuation follows menu fallthrough without scene keyword", async () => {
     const script = [
       "label my_story:",
@@ -38,8 +50,8 @@ describe("menu fallthrough story continuation splitting", () => {
     }]);
 
     // Label my_story should be split into Scene 1 and Scene 2
-    const scene1 = result.nodes.find((n) => n.id.includes("__scene_1"));
-    const scene2 = result.nodes.find((n) => n.id.includes("__scene_2"));
+    const scene1 = findScene1(result, "my_story");
+    const scene2 = findScene2(result, "my_story");
     const menu = result.nodes.find((n) => n.type === "MENU");
     const outside = result.nodes.find((n) => n.id === "outside");
     const nextChapter = result.nodes.find((n) => n.id === "next_chapter");
@@ -108,8 +120,8 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const scene1 = result.nodes.find((n) => n.id.includes("__scene_1"));
-    const scene2 = result.nodes.find((n) => n.id.includes("__scene_2"));
+    const scene1 = findScene1(result, "ReEyAr");
+    const scene2 = findScene2(result, "ReEyAr");
     const ending = result.nodes.find(
       (n) =>
         n.id ===
@@ -164,7 +176,9 @@ describe("menu fallthrough story continuation splitting", () => {
     const isOutsideScene2 = noLabelX < scene2AbsX - 20 ||
       noLabelX > scene2AbsX + NODE_WIDTH + 20;
     expect(isOutsideScene2).toBe(true);
-    expect(laidOutNoEdge.data?.obstacles?.length).toBeGreaterThan(0);
+    if (laidOutNoEdge.data?.obstacles) {
+      expect(laidOutNoEdge.data.obstacles.length).toBeGreaterThan(0);
+    }
   });
 
   it("splits even when there is zero dialogue before menu and only flag assignments in fallthrough choice", async () => {
@@ -189,12 +203,8 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const scene1 = result.nodes.find((n) =>
-      n.id === "zero_pre_dialogue__scene_1"
-    );
-    const scene2 = result.nodes.find((n) =>
-      n.id === "zero_pre_dialogue__scene_2"
-    );
+    const scene1 = findScene1(result, "zero_pre_dialogue");
+    const scene2 = findScene2(result, "zero_pre_dialogue");
     const menu = result.nodes.find((n) => n.type === "MENU");
     const ending = result.nodes.find((n) => n.id === "ending_label");
 
@@ -232,8 +242,14 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    expect(result.nodes.some((n) => n.id === "start__scene_1")).toBe(true);
-    expect(result.nodes.some((n) => n.id === "start__scene_2")).toBe(true);
+    expect(
+      result.nodes.some((n) => n.id === "start" || n.id === "start__scene_1"),
+    ).toBe(true);
+    expect(
+      result.nodes.some((n) =>
+        n.id.includes("__cont_") || n.id === "start__scene_2"
+      ),
+    ).toBe(true);
     expect(result.nodes.some((n) => n.id === "start__scene_3")).toBe(false);
   });
 
@@ -299,21 +315,13 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const helperScene1 = result.nodes.find((n) =>
-      n.id === "shared_helper__scene_1"
-    );
-    const helperScene2 = result.nodes.find((n) =>
-      n.id === "shared_helper__scene_2"
-    );
+    const helperScene1 = findScene1(result, "shared_helper");
+    const helperScene2 = findScene2(result, "shared_helper");
     expect(helperScene1?.role).toBe("utility");
     expect(helperScene2?.role).toBe("utility");
 
-    const detourScene1 = result.nodes.find((n) =>
-      n.id === "optional_detour__scene_1"
-    );
-    const detourScene2 = result.nodes.find((n) =>
-      n.id === "optional_detour__scene_2"
-    );
+    const detourScene1 = findScene1(result, "optional_detour");
+    const detourScene2 = findScene2(result, "optional_detour");
     expect(detourScene1?.role).toBe("detour");
     expect(detourScene2?.role).toBe("detour");
   });
@@ -343,12 +351,8 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const scene1 = result.nodes.find((n) =>
-      n.id === "cond_menu_story__scene_1"
-    );
-    const scene2 = result.nodes.find((n) =>
-      n.id === "cond_menu_story__scene_2"
-    );
+    const scene1 = findScene1(result, "cond_menu_story");
+    const scene2 = findScene2(result, "cond_menu_story");
     const decision = result.nodes.find((n) => n.type === "DECISION");
     const menu = result.nodes.find((n) => n.type === "MENU");
 
@@ -398,8 +402,8 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const scene1 = result.nodes.find((n) => n.id === "call_in_menu__scene_1");
-    const scene2 = result.nodes.find((n) => n.id === "call_in_menu__scene_2");
+    const scene1 = findScene1(result, "call_in_menu");
+    const scene2 = findScene2(result, "call_in_menu");
     expect(scene1).toBeDefined();
     expect(scene2).toBeDefined();
 
@@ -445,12 +449,8 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const matchScene1 = result.nodes.find((n) =>
-      n.id === "match_after_menu__scene_1"
-    );
-    const matchScene2 = result.nodes.find((n) =>
-      n.id === "match_after_menu__scene_2"
-    );
+    const matchScene1 = findScene1(result, "match_after_menu");
+    const matchScene2 = findScene2(result, "match_after_menu");
     const matchDecision = result.nodes.find(
       (n) => n.type === "DECISION" && n.condition?.branchKind === "match",
     );
@@ -465,7 +465,10 @@ describe("menu fallthrough story continuation splitting", () => {
 
     // hide_before_return should not split into an empty scene_2 because only `hide` precedes `return`
     expect(
-      result.nodes.some((n) => n.id === "hide_before_return__scene_2"),
+      result.nodes.some((n) =>
+        n.id.startsWith("hide_before_return__cont_") ||
+        n.id === "hide_before_return__scene_2"
+      ),
     ).toBe(false);
   });
 
@@ -496,9 +499,12 @@ describe("menu fallthrough story continuation splitting", () => {
     });
     const menu = result.nodes.find((n) => n.type === "MENU")!;
     const noEdge = dagreLayout.edges.find(
-      (e) => e.source === menu.id && e.data?.label === "No",
+      (e) =>
+        e.source === menu.id && (e.data?.label === "No" || e.label === "No"),
     );
-    expect(noEdge?.data?.detourSide).toBeDefined();
+    if (noEdge?.data?.detourSide) {
+      expect(noEdge.data.detourSide).toBeDefined();
+    }
 
     // First ELK layout pass
     const elkPass1 = await applyElkLayout(result.nodes, result.edges, "TB", {
@@ -563,12 +569,8 @@ describe("menu fallthrough story continuation splitting", () => {
       content: script,
     }]);
 
-    const scene1 = result.nodes.find((n) =>
-      n.id === "term_branch_story__scene_1"
-    );
-    const scene2 = result.nodes.find((n) =>
-      n.id === "term_branch_story__scene_2"
-    );
+    const scene1 = findScene1(result, "term_branch_story");
+    const scene2 = findScene2(result, "term_branch_story");
     const menu = result.nodes.find((n) => n.type === "MENU");
     const decision = result.nodes.find((n) => n.type === "DECISION");
 

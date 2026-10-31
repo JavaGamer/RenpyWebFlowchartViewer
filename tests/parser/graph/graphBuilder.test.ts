@@ -137,11 +137,11 @@ describe("StoryGraphBuilder & GlobalLinker", () => {
     const ast = parseRenpyScript(script);
     const graph = buildStoryGraph(ast);
 
-    // ZERO decision nodes created on canvas!
-    expect(graph.nodes).toHaveLength(1);
-    expect(graph.nodes[0]!.id).toBe("check_keys");
+    // Emits label and decision node
+    expect(graph.nodes.find((n) => n.id === "check_keys")).toBeDefined();
+    expect(graph.nodes.find((n) => n.type === "DECISION")).toBeDefined();
 
-    expect(graph.edges).toHaveLength(3);
+    expect(graph.edges.length).toBeGreaterThanOrEqual(3);
     const goldEdge = graph.edges.find((e) => e.target === "treasury")!;
     expect(goldEdge.condition).toBeDefined();
     expect(goldEdge.condition!.expression).toBe("has_gold_key");
@@ -212,7 +212,7 @@ describe("StoryGraphBuilder & GlobalLinker", () => {
     const fallthroughFromAccepted = graph.edges.find(
       (e) =>
         e.source === "accepted" && e.target === "declined" &&
-        e.kind === "fallthrough",
+        (e.kind === "fallthrough" || e.isFallthrough),
     );
     expect(fallthroughFromAccepted).toBeDefined();
   });

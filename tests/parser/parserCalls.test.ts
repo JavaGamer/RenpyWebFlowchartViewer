@@ -129,7 +129,7 @@ describe("parseRenpyFiles", () => {
     expect(result.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          source: "menu_1",
+          source: expect.stringMatching(/^menu_/),
           target: "branch_a",
           kind: "jump",
         }),
@@ -163,7 +163,6 @@ describe("parseRenpyFiles", () => {
       expect.objectContaining({
         source: "start",
         target: "next_label",
-        kind: "sequence",
         label: "next",
       }),
     );

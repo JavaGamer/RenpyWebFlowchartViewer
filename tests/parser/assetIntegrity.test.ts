@@ -148,11 +148,7 @@ label start:
     expect(assetDiagnostics ?? []).toHaveLength(0);
   });
 
-  it("verifies asset integrity across map-reduce linker fragments and image definitions", async () => {
-    const { parseFileToFragment, linkGraphFragments } = await import(
-      "../../src/parser/mapReduceLinker.ts"
-    );
-
+  it("verifies asset integrity across multi-file scripts and image definitions", async () => {
     const file1 = {
       name: "init.rpy",
       content: `
@@ -170,34 +166,14 @@ label start:
 `,
     };
 
-    const { createGraphState } = await import(
-      "../../src/parser/pipelineState.ts"
-    );
-
-    const prePassState = createGraphState();
-    prePassState.imageDefinitions = new Map([
-      ["bg office", "images/bg_office.png"],
-    ]);
-    prePassState.initVariables = new Map([
-      ["ambient", {
-        name: "ambient",
-        kind: "define",
-        priority: 0,
-        value: "music/ambient.ogg",
-      }],
-    ]);
-
-    const frag1 = await parseFileToFragment(file1, {}, prePassState, 0);
-    const frag2 = await parseFileToFragment(file2, {}, prePassState, 1);
-
-    const linkedState = linkGraphFragments([frag1, frag2], undefined, {
+    const result = await parseRenpyFiles([file1, file2], {
       projectMediaFiles: [
         "images/bg_office.png",
         "music/ambient.ogg",
       ],
     });
 
-    const missingAssets = linkedState.diagnostics?.filter(
+    const missingAssets = result.diagnostics?.filter(
       (d) => d.code === "missing_asset",
     );
     expect(missingAssets ?? []).toHaveLength(0);

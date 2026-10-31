@@ -16,10 +16,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: [
-        "src/parser/parser.ts",
-        "src/parser/parserTokens.ts",
-        "src/parser/tokenHandling.ts",
-        "src/parser/tokenScanStage.ts",
+        "src/parser/**/*.ts",
       ],
       thresholds: {
         perFile: true,

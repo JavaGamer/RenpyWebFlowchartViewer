@@ -3,7 +3,7 @@ import {
   calculateReadingTimeSeconds,
   formatReadingTime,
 } from "../../src/ui/utils/readingTime.ts";
-import { computeTextStats } from "../../src/parser/tokenHandling.ts";
+import { computeTextStats } from "../../src/parser/index.ts";
 
 // --- computeTextStats --------------------------------------------------------
 

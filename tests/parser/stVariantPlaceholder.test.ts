@@ -241,7 +241,7 @@ label standard_target:
         (e) =>
           e.source === startNode?.id &&
           e.target === targetNode?.id &&
-          e.kind === "sequence",
+          (e.kind === "sequence" || e.kind === "fallthrough"),
       );
       expect(sequenceEdge).toBeDefined();
 

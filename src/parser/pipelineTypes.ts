@@ -8,12 +8,11 @@ import type {
   FlowNode,
   LanguageTranslationData,
   MutationOperator,
+  NodeDetailsPayload,
   ProjectTranslations,
   SourceLocation,
   VariableMutation,
 } from "../domain/index.ts";
-import type { TextDocument } from "vscode-languageserver-textdocument";
-import type { TokenTree } from "@renpy/ast/out/tokenizer/token-definitions.js";
 import type {
   ParserVariant,
   ScreenActionKind,
@@ -22,15 +21,10 @@ import type {
 } from "./plugins/index.ts";
 import type { MultiDirectedGraph } from "graphology";
 
-export type {
-  EdgeKind,
-  FlowEdge,
-  FlowNode,
-  ParserVariant,
-  ScreenActionKind,
-  TextDocument,
-  TokenTree,
-};
+export type TextDocument = unknown;
+export type TokenTree = unknown;
+
+export type { EdgeKind, FlowEdge, FlowNode, ParserVariant, ScreenActionKind };
 export type ConditionalBranchKind = DomainConditionBranchKind;
 
 export interface PendingMenuFallthroughEntry {
@@ -203,6 +197,7 @@ export interface UnresolvedTargetParseDiagnostic extends ParseDiagnosticBase {
     edgeId: string;
     sourceId: string;
     targetId: string;
+    sourceLocation?: SourceLocation;
   };
 }
 
@@ -371,6 +366,7 @@ export interface ParseGraphState {
   globalLabelVariableListTargets: Map<string, string[]>;
   globalPersistentVariables?: Map<string, VariableValue>;
   initVariables?: Map<string, InitVariableDescriptor>;
+  initDescriptors?: InitVariableDescriptor[];
   imageDefinitions?: Map<string, string>;
   nodeMutations?: Map<string, VariableMutation[]>;
   globalScreens: Set<string>;
@@ -405,7 +401,9 @@ export interface ParseResult {
   assets?: FlowAsset[];
   diagnostics?: ParseDiagnostic[];
   initVariables?: Map<string, InitVariableDescriptor>;
+  initDescriptors?: InitVariableDescriptor[];
   nodeMutations?: Map<string, VariableMutation[]>;
+  nodeDetails?: Map<string, NodeDetailsPayload>;
   screenDefinitions?: Map<string, ScreenDefinition>;
   translations?: ProjectTranslations;
   availableLanguages?: string[];
@@ -430,10 +428,7 @@ export interface ParseOptions {
   engine?: "legacy" | "modern";
   onProgress?: (progress: ParseProgress) => void;
   maxParallelFiles?: number;
-  tokenizedCache?: Map<
-    string,
-    { chapter?: string; document: TextDocument; tokenTree: TokenTree }
-  >;
+  tokenizedCache?: unknown;
   fileCacheKeys?: string[];
   captureDialogueLines?: boolean;
   deferDetails?: boolean;

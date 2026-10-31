@@ -43,6 +43,7 @@ export type TokenType =
   | "ELIF"
   | "ELSE"
   | "WHILE"
+  | "FOR"
   | "SCREEN"
   | "INIT"
   | "PYTHON"
@@ -64,6 +65,8 @@ export type TokenType =
   | "RPAREN"
   | "LBRACKET"
   | "RBRACKET"
+  | "LBRACE"
+  | "RBRACE"
   | "COMMA"
   | "DOT"
   | "EQUALS"
@@ -93,7 +96,18 @@ export type TopLevelStatementAst =
   | LabelStatementAst
   | ScreenStatementAst
   | InitStatementAst
-  | PythonBlockAst;
+  | PythonBlockAst
+  | DefineStatementAst
+  | DefaultStatementAst
+  | ImageStatementAst
+  | MenuStatementAst;
+
+export interface ImageStatementAst {
+  kind: "image";
+  name: string;
+  expression: string;
+  sourceLocation: AstSourceLocation;
+}
 
 // ============================================================================
 // Label & Top-Level Statements
@@ -127,9 +141,13 @@ export type StatementAst =
   | ReturnStatementAst
   | IfStatementAst
   | WhileStatementAst
+  | ForStatementAst
   | PythonStatementAst
   | CallScreenStatementAst
+  | ScreenStatementAst
   | AssetCueStatementAst
+  | GenericStatementAst
+  | MatchStatementAst
   | PassStatementAst;
 
 export interface SayStatementAst {
@@ -151,7 +169,9 @@ export interface MenuItemAst {
 
 export interface MenuStatementAst {
   kind: "menu";
+  name?: string;
   prompt?: string;
+  prompts?: string[];
   promptSpeaker?: string;
   items: MenuItemAst[];
   sourceLocation: AstSourceLocation;
@@ -200,10 +220,38 @@ export interface IfStatementAst {
   sourceLocation: AstSourceLocation;
 }
 
+export interface CaseBranchAst {
+  pattern: string;
+  condition?: string;
+  body: StatementAst[];
+  sourceLocation: AstSourceLocation;
+}
+
+export interface MatchStatementAst {
+  kind: "match";
+  expression: string;
+  cases: CaseBranchAst[];
+  sourceLocation: AstSourceLocation;
+}
+
 export interface WhileStatementAst {
   kind: "while";
   condition: string;
   body: StatementAst[];
+  sourceLocation: AstSourceLocation;
+}
+
+export interface ForStatementAst {
+  kind: "for";
+  variable: string;
+  iterable: string;
+  body: StatementAst[];
+  sourceLocation: AstSourceLocation;
+}
+
+export interface GenericStatementAst {
+  kind: "generic";
+  rawText: string;
   sourceLocation: AstSourceLocation;
 }
 
@@ -212,6 +260,7 @@ export interface VariableMutationAst {
   operator: string;
   value: string;
   rawExpression: string;
+  isLiteral?: boolean;
 }
 
 export interface PythonStatementAst {
@@ -249,6 +298,13 @@ export interface ScreenActionAst {
   actionName: string;
   target?: string;
   arguments?: string[];
+  rawArgs?: string;
+  targetExpression?: string;
+  isDynamic?: boolean;
+  timeout?: { isTimeout: boolean; durationSeconds?: number };
+  variableName?: string;
+  variableValue?: unknown;
+  sourceLocation?: AstSourceLocation;
 }
 
 export interface ScreenStatementAst {
@@ -261,6 +317,8 @@ export interface ScreenStatementAst {
 export interface InitStatementAst {
   kind: "init";
   priority?: number;
+  isEarly?: boolean;
+  isOffsetDirective?: boolean;
   body: StatementAst[];
   sourceLocation: AstSourceLocation;
 }
@@ -269,5 +327,23 @@ export interface PythonBlockAst {
   kind: "python_block";
   isEarly: boolean;
   code: string;
+  sourceLocation: AstSourceLocation;
+}
+
+export interface DefineStatementAst {
+  kind: "define";
+  name: string;
+  value: unknown;
+  rawExpression: string;
+  priority: number;
+  sourceLocation: AstSourceLocation;
+}
+
+export interface DefaultStatementAst {
+  kind: "default";
+  name: string;
+  value: unknown;
+  rawExpression: string;
+  priority: number;
   sourceLocation: AstSourceLocation;
 }

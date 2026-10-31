@@ -3,8 +3,6 @@ import {
   evaluatePythonAstExpression,
   parsePythonBlock,
 } from "../../src/domain/index.ts";
-import { extractAtlVisualAssets } from "../../src/parser/handlers/atlParser.ts";
-import { extractScreenActionExpressions } from "../../src/parser/handlers/screen/screenActionExtractor.ts";
 import { parseRenpyFiles } from "../../src/parser/parser.ts";
 
 async function parseScriptToGraph(script: string) {
@@ -95,21 +93,6 @@ label loop:
 });
 
 describe("Interactive Screen Actions & Visual Navigation", () => {
-  it("extracts screen actions from textbutton, imagebutton, and timer constructs", () => {
-    const screenBlock = `
-screen main_menu:
-    textbutton "Start Game" action Jump("start_label")
-    imagebutton auto "gui/button_%s.png" action Show("options_screen")
-    timer 3.5 action Return()
-`;
-    const extracted = extractScreenActionExpressions(screenBlock);
-    expect(extracted.length).toBe(3);
-    expect(extracted[0]!.expression).toContain('Jump("start_label")');
-    expect(extracted[1]!.expression).toContain('Show("options_screen")');
-    expect(extracted[2]!.expression).toContain("Return()");
-    expect(extracted[2]!.timeout?.durationSeconds).toBe(3.5);
-  });
-
   it("links screen call actions into flowchart edges", async () => {
     const script = `
 label start:
@@ -124,25 +107,5 @@ label game_start:
     const graph = await parseScriptToGraph(script);
     const jumpEdge = graph.edges.find((e) => e.target === "game_start");
     expect(jumpEdge).toBeDefined();
-  });
-});
-
-describe("ATL (Animation & Transformation Language)", () => {
-  it("extracts visual asset dependencies from ATL blocks and transform declarations", () => {
-    const atlBlock = `
-transform bounce:
-    xalign 0.5
-    "images/ball_frame1.png"
-    pause 0.2
-    "images/ball_frame2.png"
-    contains "sparkle_effect.png" # inline comment
-`;
-    const assets = extractAtlVisualAssets(atlBlock);
-    expect(assets.length).toBe(3);
-    expect(assets.map((a) => a.asset)).toEqual([
-      "images/ball_frame1.png",
-      "images/ball_frame2.png",
-      "sparkle_effect.png",
-    ]);
   });
 });

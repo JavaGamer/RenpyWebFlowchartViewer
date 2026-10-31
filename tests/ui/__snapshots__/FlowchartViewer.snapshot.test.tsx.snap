@@ -81,7 +81,7 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
     {
       "id": "menu_1",
       "type": "menuNode",
-      "label": "menu_1",
+      "label": "Choice",
       "nodeType": "MENU",
       "dialogueCount": 0,
       "hidden": false,
@@ -123,13 +123,13 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for branchi
       "label": ""
     },
     {
-      "id": "jump_menu_1__end_a_Option A",
+      "id": "jump_menu_1__end_a_c0",
       "source": "menu_1",
       "target": "end_a",
       "label": "Option A"
     },
     {
-      "id": "jump_menu_1__end_b_Option B",
+      "id": "jump_menu_1__end_b_c1",
       "source": "menu_1",
       "target": "end_b",
       "label": "Option B"
@@ -186,13 +186,13 @@ exports[`FlowchartViewer rendered graph snapshots > matches snapshot for cyclic 
   ],
   "edges": [
     {
-      "id": "jump_loop_a__loop_b_",
+      "id": "jump_loop_a__loop_b_L1",
       "source": "loop_a",
       "target": "loop_b",
       "label": ""
     },
     {
-      "id": "jump_loop_b__loop_a_",
+      "id": "jump_loop_b__loop_a_L4",
       "source": "loop_b",
       "target": "loop_a",
       "label": ""

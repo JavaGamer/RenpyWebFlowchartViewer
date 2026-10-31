@@ -201,7 +201,7 @@ label west_cave:
     // 3 LabelNodes + 1 MenuNode
     expect(result.nodes.map((n) => n.id)).toEqual([
       "start",
-      "menu_start_L3",
+      "menu_1",
       "east_cave",
       "west_cave",
     ]);

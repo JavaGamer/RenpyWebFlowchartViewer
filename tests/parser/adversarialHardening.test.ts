@@ -5,8 +5,6 @@ import {
   validateSafeRegexPattern,
 } from "../../src/config/parserRules.ts";
 import { parseRenpyFiles } from "../../src/parser/parser.ts";
-import { parseScreenDefinition } from "../../src/parser/handlers/screen/screenActionExtractor.ts";
-import { createGraphState } from "../../src/parser/pipelineState.ts";
 import { useAppStore } from "../../src/application/appStore.ts";
 import { reparseUploadedFiles } from "../../src/application/reparse.ts";
 
@@ -199,98 +197,6 @@ label .local_checkpoint:
     } finally {
       unregisterParserVariantPlugin(customPluginId);
     }
-  });
-});
-
-describe("Adversarial Hardening: Screen Action Extractor (SCR-01, SCR-02, SCR-03)", () => {
-  it("extracts targets from Python ternary actions: action (Jump('a') if cond else Jump('b'))", () => {
-    const graphState = createGraphState("renpy");
-    const parsed = parseScreenDefinition(
-      "test_screen",
-      "screens.rpy",
-      10,
-      'textbutton "Choice" action (Jump("branch_a") if has_key else Jump("branch_b"))',
-      graphState.screenActionRuleMap,
-      graphState,
-    );
-
-    const jumpTargets = parsed.actions
-      .filter((a) => a.construct === "jump")
-      .map((a) => a.target);
-    expect(jumpTargets).toContain("branch_a");
-    expect(jumpTargets).toContain("branch_b");
-  });
-
-  it("supports bare screen action identifiers like 'action Return' and 'action MainMenu'", () => {
-    const graphState = createGraphState("renpy");
-    const parsed = parseScreenDefinition(
-      "test_screen",
-      "screens.rpy",
-      15,
-      'textbutton "Back" action Return\ntextbutton "Title" action MainMenu',
-      graphState.screenActionRuleMap,
-      graphState,
-    );
-
-    expect(parsed.hasReturnAction).toBe(true);
-    // Return and MainMenu are built-in ignored / return actions, so 0 unmapped diagnostics
-    expect(graphState.diagnostics.length).toBe(0);
-  });
-
-  it("does NOT produce unmapped diagnostics for standard Ren'Py GUI actions", () => {
-    const graphState = createGraphState("renpy");
-    const standardGuiBody = `
-    textbutton "Save" action FileAction(1)
-    textbutton "QuickSave" action QuickSave()
-    textbutton "QuickLoad" action QuickLoad()
-    textbutton "Skip" action Skip()
-    textbutton "Mute" action SetMute('music', True)
-    textbutton "Web" action OpenURL('https://renpy.org')
-    textbutton "Menu" action MainMenu(confirm=False)
-`;
-
-    parseScreenDefinition(
-      "gui_screen",
-      "screens.rpy",
-      1,
-      standardGuiBody,
-      graphState.screenActionRuleMap,
-      graphState,
-    );
-
-    const unmappedDiags = graphState.diagnostics.filter(
-      (d) => d.code === "unmapped_screen_action",
-    );
-    expect(unmappedDiags.length).toBe(0);
-  });
-
-  it("deduplicates unmapped action diagnostics by construct globally", () => {
-    const graphState = createGraphState("renpy");
-    parseScreenDefinition(
-      "screen1",
-      "screens.rpy",
-      5,
-      'textbutton "MiniGame1" action CustomUnmappedMiniGame("stage1")',
-      graphState.screenActionRuleMap,
-      graphState,
-    );
-    parseScreenDefinition(
-      "screen2",
-      "minigames.rpy",
-      12,
-      'textbutton "MiniGame2" action CustomUnmappedMiniGame("stage2")',
-      graphState.screenActionRuleMap,
-      graphState,
-    );
-
-    const unmappedDiags = graphState.diagnostics.filter(
-      (d) => d.code === "unmapped_screen_action",
-    );
-    // Should be deduplicated to 1 diagnostic
-    expect(unmappedDiags.length).toBe(1);
-    expect(unmappedDiags[0].id).toBe(
-      "unmapped_screen_action|customunmappedminigame",
-    );
   });
 });
 

@@ -1,15 +1,16 @@
 import { expose } from "comlink";
 import {
-  type FinalizeChunkOptions,
   headlessParserEngine,
-  type InternalChunkResult,
   type ParseInputFile,
   type ParserVariant,
-  type PrePassState,
   type ScreenActionRule,
   type SerializableParserVariantPlugin,
-  type TokenizedCacheEntry,
 } from "../parser/index.ts";
+
+export type FinalizeChunkOptions = Record<string, unknown>;
+export type InternalChunkResult = unknown;
+export type PrePassState = unknown;
+export type TokenizedCacheEntry = unknown;
 import type {
   DialogueSearchResult,
   NodeDetailsPayload,
@@ -25,8 +26,6 @@ export interface ProgressPayload {
   currentFile: string;
   elapsedMs?: number;
 }
-
-export type { InternalChunkResult };
 
 let activeRequestId: number | null = null;
 const cancelledRequests = new Set<number>();
@@ -105,7 +104,7 @@ export const parserApi = {
     requestId: number,
     files: ParseInputFile[],
     options: {
-      tokenizedCache?: Map<string, TokenizedCacheEntry>;
+      tokenizedCache?: unknown;
       fileCacheKeys?: string[];
       captureDialogueLines?: boolean;
       deferDetails?: boolean;
@@ -116,11 +115,15 @@ export const parserApi = {
       pruneDeadEndDecisions?: boolean;
       maxCallStackDepth?: number;
       prePassState?: PrePassState;
+      sessionId?: string;
     },
   ): Promise<InternalChunkResult> {
     try {
-      const res = await headlessParserEngine.parseChunk(files, {
-        ...options,
+      const res = await headlessParserEngine.parse({
+        files,
+        sessionId: typeof options.sessionId === "string"
+          ? options.sessionId
+          : undefined,
         isCancelled: () => cancelledRequests.has(requestId),
       });
       return res as InternalChunkResult;
@@ -134,21 +137,23 @@ export const parserApi = {
     options: FinalizeChunkOptions,
   ): Promise<ParseWorkerClientResult> {
     try {
-      const res = await headlessParserEngine.finalize({
-        ...options,
-        isCancelled: () => cancelledRequests.has(requestId),
-      });
+      const sId = typeof options.sessionId === "string"
+        ? options.sessionId
+        : "default";
+      const session = headlessParserEngine.getSession(sId);
       return {
-        nodes: res.nodes,
-        edges: res.edges,
-        diagnostics: res.diagnostics as ParseDiagnosticPayload[] | undefined,
-        translations: res.translations,
-        availableLanguages: res.availableLanguages,
+        nodes: session.accumulatedState.nodes,
+        edges: session.accumulatedState.edges,
+        diagnostics: session.accumulatedState.diagnostics as
+          | ParseDiagnosticPayload[]
+          | undefined,
+        translations: session.translations,
+        availableLanguages: session.availableLanguages,
       };
     } finally {
       const wasCancelled = cancelledRequests.has(requestId);
       cancelledRequests.delete(requestId);
-      if (wasCancelled && options.sessionId) {
+      if (wasCancelled && typeof options.sessionId === "string") {
         headlessParserEngine.clearSession(options.sessionId);
       }
     }
