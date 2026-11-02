@@ -102,16 +102,36 @@ export function CanvasSelectionToolbar({
     const selectedSet = new Set(selectedNodeIds);
     const selectedNodes = flowNodes.filter((n) => selectedSet.has(n.id));
     const labelsText = selectedNodes.map((n) => n.label || n.id).join("\n");
+    const onCopiedSuccess = () => {
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    };
+
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(labelsText)
-        .then(() => {
-          setCopied(true);
-          if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-          copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
-        })
-        .catch((err) => {
-          console.error("Failed to copy labels to clipboard:", err);
+        .then(onCopiedSuccess)
+        .catch(() => {
+          fallbackCopyText(labelsText, onCopiedSuccess);
         });
+    } else {
+      fallbackCopyText(labelsText, onCopiedSuccess);
+    }
+  };
+
+  const fallbackCopyText = (text: string, onSuccess: () => void) => {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      onSuccess();
+    } catch (err) {
+      console.error("Fallback copy failed:", err);
     }
   };
 
@@ -191,8 +211,10 @@ export function CanvasSelectionToolbar({
     <aside
       aria-label="Canvas selection actions"
       className={cn(
-        "absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-wrap items-center gap-2 sm:gap-3 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-md transition-all duration-200 animate-fade-in",
-        isDark
+        "absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-wrap items-center gap-2 sm:gap-3 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-md transition-all duration-200 animate-fade-in max-w-[calc(100%-2rem)]",
+        theme === "highContrast"
+          ? "bg-white border-2 border-black text-black shadow-none"
+          : isDark
           ? "bg-slate-900/95 border-violet-700/60 text-slate-100 shadow-violet-950/50"
           : "bg-white/95 border-violet-300 text-gray-900 shadow-violet-500/15",
       )}

@@ -21,6 +21,7 @@ import {
   type ParserVariantPlugin,
   type ScreenActionRule,
 } from "../config/parserRules.ts";
+import { getTheQuestionSampleFiles } from "../config/sampleProjects.ts";
 import {
   MAX_RPY_FILE_COUNT,
   MAX_TOTAL_RPY_SIZE_BYTES,
@@ -91,6 +92,10 @@ export function UploadArea({
   const storeTheme = useViewerStore((s) => s.theme);
   const theme = propTheme ?? storeTheme;
   const isDark = theme === "dark";
+
+  const handleLoadSample = useCallback(() => {
+    void processFiles(getTheQuestionSampleFiles());
+  }, [processFiles]);
 
   const handleUrlSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -181,7 +186,7 @@ export function UploadArea({
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8">
+    <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 sm:px-8 pb-16">
       <div className="w-full max-w-xl">
         <div
           className={cn(
@@ -223,6 +228,28 @@ export function UploadArea({
             />
           )}
 
+        {/* 1-Click Sample Project Quick Launcher */}
+        {phase === "idle" && (
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={handleLoadSample}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
+                isDark
+                  ? "bg-slate-800/80 border-slate-700 text-violet-300 hover:bg-slate-700 hover:border-violet-500"
+                  : "bg-white border-gray-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 shadow-xs",
+              )}
+              aria-label="Try with sample: The Question"
+            >
+              <span>Try with sample:</span>
+              <span className="font-semibold underline">
+                The Question (Tutorial Game)
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* Collapsible Advanced settings section */}
         {phase !== "reading" && phase !== "parsing" && (
           <div
@@ -240,7 +267,7 @@ export function UploadArea({
                 setIsAdvancedOpen((prev) => !prev);
               }}
               className={cn(
-                "w-full flex items-center justify-between px-4 py-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2",
+                "w-full flex items-center justify-between px-4 py-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 cursor-pointer",
                 isDark
                   ? "text-slate-200 hover:bg-slate-800/50 focus-visible:ring-violet-400"
                   : "text-gray-700 hover:bg-gray-50 focus-visible:ring-violet-500",
@@ -371,7 +398,7 @@ export function UploadArea({
                 type="button"
                 onClick={openFolderPicker}
                 className={cn(
-                  "text-xs px-2.5 py-1.5 rounded-md text-white focus-visible:outline-none focus-visible:ring-2",
+                  "text-xs px-2.5 py-1.5 rounded-md text-white focus-visible:outline-none focus-visible:ring-2 cursor-pointer",
                   isDark
                     ? "bg-red-800 hover:bg-red-700 focus-visible:ring-red-500"
                     : "bg-red-700 hover:bg-red-800 focus-visible:ring-red-500",
@@ -383,7 +410,7 @@ export function UploadArea({
                 type="button"
                 onClick={onReset}
                 className={cn(
-                  "text-xs underline focus-visible:outline-none focus-visible:ring-2 rounded",
+                  "text-xs underline focus-visible:outline-none focus-visible:ring-2 rounded cursor-pointer",
                   isDark
                     ? "text-red-400 hover:text-red-300 focus-visible:ring-red-500"
                     : "text-red-700 hover:text-red-900 focus-visible:ring-red-500",
@@ -395,7 +422,7 @@ export function UploadArea({
                 type="button"
                 onClick={() => onExportDebugBundle(debugPrivacyOptions)}
                 className={cn(
-                  "text-xs px-2.5 py-1.5 rounded-md border focus-visible:outline-none focus-visible:ring-2",
+                  "text-xs px-2.5 py-1.5 rounded-md border focus-visible:outline-none focus-visible:ring-2 cursor-pointer",
                   isDark
                     ? "border-red-900 bg-slate-800 text-red-300 hover:bg-slate-700 focus-visible:ring-red-500"
                     : "border-red-300 bg-white text-red-700 hover:bg-red-100 focus-visible:ring-red-500",
@@ -407,7 +434,7 @@ export function UploadArea({
                 type="button"
                 onClick={() => onOpenIssue(debugPrivacyOptions)}
                 className={cn(
-                  "text-xs px-2.5 py-1.5 rounded-md border focus-visible:outline-none focus-visible:ring-2",
+                  "text-xs px-2.5 py-1.5 rounded-md border focus-visible:outline-none focus-visible:ring-2 cursor-pointer",
                   isDark
                     ? "border-red-900 bg-slate-800 text-red-300 hover:bg-slate-700 focus-visible:ring-red-500"
                     : "border-red-300 bg-white text-red-700 hover:bg-red-100 focus-visible:ring-red-500",

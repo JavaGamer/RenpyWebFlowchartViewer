@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { cn } from "./utils/cn.ts";
 import { useViewerStore } from "../application/index.ts";
 import {
@@ -53,18 +54,39 @@ export function ViewerInspector({
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
   const readingSpeedWpm = useViewerStore((s) => s.readingSpeedWpm);
+  const isRightDockOpen = useViewerStore((s) => s.isRightDockOpen);
+  const toggleRightDock = useViewerStore((s) => s.toggleRightDock);
+
+  if (!isRightDockOpen) {
+    return null;
+  }
 
   return (
     <aside
       className={cn(
-        "w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l p-3 overflow-y-auto max-h-[45vh] xl:max-h-none transition-colors duration-200",
+        "w-full xl:w-96 xl:max-w-[40%] xl:min-w-[280px] border-t xl:border-t-0 xl:border-l p-3 overflow-y-auto max-h-[45vh] xl:max-h-none transition-colors duration-200 z-20",
         isDark
           ? "border-slate-800 bg-slate-900 text-slate-100"
           : "border-gray-200 bg-white text-gray-900",
       )}
       aria-label="Inspector panel"
     >
-      <div className="text-sm font-semibold mb-2">Inspector</div>
+      <div className="flex items-center justify-between font-semibold mb-2">
+        <span className="text-sm">Inspector</span>
+        <button
+          type="button"
+          onClick={toggleRightDock}
+          className={cn(
+            "p-1 rounded transition-colors cursor-pointer",
+            isDark
+              ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              : "text-gray-400 hover:text-gray-700 hover:bg-gray-100",
+          )}
+          aria-label="Close inspector"
+        >
+          <X size={14} />
+        </button>
+      </div>
       {effectiveSearch.trim().length > 0 && (
         <div className="mb-4">
           <div

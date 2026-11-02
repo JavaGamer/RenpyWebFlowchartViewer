@@ -73,6 +73,11 @@ export function UploadProgress({
 
         {/* Global Progress Bar */}
         <div
+          role="progressbar"
+          aria-valuenow={progressPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Upload progress"
           className={cn(
             "w-full max-w-md rounded-full h-2 overflow-hidden mt-1 border",
             isDark

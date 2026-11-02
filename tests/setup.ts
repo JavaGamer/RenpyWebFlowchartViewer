@@ -19,6 +19,14 @@ afterEach(() => {
 // Ensure React's act() integration is enabled in the Vitest + jsdom environment.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // Polyfill Deno's node:worker_threads missing parentPort.removeAllListeners
 import * as workerThreads from "node:worker_threads";
 if (workerThreads.parentPort) {

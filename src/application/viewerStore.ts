@@ -135,6 +135,11 @@ const viewerPersistedStateSchema = z.object({
     .max(400)
     .catch(defaultPersistedState.readingSpeedWpm),
   enableLodZooming: z.boolean().catch(defaultPersistedState.enableLodZooming),
+  isLeftSidebarOpen: z.boolean().catch(defaultPersistedState.isLeftSidebarOpen),
+  isRightDockOpen: z.boolean().catch(defaultPersistedState.isRightDockOpen),
+  activeRightDockTab: z
+    .enum(["inspector", "search", "routes", "settings"])
+    .catch(defaultPersistedState.activeRightDockTab),
   debugPrivacyOptions: z
     .object({
       includeFileNames: z.boolean().catch(
@@ -243,6 +248,9 @@ function migrateLegacyKeys(): string | null {
       debugPrivacyOptions: defaultPersistedState.debugPrivacyOptions,
       readingSpeedWpm: defaultPersistedState.readingSpeedWpm,
       enableLodZooming: defaultPersistedState.enableLodZooming,
+      isLeftSidebarOpen: defaultPersistedState.isLeftSidebarOpen,
+      isRightDockOpen: defaultPersistedState.isRightDockOpen,
+      activeRightDockTab: defaultPersistedState.activeRightDockTab,
     };
 
     for (const key of LEGACY_KEYS) {
@@ -350,6 +358,9 @@ export const useViewerStore = create<ViewerStore>()(
         debugPrivacyOptions: state.debugPrivacyOptions,
         readingSpeedWpm: state.readingSpeedWpm,
         enableLodZooming: state.enableLodZooming,
+        isLeftSidebarOpen: state.isLeftSidebarOpen,
+        isRightDockOpen: state.isRightDockOpen,
+        activeRightDockTab: state.activeRightDockTab,
       }),
     },
   ),

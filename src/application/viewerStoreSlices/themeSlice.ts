@@ -11,7 +11,7 @@ import type {
   LayoutDensity,
   ThemeName,
 } from "../../domain/index.ts";
-import type { ViewerStore } from "../viewerStoreTypes.ts";
+import type { RightDockTab, ViewerStore } from "../viewerStoreTypes.ts";
 import {
   type DebugBundlePrivacyOptions,
   DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
@@ -39,6 +39,9 @@ export interface ThemeSliceState {
   /** Reading speed in words per minute used for reading time calculations. */
   readingSpeedWpm: number;
   enableLodZooming: boolean;
+  isLeftSidebarOpen: boolean;
+  isRightDockOpen: boolean;
+  activeRightDockTab: RightDockTab;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -66,6 +69,11 @@ export interface ThemeSliceActions {
   /** Sets the reading speed in words per minute. Clamped to 100–400. */
   setReadingSpeedWpm: (wpm: number) => void;
   setEnableLodZooming: (enabled: boolean) => void;
+  toggleLeftSidebar: () => void;
+  setLeftSidebarOpen: (open: boolean) => void;
+  toggleRightDock: () => void;
+  setRightDockOpen: (open: boolean) => void;
+  setActiveRightDockTab: (tab: RightDockTab) => void;
 }
 
 export type ThemeSlice = ThemeSliceState & ThemeSliceActions;
@@ -97,6 +105,9 @@ export const defaultThemeState: ThemeSliceState = {
   debugPrivacyOptions: DEFAULT_DEBUG_BUNDLE_PRIVACY_OPTIONS,
   readingSpeedWpm: 200,
   enableLodZooming: true,
+  isLeftSidebarOpen: true,
+  isRightDockOpen: true,
+  activeRightDockTab: "inspector",
 };
 
 // ─── Slice creator ────────────────────────────────────────────────────────────
@@ -205,5 +216,31 @@ export const createThemeSlice: StateCreator<
   setEnableLodZooming: (enabled) =>
     set((draft) => {
       draft.enableLodZooming = enabled;
+    }),
+
+  toggleLeftSidebar: () =>
+    set((draft) => {
+      draft.isLeftSidebarOpen = !draft.isLeftSidebarOpen;
+    }),
+
+  setLeftSidebarOpen: (open) =>
+    set((draft) => {
+      draft.isLeftSidebarOpen = open;
+    }),
+
+  toggleRightDock: () =>
+    set((draft) => {
+      draft.isRightDockOpen = !draft.isRightDockOpen;
+    }),
+
+  setRightDockOpen: (open) =>
+    set((draft) => {
+      draft.isRightDockOpen = open;
+    }),
+
+  setActiveRightDockTab: (tab) =>
+    set((draft) => {
+      draft.activeRightDockTab = tab;
+      draft.isRightDockOpen = true; // opening the dock when explicitly switching tab
     }),
 });

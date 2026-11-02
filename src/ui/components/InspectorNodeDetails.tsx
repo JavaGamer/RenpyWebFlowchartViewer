@@ -515,7 +515,12 @@ export function InspectorNodeDetails({
           <div className="font-semibold flex items-center gap-1">
             <span>⚠️ Unreachable Code</span>
           </div>
-          <p className="text-[10px] text-gray-500">
+          <p
+            className={cn(
+              "text-[10px]",
+              isDark ? "text-red-300/80" : "text-red-700/80",
+            )}
+          >
             This label is not connected to the main story flow and cannot be
             reached in gameplay.
           </p>

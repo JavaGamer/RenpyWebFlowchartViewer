@@ -14,6 +14,7 @@ export default function DiagnosticsSection(
   const [isCollapsed, setIsCollapsed] = useState(true);
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
+  const isHighContrast = theme === "highContrast";
 
   if (parseDiagnostics.length === 0) return null;
 
@@ -21,7 +22,9 @@ export default function DiagnosticsSection(
     <section
       className={cn(
         "shrink-0 border-b px-4 py-2 transition-colors duration-200",
-        isDark
+        isHighContrast
+          ? "border-amber-600 bg-amber-100 text-black font-semibold"
+          : isDark
           ? "border-amber-900/60 bg-amber-950/40 text-amber-200"
           : "border-amber-200 bg-amber-50 text-amber-900",
       )}
@@ -31,7 +34,7 @@ export default function DiagnosticsSection(
         type="button"
         onClick={() => setIsCollapsed(!isCollapsed)}
         className={cn(
-          "w-full flex items-center justify-between text-left focus:outline-none focus-visible:ring-2 rounded px-1 py-1",
+          "w-full flex items-center justify-between text-left focus:outline-none focus-visible:ring-2 rounded px-1 py-1 cursor-pointer",
           isDark
             ? "focus-visible:ring-amber-400"
             : "focus-visible:ring-amber-500",
@@ -76,7 +79,7 @@ export default function DiagnosticsSection(
         <ul
           id="diagnostics-list"
           className={cn(
-            "mt-2 list-disc pl-5 text-xs space-y-1 border-t pt-2 animate-in fade-in slide-in-from-top-1 duration-200",
+            "mt-2 list-disc pl-5 text-xs space-y-1 border-t pt-2 animate-slide-down",
             isDark ? "border-amber-900/40" : "border-amber-200/40",
           )}
         >

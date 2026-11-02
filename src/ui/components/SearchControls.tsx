@@ -1,10 +1,7 @@
-import { useState } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import type { DialogueSearchMode } from "../../application/index.ts";
-import {
-  CONTROL_BUTTON_CLASS,
-  CONTROL_INPUT_CLASS,
-} from "../viewerConstants.ts";
+import { CONTROL_INPUT_CLASS } from "../viewerConstants.ts";
 import { cn } from "../utils/cn.ts";
 import * as Tooltip from "@radix-ui/react-tooltip";
 
@@ -15,10 +12,10 @@ interface SearchControlsProps {
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   onSearchInputKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   dialogueLineSearchEnabled: boolean;
-  minDialogue: number;
-  setMinDialogue: (v: number) => void;
-  selectedDialogueSearchMode: DialogueSearchMode;
-  onDialogueSearchModeChange: (mode: DialogueSearchMode) => void;
+  minDialogue?: number;
+  setMinDialogue?: (v: number) => void;
+  selectedDialogueSearchMode?: DialogueSearchMode;
+  onDialogueSearchModeChange?: (mode: DialogueSearchMode) => void;
 
   selectedSearchChapter: string;
   setSelectedSearchChapter: (chapter: string) => void;
@@ -36,10 +33,6 @@ export function SearchControls({
   searchInputRef,
   onSearchInputKeyDown,
   dialogueLineSearchEnabled,
-  minDialogue,
-  setMinDialogue,
-  selectedDialogueSearchMode,
-  onDialogueSearchModeChange,
   selectedSearchChapter,
   setSelectedSearchChapter,
   selectedSearchNodeKinds,
@@ -47,179 +40,178 @@ export function SearchControls({
   uniqueChapters,
 }: SearchControlsProps) {
   const [showSearchFilters, setShowSearchFilters] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
   const hasActiveFilters = selectedSearchChapter !== "" ||
     !selectedSearchNodeKinds.LABEL || !selectedSearchNodeKinds.MENU ||
     !selectedSearchNodeKinds.DECISION;
 
+  useEffect(() => {
+    if (!showSearchFilters) return;
+
+    const handleClickOutside = (e: MouseEvent | PointerEvent) => {
+      const target = e.target as Node | null;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
+        setShowSearchFilters(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowSearchFilters(false);
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showSearchFilters]);
+
   return (
     <>
       <div
-        className="flex flex-wrap items-center gap-2 grow"
+        className="flex items-center gap-1.5 w-full max-w-md"
         role="group"
         aria-label="Search and filters"
       >
         <label
           htmlFor="viewer-search-input"
-          className={cn(
-            "text-xs font-medium",
-            isDark ? "text-slate-300" : "text-gray-700",
-          )}
+          className="sr-only"
         >
           Search
         </label>
-        <div className="relative flex items-center min-w-[12rem] grow sm:grow-0 gap-1.5">
-          <div className="relative flex items-center grow">
-            <Search
-              size={14}
+        <div className="relative flex-1 flex items-center min-w-0">
+          <Search
+            size={13}
+            className={cn(
+              "absolute left-2.5 pointer-events-none",
+              isDark ? "text-slate-500" : "text-gray-400",
+            )}
+            aria-hidden="true"
+          />
+          <input
+            id="viewer-search-input"
+            ref={searchInputRef}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                if (showSearchFilters) {
+                  e.preventDefault();
+                  setShowSearchFilters(false);
+                  return;
+                }
+                if (searchInput.length > 0) {
+                  e.preventDefault();
+                  setSearchInput("");
+                  return;
+                }
+              }
+              onSearchInputKeyDown(e);
+            }}
+            placeholder="Search labels, dialogue lines, or dialogue count"
+            aria-describedby="viewer-search-help"
+            aria-keyshortcuts="Control+F Meta+F"
+            className={cn(
+              "pl-8 w-full h-7 text-xs rounded border transition-colors",
+              searchInput.length > 0 ? "pr-7" : "pr-3",
+              isDark
+                ? "bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500 focus-visible:ring-1 focus-visible:ring-violet-400"
+                : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus-visible:ring-1 focus-visible:ring-violet-500",
+            )}
+          />
+          {searchInput.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("");
+                searchInputRef.current?.focus();
+              }}
               className={cn(
-                "absolute left-2",
-                isDark ? "text-slate-500" : "text-gray-400",
-              )}
-              aria-hidden="true"
-            />
-            <input
-              id="viewer-search-input"
-              ref={searchInputRef}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={onSearchInputKeyDown}
-              placeholder="Search labels, dialogue lines, or dialogue count"
-              aria-describedby="viewer-search-help"
-              aria-keyshortcuts="Control+F Meta+F"
-              className={cn(
-                CONTROL_INPUT_CLASS,
-                "pl-8 pr-2 w-full sm:w-[16rem] max-w-[90vw]",
+                "absolute right-2 p-0.5 rounded-full transition-colors cursor-pointer",
                 isDark
-                  ? "bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500 focus-visible:ring-violet-400"
-                  : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
+                  ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700"
+                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100",
               )}
-            />
-          </div>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type="button"
-                onClick={() => setShowSearchFilters(!showSearchFilters)}
-                aria-label="Toggle search filters"
-                aria-expanded={showSearchFilters}
-                className={cn(
-                  CONTROL_BUTTON_CLASS,
-                  "relative p-2 shrink-0 cursor-pointer transition-all duration-150",
-                  showSearchFilters || hasActiveFilters
-                    ? isDark
-                      ? "bg-violet-950/60 text-violet-300 border-violet-700/80"
-                      : "bg-violet-50 text-violet-700 border-violet-200"
-                    : isDark
-                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50",
-                )}
-              >
-                <SlidersHorizontal size={14} aria-hidden="true" />
-                {hasActiveFilters && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75">
-                    </span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-violet-500">
-                    </span>
-                  </span>
-                )}
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
-                sideOffset={5}
-              >
-                {showSearchFilters
-                  ? "Hide Search Filters"
-                  : "Show Search Filters"}
-                <Tooltip.Arrow className="fill-gray-900" />
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
+              aria-label="Clear search"
+              title="Clear search"
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          )}
         </div>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              ref={buttonRef}
+              type="button"
+              onClick={() => setShowSearchFilters(!showSearchFilters)}
+              aria-label="Toggle search filters"
+              aria-expanded={showSearchFilters}
+              className={cn(
+                "h-7 w-7 rounded border text-xs flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150 relative",
+                showSearchFilters || hasActiveFilters
+                  ? isDark
+                    ? "bg-violet-950/60 text-violet-300 border-violet-700/80"
+                    : "bg-violet-50 text-violet-700 border-violet-200"
+                  : isDark
+                  ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+                  : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50",
+              )}
+            >
+              <SlidersHorizontal size={13} aria-hidden="true" />
+              {hasActiveFilters && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75">
+                  </span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-violet-500">
+                  </span>
+                </span>
+              )}
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              sideOffset={5}
+            >
+              {showSearchFilters
+                ? "Hide Search Filters"
+                : "Show Search Filters"}
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
         <span id="viewer-search-help" className="sr-only">
           {dialogueLineSearchEnabled
             ? "Search labels, dialogue lines, or dialogue count."
             : "Search labels or dialogue count."}
         </span>
-        <label
-          className={cn(
-            "text-xs flex items-center gap-1",
-            isDark ? "text-slate-300" : "text-gray-700",
-          )}
-          htmlFor="min-dialogue-input"
-        >
-          Minimum dialogue lines
-          <input
-            id="min-dialogue-input"
-            type="number"
-            min={0}
-            value={minDialogue}
-            onChange={(e) =>
-              setMinDialogue(Math.max(0, Number(e.target.value) || 0))}
-            aria-label="Minimum dialogue lines"
-            className={cn(
-              "w-16",
-              CONTROL_INPUT_CLASS,
-              isDark
-                ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
-                : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
-            )}
-          />
-        </label>
-        <label
-          className={cn(
-            "text-xs flex items-center gap-1",
-            isDark ? "text-slate-300" : "text-gray-700",
-          )}
-          htmlFor="dialogue-search-mode-input"
-        >
-          Dialogue search mode
-          <select
-            id="dialogue-search-mode-input"
-            value={selectedDialogueSearchMode}
-            onChange={(e) =>
-              onDialogueSearchModeChange(
-                e.target.value as DialogueSearchMode,
-              )}
-            aria-label="Dialogue search mode"
-            className={cn(
-              CONTROL_INPUT_CLASS,
-              isDark
-                ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
-                : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
-            )}
-          >
-            <option value="auto">Auto (faster on large imports)</option>
-            <option value="full">Full dialogue line search</option>
-            <option value="countOnly">
-              Performance mode (label/count only)
-            </option>
-          </select>
-        </label>
-        {!dialogueLineSearchEnabled && (
-          <span
-            className={cn(
-              "text-[11px] border rounded px-2 py-1",
-              isDark
-                ? "text-amber-400 bg-amber-950/40 border-amber-900/60"
-                : "text-amber-700 bg-amber-50 border border-amber-200",
-            )}
-          >
-            Dialogue line search is disabled in performance mode.
-          </span>
-        )}
       </div>
 
-      {/* Collapsible search filters */}
+      {/* Collapsible search filters popover */}
       {showSearchFilters && (
         <div
+          ref={popoverRef}
+          role="region"
+          aria-label="Search filter options"
           className={cn(
-            "flex flex-wrap items-center gap-4 p-3 rounded-lg border text-sm transition-all duration-200 animate-fade-in animate-duration-150 w-full",
+            "absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[90vw] max-w-xl p-3 rounded-lg border shadow-xl z-50 flex flex-wrap items-center gap-3 text-xs animate-fade-in",
             isDark
-              ? "bg-slate-950/40 border-slate-800 text-slate-200"
-              : "bg-gray-50 border-gray-200 text-gray-700",
+              ? "bg-slate-900 border-slate-700 text-slate-200 shadow-slate-950/80"
+              : "bg-white border-gray-200 text-gray-800 shadow-gray-400/30",
           )}
         >
           {/* Chapter select */}
@@ -238,17 +230,33 @@ export function SearchControls({
               value={selectedSearchChapter}
               onChange={(e) => setSelectedSearchChapter(e.target.value)}
               disabled={uniqueChapters.length === 0}
+              style={{ colorScheme: isDark ? "dark" : "light" }}
               className={cn(
                 CONTROL_INPUT_CLASS,
-                "py-1 px-2 text-xs w-[12rem]",
+                "py-1 px-2 text-xs w-[12rem] cursor-pointer disabled:cursor-not-allowed",
                 isDark
                   ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
                   : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
               )}
             >
-              <option value="">All Chapters</option>
+              <option
+                value=""
+                className={isDark
+                  ? "bg-slate-900 text-slate-100"
+                  : "bg-white text-gray-900"}
+              >
+                All Chapters
+              </option>
               {uniqueChapters.map((ch) => (
-                <option key={ch} value={ch}>{ch}</option>
+                <option
+                  key={ch}
+                  value={ch}
+                  className={isDark
+                    ? "bg-slate-900 text-slate-100"
+                    : "bg-white text-gray-900"}
+                >
+                  {ch}
+                </option>
               ))}
             </select>
           </div>

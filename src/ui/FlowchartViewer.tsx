@@ -31,7 +31,8 @@ import {
   workerParseService,
 } from "../infrastructure/index.ts";
 import { THEMES } from "./viewerTheme.ts";
-import { ViewerToolbar } from "./ViewerToolbar.tsx";
+import { UtilityHeader } from "./UtilityHeader.tsx";
+import { UtilityStatusBar } from "./UtilityStatusBar.tsx";
 import { CanvasErrorFallback } from "./CanvasErrorFallback.tsx";
 import { FlowchartCanvas } from "./FlowchartCanvas.tsx";
 import { dataUrlToBlob } from "./canvasHelpers.ts";
@@ -310,6 +311,17 @@ export function FlowchartViewer({
       }
       if (isInput) return;
 
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        useViewerStore.getState().toggleLeftSidebar();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "i") {
+        event.preventDefault();
+        useViewerStore.getState().toggleRightDock();
+        return;
+      }
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "e") {
         event.preventDefault();
         onExport();
@@ -353,8 +365,8 @@ export function FlowchartViewer({
       }}
       data-theme={theme}
     >
-      {/* Toolbar - always rendered, even when the canvas has errored */}
-      <ViewerToolbar
+      {/* Utility Header - replaces multi-row toolbar */}
+      <UtilityHeader
         theme={theme}
         visibleNodeCount={canvasMetrics.visibleNodeCount}
         totalNodeCount={flowNodes.length}
@@ -423,6 +435,19 @@ export function FlowchartViewer({
           />
         </ErrorBoundary>
       </ReactFlowProvider>
+
+      {/* 22px Technical Status Footer */}
+      <UtilityStatusBar
+        visibleNodeCount={canvasMetrics.visibleNodeCount}
+        totalNodeCount={flowNodes.length}
+        visibleEdgeCount={canvasMetrics.visibleEdgeCount}
+        totalEdgeCount={flowEdges.length}
+        visibleWordCount={canvasMetrics.visibleWordCount}
+        visiblePauseDuration={canvasMetrics.visiblePauseDuration}
+        totalWordCount={canvasMetrics.totalWordCount}
+        totalPauseDuration={canvasMetrics.totalPauseDuration}
+        readingSpeedWpm={readingSpeedWpm}
+      />
     </div>
   );
 }

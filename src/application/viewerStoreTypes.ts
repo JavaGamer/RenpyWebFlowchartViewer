@@ -17,6 +17,8 @@ import type {
 import type { DebugBundlePrivacyOptions } from "./debugBundle.ts";
 import type { DialogueSearchMode } from "./appStore.ts";
 
+export type RightDockTab = "inspector" | "search" | "routes" | "settings";
+
 /**
  * State that is persisted to localStorage and restored between sessions.
  * Contains only display preferences that should survive a page refresh.
@@ -42,6 +44,12 @@ export interface ViewerPersistedState {
   readingSpeedWpm: number;
   /** Whether Level of Detail (LOD) zooming is enabled to simplify nodes when zoomed out. */
   enableLodZooming: boolean;
+  /** Whether the left sidebar (file tree & filters) is expanded. */
+  isLeftSidebarOpen: boolean;
+  /** Whether the right dock (inspector & settings) is expanded. */
+  isRightDockOpen: boolean;
+  /** Active tab in the right dock. */
+  activeRightDockTab: RightDockTab;
 }
 
 /**
@@ -107,6 +115,11 @@ export interface ViewerActions {
   ) => void;
   setReadingSpeedWpm: (wpm: number) => void;
   setEnableLodZooming: (enabled: boolean) => void;
+  toggleLeftSidebar: () => void;
+  setLeftSidebarOpen: (open: boolean) => void;
+  toggleRightDock: () => void;
+  setRightDockOpen: (open: boolean) => void;
+  setActiveRightDockTab: (tab: RightDockTab) => void;
 
   // Session setters
   setLayoutDirection: (direction: LayoutDirection) => void;

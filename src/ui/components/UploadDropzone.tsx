@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Upload } from "lucide-react";
 import { cn } from "../utils/cn.ts";
 
@@ -15,15 +15,44 @@ export function UploadDropzone({
   onDrop,
   onDragOver,
 }: UploadDropzoneProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
+
   return (
     <div
       role="region"
       aria-label="Upload Ren'Py project folder or files"
-      onDrop={onDrop}
-      onDragOver={onDragOver}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        // Only reset if leaving the dropzone container itself
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragOver(false);
+      }}
+      onDragOver={(e) => {
+        onDragOver(e);
+        if (!isDragOver) setIsDragOver(true);
+      }}
+      onDrop={(e) => {
+        setIsDragOver(false);
+        onDrop(e);
+      }}
+      onClick={(e) => {
+        // Only trigger if click was directly on dropzone, not on inner interactive elements
+        const target = e.target as HTMLElement;
+        if (target.tagName !== "BUTTON" && target.tagName !== "LABEL") {
+          openFilesPicker(e);
+        }
+      }}
       className={cn(
-        "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none",
-        isDark
+        "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none cursor-pointer",
+        isDragOver
+          ? isDark
+            ? "border-violet-400 bg-violet-950/40 ring-4 ring-violet-500/30 scale-[1.01]"
+            : "border-violet-500 bg-violet-50 ring-4 ring-violet-400/30 scale-[1.01]"
+          : isDark
           ? "border-violet-800 bg-slate-900 hover:bg-violet-950/20 hover:border-violet-700"
           : "border-violet-300 bg-white hover:bg-violet-50/50 hover:border-violet-400",
       )}

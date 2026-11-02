@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  Controls,
   MiniMap,
   ReactFlow,
   type ReactFlowInstance,
@@ -14,6 +13,7 @@ import {
   type CanvasNode,
   type FlowEdge,
   type FlowNode,
+  getChapterId,
   getNodeCenter,
   type NodeData,
 } from "../domain/index.ts";
@@ -31,6 +31,8 @@ import { AdvancedControlsModal } from "./components/AdvancedControlsModal.tsx";
 import { CanvasOverlay } from "./components/CanvasOverlay.tsx";
 import { ActiveRouteBanner } from "./components/ActiveRouteBanner.tsx";
 import { CanvasSelectionToolbar } from "./components/CanvasSelectionToolbar.tsx";
+import { CanvasHud } from "./components/CanvasHud.tsx";
+import { LeftSidebar } from "./LeftSidebar.tsx";
 const NarrativeAnalyticsModal = React.lazy(() =>
   import("./components/NarrativeAnalyticsModal.tsx").then((m) => ({
     default: m.NarrativeAnalyticsModal,
@@ -305,12 +307,29 @@ export function FlowchartCanvas({
   const selectedNodeData = selectedNode?.data as NodeData | undefined;
 
   const onFocusNode = React.useCallback((nodeId: string) => {
-    const target = visibleNodes.find((n) => n.id === nodeId);
+    const chapterId = getChapterId(nodeId);
+    // If the node is in a collapsed chapter, uncollapse it automatically so it can be viewed
+    const fullNode = flowNodes.find((n) => n.id === nodeId || n.label === nodeId);
+    if (fullNode?.chapter) {
+      const collapsedChapters = useViewerStore.getState().collapsedChapters;
+      if (collapsedChapters[fullNode.chapter]) {
+        useViewerStore.getState().toggleChapterCollapse(fullNode.chapter);
+      }
+    }
+
+    const target = visibleNodes.find(
+      (n) =>
+        n.id === nodeId ||
+        n.id === chapterId ||
+        (n.data && "label" in n.data && n.data.label === nodeId) ||
+        (n.data && Array.isArray((n.data as NodeData).collapsedLabels) &&
+          (n.data as NodeData).collapsedLabels?.includes(nodeId)),
+    );
     if (target) {
       const { x, y } = getNodeCenter(target);
       flowInstanceRef.current?.setCenter(x, y, { zoom: 1, duration: 400 });
     }
-  }, [visibleNodes, flowInstanceRef]);
+  }, [visibleNodes, flowNodes, flowInstanceRef]);
 
   return (
     <>
@@ -335,7 +354,21 @@ export function FlowchartCanvas({
         <NarrativeAnalyticsModal onFocusNode={onFocusNode} />
       </React.Suspense>
 
-      <div className="flex-1 flex flex-col xl:flex-row min-h-0">
+      <div className="flex-1 flex flex-col xl:flex-row min-h-0 overflow-hidden relative">
+        <LeftSidebar
+          chapters={chapters}
+          labels={labels}
+          collapsedLabelCount={collapsedLabelCount}
+          visibleSubgraphLabels={visibleSubgraphLabels}
+          visibleLabelSubgraphToggles={visibleLabelSubgraphToggles}
+          shouldShowAllLabelSubgraphToggles={shouldShowAllLabelSubgraphToggles}
+          setAllVisibleSubgraphLabelsCollapsed={setAllVisibleSubgraphLabelsCollapsed}
+          chapterStats={chapterStats}
+          largeGraphMode={largeGraphMode}
+          largeGraphModeStatusText={largeGraphModeStatusText}
+          onFocusNode={onFocusNode}
+        />
+
         <div
           ref={flowRef}
           className="flex-1 min-h-[320px] relative"
@@ -350,6 +383,11 @@ export function FlowchartCanvas({
           <ActiveRouteBanner onFocusNode={onFocusNode} />
           <CanvasSelectionToolbar
             flowEdges={flowEdges}
+          />
+          <CanvasHud
+            onFitView={() =>
+              flowInstanceRef.current?.fitView({ duration: 300, padding: 0.2 })}
+            flowInstanceRef={flowInstanceRef}
           />
 
           <ViewerPresentationProvider
@@ -396,7 +434,6 @@ export function FlowchartCanvas({
               proOptions={{ hideAttribution: false }}
             >
               <Background color={THEMES[theme].grid} gap={20} />
-              <Controls />
               <MiniMap
                 className={cn(
                   minimapPannable && "minimap-pannable",

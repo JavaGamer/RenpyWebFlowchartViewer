@@ -7,7 +7,7 @@ import {
   Timer,
   Zap,
 } from "lucide-react";
-import { useTelemetryStore } from "../application/index.ts";
+import { useTelemetryStore, useViewerStore } from "../application/index.ts";
 import { cn } from "./utils/cn.ts";
 import { Modal } from "./primitives/index.ts";
 
@@ -24,50 +24,82 @@ function MetricCard({
   value,
   unit,
   accent = "violet",
+  isDark,
 }: {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   value: string | number | null;
   unit: string;
   accent?: "violet" | "purple" | "fuchsia" | "indigo";
+  isDark: boolean;
 }) {
-  const accentRing: Record<string, string> = {
+  const accentRingDark: Record<string, string> = {
     violet: "ring-violet-500/20",
     purple: "ring-purple-500/20",
     fuchsia: "ring-fuchsia-500/20",
     indigo: "ring-indigo-500/20",
   };
   const accentText: Record<string, string> = {
-    violet: "text-violet-400",
-    purple: "text-purple-400",
-    fuchsia: "text-fuchsia-400",
-    indigo: "text-indigo-400",
+    violet: isDark ? "text-violet-400" : "text-violet-600",
+    purple: isDark ? "text-purple-400" : "text-purple-600",
+    fuchsia: isDark ? "text-fuchsia-400" : "text-fuchsia-600",
+    indigo: isDark ? "text-indigo-400" : "text-indigo-600",
   };
 
   return (
     <div
       className={cn(
-        "group relative rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 p-4 ring-1",
-        accentRing[accent],
-        "transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-violet-500/5",
+        "group relative rounded-xl p-4 ring-1 transition-all duration-300 hover:scale-[1.03] hover:shadow-lg",
+        isDark
+          ? cn(
+            "bg-gradient-to-br from-violet-500/10 to-purple-500/10 hover:shadow-violet-500/5",
+            accentRingDark[accent],
+          )
+          : "bg-gradient-to-br from-violet-50 to-purple-50 hover:shadow-violet-500/10 ring-violet-200",
       )}
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon size={16} className={accentText[accent]} />
-        <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+        <span
+          className={cn(
+            "text-xs font-medium uppercase tracking-wider",
+            isDark ? "text-slate-400" : "text-gray-500",
+          )}
+        >
           {label}
         </span>
       </div>
       {value !== null && value !== ""
         ? (
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-gray-100 tabular-nums">
+            <span
+              className={cn(
+                "text-2xl font-bold tabular-nums",
+                isDark ? "text-slate-100" : "text-gray-900",
+              )}
+            >
               {value}
             </span>
-            <span className="text-xs text-gray-500">{unit}</span>
+            <span
+              className={cn(
+                "text-xs",
+                isDark ? "text-slate-400" : "text-gray-500",
+              )}
+            >
+              {unit}
+            </span>
           </div>
         )
-        : <span className="text-sm italic text-gray-600">No data yet</span>}
+        : (
+          <span
+            className={cn(
+              "text-sm italic",
+              isDark ? "text-slate-500" : "text-gray-400",
+            )}
+          >
+            No data yet
+          </span>
+        )}
     </div>
   );
 }
@@ -75,6 +107,9 @@ function MetricCard({
 /* ── Modal ──────────────────────────────────────────────────────────────── */
 
 export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
+  const theme = useViewerStore((s) => s.theme);
+  const isDark = theme === "dark";
+
   const {
     readMs,
     parseMs,
@@ -105,11 +140,25 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
       }}
       title="Performance Telemetry"
       description="Performance throughput and timing statistics of the Ren'Py flowchart parser."
-      isDark
-      headerAction={<Activity size={18} className="text-violet-400" />}
-      className="bg-gray-900/90 backdrop-blur-xl ring-white/10"
+      isDark={isDark}
+      headerAction={
+        <Activity
+          size={18}
+          className={isDark ? "text-violet-400" : "text-violet-600"}
+        />
+      }
+      className={isDark
+        ? "bg-gray-900/90 backdrop-blur-xl ring-white/10"
+        : "bg-white/95 backdrop-blur-xl ring-black/5"}
     >
-      <div className="h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent my-3" />
+      <div
+        className={cn(
+          "h-px my-3",
+          isDark
+            ? "bg-gradient-to-r from-transparent via-violet-500/30 to-transparent"
+            : "bg-gradient-to-r from-transparent via-violet-300 to-transparent",
+        )}
+      />
 
       {/* Body */}
       <div className="py-2">
@@ -122,6 +171,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 value={readSpeed}
                 unit="files / sec"
                 accent="violet"
+                isDark={isDark}
               />
               <MetricCard
                 icon={Zap}
@@ -129,6 +179,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 value={parseThroughput}
                 unit="nodes / sec"
                 accent="purple"
+                isDark={isDark}
               />
               <MetricCard
                 icon={Timer}
@@ -136,6 +187,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 value={layoutMs != null ? layoutMs.toFixed(1) : null}
                 unit="ms"
                 accent="fuchsia"
+                isDark={isDark}
               />
               <MetricCard
                 icon={BarChart3}
@@ -143,6 +195,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 value={renderMs != null ? renderMs.toFixed(1) : null}
                 unit="ms"
                 accent="indigo"
+                isDark={isDark}
               />
               <MetricCard
                 icon={GitBranch}
@@ -150,6 +203,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 value={nodesCount > 0 ? nodesCount : null}
                 unit="nodes"
                 accent="violet"
+                isDark={isDark}
               />
               <MetricCard
                 icon={GitBranch}
@@ -157,14 +211,31 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
                 value={edgesCount > 0 ? edgesCount : null}
                 unit="edges"
                 accent="purple"
+                isDark={isDark}
               />
             </div>
           )
           : (
-            <div className="flex flex-col items-center justify-center py-10 text-gray-600">
-              <Activity size={32} className="mb-3 text-gray-700" />
-              <p className="text-sm">No data yet</p>
-              <p className="text-xs text-gray-700 mt-1 text-center">
+            <div
+              className={cn(
+                "flex flex-col items-center justify-center py-10",
+                isDark ? "text-slate-500" : "text-gray-500",
+              )}
+            >
+              <Activity
+                size={32}
+                className={cn(
+                  "mb-3",
+                  isDark ? "text-slate-600" : "text-gray-400",
+                )}
+              />
+              <p className="text-sm font-medium">No data yet</p>
+              <p
+                className={cn(
+                  "text-xs mt-1 text-center",
+                  isDark ? "text-slate-500" : "text-gray-400",
+                )}
+              >
                 Upload and parse a Ren'Py project to see metrics
               </p>
             </div>
@@ -172,8 +243,13 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
       </div>
 
       {/* Footer */}
-      <div className="pt-4 flex items-center gap-2 text-[10px] text-gray-600">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500/60" />
+      <div
+        className={cn(
+          "pt-4 flex items-center gap-2 text-[10px]",
+          isDark ? "text-slate-500" : "text-gray-500",
+        )}
+      >
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
         Metrics are captured when debug perf is enabled
       </div>
     </Modal>

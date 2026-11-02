@@ -5,5 +5,8 @@ export { default as DiagnosticsSection } from "./DiagnosticsSection.tsx";
 export { default as UploadArea } from "./UploadArea.tsx";
 export { default as UploadAreaContainer } from "./UploadAreaContainer.tsx";
 export { default as RootErrorFallback } from "./RootErrorFallback.tsx";
+export { UtilityHeader } from "./UtilityHeader.tsx";
+export { UtilityStatusBar } from "./UtilityStatusBar.tsx";
+export { LeftSidebar } from "./LeftSidebar.tsx";
 export { ActiveRouteBanner } from "./components/ActiveRouteBanner.tsx";
 export { NarrativeAnalyticsModal } from "./components/NarrativeAnalyticsModal.tsx";

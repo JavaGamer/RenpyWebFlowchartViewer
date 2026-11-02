@@ -19,7 +19,7 @@ import {
 } from "./ui/index.ts";
 import { preWarmLayoutWorker } from "./infrastructure/index.ts";
 import { useAppStore, useViewerStore } from "./application/index.ts";
-import { getParserVariantPlugin } from "./config/parserRules.ts";
+import { THEMES } from "./ui/viewerTheme.ts";
 import { cn } from "./ui/utils/cn.ts";
 
 export default function App() {
@@ -27,29 +27,18 @@ export default function App() {
   const {
     phase,
     flowNodes,
-    flowEdges,
     parseDiagnostics,
-    fileCount,
     importRevision,
-    parsedVariant,
-    isVariantAutoDetected,
-    variantDetectionResult,
     isReparsing,
   } = useAppStore(
     useShallow((s) => ({
       phase: s.phase,
       flowNodes: s.flowNodes,
-      flowEdges: s.flowEdges,
       parseDiagnostics: s.parseDiagnostics,
-      fileCount: s.fileCount,
       importRevision: s.importRevision,
-      parsedVariant: s.parsedVariant,
-      isVariantAutoDetected: s.isVariantAutoDetected,
-      variantDetectionResult: s.variantDetectionResult,
       isReparsing: s.isReparsing,
     })),
   );
-  const reset = useAppStore((s) => s.reset);
 
   // Pre-warm the layout worker on boot
   useEffect(() => {
@@ -58,16 +47,28 @@ export default function App() {
 
   const theme = useViewerStore((s) => s.theme);
   const isDark = theme === "dark";
-  const displayVariantName = parsedVariant
-    ? getParserVariantPlugin(parsedVariant).label
-    : null;
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", isDark);
+    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+    document.body.style.backgroundColor = THEMES[theme]?.pageBg ??
+      (isDark ? "#020617" : "#f9fafb");
+    document.body.style.color = THEMES[theme]?.text ??
+      (isDark ? "#f8fafc" : "#111827");
+  }, [theme, isDark]);
 
   return (
     <div
       className={cn(
-        "flex flex-col h-full min-h-screen font-sans transition-colors duration-200",
+        "flex flex-col font-sans transition-colors duration-200",
+        phase === "done" ? "h-screen overflow-hidden" : "min-h-screen",
         isDark ? "bg-slate-950 text-slate-100" : "bg-gray-50 text-gray-900",
       )}
+      style={{
+        backgroundColor: THEMES[theme]?.pageBg,
+        color: THEMES[theme]?.text,
+      }}
       data-theme={theme}
     >
       <a
@@ -77,7 +78,7 @@ export default function App() {
         Skip to flowchart
       </a>
 
-      <Header />
+      {(phase !== "done" || flowNodes.length === 0) && <Header />}
 
       {isReparsing && (
         <div
@@ -96,78 +97,21 @@ export default function App() {
             className="flex-1 flex flex-col overflow-hidden"
             aria-label="Flowchart viewer"
           >
-            {/* Re-upload button */}
-            <div
-              className={cn(
-                "shrink-0 px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 text-sm border-b transition-colors duration-200",
-                isDark
-                  ? "bg-violet-950/20 border-violet-900/30 text-violet-300"
-                  : "bg-violet-50 border-violet-100 text-violet-700",
-              )}
-            >
-              <span>
-                Parsed <strong>{fileCount}</strong> .rpy file
-                {fileCount !== 1 ? "s" : ""} →{" "}
-                <strong>{flowNodes.length}</strong> nodes,{" "}
-                <strong>{flowEdges.length}</strong> edges
-              </span>
-              {displayVariantName && (
-                <button
-                  type="button"
-                  data-testid="variant-indicator-badge"
-                  onClick={() =>
-                    useViewerStore.getState().setShowAdvancedControls(true)}
-                  className={cn(
-                    "text-xs font-medium rounded-full px-2.5 py-0.5 border cursor-pointer transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-violet-500",
-                    isDark
-                      ? "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700"
-                      : "bg-white border-violet-200 text-violet-800 shadow-sm hover:bg-violet-50",
-                  )}
-                  title={isVariantAutoDetected
-                    ? `Variant was auto-detected (${displayVariantName}${
-                      variantDetectionResult?.confidence != null
-                        ? ` • ${variantDetectionResult.confidence}% confidence`
-                        : ""
-                    }). Click to view or change settings.`
-                    : `Configured variant: ${displayVariantName}. Click to view or change settings.`}
-                >
-                  Variant: {displayVariantName}
-                  {isVariantAutoDetected && (
-                    <span className="ml-1 opacity-75 font-normal">
-                      (auto-detected)
-                      {variantDetectionResult?.confidence != null
-                        ? ` • ${variantDetectionResult.confidence}%`
-                        : ""}
-                    </span>
-                  )}
-                </button>
-              )}
-              {parseDiagnostics.length > 0 && (
-                <span className="text-xs font-semibold rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                  {parseDiagnostics.length}{" "}
-                  parse warning{parseDiagnostics.length === 1 ? "" : "s"}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={reset}
-                className={cn(
-                  "sm:ml-auto text-xs underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded",
-                  isDark
-                    ? "text-violet-400 hover:text-violet-300"
-                    : "text-violet-600 hover:text-violet-800",
-                )}
-              >
-                Upload a different folder
-              </button>
-            </div>
-
-            <DiagnosticsSection parseDiagnostics={parseDiagnostics} />
-
+            {parseDiagnostics.length > 0 && (
+              <DiagnosticsSection parseDiagnostics={parseDiagnostics} />
+            )}
             <FlowchartViewerContainer key={importRevision} />
           </main>
         )
-        : <UploadAreaContainer />}
+        : (
+          <main
+            id="flowchart-main"
+            className="flex-1 flex flex-col"
+            aria-label="Upload scripts"
+          >
+            <UploadAreaContainer />
+          </main>
+        )}
     </div>
   );
 }

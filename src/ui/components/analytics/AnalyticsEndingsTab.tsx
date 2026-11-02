@@ -93,10 +93,15 @@ export function AnalyticsEndingsTab({
                           ending.nodeId,
                           e.target.value as EndingType,
                         )}
+                      style={{ colorScheme: "inherit" }}
                       className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
                     >
                       {ENDING_TAG_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
+                        <option
+                          key={opt.value}
+                          value={opt.value}
+                          className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                        >
                           {opt.label}
                         </option>
                       ))}

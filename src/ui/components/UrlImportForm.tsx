@@ -40,6 +40,7 @@ export function UrlImportForm({
           type="text"
           required
           disabled={isFetchingUrl}
+          aria-label="URL to import"
           placeholder="Enter .rpy file, .zip URL, or GitHub repo (e.g., github.com/owner/repo)"
           value={importUrl}
           onChange={(e) => setImportUrl(e.target.value)}
@@ -54,7 +55,7 @@ export function UrlImportForm({
           type="submit"
           disabled={isFetchingUrl}
           className={cn(
-            "rounded-md px-3 py-1.5 text-white font-semibold transition-colors focus:outline-none focus-visible:ring-2",
+            "rounded-md px-3 py-1.5 text-white font-semibold transition-colors focus:outline-none focus-visible:ring-2 cursor-pointer disabled:cursor-not-allowed",
             isDark
               ? "bg-violet-600 hover:bg-violet-500 focus-visible:ring-violet-400 disabled:bg-violet-800"
               : "bg-violet-600 hover:bg-violet-700 focus-visible:ring-violet-500 disabled:bg-violet-400",

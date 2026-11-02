@@ -7,7 +7,7 @@
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
 }
@@ -41,6 +41,28 @@ body,
   }
 }
 
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-slide-in {
   animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -49,9 +71,19 @@ body,
   animation: fadeIn 0.2s ease-out;
 }
 
+.animate-slide-up {
+  animation: slideInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-slide-down {
+  animation: slideInDown 0.2s ease-out;
+}
+
 /* React Flow custom styled panels across different themes */
 
 :root {
+  --border: #e2e8f0;
+  --foreground: #0f172a;
   /* Theme Defaults (Violet/Light theme properties) */
   --color-bg-controls: #ffffff;
   --color-border-controls: rgba(0, 0, 0, 0.05);
@@ -86,6 +118,8 @@ body,
 }
 
 [data-theme="colorblind"] {
+  --border: #cbd5e1;
+  --foreground: #0f172a;
   --color-bg-controls-button-hover: #e0f2fe;
   --color-text-controls-button-hover: #0072b2;
   --color-border-minimap-hover: rgba(0, 114, 178, 0.5);
@@ -96,6 +130,8 @@ body,
 }
 
 [data-theme="highContrast"] {
+  --border: #000000;
+  --foreground: #000000;
   --color-border-radius-controls: 0px;
   --color-border-controls: #000000;
   --color-box-shadow-controls: none;
@@ -121,6 +157,8 @@ body,
 }
 
 [data-theme="dark"] {
+  --border: #334155;
+  --foreground: #f8fafc;
   --color-bg-controls: #1e293b;
   --color-border-controls: #334155;
   --color-box-shadow-controls:

@@ -9,7 +9,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     watch: {
-      ignored: ["**/node_modules/**", "**/.deno/**", "**/.git/**"],
+      ignored: [
+        "**/node_modules/**",
+        "**/.deno/**",
+        "**/.git/**",
+        "**/*.timestamp-*.mjs",
+      ],
     },
   },
   resolve: {

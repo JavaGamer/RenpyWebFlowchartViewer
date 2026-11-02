@@ -52,17 +52,46 @@ export default function Header() {
             id="header-theme-select"
             value={theme}
             onChange={(e) => setTheme(e.target.value as ThemeName)}
+            style={{ colorScheme: isDark ? "dark" : "light" }}
             className={cn(
-              "rounded-lg border px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer transition-colors duration-200",
+              "rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors duration-150 focus:outline-none focus:ring-2",
               isDark
-                ? "bg-slate-800 border-slate-700 text-slate-100 focus:ring-violet-400"
-                : "bg-gray-50 border-gray-200 text-gray-700",
+                ? "bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700 hover:text-white hover:border-slate-600 focus:ring-violet-400"
+                : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 focus:ring-violet-500 shadow-xs",
             )}
           >
-            <option value="violet">Default Theme</option>
-            <option value="highContrast">High Contrast</option>
-            <option value="colorblind">Colorblind Friendly</option>
-            <option value="dark">Dark Theme</option>
+            <option
+              value="violet"
+              className={isDark
+                ? "bg-slate-900 text-slate-100"
+                : "bg-white text-gray-900"}
+            >
+              Default Theme
+            </option>
+            <option
+              value="highContrast"
+              className={isDark
+                ? "bg-slate-900 text-slate-100"
+                : "bg-white text-gray-900"}
+            >
+              High Contrast
+            </option>
+            <option
+              value="colorblind"
+              className={isDark
+                ? "bg-slate-900 text-slate-100"
+                : "bg-white text-gray-900"}
+            >
+              Colorblind Friendly
+            </option>
+            <option
+              value="dark"
+              className={isDark
+                ? "bg-slate-900 text-slate-100"
+                : "bg-white text-gray-900"}
+            >
+              Dark Theme
+            </option>
           </select>
 
           <button

@@ -35,8 +35,10 @@ export function Select<T extends string | number = string>({
             : e.target.value) as unknown as T,
         )}
       disabled={disabled}
+      style={{ colorScheme: isDark ? "dark" : "light" }}
       className={cn(
         CONTROL_INPUT_CLASS,
+        "cursor-pointer disabled:cursor-not-allowed",
         isDark
           ? "bg-slate-800 border-slate-700 text-slate-200"
           : "bg-white border-gray-300 text-gray-700",
@@ -45,7 +47,13 @@ export function Select<T extends string | number = string>({
       aria-label={ariaLabel}
     >
       {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
+        <option
+          key={opt.value}
+          value={opt.value}
+          className={isDark
+            ? "bg-slate-900 text-slate-100"
+            : "bg-white text-gray-900"}
+        >
           {opt.label}
         </option>
       ))}

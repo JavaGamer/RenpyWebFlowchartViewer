@@ -13,6 +13,7 @@ export interface ButtonProps
 }
 
 export function Button({
+  type = "button",
   variant = "secondary",
   isDark = false,
   children,
@@ -21,7 +22,9 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
+      type={type}
       className={cn(
+        "cursor-pointer disabled:cursor-not-allowed",
         variant === "primary" && PRIMARY_BUTTON_CLASS,
         variant === "secondary" && CONTROL_BUTTON_CLASS,
         variant === "ghost" &&

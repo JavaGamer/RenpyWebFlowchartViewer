@@ -38,8 +38,7 @@ export function Modal({
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <Dialog.Content
                   className={cn(
-                    "relative w-full max-w-lg rounded-2xl shadow-2xl ring-1 ring-white/10 flex flex-col focus:outline-none",
-                    "animate-in fade-in slide-in-from-bottom-4 duration-300",
+                    "relative w-full max-w-lg rounded-2xl shadow-2xl ring-1 ring-white/10 flex flex-col focus:outline-none animate-slide-up",
                     isDark
                       ? "bg-slate-900 text-slate-100 ring-white/10"
                       : "bg-white text-gray-900 ring-black/5",
@@ -90,7 +89,7 @@ export function Modal({
                   "fixed right-0 top-0 bottom-0 w-full max-w-md shadow-2xl z-50 flex flex-col focus:outline-none animate-slide-in transition-colors duration-200",
                   isDark
                     ? "bg-slate-900 border-l border-slate-800 text-slate-100"
-                    : "bg-white text-gray-900",
+                    : "bg-white border-l border-gray-200 text-gray-900",
                   className,
                 )}
                 aria-modal={modal ? "true" : "false"}
