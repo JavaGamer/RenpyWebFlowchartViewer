@@ -141,6 +141,9 @@ export const createSelectionSlice: StateCreator<
 
   setSelectedNodeId: (id) =>
     set((draft) => {
+      if (draft.selectedNodeId !== id) {
+        draft.selectedDialogueLineIndex = null;
+      }
       draft.selectedNodeId = id;
       draft.selectedNodeIds = id ? [id] : [];
     }),
@@ -154,13 +157,18 @@ export const createSelectionSlice: StateCreator<
         return;
       }
       draft.selectedNodeIds = ids;
-      if (ids.length === 1) {
-        draft.selectedNodeId = ids[0]!;
-      } else if (ids.length === 0) {
-        draft.selectedNodeId = "";
-      } else if (!ids.includes(draft.selectedNodeId)) {
-        draft.selectedNodeId = ids[0]!;
+      const nextSelectedId = ids.length === 1
+        ? ids[0]!
+        : ids.length === 0
+        ? ""
+        : (!ids.includes(draft.selectedNodeId)
+          ? ids[0]!
+          : draft.selectedNodeId);
+
+      if (draft.selectedNodeId !== nextSelectedId) {
+        draft.selectedDialogueLineIndex = null;
       }
+      draft.selectedNodeId = nextSelectedId;
     }),
 
   toggleBoxSelectionMode: () =>

@@ -587,7 +587,15 @@ export class RenpyLexer {
       (ch >= "a" && ch <= "z") ||
       (ch >= "A" && ch <= "Z") ||
       ch === "_" ||
-      ch === "."
+      (ch === "." && this.isIdentifierStartChar(this.peek()))
+    );
+  }
+
+  private isIdentifierStartChar(ch: string): boolean {
+    return (
+      (ch >= "a" && ch <= "z") ||
+      (ch >= "A" && ch <= "Z") ||
+      ch === "_"
     );
   }
 

@@ -35,29 +35,36 @@ export function applySingleBinaryOp(
     return { value: num, ok: !isNaN(num) };
   }
   if (op === "/") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (rv as number) !== 0 ? (lv as number) / (rv as number) : undefined,
-      ok: (rv as number) !== 0,
+      value: isNum && rv !== 0 ? lv / rv : undefined,
+      ok: isNum && rv !== 0,
     };
   }
   if (op === "%") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (rv as number) !== 0 ? (lv as number) % (rv as number) : undefined,
-      ok: (rv as number) !== 0,
+      value: isNum && rv !== 0 ? lv % rv : undefined,
+      ok: isNum && rv !== 0,
     };
   }
   if (op === "//") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (rv as number) !== 0
-        ? Math.floor((lv as number) / (rv as number))
-        : undefined,
-      ok: (rv as number) !== 0,
+      value: isNum && rv !== 0 ? Math.floor(lv / rv) : undefined,
+      ok: isNum && rv !== 0,
     };
   }
   if (op === "**") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
+    const num = isNum ? Math.pow(lv, rv) : NaN;
     return {
-      value: Math.pow(lv as number, rv as number),
-      ok: true,
+      value: !isNaN(num) ? num : undefined,
+      ok: isNum && !isNaN(num),
     };
   }
   if (op === "==") return { value: lv === rv, ok: true };
@@ -94,33 +101,43 @@ export function applySingleBinaryOp(
     return { value: val, ok: true };
   }
   if (op === "&") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (lv as number) & (rv as number),
-      ok: true,
+      value: isNum ? lv & rv : undefined,
+      ok: isNum,
     };
   }
   if (op === "|") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (lv as number) | (rv as number),
-      ok: true,
+      value: isNum ? lv | rv : undefined,
+      ok: isNum,
     };
   }
   if (op === "^") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (lv as number) ^ (rv as number),
-      ok: true,
+      value: isNum ? lv ^ rv : undefined,
+      ok: isNum,
     };
   }
   if (op === "<<") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (lv as number) << (rv as number),
-      ok: true,
+      value: isNum ? lv << rv : undefined,
+      ok: isNum,
     };
   }
   if (op === ">>") {
+    const isNum = typeof lv === "number" && typeof rv === "number" &&
+      !isNaN(lv) && !isNaN(rv);
     return {
-      value: (lv as number) >> (rv as number),
-      ok: true,
+      value: isNum ? lv >> rv : undefined,
+      ok: isNum,
     };
   }
   return { value: undefined, ok: false };

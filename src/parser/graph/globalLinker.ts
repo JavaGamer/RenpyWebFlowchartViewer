@@ -262,6 +262,7 @@ export function linkProjectGraphs(
               source: mNode.id,
               target: ctx.returnTargetId,
               kind: "call_return",
+              callContext: ctx,
               label: "return",
             });
           }

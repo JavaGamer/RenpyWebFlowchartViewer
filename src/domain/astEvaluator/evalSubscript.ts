@@ -7,20 +7,38 @@ export function evalSubscript(
 ): { value: unknown; ok: boolean } {
   if (Array.isArray(target) && typeof index === "number") {
     const normalizedIdx = index < 0 ? target.length + index : index;
+    if (normalizedIdx < 0 || normalizedIdx >= target.length) {
+      return { value: undefined, ok: false };
+    }
     const val = target[normalizedIdx];
     if (typeof val === "string") stringCandidates.push(val);
     return { value: val, ok: true };
   }
   if (typeof target === "string" && typeof index === "number") {
     const normalizedIdx = index < 0 ? target.length + index : index;
+    if (normalizedIdx < 0 || normalizedIdx >= target.length) {
+      return { value: undefined, ok: false };
+    }
     const val = target[normalizedIdx];
     if (typeof val === "string") stringCandidates.push(val);
     return { value: val, ok: true };
   }
   if (typeof target === "object" && target !== null) {
-    const val = (target as Record<string, unknown>)[String(index)];
-    if (typeof val === "string") stringCandidates.push(val);
-    return { value: val, ok: true };
+    if (target instanceof Map) {
+      if (target.has(index)) {
+        const val = target.get(index);
+        if (typeof val === "string") stringCandidates.push(val);
+        return { value: val, ok: true };
+      }
+      return { value: undefined, ok: false };
+    }
+    const key = String(index);
+    if (Object.prototype.hasOwnProperty.call(target, key)) {
+      const val = (target as Record<string, unknown>)[key];
+      if (typeof val === "string") stringCandidates.push(val);
+      return { value: val, ok: true };
+    }
+    return { value: undefined, ok: false };
   }
   return { value: undefined, ok: false };
 }
@@ -46,9 +64,12 @@ export function evalMemberAccess(
   stringCandidates: string[],
 ): { value: unknown; ok: boolean } {
   if (typeof obj === "object" && obj !== null) {
-    const val = (obj as Record<string, unknown>)[propName];
-    if (typeof val === "string") stringCandidates.push(val);
-    return { value: val, ok: true };
+    if (Object.prototype.hasOwnProperty.call(obj, propName)) {
+      const val = (obj as Record<string, unknown>)[propName];
+      if (typeof val === "string") stringCandidates.push(val);
+      return { value: val, ok: true };
+    }
+    return { value: undefined, ok: false };
   }
   return { value: undefined, ok: false };
 }

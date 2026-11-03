@@ -515,4 +515,24 @@ describe("useViewerStore session state actions", () => {
     expect(useViewerStore.getState().selectedNodeIds).toEqual([]);
     expect(useViewerStore.getState().selectedNodeId).toBe("");
   });
+
+  it("resets selectedDialogueLineIndex when selected node changes", () => {
+    const store = useViewerStore.getState();
+    store.setSelectedNodeId("nodeA");
+    store.setSelectedDialogueLineIndex(2);
+    expect(useViewerStore.getState().selectedDialogueLineIndex).toBe(2);
+
+    // Switching to a different node resets the dialogue line index
+    store.setSelectedNodeId("nodeB");
+    expect(useViewerStore.getState().selectedDialogueLineIndex).toBeNull();
+
+    // Setting the same node retains the dialogue line index
+    store.setSelectedDialogueLineIndex(1);
+    store.setSelectedNodeId("nodeB");
+    expect(useViewerStore.getState().selectedDialogueLineIndex).toBe(1);
+
+    // Switching via setSelectedNodeIds resets the dialogue line index
+    store.setSelectedNodeIds(["nodeC"]);
+    expect(useViewerStore.getState().selectedDialogueLineIndex).toBeNull();
+  });
 });

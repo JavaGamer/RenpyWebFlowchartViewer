@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseRenpyFiles } from "../../src/parser/parser.ts";
+import {
+  buildProjectMediaIndex,
+  isBuiltinOrColor,
+  resolveAssetReference,
+  verifyAssetIntegrity,
+} from "../../src/parser/assetIntegrity.ts";
+import type { ParseGraphState } from "../../src/parser/pipelineTypes.ts";
 
 describe("Asset Integrity Verification", () => {
   it("emits missing_asset warnings when project media files are provided and asset is missing", async () => {
@@ -177,5 +184,168 @@ label start:
       (d) => d.code === "missing_asset",
     );
     expect(missingAssets ?? []).toHaveLength(0);
+  });
+
+  describe("Unit & Branch Coverage for assetIntegrity utilities", () => {
+    it("tests isBuiltinOrColor variations", () => {
+      expect(isBuiltinOrColor("#fff")).toBe(true);
+      expect(isBuiltinOrColor("#123456")).toBe(true);
+      expect(isBuiltinOrColor("#12345678")).toBe(true);
+      expect(isBuiltinOrColor("black")).toBe(true);
+      expect(isBuiltinOrColor("white")).toBe(true);
+      expect(isBuiltinOrColor("none")).toBe(true);
+      expect(isBuiltinOrColor("transparent")).toBe(true);
+      expect(isBuiltinOrColor("Composite((100, 100))")).toBe(true);
+      expect(isBuiltinOrColor("Transform(child)")).toBe(true);
+      expect(isBuiltinOrColor("Frame('box.png')")).toBe(true);
+      expect(isBuiltinOrColor("expression Solid('#000')")).toBe(true);
+      expect(isBuiltinOrColor("my_custom_image")).toBe(false);
+    });
+
+    it("builds media index from Set and object arrays with relativePath and fileName", () => {
+      const mediaSet = new Set<string>([
+        "game\\audio\\bgm\\ambient.ogg",
+        "images/characters/hero_happy.png",
+        "images\\simple_file",
+        "audio/theme",
+        "   ",
+      ]);
+      const index1 = buildProjectMediaIndex(mediaSet);
+      expect(index1.exactPaths.has("audio/bgm/ambient.ogg")).toBe(true);
+      expect(index1.audioNames.has("ambient")).toBe(true);
+      expect(index1.imageTags.has("characters hero happy")).toBe(true);
+
+      const objectArray = [
+        { relativePath: "images/bg_forest.jpg", fileName: "bg_forest.jpg" },
+        { fileName: "audio/sfx/click.wav" },
+        "audio/single.mp3",
+        null as unknown as string,
+        {} as unknown as string,
+      ];
+      const index2 = buildProjectMediaIndex(
+        objectArray as unknown as Parameters<typeof buildProjectMediaIndex>[0],
+      );
+      expect(index2.lowerFilenames.has("bg_forest.jpg")).toBe(true);
+      expect(index2.lowerFilenames.has("click.wav")).toBe(true);
+      expect(index2.audioNames.has("single")).toBe(true);
+    });
+
+    it("resolves references with initVariables and imageDefinitions", () => {
+      const mediaIndex = buildProjectMediaIndex([
+        "audio/intro.ogg",
+        "images/room.png",
+      ]);
+
+      const mockState = {
+        initVariables: new Map<string, { value: unknown }>([
+          ["audio.my_theme", { value: "audio/intro.ogg" }],
+          ["my_theme", { value: "audio/intro.ogg" }],
+          ["unresolved_audio", { value: "missing.ogg" }],
+          ["not_a_string", { value: 12345 }],
+        ]),
+        imageDefinitions: new Map<string, string>([
+          ["bg living_room", "images/room.png"],
+          ["bg white", "#ffffff"],
+          ["bg missing", "images/nonexistent.png"],
+        ]),
+      } as unknown as ParseGraphState;
+
+      // Audio checks
+      expect(
+        resolveAssetReference(
+          "expression 'audio/intro.ogg'",
+          "play",
+          mediaIndex,
+          mockState,
+        ),
+      ).toBe("audio/intro.ogg");
+      expect(resolveAssetReference("my_theme", "queue", mediaIndex, mockState))
+        .toBe("audio/intro.ogg");
+      expect(
+        resolveAssetReference("audio.my_theme", "voice", mediaIndex, mockState),
+      ).toBe("audio/intro.ogg");
+      expect(
+        resolveAssetReference(
+          "unresolved_audio",
+          "play",
+          mediaIndex,
+          mockState,
+        ),
+      ).toBe(null);
+      expect(
+        resolveAssetReference("not_a_string", "play", mediaIndex, mockState),
+      ).toBe(null);
+      expect(resolveAssetReference("", "play", mediaIndex, mockState)).toBe(
+        null,
+      );
+
+      // Visual checks
+      expect(
+        resolveAssetReference("bg living_room", "scene", mediaIndex, mockState),
+      ).toBe("images/room.png");
+      expect(resolveAssetReference("bg white", "show", mediaIndex, mockState))
+        .toBe("#ffffff");
+      expect(
+        resolveAssetReference("bg missing", "image", mediaIndex, mockState),
+      ).toBe(null);
+    });
+
+    it("verifies asset integrity with empty inputs and playlists with partial missing assets", () => {
+      const emptyState: ParseGraphState = {
+        nodes: [],
+        diagnostics: [],
+        diagnosticIds: new Set(),
+      } as unknown as ParseGraphState;
+
+      // No media files: early return
+      verifyAssetIntegrity(emptyState, []);
+      verifyAssetIntegrity(emptyState, new Set());
+      expect(emptyState.diagnostics).toHaveLength(0);
+
+      // Test with node containing stop cue without asset, color asset, and mixed playlist
+      const testState: ParseGraphState = {
+        nodes: [
+          {
+            id: "node_1",
+            chapter: "chap1",
+            sourceLocation: { file: "test.rpy", startLine: 1, endLine: 5 },
+            audioAssetCues: [
+              { type: "stop", asset: "" },
+              { type: "scene", asset: "black" },
+              {
+                type: "play",
+                asset: '[ "audio/exists.ogg", "audio/missing.ogg" ]',
+                sourceLocation: { file: "test.rpy", startLine: 2, endLine: 2 },
+                lineNum: 2,
+              },
+              {
+                type: "play",
+                asset: "audio/missing_solo.ogg",
+              },
+            ],
+          },
+          {
+            id: "node_2",
+            // No audioAssetCues
+          },
+        ],
+        diagnostics: [],
+        diagnosticIds: new Set(),
+        projectMediaFiles: ["audio/exists.ogg"],
+      } as unknown as ParseGraphState;
+
+      verifyAssetIntegrity(testState);
+
+      expect(testState.nodes[0]!.audioAssetCues![1]!.isColor).toBe(true);
+      expect(testState.nodes[0]!.audioAssetCues![2]!.isMissing).toBe(true);
+      expect(testState.nodes[0]!.audioAssetCues![3]!.isMissing).toBe(true);
+
+      const missingDiags = testState.diagnostics.filter((d) =>
+        d.code === "missing_asset"
+      );
+      expect(missingDiags).toHaveLength(2);
+      expect(missingDiags[0]?.message).toContain("playlist");
+      expect(missingDiags[1]?.message).toContain("statement");
+    });
   });
 });

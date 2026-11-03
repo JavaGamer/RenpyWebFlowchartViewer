@@ -4,6 +4,11 @@ import {
   buildVisibleNodes,
 } from "../../src/domain/transforms/visibility.ts";
 import { evaluateConditionExpression } from "../../src/domain/conditionLogic.ts";
+import {
+  evalMemberAccess,
+  evalSubscript,
+} from "../../src/domain/astEvaluator/evalSubscript.ts";
+import { applySingleBinaryOp } from "../../src/domain/astEvaluator/evalBinaryOp.ts";
 import type { CanvasEdge, CanvasNode } from "../../src/domain/index.ts";
 
 describe("Domain Bug Fixes Sweep", () => {
@@ -87,5 +92,78 @@ describe("Domain Bug Fixes Sweep", () => {
 
     // Strictly decimal strings "16" vs "16.0" equal
     expect(evaluateConditionExpression("16 == 16.0", {})).toBe("true");
+  });
+
+  it("handles out of bounds indices and missing properties safely in evalSubscript and evalMemberAccess", () => {
+    const candidates: string[] = [];
+
+    // Array out of bounds
+    expect(evalSubscript(["apple", "banana"], 5, candidates)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+    expect(evalSubscript(["apple", "banana"], -5, candidates)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+    // Array within bounds
+    expect(evalSubscript(["apple", "banana"], 1, candidates)).toEqual({
+      value: "banana",
+      ok: true,
+    });
+
+    // String out of bounds
+    expect(evalSubscript("hello", 10, candidates)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+
+    // Object missing property
+    expect(evalSubscript({ a: 1 }, "missing", candidates)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+
+    // Prototype pollution / inherited method access should fail
+    expect(evalSubscript({}, "toString", candidates)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+    expect(evalMemberAccess({}, "constructor", candidates)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+  });
+
+  it("evaluates binary operators safely against division by zero and invalid numeric types", () => {
+    // Division by zero
+    expect(applySingleBinaryOp("/", 10, 0)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+    expect(applySingleBinaryOp("%", 10, 0)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+    expect(applySingleBinaryOp("//", 10, 0)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+
+    // Power resulting in NaN
+    expect(applySingleBinaryOp("**", -1, 0.5)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+
+    // Bitwise with non-number
+    expect(applySingleBinaryOp("&", "foo", 3)).toEqual({
+      value: undefined,
+      ok: false,
+    });
+    expect(applySingleBinaryOp("<<", 1, "bar")).toEqual({
+      value: undefined,
+      ok: false,
+    });
   });
 });

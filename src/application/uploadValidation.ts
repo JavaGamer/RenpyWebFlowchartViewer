@@ -101,7 +101,12 @@ export function validateRpyUpload(
     };
   }
 
-  const totalRpySize = rpyFiles.reduce((sum, file) => sum + file.size, 0);
+  const totalRpySize = rpyFiles.reduce(
+    (sum, file) =>
+      sum +
+      (typeof file.size === "number" && !isNaN(file.size) ? file.size : 0),
+    0,
+  );
   if (totalRpySize > MAX_TOTAL_RPY_SIZE_BYTES) {
     const mib = (totalRpySize / (1024 * 1024)).toFixed(1);
     return {
@@ -112,7 +117,7 @@ export function validateRpyUpload(
   }
 
   const oversizedFile = rpyFiles.find((file) =>
-    file.size > MAX_RPY_FILE_SIZE_BYTES
+    typeof file.size === "number" && file.size > MAX_RPY_FILE_SIZE_BYTES
   );
   if (oversizedFile) {
     return {

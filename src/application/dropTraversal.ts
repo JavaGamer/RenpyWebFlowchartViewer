@@ -79,10 +79,27 @@ export async function traverseDataTransferItems(
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (item.kind === "file") {
-      const entry = item.webkitGetAsEntry();
+    if (item && item.kind === "file") {
+      const entry = typeof item.webkitGetAsEntry === "function"
+        ? item.webkitGetAsEntry()
+        : null;
       if (entry) {
         filePromises.push(traverseFileSystemEntry(entry));
+      } else {
+        const file = item.getAsFile();
+        if (file) {
+          filePromises.push(
+            Promise.resolve([
+              {
+                name: file.name,
+                size: file.size,
+                webkitRelativePath: file.webkitRelativePath || file.name,
+                text: () => file.text(),
+                file,
+              },
+            ]),
+          );
+        }
       }
     }
   }

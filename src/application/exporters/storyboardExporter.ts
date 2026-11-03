@@ -1,4 +1,7 @@
 import type { FlowNode } from "../../domain/index.ts";
+import { extractNodeDetailsInWorker } from "../../infrastructure/index.ts";
+import { useAppStore } from "../appStore.ts";
+import { useViewerStore } from "../viewerStore.ts";
 
 function sanitizeHeading(text: string): string {
   const clean = text.replace(/[\r\n]+/g, " ").replace(/^#+\s*/, "").trim();
@@ -42,10 +45,6 @@ export function exportToStoryboard(nodes: FlowNode[]): string {
 
   return lines.join("\n");
 }
-
-import { extractNodeDetailsInWorker } from "../../infrastructure/index.ts";
-import { useAppStore } from "../appStore.ts";
-import { useViewerStore } from "../viewerStore.ts";
 
 export async function exportToStoryboardWithHydration(
   nodes: FlowNode[],

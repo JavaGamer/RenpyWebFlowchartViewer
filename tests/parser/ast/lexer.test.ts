@@ -114,6 +114,14 @@ describe("RenpyLexer", () => {
     expect(identifiers.map((t) => t.value)).toContain(".local_choice");
   });
 
+  it("emits DOT tokens when not preceding an identifier start", () => {
+    const script = "a . b";
+    const tokens = tokenizeRenpy(script);
+    const dots = tokens.filter((t) => t.type === "DOT");
+    expect(dots).toHaveLength(1);
+    expect(dots[0]?.value).toBe(".");
+  });
+
   it("handles triple-quoted multiline strings", () => {
     const script = [
       "label start:",

@@ -50,8 +50,8 @@ export function exportToHtmlBundle(svgDataUrl: string): string {
         diagram.style.transform = \`translate(\${translateX}px, \${translateY}px) scale(\${scale})\`;
       }
 
-      document.getElementById('zoomIn').onclick = () => { scale *= 1.2; updateTransform(); };
-      document.getElementById('zoomOut').onclick = () => { scale /= 1.2; updateTransform(); };
+      document.getElementById('zoomIn').onclick = () => { scale = Math.min(Math.max(scale * 1.2, 0.05), 50); updateTransform(); };
+      document.getElementById('zoomOut').onclick = () => { scale = Math.min(Math.max(scale / 1.2, 0.05), 50); updateTransform(); };
       document.getElementById('reset').onclick = () => { scale = 1; translateX = 0; translateY = 0; updateTransform(); };
 
       container.addEventListener('mousedown', (e) => {
@@ -76,7 +76,7 @@ export function exportToHtmlBundle(svgDataUrl: string): string {
       container.addEventListener('wheel', (e) => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        scale *= delta;
+        scale = Math.min(Math.max(scale * delta, 0.05), 50);
         updateTransform();
       }, { passive: false });
     }

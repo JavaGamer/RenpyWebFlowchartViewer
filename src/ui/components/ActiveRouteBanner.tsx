@@ -28,12 +28,12 @@ function ActiveRouteBannerContent({
 
   const isModalOpen = useViewerStore((s) => s.isAnalyticsModalOpen);
 
-  // Focus the first node once on mount
+  // Focus the first node once on mount or when route changes
   useEffect(() => {
     if (route.nodeIds.length > 0 && onFocusNode) {
       onFocusNode(route.nodeIds[0]!);
     }
-  }, [route, onFocusNode]);
+  }, [route.routeId, onFocusNode]);
 
   // Keyboard shortcut: Esc to clear route highlight (only when not interacting with modals/inputs)
   useEffect(() => {
@@ -74,7 +74,8 @@ function ActiveRouteBannerContent({
   if (route.nodeIds.length === 0) return null;
 
   const totalSteps = route.nodeIds.length;
-  const currentNodeId = route.nodeIds[currentStepIdx];
+  const safeStepIdx = Math.min(currentStepIdx, Math.max(0, totalSteps - 1));
+  const currentNodeId = route.nodeIds[safeStepIdx];
 
   return (
     <aside
@@ -116,7 +117,7 @@ function ActiveRouteBannerContent({
         )}
       >
         <span className="font-mono font-medium">
-          Step {currentStepIdx + 1}/{totalSteps}
+          Step {safeStepIdx + 1}/{totalSteps}
         </span>
         <span className="hidden sm:inline font-mono opacity-80">
           ({currentNodeId})
@@ -133,7 +134,7 @@ function ActiveRouteBannerContent({
         <button
           type="button"
           onClick={handlePrevStep}
-          disabled={currentStepIdx <= 0}
+          disabled={safeStepIdx <= 0}
           className={cn(
             "p-1 rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer",
             isDark
@@ -147,7 +148,7 @@ function ActiveRouteBannerContent({
         <button
           type="button"
           onClick={handleNextStep}
-          disabled={currentStepIdx >= totalSteps - 1}
+          disabled={safeStepIdx >= totalSteps - 1}
           className={cn(
             "p-1 rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer",
             isDark
