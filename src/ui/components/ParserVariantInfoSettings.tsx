@@ -383,7 +383,7 @@ export function ParserVariantInfoSettings() {
                 setIsModalOpen(true);
               }}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors shrink-0",
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors shrink-0 cursor-pointer",
                 isDark
                   ? "bg-amber-900/60 border-amber-700 text-amber-200 hover:bg-amber-900"
                   : "bg-white border-amber-300 text-amber-900 hover:bg-amber-100/50 shadow-xs",
@@ -428,9 +428,9 @@ export function ParserVariantInfoSettings() {
                     onClick={() =>
                       handleQuickMapAction(unmapped.actionName, "jump")}
                     className={cn(
-                      "px-2 py-1 rounded text-[11px] font-semibold border transition-colors",
+                      "px-2 py-1 rounded text-[11px] font-semibold border transition-colors cursor-pointer disabled:cursor-not-allowed",
                       isReparsing || !canReparse
-                        ? "opacity-50 cursor-not-allowed border-gray-300 text-gray-400 dark:border-slate-700 dark:text-slate-600"
+                        ? "opacity-50 border-gray-300 text-gray-400 dark:border-slate-700 dark:text-slate-600"
                         : isDark
                         ? "bg-blue-950 border-blue-800 text-blue-300 hover:bg-blue-900"
                         : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100",
@@ -446,9 +446,9 @@ export function ParserVariantInfoSettings() {
                     onClick={() =>
                       handleQuickMapAction(unmapped.actionName, "call")}
                     className={cn(
-                      "px-2 py-1 rounded text-[11px] font-semibold border transition-colors",
+                      "px-2 py-1 rounded text-[11px] font-semibold border transition-colors cursor-pointer disabled:cursor-not-allowed",
                       isReparsing || !canReparse
-                        ? "opacity-50 cursor-not-allowed border-gray-300 text-gray-400 dark:border-slate-700 dark:text-slate-600"
+                        ? "opacity-50 border-gray-300 text-gray-400 dark:border-slate-700 dark:text-slate-600"
                         : isDark
                         ? "bg-purple-950 border-purple-800 text-purple-300 hover:bg-purple-900"
                         : "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100",
@@ -464,9 +464,9 @@ export function ParserVariantInfoSettings() {
                     onClick={() =>
                       handleQuickMapAction(unmapped.actionName, "null_action")}
                     className={cn(
-                      "px-2 py-1 rounded text-[11px] border transition-colors",
+                      "px-2 py-1 rounded text-[11px] border transition-colors cursor-pointer disabled:cursor-not-allowed",
                       isReparsing || !canReparse
-                        ? "opacity-50 cursor-not-allowed border-gray-300 text-gray-400 dark:border-slate-700 dark:text-slate-600"
+                        ? "opacity-50 border-gray-300 text-gray-400 dark:border-slate-700 dark:text-slate-600"
                         : isDark
                         ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                         : "bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200",
@@ -509,8 +509,9 @@ export function ParserVariantInfoSettings() {
               disabled={isReparsing}
               value={selectedVariant}
               onChange={(e) => handleVariantChange(e.target.value)}
+              style={{ colorScheme: isDark ? "dark" : "light" }}
               className={cn(
-                "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                "rounded-md border px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
                 isDark
                   ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-violet-400"
                   : "border-gray-300 bg-white text-gray-900 focus:ring-violet-500",
@@ -572,7 +573,7 @@ export function ParserVariantInfoSettings() {
               type="button"
               onClick={handleOpenNewModal}
               className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer",
                 isDark
                   ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                   : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -587,7 +588,7 @@ export function ParserVariantInfoSettings() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer",
                 isDark
                   ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                   : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -613,7 +614,7 @@ export function ParserVariantInfoSettings() {
                   type="button"
                   onClick={handleOpenEditModal}
                   className={cn(
-                    "p-1 rounded border text-[11px] transition-colors",
+                    "p-1 rounded border text-[11px] transition-colors cursor-pointer",
                     isDark
                       ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
                       : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100",
@@ -627,7 +628,7 @@ export function ParserVariantInfoSettings() {
                   type="button"
                   onClick={handleExport}
                   className={cn(
-                    "p-1 rounded border text-[11px] transition-colors",
+                    "p-1 rounded border text-[11px] transition-colors cursor-pointer",
                     isDark
                       ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
                       : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100",
@@ -641,7 +642,7 @@ export function ParserVariantInfoSettings() {
                   type="button"
                   onClick={handleDelete}
                   className={cn(
-                    "p-1 rounded border text-[11px] transition-colors",
+                    "p-1 rounded border text-[11px] transition-colors cursor-pointer",
                     isDark
                       ? "border-slate-700 bg-slate-800 text-rose-400 hover:bg-slate-700"
                       : "border-gray-300 bg-white text-rose-600 hover:bg-gray-100",
@@ -675,7 +676,7 @@ export function ParserVariantInfoSettings() {
               data-testid="detection-evidence-toggle"
               onClick={() => setEvidenceExpanded((prev) => !prev)}
               className={cn(
-                "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none",
+                "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none cursor-pointer",
                 isDark
                   ? "text-slate-300 hover:text-slate-100"
                   : "text-gray-700 hover:text-gray-900",
@@ -819,7 +820,7 @@ export function ParserVariantInfoSettings() {
             className={cn(
               "w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-medium text-xs shadow-sm transition-all duration-200",
               canReparse && !isReparsing
-                ? "bg-violet-600 hover:bg-violet-700 text-white active:scale-[0.99]"
+                ? "bg-violet-600 hover:bg-violet-700 text-white active:scale-[0.99] cursor-pointer"
                 : "bg-gray-200 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed",
             )}
           >
@@ -850,7 +851,7 @@ export function ParserVariantInfoSettings() {
             type="button"
             onClick={() => setEditorExpanded((prev) => !prev)}
             className={cn(
-              "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none",
+              "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none cursor-pointer",
               isDark
                 ? "text-slate-300 hover:text-slate-100"
                 : "text-gray-700 hover:text-gray-900",
@@ -884,7 +885,7 @@ export function ParserVariantInfoSettings() {
             type="button"
             onClick={() => setRulesExpanded((prev) => !prev)}
             className={cn(
-              "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none",
+              "flex items-center justify-between w-full text-[11px] font-semibold text-left focus:outline-none cursor-pointer",
               isDark
                 ? "text-slate-300 hover:text-slate-100"
                 : "text-gray-700 hover:text-gray-900",
@@ -934,13 +935,13 @@ export function ParserVariantInfoSettings() {
                       </span>
                       {isOverride
                         ? (
-                          <span className="px-1 py-0.2 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                          <span className="px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
                             override
                           </span>
                         )
                         : isCustom
                         ? (
-                          <span className="px-1 py-0.2 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+                          <span className="px-1 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
                             custom
                           </span>
                         )

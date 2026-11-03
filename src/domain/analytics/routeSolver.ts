@@ -234,7 +234,11 @@ export function solveRouteToTarget(
           if (edge.callContext.callContextId !== topCtx.callContextId) {
             continue;
           }
-        } else if (edge.target !== topCtx.returnTargetId) {
+        } else if (
+          topCtx.returnTargetId &&
+          topCtx.returnTargetId !== topCtx.callSiteId &&
+          edge.target !== topCtx.returnTargetId
+        ) {
           continue;
         }
       }
@@ -259,7 +263,7 @@ export function solveRouteToTarget(
           callContextId: edge.id,
           callEdgeId: edge.id,
           callSiteId: edge.source,
-          returnTargetId: edge.target,
+          returnTargetId: edge.source,
         };
         nextCallStack.push(ctx);
       } else if (edge.kind === "call_return" && nextCallStack.length > 0) {

@@ -68,7 +68,7 @@ export function AnalyticsRoutesTab({
                 <td className="p-3 font-mono font-bold text-slate-500">
                   {route.routeId}
                   {route.hasCycle && (
-                    <span className="ml-1.5 text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                    <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
                       Loop
                     </span>
                   )}

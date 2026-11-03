@@ -290,7 +290,7 @@ function StateMutationsSection({
             <div className="flex items-center gap-1.5 truncate">
               {m.isPersistent && (
                 <span
-                  className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-sans font-semibold shrink-0"
+                  className="text-[9px] uppercase px-1 py-0.5 rounded bg-amber-500/20 text-amber-500 font-sans font-semibold shrink-0"
                   title="Persistent variable"
                 >
                   persist
@@ -448,7 +448,14 @@ export function InspectorNodeDetails({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs">
-          <span className="font-semibold text-gray-500">Node:</span>{" "}
+          <span
+            className={cn(
+              "font-semibold",
+              isDark ? "text-slate-400" : "text-gray-500",
+            )}
+          >
+            Node:
+          </span>{" "}
           {selectedNodeData.label}
         </div>
         {onSolveRoute && selectedNodeId && (
@@ -469,7 +476,12 @@ export function InspectorNodeDetails({
         )}
       </div>
       <div className="text-xs">
-        <span className="font-semibold text-gray-500">
+        <span
+          className={cn(
+            "font-semibold",
+            isDark ? "text-slate-400" : "text-gray-500",
+          )}
+        >
           Dialogue lines:
         </span>{" "}
         {selectedNodeData.dialogueCount ?? 0}
@@ -482,8 +494,14 @@ export function InspectorNodeDetails({
       )}
       {(selectedNodeData.wordCount ?? 0) > 0 && (
         <div className="text-xs">
-          <span className="font-semibold text-gray-500">Reading time:</span>
-          {" "}
+          <span
+            className={cn(
+              "font-semibold",
+              isDark ? "text-slate-400" : "text-gray-500",
+            )}
+          >
+            Reading time:
+          </span>{" "}
           <span
             title={`${
               (selectedNodeData.wordCount ?? 0).toLocaleString()
@@ -500,7 +518,7 @@ export function InspectorNodeDetails({
               ),
             )}
           </span>
-          <span className="text-gray-400">
+          <span className={isDark ? "text-slate-400" : "text-gray-400"}>
             ({(selectedNodeData.wordCount ?? 0).toLocaleString()} words)
           </span>
         </div>
@@ -556,7 +574,9 @@ export function InspectorNodeDetails({
                     <span className="font-mono text-violet-500 font-semibold">
                       {speaker}
                     </span>
-                    <span className="text-gray-400">
+                    <span
+                      className={isDark ? "text-slate-400" : "text-gray-400"}
+                    >
                       {stats.lineCount} line{stats.lineCount !== 1 ? "s" : ""}
                       {" "}
                       ({pct}%) · {stats.wordCount} words
@@ -584,7 +604,12 @@ export function InspectorNodeDetails({
           >
             Collapsed Labels ({selectedNodeData.collapsedLabels.length})
           </div>
-          <div className="flex flex-col gap-1 max-h-24 overflow-y-auto font-mono text-[10px] text-gray-500 pr-1">
+          <div
+            className={cn(
+              "flex flex-col gap-1 max-h-24 overflow-y-auto font-mono text-[10px] pr-1",
+              isDark ? "text-slate-400" : "text-gray-500",
+            )}
+          >
             {selectedNodeData.collapsedLabels.map((lbl, idx) => (
               <div key={idx} className="truncate">• {lbl}</div>
             ))}
@@ -635,7 +660,7 @@ export function InspectorNodeDetails({
           {localizedLines && (
             <span
               className={cn(
-                "text-[10px] font-medium px-1.5 py-0.2 rounded border flex items-center gap-1",
+                "text-[10px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1",
                 isDark
                   ? "bg-violet-950/60 border-violet-800 text-violet-300"
                   : "bg-violet-50 border-violet-200 text-violet-700",
@@ -652,7 +677,7 @@ export function InspectorNodeDetails({
             type="checkbox"
             checked={showMediaCuesInDialogue}
             onChange={(e) => setShowMediaCuesInDialogue(e.target.checked)}
-            className="rounded text-violet-600 focus:ring-violet-500 w-3 h-3"
+            className="rounded text-violet-600 focus:ring-violet-500 w-3 h-3 cursor-pointer"
             aria-label="Show Media Cues in Dialogue"
           />
           <span

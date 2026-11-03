@@ -348,7 +348,12 @@ export function UploadArea({
             <button
               type="button"
               onClick={onCancelParsing}
-              className="text-xs underline text-gray-600 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded"
+              className={cn(
+                "cursor-pointer text-xs underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded",
+                isDark
+                  ? "text-slate-400 hover:text-slate-200"
+                  : "text-gray-600 hover:text-gray-800",
+              )}
               aria-label="Cancel parsing"
             >
               Cancel parsing
@@ -449,7 +454,7 @@ export function UploadArea({
                 isDark ? "text-red-400" : "text-red-900",
               )}
             >
-              <label className="flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={debugPrivacyOptions.includeFileNames}
@@ -459,12 +464,15 @@ export function UploadArea({
                       includeFileNames: event.target.checked,
                     }));
                   }}
-                  className="rounded text-red-600 focus:ring-red-500"
+                  className={cn(
+                    "cursor-pointer rounded text-red-600 focus:ring-red-500",
+                    isDark ? "border-red-900/60 bg-slate-800" : "",
+                  )}
                 />
                 Include file names (off by default because file names are
                 sensitive)
               </label>
-              <label className="flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={debugPrivacyOptions.includeRawScriptDetails}
@@ -474,11 +482,14 @@ export function UploadArea({
                       includeRawScriptDetails: event.target.checked,
                     }));
                   }}
-                  className="rounded text-red-600 focus:ring-red-500"
+                  className={cn(
+                    "cursor-pointer rounded text-red-600 focus:ring-red-500",
+                    isDark ? "border-red-900/60 bg-slate-800" : "",
+                  )}
                 />
                 Include raw/script details (opt-in)
               </label>
-              <label className="flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={debugPrivacyOptions.includeExtraDiagnostics}
@@ -488,7 +499,10 @@ export function UploadArea({
                       includeExtraDiagnostics: event.target.checked,
                     }));
                   }}
-                  className="rounded text-red-600 focus:ring-red-500"
+                  className={cn(
+                    "cursor-pointer rounded text-red-600 focus:ring-red-500",
+                    isDark ? "border-red-900/60 bg-slate-800" : "",
+                  )}
                 />
                 Include extra diagnostics
               </label>

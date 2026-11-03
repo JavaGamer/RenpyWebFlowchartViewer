@@ -39,15 +39,8 @@ export function UploadDropzone({
         setIsDragOver(false);
         onDrop(e);
       }}
-      onClick={(e) => {
-        // Only trigger if click was directly on dropzone, not on inner interactive elements
-        const target = e.target as HTMLElement;
-        if (target.tagName !== "BUTTON" && target.tagName !== "LABEL") {
-          openFilesPicker(e);
-        }
-      }}
       className={cn(
-        "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none cursor-pointer",
+        "flex flex-col items-center justify-center gap-4 w-full min-h-64 rounded-2xl border-2 border-dashed transition-all p-5 sm:p-6 select-none",
         isDragOver
           ? isDark
             ? "border-violet-400 bg-violet-950/40 ring-4 ring-violet-500/30 scale-[1.01]"

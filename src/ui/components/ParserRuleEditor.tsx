@@ -106,8 +106,9 @@ export function ParserRuleEditor({
                   onUpdateRule(idx, {
                     actionKind: e.target.value as ScreenActionKind,
                   })}
+                style={{ colorScheme: isDark ? "dark" : "light" }}
                 className={cn(
-                  "rounded-md border px-2 py-1 text-xs transition-colors duration-200",
+                  "rounded-md border px-2 py-1 text-xs transition-colors duration-200 cursor-pointer",
                   isDark
                     ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-violet-400"
                     : "border-gray-300 bg-white text-gray-900 focus:ring-violet-500",
@@ -138,7 +139,7 @@ export function ParserRuleEditor({
                 type="button"
                 aria-label={`Remove custom rule ${idx + 1}`}
                 className={cn(
-                  "rounded-md border p-1 text-xs transition-colors duration-200 shrink-0",
+                  "rounded-md border p-1 text-xs transition-colors duration-200 shrink-0 cursor-pointer",
                   isDark
                     ? "border-slate-700 bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700"
                     : "border-gray-300 bg-white text-gray-500 hover:text-rose-600 hover:bg-gray-50",
@@ -157,7 +158,7 @@ export function ParserRuleEditor({
         type="button"
         onClick={onAddRule}
         className={cn(
-          "mt-2 inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors duration-200",
+          "mt-2 inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors duration-200 cursor-pointer",
           isDark
             ? "border-violet-800 bg-slate-800/80 text-violet-300 hover:bg-slate-700"
             : "border-violet-300 bg-white text-violet-700 hover:bg-violet-50",

@@ -297,7 +297,10 @@ export function computeCharacterDistribution(
     });
   }
 
-  // Sort descending by word count
-  results.sort((a, b) => b.wordCount - a.wordCount);
+  // Sort descending by word count with deterministic tie-breakers
+  results.sort((a, b) =>
+    b.wordCount - a.wordCount || b.lineCount - a.lineCount ||
+    a.speaker.localeCompare(b.speaker)
+  );
   return results;
 }

@@ -144,7 +144,7 @@ export function ExportMenu({
                 "h-7 px-2.5 py-0 text-xs font-medium rounded border justify-center leading-none cursor-pointer",
                 isDark
                   ? "text-slate-300 border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+                  : "text-gray-700 border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
               )}
             >
               <Download size={13} aria-hidden="true" />
@@ -173,7 +173,7 @@ export function ExportMenu({
                 "h-7 px-2.5 py-0 text-xs font-medium rounded border justify-center leading-none cursor-pointer",
                 isDark
                   ? "text-slate-300 border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+                  : "text-gray-700 border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
               )}
             >
               <Download size={13} aria-hidden="true" />
@@ -202,7 +202,7 @@ export function ExportMenu({
                 "h-7 px-2.5 py-0 text-xs font-medium rounded border justify-center leading-none cursor-pointer",
                 isDark
                   ? "text-slate-300 border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+                  : "text-gray-700 border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
               )}
             >
               <Download size={13} aria-hidden="true" />
@@ -231,7 +231,7 @@ export function ExportMenu({
                 "h-7 px-2.5 py-0 text-xs font-medium rounded border justify-center leading-none cursor-pointer",
                 isDark
                   ? "text-slate-300 border-slate-700 bg-slate-800 hover:bg-slate-700 focus-visible:ring-violet-400"
-                  : "text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
+                  : "text-gray-700 border-gray-300 bg-white hover:bg-gray-50 focus-visible:ring-violet-500",
               )}
             >
               <Download size={13} aria-hidden="true" />
@@ -259,8 +259,8 @@ export function ExportMenu({
                 PRIMARY_BUTTON_CLASS,
                 "h-7 px-2.5 py-0 text-xs font-medium rounded border justify-center leading-none cursor-pointer",
                 isDark
-                  ? "text-amber-300 border border-amber-900/60 bg-amber-950/40 hover:bg-amber-950/80 focus-visible:ring-violet-400"
-                  : "text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100 focus-visible:ring-violet-500",
+                  ? "text-amber-300 border-amber-900/60 bg-amber-950/40 hover:bg-amber-950/80 focus-visible:ring-violet-400"
+                  : "text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100 focus-visible:ring-violet-500",
               )}
             >
               <Download size={13} aria-hidden="true" />
@@ -288,8 +288,8 @@ export function ExportMenu({
                 PRIMARY_BUTTON_CLASS,
                 "h-7 px-2.5 py-0 text-xs font-medium rounded border justify-center leading-none cursor-pointer",
                 isDark
-                  ? "text-sky-300 border border-sky-900/60 bg-sky-950/40 hover:bg-sky-950/80 focus-visible:ring-violet-400"
-                  : "text-sky-800 border border-sky-300 bg-sky-50 hover:bg-sky-100 focus-visible:ring-violet-500",
+                  ? "text-sky-300 border-sky-900/60 bg-sky-950/40 hover:bg-sky-950/80 focus-visible:ring-violet-400"
+                  : "text-sky-800 border-sky-300 bg-sky-50 hover:bg-sky-100 focus-visible:ring-violet-500",
               )}
             >
               Open new GitHub issue
@@ -401,7 +401,7 @@ export function ExportMenu({
                 "text-[10px] border rounded px-1.5 py-0.5 whitespace-nowrap",
                 isDark
                   ? "text-amber-400 bg-amber-950/40 border-amber-900/60"
-                  : "text-amber-700 bg-amber-50 border border-amber-200",
+                  : "text-amber-700 bg-amber-50 border-amber-200",
               )}
             >
               Dialogue line search is disabled in performance mode

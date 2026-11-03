@@ -51,7 +51,12 @@ export function Modal({
                         {title}
                       </Dialog.Title>
                       {description && (
-                        <Dialog.Description className="text-xs text-gray-500 mt-0.5">
+                        <Dialog.Description
+                          className={cn(
+                            "text-xs mt-0.5",
+                            isDark ? "text-slate-400" : "text-gray-500",
+                          )}
+                        >
                           {description}
                         </Dialog.Description>
                       )}
@@ -108,7 +113,12 @@ export function Modal({
                       {title}
                     </Dialog.Title>
                     {description && (
-                      <Dialog.Description className="text-xs mt-0.5 text-gray-500">
+                      <Dialog.Description
+                        className={cn(
+                          "text-xs mt-0.5",
+                          isDark ? "text-slate-400" : "text-gray-500",
+                        )}
+                      >
                         {description}
                       </Dialog.Description>
                     )}

@@ -207,7 +207,8 @@ export function RouteSolverModal({
               id="target-ending-select"
               value={effectiveTargetId}
               onChange={(e) => setSelectedTargetId(e.target.value)}
-              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono focus-visible:ring-2 focus-visible:ring-violet-500"
+              style={{ colorScheme: isDark ? "dark" : "light" }}
+              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer"
             >
               {filteredCandidates.map((n) => (
                 <option key={n.id} value={n.id}>
@@ -243,7 +244,7 @@ export function RouteSolverModal({
                   heuristic === "shortest_steps"
                     ? "bg-violet-600 border-violet-600 text-white shadow-sm"
                     : isDark
-                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750"
+                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
                 )}
               >
@@ -262,7 +263,7 @@ export function RouteSolverModal({
                   heuristic === "least_choices"
                     ? "bg-violet-600 border-violet-600 text-white shadow-sm"
                     : isDark
-                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750"
+                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
                 )}
               >
@@ -281,7 +282,7 @@ export function RouteSolverModal({
                   heuristic === "max_dialogue"
                     ? "bg-violet-600 border-violet-600 text-white shadow-sm"
                     : isDark
-                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750"
+                    ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
                 )}
               >

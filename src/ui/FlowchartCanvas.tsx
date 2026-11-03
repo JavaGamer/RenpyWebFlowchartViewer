@@ -309,11 +309,13 @@ export function FlowchartCanvas({
   const onFocusNode = React.useCallback((nodeId: string) => {
     const chapterId = getChapterId(nodeId);
     // If the node is in a collapsed chapter, uncollapse it automatically so it can be viewed
-    const fullNode = flowNodes.find((n) => n.id === nodeId || n.label === nodeId);
+    const fullNode = flowNodes.find((n) =>
+      n.id === nodeId || n.label === nodeId
+    );
     if (fullNode?.chapter) {
       const collapsedChapters = useViewerStore.getState().collapsedChapters;
       if (collapsedChapters[fullNode.chapter]) {
-        useViewerStore.getState().toggleChapterCollapse(fullNode.chapter);
+        useViewerStore.getState().toggleChapter(fullNode.chapter);
       }
     }
 

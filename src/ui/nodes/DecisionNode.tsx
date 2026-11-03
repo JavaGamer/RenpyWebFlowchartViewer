@@ -103,7 +103,7 @@ export const DecisionNodeComponent = memo(
             {routeStepIndex !== undefined && (
               <span
                 className={cn(
-                  "text-[9px] font-bold px-1.5 py-0.2 rounded-full shrink-0 shadow-xs",
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 shadow-xs",
                   isDark
                     ? "bg-amber-400 text-slate-950"
                     : "bg-amber-600 text-white",
@@ -221,7 +221,7 @@ export const DecisionNodeComponent = memo(
               </div>
               {routeStepIndex !== undefined && (
                 <span
-                  className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shadow-xs"
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-600 text-white shadow-xs"
                   title={`Step ${routeStepIndex} in highlighted route`}
                 >
                   #{routeStepIndex}

@@ -1,4 +1,5 @@
 import { AlertTriangle, Award, Compass } from "lucide-react";
+import { useViewerStore } from "../../../application/index.ts";
 import type {
   EndingType,
   ProjectNarrativeReport,
@@ -27,6 +28,7 @@ export function AnalyticsEndingsTab({
   onHighlightRoute,
   onSolveRoute,
 }: AnalyticsEndingsTabProps) {
+  const isDark = useViewerStore((s) => s.theme) === "dark";
   const allEndings = [...report.reachableEndings, ...report.unreachableEndings];
 
   return (
@@ -93,7 +95,7 @@ export function AnalyticsEndingsTab({
                           ending.nodeId,
                           e.target.value as EndingType,
                         )}
-                      style={{ colorScheme: "inherit" }}
+                      style={{ colorScheme: isDark ? "dark" : "light" }}
                       className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
                     >
                       {ENDING_TAG_OPTIONS.map((opt) => (
@@ -130,7 +132,7 @@ export function AnalyticsEndingsTab({
                         <button
                           type="button"
                           onClick={() => onSolveRoute(ending.nodeId)}
-                          className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
+                          className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-violet-500"
                           title="Solve path & generate walkthrough"
                         >
                           <Compass

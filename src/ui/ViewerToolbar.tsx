@@ -287,6 +287,7 @@ export function ViewerToolbar({
                 <select
                   value={activeLanguage ?? ""}
                   onChange={(e) => setActiveLanguage(e.target.value || null)}
+                  style={{ colorScheme: isDark ? "dark" : "light" }}
                   className={cn(
                     "text-xs px-2 py-1 rounded border cursor-pointer font-medium transition-colors",
                     isDark
@@ -296,9 +297,22 @@ export function ViewerToolbar({
                   aria-label="Select translation language"
                   title="Switch displayed language overlay"
                 >
-                  <option value="">Original / Base</option>
+                  <option
+                    value=""
+                    className={isDark
+                      ? "bg-slate-900 text-slate-100"
+                      : "bg-white text-gray-900"}
+                  >
+                    Original / Base
+                  </option>
                   {availableLanguages.map((lang: string) => (
-                    <option key={lang} value={lang}>
+                    <option
+                      key={lang}
+                      value={lang}
+                      className={isDark
+                        ? "bg-slate-900 text-slate-100"
+                        : "bg-white text-gray-900"}
+                    >
                       {lang.charAt(0).toUpperCase() + lang.slice(1)}
                     </option>
                   ))}

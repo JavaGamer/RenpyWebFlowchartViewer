@@ -483,7 +483,7 @@ export function CustomVariantFormContent({
               type="button"
               onClick={() => setActiveTab("rules")}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
                 activeTab === "rules"
                   ? isDark
                     ? "bg-slate-700 text-white shadow-sm"
@@ -500,7 +500,7 @@ export function CustomVariantFormContent({
               type="button"
               onClick={() => setActiveTab("sandbox")}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
                 activeTab === "sandbox"
                   ? isDark
                     ? "bg-slate-700 text-white shadow-sm"
@@ -519,7 +519,7 @@ export function CustomVariantFormContent({
         <button
           type="button"
           onClick={onClose}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 focus:outline-none"
+          className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 focus:outline-none cursor-pointer"
           aria-label="Close dialog"
         >
           <X size={18} />
@@ -634,8 +634,9 @@ export function CustomVariantFormContent({
                 id="custom-variant-base"
                 value={baseVariant}
                 onChange={(e) => setBaseVariant(e.target.value)}
+                style={{ colorScheme: isDark ? "dark" : "light" }}
                 className={cn(
-                  "w-full rounded-md border px-2.5 py-1.5 text-xs",
+                  "w-full rounded-md border px-2.5 py-1.5 text-xs cursor-pointer",
                   isDark
                     ? "bg-slate-800 border-slate-700 text-slate-100"
                     : "bg-white border-gray-300 text-gray-900",
@@ -845,7 +846,7 @@ export function CustomVariantFormContent({
           type="button"
           onClick={onClose}
           className={cn(
-            "px-3 py-1.5 rounded-md border text-xs font-medium transition-colors",
+            "px-3 py-1.5 rounded-md border text-xs font-medium transition-colors cursor-pointer",
             isDark
               ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
               : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -856,7 +857,7 @@ export function CustomVariantFormContent({
         <button
           type="button"
           onClick={handleSave}
-          className="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-sm transition-colors"
+          className="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
         >
           Save Variant
         </button>

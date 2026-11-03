@@ -38,6 +38,7 @@ export interface FilterSliceActions {
   setMinDialogue: (value: number) => void;
   setEnableCompoundContainers: (enable: boolean) => void;
   toggleChapter: (chapter: string) => void;
+  toggleChapterCollapse: (chapter: string) => void;
   setAllChaptersCollapsed: (chapters: string[], collapsed: boolean) => void;
   toggleParentLabel: (label: string) => void;
   setAllParentLabelsCollapsed: (labels: string[], collapsed: boolean) => void;
@@ -73,7 +74,7 @@ export const createFilterSlice: StateCreator<
   [["zustand/immer", never]],
   [],
   FilterSlice
-> = (set) => ({
+> = (set, get) => ({
   ...defaultFilterState,
 
   setLayoutDirection: (direction) =>
@@ -107,6 +108,10 @@ export const createFilterSlice: StateCreator<
         () => {},
       );
     }
+  },
+
+  toggleChapterCollapse: (chapter: string) => {
+    (get() as ViewerStore).toggleChapter(chapter);
   },
 
   setAllChaptersCollapsed: (chapters, collapsed) => {

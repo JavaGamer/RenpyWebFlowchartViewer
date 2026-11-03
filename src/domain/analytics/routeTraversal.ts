@@ -246,7 +246,7 @@ export function enumerateStoryRoutes(
             callContextId: edge.id,
             callEdgeId: edge.id,
             callSiteId: edge.source,
-            returnTargetId: edge.target,
+            returnTargetId: edge.source,
           };
           nextCallStack.push(ctx);
         } else if (edge.kind === "call_return" && nextCallStack.length > 0) {

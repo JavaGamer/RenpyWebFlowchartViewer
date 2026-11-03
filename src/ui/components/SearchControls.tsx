@@ -184,7 +184,7 @@ export function SearchControls({
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content
-              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in animate-duration-150"
+              className="z-50 select-none rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white leading-none shadow-md animate-fade-in"
               sideOffset={5}
             >
               {showSearchFilters

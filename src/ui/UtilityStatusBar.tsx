@@ -81,15 +81,40 @@ export function UtilityStatusBar({
           {" "}
           {totalEdgeCount} edges
         </span>
-        <span>|</span>
+        <span
+          className={cn(
+            "opacity-40",
+            isDark ? "text-slate-500" : "text-gray-400",
+          )}
+          aria-hidden="true"
+        >
+          |
+        </span>
         <span
           title={`${visibleWordCount.toLocaleString()} words visible / ${totalWordCount.toLocaleString()} words total (${readingSpeedWpm} wpm)`}
         >
-          Reading: <strong>{visibleTime}</strong> / {totalTime}
+          Reading:{" "}
+          <strong
+            className={cn(
+              "font-semibold",
+              isDark ? "text-slate-200" : "text-gray-800",
+            )}
+          >
+            {visibleTime}
+          </strong>{" "}
+          / {totalTime}
         </span>
         {activeLanguage && (
           <>
-            <span>|</span>
+            <span
+              className={cn(
+                "opacity-40",
+                isDark ? "text-slate-500" : "text-gray-400",
+              )}
+              aria-hidden="true"
+            >
+              |
+            </span>
             <span
               className={cn(
                 "font-medium",
@@ -107,7 +132,15 @@ export function UtilityStatusBar({
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           <span>ELK Engine</span>
         </span>
-        <span className="hidden md:inline">|</span>
+        <span
+          className={cn(
+            "hidden md:inline opacity-40",
+            isDark ? "text-slate-500" : "text-gray-400",
+          )}
+          aria-hidden="true"
+        >
+          |
+        </span>
         <span
           className={cn(
             "font-sans font-medium",

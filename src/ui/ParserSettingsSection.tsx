@@ -181,8 +181,9 @@ export default function ParserSettingsSection({
           value={selectedVariant}
           onChange={(event) =>
             setSelectedVariant(event.target.value as ParserVariant)}
+          style={{ colorScheme: isDark ? "dark" : "light" }}
           className={cn(
-            "rounded-md border px-2 py-1 text-xs transition-colors duration-200",
+            "cursor-pointer rounded-md border px-2 py-1 text-xs transition-colors duration-200",
             isDark
               ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-violet-400"
               : "border-gray-300 bg-white text-gray-900 focus:ring-violet-500",
@@ -213,7 +214,7 @@ export default function ParserSettingsSection({
             type="button"
             onClick={handleOpenNewModal}
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+              "cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
               isDark
                 ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                 : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -228,7 +229,7 @@ export default function ParserSettingsSection({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+              "cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
               isDark
                 ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                 : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -254,7 +255,7 @@ export default function ParserSettingsSection({
                 type="button"
                 onClick={handleOpenEditModal}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+                  "cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
                   isDark
                     ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                     : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -269,7 +270,7 @@ export default function ParserSettingsSection({
                 type="button"
                 onClick={handleExport}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+                  "cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
                   isDark
                     ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                     : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
@@ -284,7 +285,7 @@ export default function ParserSettingsSection({
                 type="button"
                 onClick={handleDelete}
                 className={cn(
-                  "p-1 rounded border text-[11px] transition-colors",
+                  "cursor-pointer p-1 rounded border text-[11px] transition-colors",
                   isDark
                     ? "border-slate-700 bg-slate-800 text-rose-400 hover:bg-slate-700"
                     : "border-gray-300 bg-white text-rose-600 hover:bg-gray-50",
@@ -299,7 +300,7 @@ export default function ParserSettingsSection({
           <button
             type="button"
             className={cn(
-              "text-[11px] underline ml-1 transition-colors duration-200",
+              "cursor-pointer text-[11px] underline ml-1 transition-colors duration-200",
               isDark
                 ? "text-slate-400 hover:text-slate-200"
                 : "text-gray-500 hover:text-gray-700",
@@ -329,7 +330,7 @@ export default function ParserSettingsSection({
           checked={pruneDeadEndDecisions}
           onChange={(e) => setPruneDeadEndDecisions?.(e.target.checked)}
           className={cn(
-            "mt-0.5 rounded border text-violet-600 focus:ring-violet-500",
+            "mt-0.5 cursor-pointer rounded border text-violet-600 focus:ring-violet-500",
             isDark ? "border-slate-700 bg-slate-800" : "border-gray-300",
           )}
         />
@@ -364,7 +365,7 @@ export default function ParserSettingsSection({
             type="button"
             onClick={() => setShowBuiltinRules((prev) => !prev)}
             className={cn(
-              "text-[11px] font-medium flex items-center gap-1 hover:underline focus:outline-none",
+              "cursor-pointer text-[11px] font-medium flex items-center gap-1 hover:underline focus:outline-none",
               isDark ? "text-violet-400" : "text-violet-600",
             )}
             aria-expanded={showBuiltinRules}

@@ -86,9 +86,19 @@ function ActiveRouteBannerContent({
           : "bg-white/95 border-violet-300 text-gray-900 shadow-violet-500/10",
       )}
     >
-      <div className="flex items-center gap-2 border-r pr-2 sm:pr-3 border-violet-200 dark:border-violet-800">
+      <div
+        className={cn(
+          "flex items-center gap-2 border-r pr-2 sm:pr-3",
+          isDark ? "border-violet-800" : "border-violet-200",
+        )}
+      >
         <span className="w-2.5 h-2.5 rounded-full bg-violet-500 animate-pulse" />
-        <span className="text-xs font-bold font-mono tracking-tight text-violet-600 dark:text-violet-400">
+        <span
+          className={cn(
+            "text-xs font-bold font-mono tracking-tight",
+            isDark ? "text-violet-400" : "text-violet-600",
+          )}
+        >
           Route
         </span>
         <span
@@ -99,7 +109,12 @@ function ActiveRouteBannerContent({
         </span>
       </div>
 
-      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+      <div
+        className={cn(
+          "flex items-center gap-1.5 text-xs",
+          isDark ? "text-slate-400" : "text-gray-500",
+        )}
+      >
         <span className="font-mono font-medium">
           Step {currentStepIdx + 1}/{totalSteps}
         </span>
@@ -163,7 +178,10 @@ function ActiveRouteBannerContent({
           type="button"
           onClick={onClear}
           className={cn(
-            "p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 transition-colors ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer",
+            "p-1 rounded-full transition-colors ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer",
+            isDark
+              ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              : "text-gray-400 hover:text-gray-600 hover:bg-gray-100",
           )}
           aria-label="Clear route highlight (Esc)"
           title="Clear route highlight (Esc)"

@@ -141,7 +141,7 @@ export const ChapterNodeComponent = memo(
                 </span>
               </div>
               <span
-                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-700 text-slate-200 shrink-0 shadow-xs"
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-200 shrink-0 shadow-xs"
                 title={`${nodeCount} labels`}
               >
                 {nodeCount}

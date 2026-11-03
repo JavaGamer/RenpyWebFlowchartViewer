@@ -77,11 +77,11 @@ export function ReadingSettings() {
           <div
             className={cn(
               "flex justify-between text-[10px]",
-              isDark ? "text-slate-500" : "text-gray-400",
+              isDark ? "text-slate-400" : "text-gray-500",
             )}
           >
             <span>{MIN_WPM} WPM</span>
-            <span className={cn(isDark ? "text-slate-500" : "text-gray-400")}>
+            <span className={cn(isDark ? "text-slate-400" : "text-gray-500")}>
               Affects reading time on node cards, inspector, toolbar &amp;
               chapters
             </span>

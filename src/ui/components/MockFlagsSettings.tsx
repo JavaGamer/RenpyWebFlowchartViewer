@@ -72,8 +72,10 @@ export function MockFlagsSettings({ discoveredFlags }: MockFlagsSettingsProps) {
                 setConditionVisibilityMode(
                   e.target.value as ConditionVisibilityMode,
                 )}
+              style={{ colorScheme: isDark ? "dark" : "light" }}
               className={cn(
                 CONTROL_INPUT_CLASS,
+                "cursor-pointer",
                 isDark
                   ? "bg-slate-800 border-slate-700 text-slate-100 focus-visible:ring-violet-400"
                   : "bg-white border-gray-300 text-gray-900 focus-visible:ring-violet-500",
@@ -148,6 +150,7 @@ export function MockFlagsSettings({ discoveredFlags }: MockFlagsSettingsProps) {
                       value={mockFlags[flag] ?? "unknown"}
                       onChange={(e) =>
                         setMockFlag(flag, e.target.value as MockFlagValue)}
+                      style={{ colorScheme: isDark ? "dark" : "light" }}
                       className={cn(
                         "px-1 py-0.5 border rounded text-[11px] shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-1",
                         isDark

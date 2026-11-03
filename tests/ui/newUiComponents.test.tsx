@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { LeftSidebar } from "../../src/ui/LeftSidebar.tsx";
-import { ViewerInspector } from "../../src/ui/ViewerInspector.tsx";
+import { ViewerInspector } from "../../src/ui/viewerInspector.tsx";
 import { CanvasHud } from "../../src/ui/components/CanvasHud.tsx";
 import { SearchControls } from "../../src/ui/components/SearchControls.tsx";
 import { UtilityStatusBar } from "../../src/ui/UtilityStatusBar.tsx";

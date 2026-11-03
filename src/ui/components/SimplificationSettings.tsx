@@ -120,6 +120,9 @@ export function SimplificationSettings() {
                   className={cn(
                     CONTROL_INPUT_CLASS,
                     "w-14 px-1.5 py-0.5 text-center",
+                    isDark
+                      ? "bg-slate-800 border-slate-700 text-slate-100"
+                      : "bg-white border-gray-300 text-gray-900",
                   )}
                   aria-label="Dialogue line threshold for inlining"
                 />

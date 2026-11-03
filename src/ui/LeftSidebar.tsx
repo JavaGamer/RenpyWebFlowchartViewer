@@ -20,7 +20,6 @@ import {
   FileCode,
   Filter,
   Layers,
-  RotateCcw,
   SlidersHorizontal,
   Tag,
   X,
@@ -73,8 +72,10 @@ export function LeftSidebar({
     (s) => s.setShowAdvancedControls,
   );
   const collapsedChapters = useViewerStore((s) => s.collapsedChapters);
-  const toggleChapterCollapse = useViewerStore((s) => s.toggleChapterCollapse);
-  const setAllChaptersCollapsed = useViewerStore((s) => s.setAllChaptersCollapsed);
+  const toggleChapter = useViewerStore((s) => s.toggleChapter);
+  const setAllChaptersCollapsed = useViewerStore((s) =>
+    s.setAllChaptersCollapsed
+  );
 
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [labelsOpen, setLabelsOpen] = useState(true);
@@ -210,10 +211,12 @@ export function LeftSidebar({
                               ? (isDark ? "text-violet-400" : "text-violet-600")
                               : (isDark ? "text-slate-400" : "text-gray-400")}
                           />
-                          <span className={cn(
-                            "truncate font-mono text-[11px]",
-                            isChapterCollapsed && "line-through opacity-75",
-                          )}>
+                          <span
+                            className={cn(
+                              "truncate font-mono text-[11px]",
+                              isChapterCollapsed && "line-through opacity-75",
+                            )}
+                          >
                             {ch}
                           </span>
                         </button>
@@ -232,14 +235,14 @@ export function LeftSidebar({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toggleChapterCollapse(ch);
+                              toggleChapter(ch);
                             }}
                             aria-label={isChapterCollapsed
-                              ? `Expand chapter ${ch}`
-                              : `Collapse chapter ${ch}`}
+                              ? `Show chapter in graph: ${ch}`
+                              : `Hide chapter in graph: ${ch}`}
                             title={isChapterCollapsed
-                              ? `Expand chapter ${ch}`
-                              : `Collapse chapter ${ch}`}
+                              ? `Expand ${ch}`
+                              : `Collapse ${ch}`}
                             className={cn(
                               "p-0.5 rounded transition-colors cursor-pointer",
                               isChapterCollapsed
@@ -267,7 +270,7 @@ export function LeftSidebar({
                 >
                   <button
                     type="button"
-                    onClick={() => setAllChaptersCollapsed(true)}
+                    onClick={() => setAllChaptersCollapsed(chapters, true)}
                     className={cn(
                       "px-2 py-0.5 rounded border text-[10px] font-medium transition-colors cursor-pointer",
                       isDark
@@ -275,11 +278,11 @@ export function LeftSidebar({
                         : "bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200",
                     )}
                   >
-                    Collapse All
+                    Collapse all chapters
                   </button>
                   <button
                     type="button"
-                    onClick={() => setAllChaptersCollapsed(false)}
+                    onClick={() => setAllChaptersCollapsed(chapters, false)}
                     className={cn(
                       "px-2 py-0.5 rounded border text-[10px] font-medium transition-colors cursor-pointer",
                       isDark
@@ -287,7 +290,7 @@ export function LeftSidebar({
                         : "bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200",
                     )}
                   >
-                    Expand All
+                    Expand all chapters
                   </button>
                 </div>
               )}

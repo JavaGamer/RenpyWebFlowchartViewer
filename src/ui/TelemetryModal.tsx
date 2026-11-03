@@ -219,21 +219,21 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
             <div
               className={cn(
                 "flex flex-col items-center justify-center py-10",
-                isDark ? "text-slate-500" : "text-gray-500",
+                isDark ? "text-slate-400" : "text-gray-500",
               )}
             >
               <Activity
                 size={32}
                 className={cn(
                   "mb-3",
-                  isDark ? "text-slate-600" : "text-gray-400",
+                  isDark ? "text-slate-500" : "text-gray-400",
                 )}
               />
               <p className="text-sm font-medium">No data yet</p>
               <p
                 className={cn(
                   "text-xs mt-1 text-center",
-                  isDark ? "text-slate-500" : "text-gray-400",
+                  isDark ? "text-slate-400" : "text-gray-400",
                 )}
               >
                 Upload and parse a Ren'Py project to see metrics
@@ -246,7 +246,7 @@ export default function TelemetryModal({ open, onClose }: TelemetryModalProps) {
       <div
         className={cn(
           "pt-4 flex items-center gap-2 text-[10px]",
-          isDark ? "text-slate-500" : "text-gray-500",
+          isDark ? "text-slate-400" : "text-gray-500",
         )}
       >
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />

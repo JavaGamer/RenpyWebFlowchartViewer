@@ -219,7 +219,12 @@ export function CanvasSelectionToolbar({
           : "bg-white/95 border-violet-300 text-gray-900 shadow-violet-500/15",
       )}
     >
-      <div className="flex items-center gap-1.5 border-r pr-2.5 border-slate-200 dark:border-slate-700">
+      <div
+        className={cn(
+          "flex items-center gap-1.5 border-r pr-2.5",
+          isDark ? "border-slate-700" : "border-slate-200",
+        )}
+      >
         <Layers size={14} className="text-violet-500" />
         <span className="text-xs font-bold font-mono">
           {isIsolated
@@ -325,7 +330,12 @@ export function CanvasSelectionToolbar({
         <button
           type="button"
           onClick={clearMultiSelection}
-          className="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 transition-colors ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer"
+          className={cn(
+            "p-1 rounded-full transition-colors ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer",
+            isDark
+              ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              : "text-gray-400 hover:text-gray-600 hover:bg-gray-100",
+          )}
           aria-label="Clear selection (Esc)"
           title="Clear selection (Esc)"
         >

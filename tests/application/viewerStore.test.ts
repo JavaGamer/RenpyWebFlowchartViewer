@@ -296,6 +296,22 @@ describe("useViewerStore session state actions", () => {
     expect(useViewerStore.getState().collapsedChapters["ch1"]).toBe(false);
   });
 
+  it("toggleChapterCollapse delegates to toggleChapter as an alias", () => {
+    useViewerStore.getState().toggleChapterCollapse("ch2");
+    expect(useViewerStore.getState().collapsedChapters["ch2"]).toBe(true);
+    useViewerStore.getState().toggleChapterCollapse("ch2");
+    expect(useViewerStore.getState().collapsedChapters["ch2"]).toBe(false);
+  });
+
+  it("setAllChaptersCollapsed collapses and uncollapses multiple chapters", () => {
+    useViewerStore.getState().setAllChaptersCollapsed(["ch1", "ch2"], true);
+    expect(useViewerStore.getState().collapsedChapters["ch1"]).toBe(true);
+    expect(useViewerStore.getState().collapsedChapters["ch2"]).toBe(true);
+    useViewerStore.getState().setAllChaptersCollapsed(["ch1", "ch2"], false);
+    expect(useViewerStore.getState().collapsedChapters["ch1"]).toBe(false);
+    expect(useViewerStore.getState().collapsedChapters["ch2"]).toBe(false);
+  });
+
   it("toggleParentLabel toggles a label collapsed state", () => {
     useViewerStore.getState().toggleParentLabel("label_a");
     expect(useViewerStore.getState().collapsedParentLabels["label_a"]).toBe(

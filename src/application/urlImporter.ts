@@ -12,10 +12,6 @@ import type { UploadedFile } from "./uploadTypes.ts";
  * Automatically converts a standard GitHub repository page URL into its main branch ZIP archive download link.
  * E.g., https://github.com/owner/repo -> https://github.com/owner/repo/archive/refs/heads/main.zip
  */
-/**
- * Automatically converts a standard GitHub repository page URL into its main branch ZIP archive download link.
- * E.g., https://github.com/owner/repo -> https://github.com/owner/repo/archive/refs/heads/main.zip
- */
 export function resolveGithubUrl(urlStr: string): string {
   let cleanUrl = urlStr.trim();
   if (!cleanUrl) return cleanUrl;
@@ -125,7 +121,7 @@ export async function fetchFilesFromUrl(
 
   if (isZip) {
     const parts = urlPath.split("/");
-    const name = parts[parts.length - 1] || "archive.zip";
+    const name = parts.filter(Boolean).pop() || "archive.zip";
     const zipVirtualFile: UploadedFile = {
       name,
       size: buffer.byteLength,
@@ -140,7 +136,7 @@ export async function fetchFilesFromUrl(
     // Treat as raw script
     const text = textContent ?? new TextDecoder("utf-8").decode(buffer);
     const parts = urlPath.split("/");
-    const name = parts[parts.length - 1] || "script.rpy";
+    const name = parts.filter(Boolean).pop() || "script.rpy";
     if (!name.toLowerCase().endsWith(".rpy") && !text.includes("label ")) {
       throw new Error(
         `The fetched URL does not appear to be a .rpy script or a .zip archive. ` +

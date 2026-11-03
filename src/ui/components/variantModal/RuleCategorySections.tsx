@@ -48,7 +48,7 @@ export function BranchRulesSection({
           type="button"
           onClick={onAdd}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer",
             isDark
               ? "border-violet-800 bg-slate-800 text-violet-300 hover:bg-slate-700"
               : "border-violet-300 bg-white text-violet-700 hover:bg-violet-50",
@@ -67,28 +67,28 @@ export function BranchRulesSection({
         <button
           type="button"
           onClick={() => onInsertTemplate("keyword")}
-          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700"
+          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
         >
           + Warp / Goto Keyword
         </button>
         <button
           type="button"
           onClick={() => onInsertTemplate("python_jump")}
-          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700"
+          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
         >
           + renpy.jump()
         </button>
         <button
           type="button"
           onClick={() => onInsertTemplate("python_call")}
-          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700"
+          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
         >
           + Subroutine Call
         </button>
         <button
           type="button"
           onClick={() => onInsertTemplate("dynamic")}
-          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700"
+          className="px-2 py-0.5 rounded text-[10px] font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
         >
           + Dynamic Jump
         </button>
@@ -131,8 +131,9 @@ export function BranchRulesSection({
                     onUpdate(idx, {
                       branchKind: e.target.value as "jump" | "call",
                     })}
+                  style={{ colorScheme: isDark ? "dark" : "light" }}
                   className={cn(
-                    "rounded border px-2 py-1 text-xs",
+                    "rounded border px-2 py-1 text-xs cursor-pointer",
                     isDark
                       ? "bg-slate-900 border-slate-700 text-slate-100"
                       : "bg-white border-gray-300 text-gray-900",
@@ -169,7 +170,7 @@ export function BranchRulesSection({
                   type="button"
                   aria-label={`Remove branch statement ${idx + 1}`}
                   onClick={() => onRemove(idx)}
-                  className="p-1 text-gray-400 hover:text-rose-500"
+                  className="p-1 text-gray-400 hover:text-rose-500 cursor-pointer"
                   title="Remove branch statement"
                 >
                   <Trash2 size={13} />
@@ -227,7 +228,7 @@ export function ChoiceDirectivesSection({
           type="button"
           onClick={onAdd}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer",
             isDark
               ? "border-amber-800 bg-slate-800 text-amber-300 hover:bg-slate-700"
               : "border-amber-300 bg-white text-amber-700 hover:bg-amber-50",
@@ -267,7 +268,7 @@ export function ChoiceDirectivesSection({
               <button
                 type="button"
                 onClick={() => onRemove(idx)}
-                className="p-1 text-gray-400 hover:text-rose-500"
+                className="p-1 text-gray-400 hover:text-rose-500 cursor-pointer"
                 title="Remove directive"
               >
                 <Trash2 size={13} />
@@ -369,7 +370,7 @@ export function VariableMutationsSection({
           type="button"
           onClick={onAdd}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer",
             isDark
               ? "border-cyan-800 bg-slate-800 text-cyan-300 hover:bg-slate-700"
               : "border-cyan-300 bg-white text-cyan-700 hover:bg-cyan-50",
@@ -410,7 +411,7 @@ export function VariableMutationsSection({
               <button
                 type="button"
                 onClick={() => onRemove(idx)}
-                className="p-1 text-gray-400 hover:text-rose-500"
+                className="p-1 text-gray-400 hover:text-rose-500 cursor-pointer"
                 title="Remove mutation"
               >
                 <Trash2 size={13} />
@@ -443,8 +444,9 @@ export function VariableMutationsSection({
                   onUpdate(idx, {
                     operator: e.target.value as MutationOperator,
                   })}
+                style={{ colorScheme: isDark ? "dark" : "light" }}
                 className={cn(
-                  "rounded border px-2 py-0.5 text-xs font-mono",
+                  "rounded border px-2 py-0.5 text-xs font-mono cursor-pointer",
                   isDark
                     ? "bg-slate-900 border-slate-700 text-slate-100"
                     : "bg-white border-gray-300 text-gray-900",
@@ -520,7 +522,7 @@ export function EndingRulesSection({
           type="button"
           onClick={onAdd}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors",
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer",
             isDark
               ? "border-emerald-800 bg-slate-800 text-emerald-300 hover:bg-slate-700"
               : "border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50",
@@ -549,8 +551,9 @@ export function EndingRulesSection({
                 onUpdate(idx, {
                   endingType: e.target.value as EndingType,
                 })}
+              style={{ colorScheme: isDark ? "dark" : "light" }}
               className={cn(
-                "rounded border px-2 py-1 text-xs font-semibold",
+                "rounded border px-2 py-1 text-xs font-semibold cursor-pointer",
                 isDark
                   ? "bg-slate-900 border-slate-700 text-slate-100"
                   : "bg-white border-gray-300 text-gray-900",
@@ -580,7 +583,7 @@ export function EndingRulesSection({
             <button
               type="button"
               onClick={() => onRemove(idx)}
-              className="p-1 text-gray-400 hover:text-rose-500"
+              className="p-1 text-gray-400 hover:text-rose-500 cursor-pointer"
               title="Remove ending rule"
             >
               <Trash2 size={13} />

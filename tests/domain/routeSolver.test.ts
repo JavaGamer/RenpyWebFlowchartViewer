@@ -421,4 +421,37 @@ describe("Automated Route Solver (solveRouteToTarget)", () => {
       "target_goal",
     ]);
   });
+
+  it("resolves call and call_return without explicit callContext metadata using edge.source", () => {
+    const nodes: FlowNode[] = [
+      { id: "start", type: "LABEL", label: "start", dialogueCount: 1 },
+      { id: "callee", type: "LABEL", label: "callee", dialogueCount: 1 },
+      {
+        id: "return_node",
+        type: "LABEL",
+        label: "return_node",
+        dialogueCount: 1,
+      },
+      { id: "goal", type: "LABEL", label: "goal", dialogueCount: 1 },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "e1", source: "start", target: "callee", kind: "call" },
+      {
+        id: "e2",
+        source: "callee",
+        target: "return_node",
+        kind: "call_return",
+      },
+      { id: "e3", source: "return_node", target: "goal", kind: "jump" },
+    ];
+    const solved = solveRouteToTarget(nodes, edges, { targetNodeId: "goal" });
+    expect(solved).not.toBeNull();
+    expect(solved!.isReachable).toBe(true);
+    expect(solved!.nodeIds).toEqual([
+      "start",
+      "callee",
+      "return_node",
+      "goal",
+    ]);
+  });
 });

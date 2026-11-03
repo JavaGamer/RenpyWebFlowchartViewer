@@ -98,7 +98,7 @@ export default function Header() {
             type="button"
             onClick={() => setTelemetryOpen(true)}
             className={cn(
-              "rounded-lg p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
+              "cursor-pointer rounded-lg p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
               isDark
                 ? "text-slate-400 hover:bg-slate-800 hover:text-violet-400"
                 : "text-gray-400 hover:bg-violet-50 hover:text-violet-600",

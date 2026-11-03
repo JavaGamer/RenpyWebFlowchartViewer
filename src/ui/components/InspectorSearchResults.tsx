@@ -114,7 +114,7 @@ export function InspectorSearchResults({
                           onSelectDialogueSearchResult(result);
                         }}
                         className={cn(
-                          "w-full text-left border rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors",
+                          "w-full text-left border rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors cursor-pointer",
                           isDark
                             ? virtualItem.index ===
                                 resolvedActiveDialogueResultIndex
@@ -165,7 +165,7 @@ export function InspectorSearchResults({
                       onSelectDialogueSearchResult(result);
                     }}
                     className={cn(
-                      "w-full text-left border rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors",
+                      "w-full text-left border rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors cursor-pointer",
                       isDark
                         ? resultIndex === resolvedActiveDialogueResultIndex
                           ? "border-violet-500 bg-violet-950/50 text-violet-200"
@@ -196,7 +196,7 @@ export function InspectorSearchResults({
         <div
           className={cn(
             "mt-1 text-[11px]",
-            isDark ? "text-slate-500" : "text-gray-500",
+            isDark ? "text-slate-400" : "text-gray-500",
           )}
           role="status"
           aria-live="polite"

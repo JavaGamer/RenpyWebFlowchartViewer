@@ -185,7 +185,7 @@ export const LabelNodeComponent = memo(
             </div>
             {routeStepIndex !== undefined && (
               <span
-                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shrink-0 shadow-xs"
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-600 text-white shrink-0 shadow-xs"
                 title={`Step ${routeStepIndex}`}
               >
                 #{routeStepIndex}
@@ -296,7 +296,7 @@ export const LabelNodeComponent = memo(
             </div>
             {routeStepIndex !== undefined && (
               <span
-                className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-violet-600 text-white shadow-xs"
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-600 text-white shadow-xs"
                 title={`Step ${routeStepIndex} in highlighted route`}
               >
                 #{routeStepIndex}

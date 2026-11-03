@@ -373,7 +373,12 @@ export function LiveRuleSandbox({
                   )}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 dark:text-slate-500 shrink-0 select-none w-5 text-right font-mono text-[10px]">
+                    <span
+                      className={cn(
+                        "shrink-0 select-none w-5 text-right font-mono text-[10px]",
+                        isDark ? "text-slate-500" : "text-gray-400",
+                      )}
+                    >
                       {res.lineNum}
                     </span>
                     <span className="flex-1 font-mono truncate">

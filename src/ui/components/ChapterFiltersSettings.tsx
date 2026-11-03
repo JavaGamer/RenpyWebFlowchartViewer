@@ -89,7 +89,7 @@ export function ChapterFiltersSettings({
       <h3
         className={cn(
           "text-[11px] font-bold uppercase tracking-wider",
-          isDark ? "text-slate-500" : "text-gray-400",
+          isDark ? "text-slate-400" : "text-gray-500",
         )}
       >
         Subgraphs & Containers
@@ -135,7 +135,10 @@ export function ChapterFiltersSettings({
                 type="checkbox"
                 checked={enableCompoundContainers}
                 onChange={(e) => setEnableCompoundContainers(e.target.checked)}
-                className="rounded border-gray-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                className={cn(
+                  "rounded text-violet-600 focus:ring-violet-500 cursor-pointer",
+                  isDark ? "border-slate-700 bg-slate-800" : "border-gray-300",
+                )}
               />
               <span className={isDark ? "text-slate-300" : "text-gray-700"}>
                 Group nodes into visually bounded chapter containers

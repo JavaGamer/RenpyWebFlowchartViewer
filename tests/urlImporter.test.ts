@@ -46,6 +46,14 @@ describe("resolveGithubUrl", () => {
     const zipUrl = "https://example.com/project.zip";
     expect(resolveGithubUrl(zipUrl)).toBe(zipUrl);
   });
+
+  it("handles GitHub URL with trailing slash properly", () => {
+    expect(
+      resolveGithubUrl("https://github.com/JavaGamer/RenpyWebFlowchartViewer/"),
+    ).toBe(
+      "https://github.com/JavaGamer/RenpyWebFlowchartViewer/archive/refs/heads/main.zip",
+    );
+  });
 });
 
 describe("fetchFilesFromUrl", () => {

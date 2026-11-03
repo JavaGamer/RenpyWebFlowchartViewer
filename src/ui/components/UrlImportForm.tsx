@@ -66,7 +66,10 @@ export function UrlImportForm({
       </form>
       {urlError && (
         <p
-          className="mt-2 text-[11px] text-red-600 font-semibold"
+          className={cn(
+            "mt-2 text-[11px] font-semibold",
+            isDark ? "text-red-400" : "text-red-600",
+          )}
           role="alert"
         >
           {urlError}
